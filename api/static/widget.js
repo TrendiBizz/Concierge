@@ -277,7 +277,8 @@
         } else {
           var data = await res.json();
           addMsg("assistant", data.reply);
-          if (data.lead_captured) addMsg("note", "✓ Your details were sent to the team.");
+          if (data.appointment) addMsg("note", "✓ " + data.appointment);
+          else if (data.lead_captured) addMsg("note", "✓ Your details were sent to the team.");
         }
       } catch (e) {
         typing.remove();
@@ -439,6 +440,7 @@
         result = { ok: false, error: "Network error" };
       }
       if (ev.name === "capture_lead" && result.ok) addMsg("note", "✓ Your details were sent to the team.");
+      if (ev.name === "book_appointment" && result.ok && result.confirmation) addMsg("note", "✓ " + result.confirmation);
       if (ev.name === "get_booking_link" && result.ok && result.booking_url) addMsg("assistant", "Book here: " + result.booking_url);
       return { call_id: ev.call_id, output: JSON.stringify(result) };
     }

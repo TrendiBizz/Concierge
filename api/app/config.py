@@ -31,6 +31,27 @@ class Settings(BaseSettings):
     chat_rate_per_minute_ip: int = 20
     chat_rate_per_day_session: int = 200
 
+    # SMS (Twilio). Optional: without these, SMS messages are skipped, not failed.
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+    twilio_api_base: str = "https://api.twilio.com"
+    default_country_code: str = "1"  # used to turn 10-digit numbers into E.164
+
+    # Email (any SMTP server). Optional.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_security: str = "starttls"  # starttls | ssl | none
+
+    # Follow-up engine
+    outbox_enabled: bool = True
+    outbox_poll_seconds: int = 20
+    sms_quiet_start_hour: int = 8   # no texts before 08:00 local
+    sms_quiet_end_hour: int = 21    # ...or from 21:00 local
+
     @property
     def effective_llm_key(self) -> str:
         return self.llm_api_key or self.xai_api_key
@@ -41,6 +62,14 @@ class Settings(BaseSettings):
             sep = "&" if "?" in self.xai_realtime_url else "?"
             return f"{self.xai_realtime_url}{sep}model={self.voice_model}"
         return self.xai_realtime_url
+
+    @property
+    def sms_configured(self) -> bool:
+        return bool(self.twilio_account_sid and self.twilio_auth_token and self.twilio_from_number)
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_from)
 
 
 @lru_cache

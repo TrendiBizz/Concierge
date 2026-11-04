@@ -1,0 +1,182 @@
+"""Native appointment booking: business hours, availability, and confirmed, race-safe booking.
+
+The assistant never invents times. It calls check_availability, offers what the server says is
+free, and book_appointment enforces a read-back: the first call only returns a sentence to read
+to the visitor; the booking is created only when a second call with confirmed=true arrives for
+the same time and name in the same conversation.
+"""
+
+import json
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from . import automation, convo, db
+from .config import get_settings
+from .contact import is_email, normalize_phone
+
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _hm(value: str) -> time:
+    hour, minute = value.split(":")
+    return time(int(hour), int(minute))
+
+
+def day_slots(tenant: dict, day: date, now_utc: datetime, booked: list[tuple[datetime, datetime]]) -> list[datetime]:
+    """Free slot start times (UTC) for one local calendar day."""
+    tz = ZoneInfo(tenant["timezone"])
+    step = timedelta(minutes=tenant["slot_minutes"])
+    earliest = now_utc + timedelta(hours=tenant["min_notice_hours"])
+    slots: list[datetime] = []
+    for opens, closes in tenant["business_hours"].get(DAYS[day.weekday()], []):
+        cursor = datetime.combine(day, _hm(opens))
+        end = datetime.combine(day, _hm(closes))
+        while cursor + step <= end:
+            start_utc = cursor.replace(tzinfo=tz).astimezone(timezone.utc)
+            end_utc = start_utc + step
+            clash = any(b_start < end_utc and b_end > start_utc for b_start, b_end in booked)
+            if start_utc >= earliest and not clash:
+                slots.append(start_utc)
+            cursor += step
+    return slots
+
+
+async def _booked(tenant_id, day: date, tz: ZoneInfo, conn=None) -> list[tuple[datetime, datetime]]:
+    start = datetime.combine(day, time(0, 0), tzinfo=tz).astimezone(timezone.utc)
+    end = start + timedelta(days=1)
+    runner = conn or db.pool()
+    rows = await runner.fetch(
+        "SELECT starts_at, ends_at FROM appointments WHERE tenant_id = $1 AND status = 'booked' "
+        "AND starts_at < $3 AND ends_at > $2",
+        tenant_id, start, end,
+    )
+    return [(r["starts_at"], r["ends_at"]) for r in rows]
+
+
+async def _slots_on(tenant: dict, day: date, conn=None) -> list[datetime]:
+    tz = ZoneInfo(tenant["timezone"])
+    booked = await _booked(tenant["id"], day, tz, conn)
+    return day_slots(tenant, day, datetime.now(timezone.utc), booked)
+
+
+def _parse_local(value: str) -> datetime:
+    return datetime.fromisoformat(value.strip().replace(" ", "T"))
+
+
+async def availability(tenant: dict, date_str: str) -> dict:
+    tz = ZoneInfo(tenant["timezone"])
+    try:
+        day = date.fromisoformat((date_str or "").strip())
+    except ValueError:
+        return {"ok": False, "error": "date must be YYYY-MM-DD"}
+    today = datetime.now(tz).date()
+    last = today + timedelta(days=tenant["max_days_ahead"])
+    if day < today or day > last:
+        return {"ok": False, "error": f"Bookings are open from {today} to {last}."}
+
+    slots = await _slots_on(tenant, day)
+    if slots:
+        return {
+            "ok": True,
+            "date": day.isoformat(),
+            "weekday": day.strftime("%A"),
+            "timezone": tenant["timezone"],
+            "slots": [s.astimezone(tz).strftime("%H:%M") for s in slots][:12],
+            "slot_minutes": tenant["slot_minutes"],
+        }
+
+    upcoming = []
+    probe = day + timedelta(days=1)
+    while probe <= last and len(upcoming) < 3 and (probe - day).days <= 14:
+        found = await _slots_on(tenant, probe)
+        if found:
+            upcoming.append({"date": probe.isoformat(), "weekday": probe.strftime("%A"),
+                             "first_slot": found[0].astimezone(tz).strftime("%H:%M")})
+        probe += timedelta(days=1)
+    return {"ok": True, "date": day.isoformat(), "weekday": day.strftime("%A"), "slots": [],
+            "message": "No free times that day.", "next_available_dates": upcoming}
+
+
+async def book(tenant: dict, args: dict, ctx: dict) -> dict:
+    tz = ZoneInfo(tenant["timezone"])
+    settings = get_settings()
+
+    try:
+        start_local = _parse_local(str(args.get("start") or ""))
+    except ValueError:
+        return {"ok": False, "error": "start must look like 2026-11-05 14:30 (business local time)"}
+    name = str(args.get("name") or "").strip()[:120]
+    phone_raw = str(args.get("phone") or ctx.get("sender_phone") or "").strip()[:40]
+    email = str(args.get("email") or "").strip()[:200]
+    notes = str(args.get("notes") or "").strip()[:500]
+    consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
+
+    phone = normalize_phone(phone_raw, settings.default_country_code) or ""
+    if not name:
+        return {"ok": False, "error": "Need the visitor's name."}
+    if not (phone or is_email(email)):
+        return {"ok": False, "error": "Need a valid phone number or email so we can confirm."}
+
+    start_utc = start_local.replace(tzinfo=tz).astimezone(timezone.utc)
+    free = await _slots_on(tenant, start_local.date())
+    if start_utc not in free:
+        return {"ok": False, "error": "That time is not available. Call check_availability and offer a listed slot."}
+
+    # --- Enforced read-back -------------------------------------------------
+    conversation_id = ctx.get("conversation_id")
+    key = {"start": start_utc.isoformat(), "name": name.lower()}
+    pending = await convo.get_pending_booking(conversation_id) if conversation_id else None
+    if not (args.get("confirmed") is True and pending == key):
+        if conversation_id:
+            await convo.set_pending_booking(conversation_id, key)
+        where = phone or email
+        return {
+            "ok": False,
+            "needs_confirmation": True,
+            "read_back": f"{name}, {automation.fmt_local(tenant, start_utc)}. We'll confirm with you at {where}.",
+            "instruction": (
+                "Read this back to the visitor and ask them to confirm. Only after they clearly say "
+                "yes, call book_appointment again with exactly the same start and name and confirmed=true."
+            ),
+        }
+
+    if ctx.get("dry_run"):
+        return {"ok": True, "confirmation": "(dry run) booking would be created"}
+
+    end_utc = start_utc + timedelta(minutes=tenant["slot_minutes"])
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            # Serialise bookings per client so two visitors cannot take the same slot.
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", str(tenant["id"]))
+            if start_utc not in await _slots_on(tenant, start_local.date(), conn):
+                return {"ok": False, "error": "Sorry, that time was just taken. Call check_availability for other times."}
+            lead = await conn.fetchrow(
+                """
+                INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
+                                   page_url, utm, webhook_status, status, consent_contact)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, 'booked', $11)
+                RETURNING *
+                """,
+                tenant["id"], conversation_id, name, email if is_email(email) else "", phone,
+                f"Booked appointment for {automation.fmt_local(tenant, start_utc)}. {notes}".strip(),
+                ctx.get("channel", "chat"), ctx.get("page_url"), json.dumps(ctx.get("utm") or {}),
+                "pending" if tenant.get("lead_webhook_url") else "none", consent,
+            )
+            appt = await conn.fetchrow(
+                """
+                INSERT INTO appointments (tenant_id, lead_id, conversation_id, starts_at, ends_at, name,
+                                          phone, email, notes, consent_contact)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+                """,
+                tenant["id"], lead["id"], conversation_id, start_utc, end_utc, name, phone,
+                email if is_email(email) else "", notes, consent,
+            )
+    if conversation_id:
+        await convo.set_pending_booking(conversation_id, None)
+
+    await automation.on_appointment_booked(tenant, dict(appt), dict(lead))
+    text = f"Booked for {automation.fmt_local(tenant, start_utc)}"
+    ctx["appointment_text"] = text
+    ctx["lead_captured"] = True
+    return {"ok": True, "confirmation": text, "appointment_id": str(appt["id"])}

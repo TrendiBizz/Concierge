@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Concierge admin</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e5e8;--ink:#111;--mute:#666;--acc:#2563eb}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  header{background:#111827;color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0 12px 0 0}
+  select,input,button,textarea{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+  button{background:var(--acc);color:#fff;border:0;cursor:pointer}
+  button.sec{background:#e5e7eb;color:#111}
+  main{max-width:1100px;margin:16px auto;padding:0 16px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tabs button{background:#e5e7eb;color:#111}.tabs button.on{background:var(--acc);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;overflow-x:auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .stat b{display:block;font-size:24px}.stat span{color:var(--mute);font-size:12px}
+  table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
+  code,pre{background:#f1f5f9;border-radius:6px;padding:2px 6px;font-size:12px;word-break:break-all}
+  pre{padding:8px;white-space:pre-wrap}
+  .mut{color:var(--mute)} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .bubble{padding:6px 10px;border-radius:10px;margin:3px 0;max-width:80%}
+  .user{background:#dbeafe;margin-left:auto}.assistant{background:#f1f5f9}.flag{outline:2px solid #f59e0b}
+  #login{max-width:360px;margin:80px auto}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <h2 style="margin-top:0">Concierge admin</h2>
+  <p class="mut">Enter your ADMIN_TOKEN. It is kept only in this tab's session storage.</p>
+  <div class="row"><input id="token" type="password" placeholder="Admin token" style="flex:1"><button id="go">Sign in</button></div>
+  <p id="loginErr" class="mut"></p>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>Concierge</h1>
+    <select id="tenant"></select>
+    <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
+    <button class="sec" id="refresh">Refresh</button>
+    <button class="sec" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var token = "", tenants = [], current = null, tab = "overview";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function el(tag, props, kids) {
+    var n = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === "text") n.textContent = props[k];
+      else if (k === "class") n.className = props[k];
+      else n.setAttribute(k, props[k]);
+    });
+    (kids || []).forEach(function (c) { n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return n;
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    var res = await fetch(path, {
+      method: opts.method || "GET",
+      headers: { "X-Admin-Token": token, "Content-Type": "application/json" },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (res.status === 401) throw new Error("auth");
+    if (!res.ok) throw new Error((await res.text()).slice(0, 200));
+    return res.json();
+  }
+
+  function money(c) { return c ? "$" + (c / 100).toLocaleString() : "-"; }
+  function when(s) { return s ? new Date(s).toLocaleString() : ""; }
+  function table(head, rows) {
+    var t = el("table");
+    t.appendChild(el("tr", {}, head.map(function (h) { return el("th", { text: h }); })));
+    rows.forEach(function (r) { t.appendChild(el("tr", {}, r.map(function (c) { return el("td", {}, [c instanceof Node ? c : String(c == null ? "" : c)]); }))); });
+    return t;
+  }
+  function select(options, value, onChange) {
+    var s = el("select");
+    options.forEach(function (o) { var op = el("option", { value: o, text: o }); if (o === value) op.selected = true; s.appendChild(op); });
+    s.addEventListener("change", function () { onChange(s.value); });
+    return s;
+  }
+  function card(title, child) { return el("div", { class: "card" }, [title ? el("b", { text: title }) : "", child]); }
+
+  var TABS = ["overview", "leads", "appointments", "conversations", "outbox", "setup"];
+
+  function renderTabs() {
+    var box = $("tabs"); box.textContent = "";
+    TABS.forEach(function (t) {
+      var b = el("button", { text: t, class: t === tab ? "on" : "" });
+      b.addEventListener("click", function () { tab = t; renderTabs(); render(); });
+      box.appendChild(b);
+    });
+  }
+
+  async function render() {
+    var v = $("view"); v.textContent = "";
+    if (!current) { v.appendChild(card("", el("p", { text: "No clients yet. Create one with POST /admin/tenants or the CLI demo command." }))); return; }
+    var slug = current.slug, days = $("days").value;
+    try {
+      if (tab === "overview") {
+        var s = await api("/admin/tenants/" + slug + "/stats?days=" + days);
+        var stat = function (l, val) { return el("div", { class: "card stat" }, [el("b", { text: String(val) }), el("span", { text: l })]); };
+        v.appendChild(el("div", { class: "grid" }, [
+          stat("Conversations", s.conversations), stat("Leads", s.leads), stat("Appointments", s.appointments),
+          stat("Lead rate", (s.lead_rate * 100).toFixed(1) + "%"), stat("Est. pipeline", money(s.estimated_pipeline_cents)),
+          stat("Won value", money(s.won_value_cents)), stat("Quote-guard saves", s.quote_guard_interventions)
+        ]));
+        v.appendChild(card("By channel", el("pre", { text: JSON.stringify(s.by_channel) + "   messages sent: " + JSON.stringify(s.messages_sent) })));
+        v.appendChild(card("Leads by status", el("pre", { text: JSON.stringify(s.leads_by_status) })));
+      } else if (tab === "leads") {
+        var leads = await api("/admin/tenants/" + slug + "/leads");
+        v.appendChild(card("Leads", table(["When", "Name", "Phone", "Email", "Message", "Via", "Status", "Value $"], leads.map(function (l) {
+          var st = select(["new", "contacted", "booked", "won", "lost"], l.status, function (val) {
+            api("/admin/leads/" + l.id, { method: "PATCH", body: { status: val } }).catch(function (e) { alert(e.message); });
+          });
+          var val = el("input", { type: "number", min: "0", value: String(l.value_cents / 100), style: "width:90px" });
+          val.addEventListener("change", function () {
+            api("/admin/leads/" + l.id, { method: "PATCH", body: { value_cents: Math.round(Number(val.value) * 100) } }).catch(function (e) { alert(e.message); });
+          });
+          return [when(l.created_at), l.name, l.phone, l.email, l.message, l.channel, st, val];
+        }))));
+      } else if (tab === "appointments") {
+        var ap = await api("/admin/tenants/" + slug + "/appointments");
+        v.appendChild(card("Appointments", table(["Starts", "Name", "Phone", "Email", "Notes", "Status"], ap.map(function (a) {
+          var st = select(["booked", "completed", "cancelled", "no_show"], a.status, function (val) {
+            api("/admin/appointments/" + a.id, { method: "PATCH", body: { status: val } }).catch(function (e) { alert(e.message); });
+          });
+          return [when(a.starts_at), a.name, a.phone, a.email, a.notes, st];
+        }))));
+      } else if (tab === "conversations") {
+        var convs = await api("/admin/tenants/" + slug + "/conversations");
+        convs.forEach(function (c) {
+          var box = el("div", {}, c.messages.map(function (m) {
+            return el("div", { class: "bubble " + m.role + (m.flag ? " flag" : ""), text: m.content + (m.flag ? "   [" + m.flag + "]" : "") });
+          }));
+          v.appendChild(card(c.channel + " - " + when(c.started_at) + (c.page_url ? " - " + c.page_url : ""), box));
+        });
+        if (!convs.length) v.appendChild(card("", el("p", { text: "No conversations yet." })));
+      } else if (tab === "outbox") {
+        var ob = await api("/admin/tenants/" + slug + "/outbox");
+        v.appendChild(card("Follow-up messages", table(["#", "Kind", "Channel", "To", "Status", "Tries", "Error", "Send at"], ob.map(function (o) {
+          return [o.id, o.kind, o.channel, o.to_addr, o.status, o.attempts, o.last_error, when(o.send_at)];
+        }))));
+      } else if (tab === "setup") {
+        var t = await api("/admin/tenants/" + slug);
+        v.appendChild(card("Embed snippet", el("pre", { text: t.embed_snippet })));
+        v.appendChild(card("Links", table(["What", "URL"], [
+          ["Demo (presenter)", t.demo_url], ["Client report (share with the client)", t.report_url],
+          ["Twilio inbound-SMS webhook", t.sms_webhook_url], ["Knowledge chunks", t.chunk_count]
+        ])));
+        var keys = ["name", "persona", "greeting", "incentive", "booking_url", "lead_webhook_url", "notify_email", "review_url", "timezone", "sms_from", "lead_sms_template"];
+        var form = el("div");
+        keys.forEach(function (k) {
+          form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: k, style: "width:150px" }), el("input", { id: "f_" + k, value: t[k] || "", style: "flex:1;min-width:240px" })]));
+        });
+        var flags = ["native_booking", "sms_enabled", "voice_enabled"];
+        flags.forEach(function (k) {
+          var cb = el("input", { type: "checkbox", id: "f_" + k }); cb.checked = !!t[k];
+          form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: k, style: "width:150px" }), cb]));
+        });
+        form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: "lead_value ($)", style: "width:150px" }), el("input", { id: "f_lead_value", type: "number", value: String((t.lead_value_cents || 0) / 100) })]));
+        form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: "business_hours", style: "width:150px" }), el("textarea", { id: "f_business_hours", rows: "6", style: "flex:1;min-width:240px;font-family:monospace" , text: JSON.stringify(t.business_hours, null, 1) })]));
+        var save = el("button", { text: "Save settings" });
+        var msg = el("span", { class: "mut" });
+        save.addEventListener("click", async function () {
+          var body = {};
+          keys.forEach(function (k) { var val = $("f_" + k).value; if (val !== (t[k] || "")) body[k] = val; });
+          flags.forEach(function (k) { body[k] = $("f_" + k).checked; });
+          body.lead_value_cents = Math.round(Number($("f_lead_value").value || 0) * 100);
+          try { body.business_hours = JSON.parse($("f_business_hours").value); } catch (e) { msg.textContent = "business_hours is not valid JSON"; return; }
+          try { await api("/admin/tenants/" + slug, { method: "PATCH", body: body }); msg.textContent = "Saved."; await loadTenants(slug); }
+          catch (e) { msg.textContent = "Error: " + e.message; }
+        });
+        form.appendChild(el("div", { class: "row" }, [save, msg]));
+        v.appendChild(card("Settings", form));
+      }
+    } catch (e) {
+      if (e.message === "auth") return logout();
+      v.appendChild(card("Error", el("pre", { text: e.message })));
+    }
+  }
+
+  async function loadTenants(keep) {
+    tenants = await api("/admin/tenants");
+    var sel = $("tenant"); sel.textContent = "";
+    tenants.forEach(function (t) { sel.appendChild(el("option", { value: t.slug, text: t.name })); });
+    current = tenants.find(function (t) { return t.slug === keep; }) || tenants[0] || null;
+    if (current) sel.value = current.slug;
+    renderTabs(); render();
+  }
+
+  function logout() { try { sessionStorage.removeItem("cc_admin"); } catch (e) {} token = ""; $("app").hidden = true; $("login").hidden = false; }
+
+  async function start() {
+    try { await loadTenants(); $("login").hidden = true; $("app").hidden = false; try { sessionStorage.setItem("cc_admin", token); } catch (e) {} }
+    catch (e) { $("loginErr").textContent = e.message === "auth" ? "Wrong token." : e.message; }
+  }
+
+  $("go").addEventListener("click", function () { token = $("token").value.trim(); start(); });
+  $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") $("go").click(); });
+  $("refresh").addEventListener("click", render);
+  $("days").addEventListener("change", render);
+  $("logout").addEventListener("click", logout);
+  $("tenant").addEventListener("change", function () { current = tenants.find(function (t) { return t.slug === $("tenant").value; }); render(); });
+  try { var saved = sessionStorage.getItem("cc_admin"); if (saved) { token = saved; start(); } } catch (e) {}
+})();
+</script>
+</body>
+</html>

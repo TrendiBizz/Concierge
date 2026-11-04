@@ -1,22 +1,19 @@
-"""Tools the AI can call. Shared by the text chat (OpenAI format) and Grok Voice (flat format).
+"""Tools the AI can call. Shared by text chat / SMS (OpenAI format) and Grok Voice (flat format).
 
 Every tool executes server-side and is scoped to the tenant that owns the public key, so the
-browser can never read another client's data.
+browser can never read another client's data. Which tools exist depends on the tenant: native
+booking tools only appear when the client has turned native booking on.
 """
 
-import asyncio
 import json
 import logging
-import re
 
-import httpx
-
-from . import db
+from . import automation, booking, db
+from .config import get_settings
+from .contact import is_email, normalize_phone
 from .rag import retrieve, tag_url
 
 log = logging.getLogger("concierge.tools")
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 TOOL_SPECS: list[dict] = [
     {
@@ -35,11 +32,16 @@ TOOL_SPECS: list[dict] = [
                     "type": "string",
                     "description": "What they want: product, quantity, question, or follow-up action",
                 },
+                "consent_to_contact": {
+                    "type": "boolean",
+                    "description": "True only if the visitor agreed to be texted or emailed by the business",
+                },
             },
             "required": ["message"],
         },
         "voice": True,
         "chat": True,
+        "available": lambda t: True,
     },
     {
         "name": "get_booking_link",
@@ -47,6 +49,49 @@ TOOL_SPECS: list[dict] = [
         "parameters": {"type": "object", "properties": {}},
         "voice": True,
         "chat": True,
+        "available": lambda t: bool(t.get("booking_url")) and not t.get("native_booking"),
+    },
+    {
+        "name": "check_availability",
+        "description": (
+            "List free appointment times for one date (business local time). Never offer a time "
+            "that this tool did not return."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"date": {"type": "string", "description": "YYYY-MM-DD"}},
+            "required": ["date"],
+        },
+        "voice": True,
+        "chat": True,
+        "available": lambda t: bool(t.get("native_booking")),
+    },
+    {
+        "name": "book_appointment",
+        "description": (
+            "Book an appointment. The first call returns a read-back sentence: read it to the "
+            "visitor and wait for a clear yes, then call again with the same start and name and "
+            "confirmed=true."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start": {"type": "string", "description": "Local start time, e.g. 2026-11-05 14:30"},
+                "name": {"type": "string"},
+                "phone": {"type": "string"},
+                "email": {"type": "string"},
+                "notes": {"type": "string", "description": "What the visit is for"},
+                "consent_to_contact": {
+                    "type": "boolean",
+                    "description": "True only if the visitor agreed to reminders by text or email",
+                },
+                "confirmed": {"type": "boolean", "description": "True only after the visitor said yes to the read-back"},
+            },
+            "required": ["start", "name"],
+        },
+        "voice": True,
+        "chat": True,
+        "available": lambda t: bool(t.get("native_booking")),
     },
     {
         "name": "search_knowledge",
@@ -61,100 +106,62 @@ TOOL_SPECS: list[dict] = [
         },
         "voice": True,
         "chat": False,
+        "available": lambda t: True,
     },
 ]
 
 
-def chat_tools() -> list[dict]:
+def chat_tools(tenant: dict) -> list[dict]:
     return [
-        {
-            "type": "function",
-            "function": {k: s[k] for k in ("name", "description", "parameters")},
-        }
+        {"type": "function", "function": {k: s[k] for k in ("name", "description", "parameters")}}
         for s in TOOL_SPECS
-        if s["chat"]
+        if s["chat"] and s["available"](tenant)
     ]
 
 
-def voice_tools() -> list[dict]:
+def voice_tools(tenant: dict) -> list[dict]:
     return [
         {"type": "function", **{k: s[k] for k in ("name", "description", "parameters")}}
         for s in TOOL_SPECS
-        if s["voice"]
+        if s["voice"] and s["available"](tenant)
     ]
 
 
-_background: set[asyncio.Task] = set()
-
-
-def _spawn(coro) -> None:
-    task = asyncio.create_task(coro)
-    _background.add(task)
-    task.add_done_callback(_background.discard)
-
-
-async def _send_webhook(tenant: dict, lead: dict) -> None:
-    url = tenant.get("lead_webhook_url")
-    if not url:
-        return
-    payload = {
-        "event": "lead.created",
-        "tenant": {"slug": tenant["slug"], "name": tenant["name"]},
-        "lead": {
-            "id": str(lead["id"]),
-            "name": lead["name"],
-            "email": lead["email"],
-            "phone": lead["phone"],
-            "message": lead["message"],
-            "channel": lead["channel"],
-            "page_url": lead["page_url"],
-            "utm": json.loads(lead["utm"]) if isinstance(lead["utm"], str) else lead["utm"],
-            "created_at": lead["created_at"].isoformat(),
-        },
-    }
-    status = "failed"
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(url, json=payload)
-            status = f"ok:{resp.status_code}" if resp.is_success else f"http:{resp.status_code}"
-    except httpx.HTTPError as exc:
-        log.warning("lead webhook failed for %s: %s", tenant["slug"], exc)
-        status = "error"
-    await db.pool().execute("UPDATE leads SET webhook_status = $2 WHERE id = $1", lead["id"], status)
-
-
 async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
+    settings = get_settings()
     name = str(args.get("name") or "").strip()[:120]
     email = str(args.get("email") or "").strip()[:200]
-    phone = str(args.get("phone") or "").strip()[:40]
+    phone_raw = str(args.get("phone") or ctx.get("sender_phone") or "").strip()[:40]
     message = str(args.get("message") or "").strip()[:1000]
+    consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
 
-    digits = re.sub(r"\D", "", phone)
-    email_ok = bool(email and EMAIL_RE.match(email))
-    phone_ok = len(digits) >= 7
-    if not (email_ok or phone_ok):
+    phone = normalize_phone(phone_raw, settings.default_country_code) or ""
+    email_ok = is_email(email)
+    if not (email_ok or phone):
         return {"ok": False, "error": "Need a valid phone number or email address. Ask the visitor for one."}
+    if ctx.get("dry_run"):
+        return {"ok": True, "note": "(dry run) lead would be saved"}
 
     row = await db.pool().fetchrow(
         """
         INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
-                           page_url, utm, webhook_status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+                           page_url, utm, webhook_status, consent_contact)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
         RETURNING *
         """,
         tenant["id"],
         ctx.get("conversation_id"),
         name,
         email if email_ok else "",
-        phone if phone_ok else "",
+        phone,
         message,
         ctx.get("channel", "chat"),
         ctx.get("page_url"),
         json.dumps(ctx.get("utm") or {}),
         "pending" if tenant.get("lead_webhook_url") else "none",
+        consent,
     )
-    lead = dict(row)
-    _spawn(_send_webhook(tenant, lead))
+    await automation.on_lead_created(tenant, dict(row))
     ctx["lead_captured"] = True
     return {"ok": True, "note": "Lead saved. Tell the visitor the team will be in touch."}
 
@@ -167,6 +174,14 @@ async def _get_booking_link(tenant: dict, args: dict, ctx: dict) -> dict:
         }
     ctx["booking_url"] = tenant["booking_url"]
     return {"ok": True, "booking_url": tag_url(tenant["booking_url"], ctx.get("channel", "chat"))}
+
+
+async def _check_availability(tenant: dict, args: dict, ctx: dict) -> dict:
+    return await booking.availability(tenant, str(args.get("date") or ""))
+
+
+async def _book_appointment(tenant: dict, args: dict, ctx: dict) -> dict:
+    return await booking.book(tenant, args, ctx)
 
 
 async def _search_knowledge(tenant: dict, args: dict, ctx: dict) -> dict:
@@ -185,16 +200,24 @@ async def _search_knowledge(tenant: dict, args: dict, ctx: dict) -> dict:
 _HANDLERS = {
     "capture_lead": _capture_lead,
     "get_booking_link": _get_booking_link,
+    "check_availability": _check_availability,
+    "book_appointment": _book_appointment,
     "search_knowledge": _search_knowledge,
 }
 
 
 async def run_tool(tenant: dict, name: str, args: dict, ctx: dict) -> dict:
     handler = _HANDLERS.get(name)
-    if handler is None:
+    spec = next((s for s in TOOL_SPECS if s["name"] == name), None)
+    if handler is None or spec is None or not spec["available"](tenant):
         return {"ok": False, "error": f"Unknown tool: {name}"}
+    args = args if isinstance(args, dict) else {}
     try:
-        return await handler(tenant, args if isinstance(args, dict) else {}, ctx)
+        result = await handler(tenant, args, ctx)
     except Exception:  # a tool failure must not break the conversation
         log.exception("tool %s failed", name)
-        return {"ok": False, "error": "Tool failed. Apologise briefly and offer to take contact details."}
+        result = {"ok": False, "error": "Tool failed. Apologise briefly and offer to take contact details."}
+    # Trace for evals and for the quote-guard's evidence.
+    ctx.setdefault("tool_calls", []).append({"name": name, "args": args, "ok": bool(result.get("ok"))})
+    ctx.setdefault("tool_results", []).append(json.dumps(result, default=str))
+    return result

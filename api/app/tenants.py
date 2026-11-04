@@ -1,3 +1,4 @@
+import json
 import re
 import secrets
 
@@ -17,7 +18,36 @@ UPDATABLE_FIELDS = {
     "booking_url": str,
     "lead_webhook_url": str,
     "incentive": str,
+    "timezone": str,
+    "business_hours": dict,
+    "slot_minutes": int,
+    "min_notice_hours": int,
+    "max_days_ahead": int,
+    "native_booking": bool,
+    "notify_email": str,
+    "sms_enabled": bool,
+    "sms_from": str,
+    "lead_sms_template": str,
+    "review_url": str,
+    "lead_value_cents": int,
 }
+JSONB_FIELDS = {"business_hours"}
+
+# Copied by "clone" (a snapshot of settings, never knowledge, contacts or keys).
+CLONE_FIELDS = [
+    "persona", "greeting", "cta_text", "accent_color", "voice", "voice_enabled",
+    "voice_daily_limit", "incentive", "timezone", "business_hours", "slot_minutes",
+    "min_notice_hours", "max_days_ahead", "native_booking", "sms_enabled",
+    "lead_sms_template", "lead_value_cents",
+]
+
+
+def _load(row) -> dict:
+    data = dict(row)
+    for key in ("business_hours", "demo_questions"):
+        if isinstance(data.get(key), str):
+            data[key] = json.loads(data[key])
+    return data
 
 
 def slugify(name: str) -> str:
@@ -29,19 +59,42 @@ def new_public_key() -> str:
     return "pk_" + secrets.token_urlsafe(18)
 
 
+def new_report_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
 async def get_by_key(public_key: str) -> dict | None:
     row = await db.pool().fetchrow("SELECT * FROM tenants WHERE public_key = $1", public_key)
-    return dict(row) if row else None
+    return _load(row) if row else None
 
 
 async def get_by_slug(slug: str) -> dict | None:
     row = await db.pool().fetchrow("SELECT * FROM tenants WHERE slug = $1", slug)
-    return dict(row) if row else None
+    return _load(row) if row else None
+
+
+async def get_by_id(tenant_id) -> dict | None:
+    row = await db.pool().fetchrow("SELECT * FROM tenants WHERE id = $1", tenant_id)
+    return _load(row) if row else None
+
+
+async def get_by_report_token(token: str) -> dict | None:
+    row = await db.pool().fetchrow("SELECT * FROM tenants WHERE report_token = $1", token)
+    return _load(row) if row else None
 
 
 async def list_all() -> list[dict]:
     rows = await db.pool().fetch("SELECT * FROM tenants ORDER BY created_at DESC")
-    return [dict(r) for r in rows]
+    return [_load(r) for r in rows]
+
+
+async def ensure_report_tokens() -> None:
+    """Backfill report tokens for tenants created before the column existed."""
+    rows = await db.pool().fetch("SELECT id FROM tenants WHERE report_token IS NULL")
+    for row in rows:
+        await db.pool().execute(
+            "UPDATE tenants SET report_token = $2 WHERE id = $1", row["id"], new_report_token()
+        )
 
 
 async def create(name: str, site_url: str | None, slug: str | None = None, **fields) -> dict:
@@ -54,14 +107,15 @@ async def create(name: str, site_url: str | None, slug: str | None = None, **fie
 
     row = await db.pool().fetchrow(
         """
-        INSERT INTO tenants (slug, name, public_key, site_url, allowed_origins, persona,
-                             greeting, booking_url, lead_webhook_url, incentive)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO tenants (slug, name, public_key, report_token, site_url, allowed_origins,
+                             persona, greeting, booking_url, lead_webhook_url, incentive)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
         """,
         slug,
         name,
         new_public_key(),
+        new_report_token(),
         site_url,
         fields.get("allowed_origins") or [],
         fields.get("persona") or "",
@@ -70,20 +124,32 @@ async def create(name: str, site_url: str | None, slug: str | None = None, **fie
         fields.get("lead_webhook_url"),
         fields.get("incentive") or "",
     )
-    return dict(row)
+    return _load(row)
 
 
 async def update(slug: str, fields: dict) -> dict | None:
     clean = {k: v for k, v in fields.items() if k in UPDATABLE_FIELDS and v is not None}
     if not clean:
         return await get_by_slug(slug)
-    assignments = ", ".join(f"{col} = ${i}" for i, col in enumerate(clean, start=2))
+    parts, values = [], []
+    for i, (col, value) in enumerate(clean.items(), start=2):
+        if col in JSONB_FIELDS:
+            parts.append(f"{col} = ${i}::jsonb")
+            values.append(json.dumps(value))
+        else:
+            parts.append(f"{col} = ${i}")
+            values.append(value)
     row = await db.pool().fetchrow(
-        f"UPDATE tenants SET {assignments} WHERE slug = $1 RETURNING *",
-        slug,
-        *clean.values(),
+        f"UPDATE tenants SET {', '.join(parts)} WHERE slug = $1 RETURNING *", slug, *values
     )
-    return dict(row) if row else None
+    return _load(row) if row else None
+
+
+async def clone(source: dict, name: str, site_url: str | None, slug: str | None = None) -> dict:
+    """Snapshot: new tenant with the source's settings but fresh keys and an empty knowledge base."""
+    new = await create(name, site_url, slug=slug)
+    copied = {field: source[field] for field in CLONE_FIELDS if source.get(field) is not None}
+    return await update(new["slug"], copied) or new
 
 
 async def delete(slug: str) -> bool:

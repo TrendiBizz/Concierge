@@ -95,6 +95,16 @@ services:
       CHAT_MODEL: ${CHAT_MODEL:-grok-4}
       VOICE_MODEL: ${VOICE_MODEL:-}
       VOICE_DEFAULT: ${VOICE_DEFAULT:-eve}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-1}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
     ports:
       # Direct access for local development / the CLI. Caddy serves the public hostname.
       - "127.0.0.1:8000:8000"
