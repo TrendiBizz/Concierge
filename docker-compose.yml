@@ -1,0 +1,220 @@
+name: concierge
+
+# Core services (always on): caddy, postgres, redis, api
+# Optional services are enabled with profiles, e.g. in .env:
+#   COMPOSE_PROFILES=automation,support,crm,ops
+#
+#   automation -> n8n          (lead routing, SMS/email follow-up, CRM sync)
+#   support    -> chatwoot     (human inbox / live handoff)
+#   crm        -> twenty       (CRM, contacts, pipelines)
+#   ops        -> uptime-kuma  (uptime monitoring)
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-chatwoot-env: &chatwoot-env
+  RAILS_ENV: production
+  NODE_ENV: production
+  INSTALLATION_ENV: docker
+  SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:?run scripts/gen-env.sh}
+  FRONTEND_URL: https://chat.${DOMAIN:-localhost}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: chatwoot
+  POSTGRES_USERNAME: postgres
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
+  REDIS_URL: redis://redis:6379/1
+  ENABLE_ACCOUNT_SIGNUP: "false"
+  FORCE_SSL: "false"
+  LOG_LEVEL: info
+  RAILS_LOG_TO_STDOUT: "true"
+
+x-twenty-env: &twenty-env
+  NODE_PORT: "3000"
+  PG_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/twenty
+  SERVER_URL: https://crm.${DOMAIN:-localhost}
+  REDIS_URL: redis://redis:6379/2
+  APP_SECRET: ${TWENTY_APP_SECRET:?run scripts/gen-env.sh}
+  STORAGE_TYPE: local
+
+services:
+  # ---------------------------------------------------------------- core
+  caddy:
+    image: caddy:2
+    <<: *restart
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    <<: *restart
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    <<: *restart
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    <<: *restart
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/concierge
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?run scripts/gen-env.sh}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://api.localhost}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.x.ai/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      CHAT_MODEL: ${CHAT_MODEL:-grok-4}
+      VOICE_MODEL: ${VOICE_MODEL:-}
+      VOICE_DEFAULT: ${VOICE_DEFAULT:-eve}
+    ports:
+      # Direct access for local development / the CLI. Caddy serves the public hostname.
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------- automation
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_TAG:-latest}
+    <<: *restart
+    profiles: ["automation"]
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: postgres
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?run scripts/gen-env.sh}
+      N8N_HOST: n8n.${DOMAIN:-localhost}
+      N8N_PROTOCOL: https
+      N8N_PROXY_HOPS: "1"
+      WEBHOOK_URL: https://n8n.${DOMAIN:-localhost}/
+      GENERIC_TIMEZONE: ${TZ:-UTC}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ------------------------------------------------------------- support
+  chatwoot-prepare:
+    image: chatwoot/chatwoot:${CHATWOOT_TAG:-latest}
+    profiles: ["support"]
+    restart: "no"
+    environment: *chatwoot-env
+    entrypoint: ["docker/entrypoints/rails.sh"]
+    command: ["bundle", "exec", "rails", "db:chatwoot_prepare"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chatwoot:
+    image: chatwoot/chatwoot:${CHATWOOT_TAG:-latest}
+    <<: *restart
+    profiles: ["support"]
+    environment: *chatwoot-env
+    entrypoint: ["docker/entrypoints/rails.sh"]
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    volumes:
+      - chatwoot_storage:/app/storage
+    depends_on:
+      chatwoot-prepare:
+        condition: service_completed_successfully
+
+  chatwoot-sidekiq:
+    image: chatwoot/chatwoot:${CHATWOOT_TAG:-latest}
+    <<: *restart
+    profiles: ["support"]
+    environment: *chatwoot-env
+    entrypoint: ["docker/entrypoints/rails.sh"]
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    volumes:
+      - chatwoot_storage:/app/storage
+    depends_on:
+      chatwoot-prepare:
+        condition: service_completed_successfully
+
+  # ----------------------------------------------------------------- crm
+  twenty:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    <<: *restart
+    profiles: ["crm"]
+    environment: *twenty-env
+    volumes:
+      - twenty_storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  twenty-worker:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    <<: *restart
+    profiles: ["crm"]
+    command: ["yarn", "worker:prod"]
+    environment:
+      <<: *twenty-env
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - twenty_storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      - twenty
+
+  # ----------------------------------------------------------------- ops
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    <<: *restart
+    profiles: ["ops"]
+    volumes:
+      - kuma_data:/app/data
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pg_data:
+  redis_data:
+  n8n_data:
+  chatwoot_storage:
+  twenty_storage:
+  kuma_data:
