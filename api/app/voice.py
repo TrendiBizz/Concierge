@@ -35,7 +35,7 @@ def build_session(tenant: dict) -> dict:
             },
             "output": {"format": {"type": "audio/pcm", "rate": 24000}},
         },
-        "tools": voice_tools(),
+        "tools": voice_tools(tenant),
     }
 
 

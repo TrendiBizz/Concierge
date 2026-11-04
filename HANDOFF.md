@@ -13,7 +13,7 @@ live sandbox demo.
 - `docker-compose.yml`, `Caddyfile`, `.env.example`, `scripts/gen-env.sh`, `scripts/backup.sh`, `postgres/init.sh`, `README.md`
 - `api/app/`: FastAPI service (`main, rag, voice, tools, crawler, ingest, chunking, embeddings, llm, tenants, security, db, config, cli`, `schema.sql`)
 - `api/static/widget.js`: embeddable chat + Grok voice widget (shadow DOM, AudioWorklet mic capture, tool-call round trip)
-- `api/tests/test_units.py`: 13 passing unit tests (run from `api/`: `pytest -q tests`)
+- `api/tests/test_units.py`: 20 passing unit tests (run from `api/`: `pytest -q tests`)
 - Core services: caddy, postgres+pgvector, redis, api. Optional profiles: n8n, chatwoot, twenty, uptime-kuma.
 
 ### Verified for real
@@ -55,41 +55,39 @@ pre-generated secrets in `.env.docker.example`; Postgres HTTP proxy port 4444 pu
 interfaces with default creds); custom domains need Vercel API. Decision: keep our scaffold; borrow
 ideas only (quote-guard, enforced booking read-back, scripted evals, event-driven agents).
 
-## NEXT TASK (agreed with user, NOT started - no code written for it yet)
-"Find all the missing bits GoHighLevel has that we don't, and add them." Research done
-(GHL features: CRM + multiple pipelines, calendars with SMS/email reminders, workflows/triggers,
-missed-call text-back, reputation/review requests, forms + funnels, email marketing, invoices /
-Text2Pay, social planner, snapshots, client portal, white-label, conversation AI/voice AI).
+## DONE in this session: GoHighLevel gap list (Phase 2)
+Added and tested (20 unit tests + a 50-check end-to-end suite against real Postgres, plus the
+dashboard in headless Chromium): native booking (hours/timezone/slots, `check_availability` /
+`book_appointment`, advisory-lock double-booking guard - 6 concurrent bookings of one slot -> exactly
+1 wins), **server-enforced read-back** (`conversations.pending_booking`), durable outbox with
+retries (confirmation, 24h/2h reminders, speed-to-lead SMS, review request, owner alert emails),
+Twilio SMS sender + signature-verified two-way inbound SMS (`/api/v1/sms/{public_key}`) with
+STOP/START/HELP and an opt-out table, SMTP mailer, SMS quiet hours (08:00-21:00 local), consent flag,
+**quote-guard** (a `$` amount must come from website content / tool results / the client's own text -
+visitor-typed amounts do NOT count), lead pipeline (status/notes/value), `/admin-ui` dashboard,
+`/report/<token>` client report (no PII), tenant clone (snapshots), `python -m app.evals` (dry run).
+New modules: `chat, convo, booking, automation, outbox, events, sms, mailer, contact, guard, evals`;
+`main.py`, `tools.py`, `rag.py`, `tenants.py`, `config.py`, `schema.sql`, `widget.js` were changed;
+`static/admin.html` is new. README documents all of it.
 
-### Gap analysis and plan
-| GHL feature | Status in our stack | Plan |
-|---|---|---|
-| AI chat + voice | HAVE | - |
-| CRM / contacts | partial (leads only) | add lead status/notes/value (pipeline) |
-| Calendar + booking | link only (Cal.com) | NEW native booking: business hours, timezone, availability + `check_availability` / `book_appointment` tools, advisory-lock double-booking guard, **server-enforced read-back** (`conversations.pending_booking`) |
-| Reminders / follow-up automation | webhook only | NEW outbox + scheduler: 24h and 2h reminders, speed-to-lead SMS, review request after completed visit; retries; sms quiet hours (8am-9pm local) |
-| SMS | none | NEW Twilio sender (httpx, no SDK) + inbound two-way SMS webhook (signature validated) running the same chat pipeline + STOP/START/HELP opt-out table |
-| Email | none | NEW SMTP sender; owner alerts on lead/appointment |
-| Reputation / reviews | none | review request via outbox when appointment marked completed |
-| Quote-guard (from SeldonFrame idea) | none | NEW: strip/regenerate replies containing `$` amounts not in context/tool results/user text; flag messages |
-| Evals | none | NEW `app/evals.py`: scripted scenarios + deterministic validators (no unknown prices, says it's AI, resists prompt injection, no lead before contact, booking read-back) |
-| Snapshots (clone a setup) | none | NEW `POST /admin/tenants/{slug}/clone` (config only, no knowledge) |
-| Dashboard | JSON admin only | NEW `/admin-ui` static page (token in sessionStorage) |
-| Client portal / reporting | stats JSON | NEW `/report/{report_token}` read-only page (counts, chart, estimated value = leads x `lead_value_cents`; no contact PII) |
-| Consent / compliance | notice only | add `consent_to_contact` on lead + booking; honour opt-outs |
-| Forms / funnels / landing builder | none | SKIP (client already has a site; widget captures) |
-| Invoices / Text2Pay / payments | none | SKIP for now (Stripe / Invoice Ninja externally) |
-| Social planner, memberships, courses, affiliates, ads manager, mobile app | none | SKIP (out of scope for a concierge product) |
-| Missed-call text-back / real phone calls | none | needs Twilio voice + SIP bridge (e.g. avr-sts-xai); document, don't build yet |
-| Multi-user logins / roles | single ADMIN_TOKEN | note as limitation |
-| Per-client custom domain | none | note: CNAME the widget host / Caddy on-demand TLS later |
+Test-only mocks live outside the repo (scratchpad): a scriptable mock LLM (`TOOL:{json}`, `SAY:`,
+`STUBBORN:` markers), mock Twilio REST, aiosmtpd SMTP, a webhook receiver, and `e2e.py`.
+**Not in the zip** - ask to recreate if wanted (or move them into `api/tests/e2e/`).
 
-### Design notes already decided
-- New tables: `appointments`, `outbox` (dedupe_key unique, claimed_at for crash recovery, FOR UPDATE SKIP LOCKED), `opt_outs`. New columns on `tenants` (timezone, business_hours jsonb, slot_minutes, min_notice_hours, max_days_ahead, native_booking, notify_email, sms_enabled, sms_from, lead_sms_template, review_url, lead_value_cents, report_token), `leads` (status, notes, value_cents, consent_contact, updated_at), `conversations` (pending_booking jsonb), `messages` (flag). Use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
-- Refactor the chat loop out of `main.py` into `chat.run_turn(tenant, session_id, channel, message, ...)` so web chat and SMS share it; raise tool rounds to 4; make `chat_tools(tenant)` / `voice_tools(tenant)` tenant-aware; include current date/time + business hours in prompts.
-- Quote-guard cannot intercept spoken voice replies; voice relies on the prompt + `search_knowledge` (document the limitation).
-- Test plan: extend the scratchpad mock LLM with `TOOL:{json}` / `SAY:<text>` scripted replies; add a mock Twilio endpoint and `aiosmtpd`; run API against local Postgres (`apt-get install postgresql-16-pgvector`, initdb on port 55432); Playwright for widget/dashboard.
-- User preferences: always provide FULL files (no snippets/diffs); never modify core code unless instructed (this task was explicitly instructed); warn at about 70% context with a summary.
+### Still NOT verified
+- Real xAI chat/voice (no key); the 5 voice assumptions listed above.
+- Real Twilio and real SMTP delivery; Twilio signature validation only against our own implementation
+  (public_base_url must exactly match the URL configured in Twilio).
+- `docker build`, and Chatwoot / Twenty / n8n / Caddy containers.
+- The eval scenarios against a real model (2 of 6 failed against the dumb mock, as expected).
+- Voice replies are not covered by the quote-guard (prompt + `search_knowledge` only).
+
+### Ideas for next steps (none started)
+1. First real run with an `XAI_API_KEY`; fix whatever the live API does differently.
+2. Move the e2e suite + mocks into `api/tests/e2e/` and add a CI workflow.
+3. Missed-call text-back and phone-line voice (Twilio Voice + SIP bridge such as avr-sts-xai).
+4. Multi-user logins/roles for the dashboard; per-client custom domains for the widget.
+5. Stripe/Invoice Ninja billing; email campaigns; forms/funnels only if clients ask.
 
 ## Test environment recipe (if re-creating)
 Python venv with `api/requirements-dev.txt`; Postgres 16 + pgvector via apt; fastembed downloads

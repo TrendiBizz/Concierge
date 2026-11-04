@@ -77,10 +77,41 @@ Other admin endpoints: `GET/POST /admin/tenants`, `PATCH/DELETE /admin/tenants/{
 Interactive docs: `/docs` (FastAPI).
 
 ### Lead routing with n8n
-Each lead is POSTed to the client's `lead_webhook_url` as
-`{"event":"lead.created","tenant":{...},"lead":{name,email,phone,message,channel,page_url,utm}}`.
+Events are POSTed to the client's `lead_webhook_url`:
+`lead.created` -> `{"event","tenant","lead":{name,email,phone,message,channel,page_url,utm}}`;
+`appointment.booked | completed | cancelled | no_show` -> `{"event","tenant","appointment":{...}}`.
 In n8n, add a *Webhook* node, then e.g. *Telegram/Email* → notify the owner, *Twenty* →
 create the contact, *Twilio/Brevo* → text or email the visitor the product link.
+
+## GoHighLevel-style features (added)
+
+| Feature | How it works | Needs |
+|---|---|---|
+| **Native booking** | Per-client business hours, timezone, slot length and notice rules. The AI calls `check_availability` and `book_appointment`; times come only from the server. Bookings are serialised per client, so two visitors can never take one slot. | `native_booking: true` |
+| **Enforced read-back** | `book_appointment` never books on the first call; it returns a sentence to read back, and only a second call with `confirmed=true` for the *same* time and name (stored in the database) creates the booking. | - |
+| **Reminders & follow-ups** | Durable outbox with retries: booking confirmation, reminders 24h and 2h before, speed-to-lead text, review request 1h after a visit is marked completed. Texts are held outside 08:00-21:00 local time. | Twilio and/or SMTP |
+| **Two-way SMS** | Point the client's Twilio number's *inbound SMS webhook* at `sms_webhook_url` (shown in the dashboard / tenant record). Signature-verified; the AI replies by text using the same brain. STOP / START / HELP are handled. | Twilio |
+| **Opt-outs & consent** | The AI asks permission; `consent_to_contact` is stored; STOP is honoured for every later message. SMS only goes to numbers that consented (or texted first). | - |
+| **Quote-guard** | A reply may contain a `$` amount only if it appears in the website content, a tool result or the client's own text. Otherwise it is regenerated, then replaced with a safe fallback. Counted in stats. **Text/SMS only - spoken voice replies cannot be intercepted.** | - |
+| **Lead pipeline** | Status (new / contacted / booked / won / lost), notes and deal value per lead. | - |
+| **Owner alerts** | Email to `notify_email` on every lead and booking. | SMTP |
+| **Dashboard** | `/admin-ui` - overview, leads (edit status/value), appointments, conversations (guard saves highlighted), outbox, settings. Token stays in the tab's session storage. | `ADMIN_TOKEN` |
+| **Client report** | `/report/<report_token>` - read-only page for the client: conversations, leads, appointments, estimated pipeline, chart. No contact details. Share the link from the tenant record. | `lead_value_cents` |
+| **Snapshots** | `POST /admin/tenants/{slug}/clone` copies settings (persona, hours, SMS template...) to a new client; not knowledge, contacts or keys. | - |
+| **Evals** | `python -m app.evals --slug acme` replays tricky scenarios (invented prices, "are you human?", prompt injection, lead before contact, booking without read-back) in dry-run mode and grades them with code. | working LLM key |
+
+Quick setup for a client:
+```bash
+curl -X PATCH $ADMIN/admin/tenants/acme -H "$H" -H 'Content-Type: application/json' -d '{
+  "native_booking": true, "timezone": "America/Chicago",
+  "business_hours": {"mon":[["08:00","17:00"]],"tue":[["08:00","17:00"]],"wed":[["08:00","17:00"]],"thu":[["08:00","17:00"]],"fri":[["08:00","17:00"]],"sat":[],"sun":[]},
+  "slot_minutes": 30, "sms_enabled": true, "notify_email": "owner@acme.com",
+  "review_url": "https://g.page/r/xxxx", "lead_value_cents": 250000 }'
+```
+
+**Not built (deliberately):** funnel/landing-page builder, invoices and Text2Pay, social planner,
+memberships, courses, affiliates, ads manager, mobile app, multi-user logins/roles, per-client custom
+domains, missed-call text-back and real phone-line voice (needs Twilio Voice plus a SIP bridge).
 
 ## Free / open-source components (and what to check)
 
@@ -128,14 +159,14 @@ the CRM/automation stack are free; you pay for the server, SMS, and LLM usage.
 
 ## What is verified vs not
 
-**Tested here (real components):** unit tests (13 passing); the API against a real PostgreSQL 16 +
+**Tested here (real components):** unit tests (20 passing); a 50-check end-to-end suite against real Postgres (booking, read-back enforcement, 6-way concurrent double-booking race, SMS/email outbox, opt-out, quiet hours, signature-verified inbound SMS, quote-guard, pipeline, clone, report, dashboard); the admin dashboard in headless Chromium;  the API against a real PostgreSQL 16 +
 pgvector with the real local embedding model; the crawler on a local site (sitemap-less BFS,
 `robots.txt` respected); tenant admin, lead capture, stats, origin allow-lists, auth failures;
 the widget in headless Chromium (chat, fake microphone, audio capture/playback, tool-call round
 trip); `docker compose config` validates with every profile enabled.
 
-**Tested only against mocks:** the LLM (a mock OpenAI-compatible server) and the Grok Voice
-WebSocket (a mock). **I had no xAI key, so nothing has run against the real Grok APIs.**
+**Tested only against mocks:** the LLM (a mock OpenAI-compatible server), the Grok Voice
+WebSocket, **Twilio** (a mock REST endpoint) and **SMTP** (a local test server). The eval scenarios were run against the mock LLM, so two correctly failed; they have never been run against a real model. **I had no xAI key, so nothing has run against the real Grok APIs.**
 
 **Not tested:** `docker build` of the API image, and booting the Chatwoot / Twenty / n8n / Caddy
 containers (no Docker daemon in my environment). Chatwoot and Twenty settings follow their
