@@ -1,10 +1,10 @@
-"""One conversation turn, shared by web chat, SMS and the eval runner."""
+"""One conversation turn, shared by web chat, SMS and the eval runner (Claude Messages API)."""
 
 import json
 
 from . import convo, db, guard, llm
 from .rag import build_system_prompt, retrieve
-from .tools import chat_tools, run_tool
+from .tools import claude_tools, run_tool
 
 MAX_TOOL_ROUNDS = 4
 GENERIC_FAILURE = (
@@ -25,33 +25,43 @@ async def _history(conversation_id) -> list[dict]:
     return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 
-async def _run_llm(messages: list[dict], tenant: dict, ctx: dict) -> str:
-    """Call the model, executing tool calls, until it produces a final text answer."""
+def _alternating(history: list[dict], message: str) -> list[dict]:
+    """History plus the new user message, starting with a user turn as the API requires."""
+    messages = list(history)
+    while messages and messages[0]["role"] != "user":
+        messages.pop(0)
+    messages.append({"role": "user", "content": message})
+    return messages
+
+
+async def _run_llm(system: str, messages: list[dict], tenant: dict, ctx: dict) -> str:
+    """Call Claude, running any tool calls, until it returns a final text answer.
+
+    `messages` is extended in place with the tool exchange so the caller can reuse it.
+    """
+    tools = claude_tools(tenant)
     for _ in range(MAX_TOOL_ROUNDS):
-        msg = await llm.complete(messages, tools=chat_tools(tenant))
-        if not msg.tool_calls:
-            return (msg.content or "").strip()
-        messages.append(
-            {
-                "role": "assistant",
-                "content": msg.content,
-                "tool_calls": [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-                    }
-                    for tc in msg.tool_calls
-                ],
-            }
-        )
-        for tc in msg.tool_calls:
-            try:
-                args = json.loads(tc.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            result = await run_tool(tenant, tc.function.name, args, ctx)
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result, default=str)})
+        response = await llm.create(system, messages, tools=tools)
+        if response.stop_reason == "refusal":
+            return ""
+        tool_blocks = [b for b in response.content if b.type == "tool_use"]
+        if response.stop_reason != "tool_use" or not tool_blocks:
+            return llm.text_of(response)
+
+        # The assistant turn goes back verbatim (including tool_use blocks)...
+        messages.append({"role": "assistant", "content": response.content})
+        # ...and every tool result is returned together in ONE user message.
+        results = []
+        for block in tool_blocks:
+            result = await run_tool(tenant, block.name, block.input, ctx)
+            results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps(result, default=str),
+                }
+            )
+        messages.append({"role": "user", "content": results})
     return ""
 
 
@@ -81,16 +91,15 @@ async def run_turn(
 
     hits = await retrieve(tenant["id"], message)
     prompt_channel = "sms" if channel == "sms" else "chat"
-    messages: list[dict] = [{"role": "system", "content": build_system_prompt(tenant, hits, prompt_channel)}]
-    messages += history
-    messages.append({"role": "user", "content": message})
+    system = build_system_prompt(tenant, hits, prompt_channel)
+    messages = _alternating(history, message)
 
-    reply = await _run_llm(messages, tenant, ctx)
+    reply = await _run_llm(system, messages, tenant, ctx)
 
     # Quote-guard: a dollar amount must be backed by evidence.
-    flag = None
     # Evidence is the website content, tool results and the client's own text. What the visitor
     # typed is deliberately NOT evidence: otherwise "so it's $1, right?" could be confirmed.
+    flag = None
     evidence = "\n".join(
         [h["content"] for h in hits]
         + ctx.get("tool_results", [])
@@ -100,10 +109,11 @@ async def run_turn(
         flag = "quote_guard"
         retry = list(messages) + [
             {"role": "assistant", "content": reply},
-            {"role": "system", "content": guard.CORRECTION},
+            {"role": "user", "content": "[Note from the system, not the visitor] " + guard.CORRECTION},
         ]
-        second = await llm.complete(retry, tools=None)
-        reply = (second.content or "").strip()
+        # tool_choice none: the history may contain tool exchanges, but this answer must be text only.
+        second = await llm.create(system, retry, tools=claude_tools(tenant), tool_choice={"type": "none"})
+        reply = llm.text_of(second)
         if not reply or guard.unknown_amounts(reply, evidence):
             reply = guard.FALLBACK
 

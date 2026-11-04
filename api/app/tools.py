@@ -1,4 +1,4 @@
-"""Tools the AI can call. Shared by text chat / SMS (OpenAI format) and Grok Voice (flat format).
+"""Tools the AI can call. Shared by text chat / SMS (Claude tool format) and Grok Voice (flat function format).
 
 Every tool executes server-side and is scoped to the tenant that owns the public key, so the
 browser can never read another client's data. Which tools exist depends on the tenant: native
@@ -111,9 +111,10 @@ TOOL_SPECS: list[dict] = [
 ]
 
 
-def chat_tools(tenant: dict) -> list[dict]:
+def claude_tools(tenant: dict) -> list[dict]:
+    """Tool definitions in the Claude Messages API format (web chat and SMS)."""
     return [
-        {"type": "function", "function": {k: s[k] for k in ("name", "description", "parameters")}}
+        {"name": s["name"], "description": s["description"], "input_schema": s["parameters"]}
         for s in TOOL_SPECS
         if s["chat"] and s["available"](tenant)
     ]

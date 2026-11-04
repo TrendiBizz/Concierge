@@ -10,11 +10,14 @@ class Settings(BaseSettings):
     admin_token: str = ""
     public_base_url: str = "http://localhost:8000"
 
-    # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).
+    # Text chat and SMS: Claude (Anthropic API).
+    anthropic_api_key: str = ""
+    chat_model: str = "claude-opus-5-5"   # e.g. claude-sonnet-5-5 or claude-haiku-5-5 to cut cost
+    chat_effort: str = "low"              # low | medium | high | xhigh | max ("" = model default)
+    chat_max_tokens: int = 4096           # covers reasoning plus the reply
+
+    # Voice only: xAI Grok Voice (Claude has no realtime voice API).
     xai_api_key: str = ""
-    llm_base_url: str = "https://api.x.ai/v1"
-    llm_api_key: str = ""
-    chat_model: str = "grok-4"
 
     # Grok Voice Agent API
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"
@@ -51,10 +54,6 @@ class Settings(BaseSettings):
     outbox_poll_seconds: int = 20
     sms_quiet_start_hour: int = 8   # no texts before 08:00 local
     sms_quiet_end_hour: int = 21    # ...or from 21:00 local
-
-    @property
-    def effective_llm_key(self) -> str:
-        return self.llm_api_key or self.xai_api_key
 
     @property
     def voice_ws_url(self) -> str:

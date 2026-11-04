@@ -13,7 +13,8 @@ from app.outbox import next_allowed_send
 from app.rag import build_system_prompt, tag_url
 from app.security import RateLimiter
 from app.sms import validate_signature
-from app.tools import chat_tools, voice_tools
+from app.chat import _alternating
+from app.tools import claude_tools, voice_tools
 from app.voice import _extract_token, build_session
 
 HOURS = {"mon": [["09:00", "12:00"]], "tue": [["09:00", "12:00"]], "wed": [], "thu": [], "fri": [], "sat": [], "sun": []}
@@ -108,15 +109,37 @@ def test_prompts():
 
 
 def test_tools_depend_on_tenant():
-    plain = {t["function"]["name"] for t in chat_tools(TENANT)}
+    plain = {t["name"] for t in claude_tools(TENANT)}
     assert plain == {"capture_lead"}
-    link = {t["function"]["name"] for t in chat_tools({**TENANT, "booking_url": "https://cal.example/x"})}
+    link = {t["name"] for t in claude_tools({**TENANT, "booking_url": "https://cal.example/x"})}
     assert link == {"capture_lead", "get_booking_link"}
-    native = {t["function"]["name"] for t in chat_tools(NATIVE)}
+    native = {t["name"] for t in claude_tools(NATIVE)}
     assert native == {"capture_lead", "check_availability", "book_appointment"}
     voice = {t["name"] for t in voice_tools(NATIVE)}
     assert voice == {"capture_lead", "check_availability", "book_appointment", "search_knowledge"}
-    json.dumps(chat_tools(NATIVE) + voice_tools(NATIVE))
+    json.dumps(claude_tools(NATIVE) + voice_tools(NATIVE))
+
+
+def test_claude_tool_format():
+    for tool in claude_tools(NATIVE):
+        assert set(tool) == {"name", "description", "input_schema"}  # Claude format, not OpenAI's
+        assert tool["input_schema"]["type"] == "object"
+    book = next(t for t in claude_tools(NATIVE) if t["name"] == "book_appointment")
+    assert "confirmed" in book["input_schema"]["properties"]
+    assert set(book["input_schema"]["required"]) == {"start", "name"}
+
+
+def test_messages_start_with_user_and_end_with_new_message():
+    history = [
+        {"role": "assistant", "content": "orphan greeting"},
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+    ]
+    messages = _alternating(history, "price?")
+    assert messages[0]["role"] == "user" and messages[0]["content"] == "hi"
+    assert messages[-1] == {"role": "user", "content": "price?"}
+    assert _alternating([], "first") == [{"role": "user", "content": "first"}]
+    assert history[0]["content"] == "orphan greeting"  # the caller's list is not modified
 
 
 def test_voice_session_shape():
