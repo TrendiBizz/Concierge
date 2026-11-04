@@ -89,13 +89,25 @@ LM Studio can replace the paid text model. **Voice still needs an xAI key** (Gro
 equivalent here), and a laptop-hosted model is not reachable from a remote server - this is for running
 the whole stack on your own Mac.
 
-On the Mac, from the repo folder (needs Docker Desktop and LM Studio with its `lms` CLI):
+**Easiest - one command, first time only** (installs Docker Desktop / LM Studio via Homebrew if missing,
+asks for your xAI key and which model to use, starts everything, and makes it start at every login):
 
 ```bash
 git pull
+./scripts/setup-mac.sh
+```
+
+Or step by step (needs Docker Desktop and LM Studio with its `lms` CLI):
+
+```bash
 ./scripts/configure-lmstudio.sh        # lists your models, asks which one, writes .env
 ./scripts/start-concierge.sh           # LM Studio server -> load model -> docker compose up
 ```
+
+**Why Docker?** The stack is four programs that must work together: PostgreSQL with the pgvector
+extension (not included with macOS Postgres), Redis, Caddy (HTTPS) and the API with pinned Python
+dependencies and a pre-downloaded embedding model; optionally n8n, Chatwoot and Twenty. Docker packages
+them so one command gives the identical setup on your Mac or a VPS. LM Studio itself runs natively, not in Docker.
 
 - Double-click **Start Concierge.command** / **Stop Concierge.command** in Finder instead, if you prefer.
 - **Start at every login:** `./scripts/install-autostart-macos.sh` (remove with `--uninstall`; log at
