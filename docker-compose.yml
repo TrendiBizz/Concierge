@@ -105,6 +105,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach LM Studio running on the host machine
     ports:
       # Direct access for local development / the CLI. Caddy serves the public hostname.
       - "127.0.0.1:8000:8000"

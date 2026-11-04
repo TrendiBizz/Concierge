@@ -83,6 +83,30 @@ Events are POSTed to the client's `lead_webhook_url`:
 In n8n, add a *Webhook* node, then e.g. *Telegram/Email* → notify the owner, *Twenty* →
 create the contact, *Twilio/Brevo* → text or email the visitor the product link.
 
+## Using a local model with LM Studio (free text chat)
+
+LM Studio can replace the paid text model. **Voice still needs an xAI key** (Grok Voice has no local
+equivalent here), and a laptop-hosted model is not reachable from a remote server - this is for running
+the whole stack on your own Mac.
+
+On the Mac, from the repo folder (needs Docker Desktop and LM Studio with its `lms` CLI):
+
+```bash
+git pull
+./scripts/configure-lmstudio.sh        # lists your models, asks which one, writes .env
+./scripts/start-concierge.sh           # LM Studio server -> load model -> docker compose up
+```
+
+- Double-click **Start Concierge.command** / **Stop Concierge.command** in Finder instead, if you prefer.
+- **Start at every login:** `./scripts/install-autostart-macos.sh` (remove with `--uninstall`; log at
+  `~/Library/Logs/concierge-start.log`). Also tick "Start Docker Desktop when you sign in" in Docker Desktop.
+- The start script is idempotent: a running server or an already-loaded model is left alone.
+- Pick a model that supports **tool calling** (recent Qwen / Llama instruct models); otherwise booking and
+  lead capture will not trigger. Quote-guard and the booking read-back catch some, not all, small-model mistakes.
+- If you enabled authentication in LM Studio, put its token in `.env` as `LLM_API_KEY`.
+- Tested with stand-in `lms` / `docker` / `launchctl` commands, not with a real LM Studio install: the exact
+  `lms` flags can differ by version (check `lms load --help`), so the first run on a real Mac may need a tweak.
+
 ## GoHighLevel-style features (added)
 
 | Feature | How it works | Needs |
