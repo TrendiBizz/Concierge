@@ -1,6 +1,6 @@
 # Website AI Concierge - self-hosted stack
 
-Put an AI chat + Grok voice assistant on a small business's website. It answers from the
+Put an AI chat (Claude) + Grok voice assistant on a small business's website. It answers from the
 site's own content, captures leads, books appointments, and reports results per client.
 
 ```
@@ -9,7 +9,7 @@ Visitor's browser                      Your server (docker compose)
 │  widget.js       │ ────────────► │ api (FastAPI)                             │
 │  (1 script tag)  │               │  ├ RAG: crawl → chunk → embed (local) →   │
 │                  │  token        │  │       pgvector search                   │
-│                  │ ────────────► │  ├ chat LLM (Grok, OpenAI-compatible)     │
+│                  │ ────────────► │  ├ chat + SMS brain: Claude (Anthropic)   │
 │                  │               │  ├ mints short-lived Grok Voice tokens    │
 │                  │  voice (WS)   │  ├ tools: capture_lead / booking / search │
 │                  │ ──► api.x.ai  │  └ lead webhook ─► n8n ─► CRM / SMS / email│
@@ -27,7 +27,7 @@ scoped to the client that owns the widget key.
 ```bash
 cd concierge
 ./scripts/gen-env.sh            # creates .env with random secrets
-nano .env                       # set XAI_API_KEY (and DOMAIN for production)
+nano .env                       # set ANTHROPIC_API_KEY (chat/SMS) and XAI_API_KEY (voice); DOMAIN for production
 docker compose up -d --build    # core: caddy, postgres, redis, api
 docker compose logs -f api
 ```
@@ -127,7 +127,8 @@ domains, missed-call text-back and real phone-line voice (needs Twilio Voice plu
 | Human inbox / handoff | Chatwoot | free self-host | MIT core |
 | Uptime alerts | Uptime Kuma | free | MIT |
 | Booking | Cal.com **cloud free tier** | free | Self-hosting Cal.com is heavy; not included |
-| LLM + voice | xAI Grok | **paid, usage-based** | see below |
+| Text chat + SMS | Claude (Anthropic API) | **paid, usage-based** | see below |
+| Voice | xAI Grok Voice | **paid, usage-based** | see below |
 
 ## Add-ons you still need (not in the compose file)
 
@@ -154,7 +155,10 @@ domains, missed-call text-back and real phone-line voice (needs Twilio Voice plu
 
 ## Costs (rough, verify current pricing)
 Grok Voice is reported at about **$0.05-0.08 per minute** plus tool calls (third-party sources
-disagree; confirm at docs.x.ai). Text chat is billed per token. Embeddings, hosting software and
+disagree; confirm at docs.x.ai). Text chat and SMS are billed per token by Anthropic. The default model
+`claude-opus-5-5` is the most capable but the priciest; set `CHAT_MODEL=claude-sonnet-5-5` (about half the
+price) or `claude-haiku-5-5` (cheapest) in `.env` to cut cost, and keep `CHAT_EFFORT=low` for fast, cheap
+replies (check current rates at anthropic.com/pricing). Embeddings, hosting software and
 the CRM/automation stack are free; you pay for the server, SMS, and LLM usage.
 
 ## What is verified vs not
@@ -165,7 +169,8 @@ pgvector with the real local embedding model; the crawler on a local site (sitem
 the widget in headless Chromium (chat, fake microphone, audio capture/playback, tool-call round
 trip); `docker compose config` validates with every profile enabled.
 
-**Tested only against mocks:** the LLM (a mock OpenAI-compatible server), the Grok Voice
+**Tested only against mocks:** the LLM (a strict mock of Anthropic's `/v1/messages` that rejects malformed tool
+exchanges and `temperature`), the Grok Voice
 WebSocket, **Twilio** (a mock REST endpoint) and **SMTP** (a local test server). The eval scenarios were run against the mock LLM, so two correctly failed; they have never been run against a real model. **I had no xAI key, so nothing has run against the real Grok APIs.**
 
 **Not tested:** `docker build` of the API image, and booting the Chatwoot / Twenty / n8n / Caddy
@@ -181,7 +186,7 @@ with its current official `docker-compose.yml`.
    (`input_audio_buffer.speech_started`). If transcripts do not appear in the chat panel or logs,
    check browser console / the actual event names and adjust `onServerEvent` in `static/widget.js`.
 3. The format of the opening "greet the visitor" message (`input_text` content type).
-4. `CHAT_MODEL` default `grok-4` - set it to a model name your xAI account actually has.
+4. Claude text chat has only run against the mock: confirm your `ANTHROPIC_API_KEY` works and the model in `CHAT_MODEL` is available to your account.
 5. `audio.input.transcription.model = "grok-transcribe"` (from the docs) is accepted for your account.
 
 ## Layout

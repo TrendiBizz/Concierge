@@ -90,9 +90,9 @@ services:
       ADMIN_TOKEN: ${ADMIN_TOKEN:?run scripts/gen-env.sh}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://api.localhost}
       XAI_API_KEY: ${XAI_API_KEY:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.x.ai/v1}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-      CHAT_MODEL: ${CHAT_MODEL:-grok-4}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CHAT_MODEL: ${CHAT_MODEL:-claude-opus-5-5}
+      CHAT_EFFORT: ${CHAT_EFFORT:-low}
       VOICE_MODEL: ${VOICE_MODEL:-}
       VOICE_DEFAULT: ${VOICE_DEFAULT:-eve}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}

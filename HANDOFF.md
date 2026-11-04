@@ -31,7 +31,7 @@ Caddy containers were never booted (no Docker daemon in that environment).
 1. Which field of the `POST /v1/realtime/client_secrets` response holds the token (`voice.py` accepts `value`, `client_secret.value`, `client_secret`, `token`).
 2. Assistant-transcript event names (widget listens for `response.output_audio_transcript.delta` / `response.audio_transcript.delta`) and the interruption event (`input_audio_buffer.speech_started`).
 3. The format of the opening "greet the visitor" message (`input_text` content).
-4. `CHAT_MODEL` default `grok-4` - set to a model the account really has.
+4. (Text chat is now Claude - see 'Chat provider' below; only voice uses xAI.)
 5. `audio.input.transcription.model = "grok-transcribe"` accepted.
 Fixed already: the widget no longer doubles the `xai-client-secret.` prefix.
 
@@ -89,9 +89,20 @@ Test-only mocks live outside the repo (scratchpad): a scriptable mock LLM (`TOOL
 4. Multi-user logins/roles for the dashboard; per-client custom domains for the widget.
 5. Stripe/Invoice Ninja billing; email campaigns; forms/funnels only if clients ask.
 
+## Chat provider: Claude (changed in PR "Use Claude for text chat and SMS")
+Text chat, SMS and demo-question generation use the Anthropic Messages API (`api/app/llm.py`,
+`api/app/chat.py`). Settings: `ANTHROPIC_API_KEY`, `CHAT_MODEL` (default `claude-opus-5-5`; try
+`claude-sonnet-5-5` / `claude-haiku-5-5` to cut cost), `CHAT_EFFORT` (default `low`), `CHAT_MAX_TOKENS`.
+Notes: no `temperature`/`top_p`/`top_k` is sent (current Claude models reject non-default values);
+tools are passed in Claude's `input_schema` format and all tool results of a turn go back in ONE user
+message; the quote-guard retry uses `tool_choice: none`. The old OpenAI-compatible path (xAI text,
+LM Studio) was removed. **Voice is unchanged: Grok Voice via `XAI_API_KEY`** (Claude has no realtime voice).
+Only tested against a strict mock of `/v1/messages` (unit tests 22 + the 50-check e2e); never against the
+real Anthropic API.
+
 ## Test environment recipe (if re-creating)
 Python venv with `api/requirements-dev.txt`; Postgres 16 + pgvector via apt; fastembed downloads
 `BAAI/bge-small-en-v1.5` from Hugging Face on first use (network worked). Env for local API:
 `DATABASE_URL=postgresql://postgres@127.0.0.1:55432/concierge ADMIN_TOKEN=... XAI_API_KEY=test
-LLM_BASE_URL=<mock>/v1 XAI_CLIENT_SECRETS_URL=<mock>/v1/realtime/client_secrets
+ANTHROPIC_API_KEY=sk-ant-test ANTHROPIC_BASE_URL=<mock> XAI_CLIENT_SECRETS_URL=<mock>/v1/realtime/client_secrets
 XAI_REALTIME_URL=ws://127.0.0.1:8097/v1/realtime PUBLIC_BASE_URL=http://127.0.0.1:8000`.

@@ -1,4 +1,9 @@
-from openai import AsyncOpenAI
+"""Claude (Anthropic API) client for web chat, SMS and demo-question generation.
+
+Voice is separate: it uses the xAI Grok Voice API (see voice.py).
+"""
+
+import anthropic
 
 from .config import get_settings
 
@@ -7,32 +12,47 @@ class LLMNotConfigured(RuntimeError):
     pass
 
 
-_client: AsyncOpenAI | None = None
+_client: anthropic.AsyncAnthropic | None = None
 
 
-def client() -> AsyncOpenAI:
+def client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        settings = get_settings()
-        if not settings.effective_llm_key:
-            raise LLMNotConfigured("XAI_API_KEY (or LLM_API_KEY) is not set")
-        _client = AsyncOpenAI(api_key=settings.effective_llm_key, base_url=settings.llm_base_url)
+        key = get_settings().anthropic_api_key
+        if not key:
+            raise LLMNotConfigured("ANTHROPIC_API_KEY is not set")
+        _client = anthropic.AsyncAnthropic(api_key=key)
     return _client
 
 
-async def complete(
+async def create(
+    system: str,
     messages: list[dict],
     tools: list[dict] | None = None,
-    temperature: float = 0.3,
-    max_tokens: int = 600,
-):
+    tool_choice: dict | None = None,
+    max_tokens: int | None = None,
+) -> anthropic.types.Message:
+    """One Messages API call.
+
+    Sampling parameters (temperature, top_p, top_k) are deliberately not sent: current Claude
+    models reject non-default values. Reasoning depth is controlled with `effort` instead.
+    """
+    settings = get_settings()
     kwargs: dict = {
-        "model": get_settings().chat_model,
+        "model": settings.chat_model,
+        "max_tokens": max_tokens or settings.chat_max_tokens,
+        "system": system,
         "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
     }
+    if settings.chat_effort:
+        kwargs["output_config"] = {"effort": settings.chat_effort}
     if tools:
         kwargs["tools"] = tools
-    response = await client().chat.completions.create(**kwargs)
-    return response.choices[0].message
+    if tool_choice:
+        kwargs["tool_choice"] = tool_choice
+    return await client().messages.create(**kwargs)
+
+
+def text_of(response: anthropic.types.Message) -> str:
+    """The visible text of a response (thinking and tool_use blocks are skipped)."""
+    return "".join(block.text for block in response.content if block.type == "text").strip()

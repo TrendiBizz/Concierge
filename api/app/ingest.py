@@ -71,26 +71,20 @@ async def generate_demo_questions(tenant: dict, count: int = 5) -> list[str]:
     if not rows:
         return []
     sample = "\n\n".join(f"{r['title']}\n{r['content']}" for r in rows)[:7000]
-    message = await llm.complete(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You prepare live demos of a website AI assistant. Given a business's website "
-                    f"content, write {count} realistic, specific questions a customer might ask that "
-                    "this content can answer and that would impress the owner (niche specialties, "
-                    "pricing, compatibility, edge cases). One question per line, no numbering, "
-                    "no extra text."
-                ),
-            },
-            {"role": "user", "content": f"Business: {tenant['name']}\n\n{sample}"},
-        ],
-        temperature=0.7,
-        max_tokens=400,
+    response = await llm.create(
+        system=(
+            "You prepare live demos of a website AI assistant. Given a business's website "
+            f"content, write {count} realistic, specific questions a customer might ask that "
+            "this content can answer and that would impress the owner (niche specialties, "
+            "pricing, compatibility, edge cases). One question per line, no numbering, "
+            "no extra text."
+        ),
+        messages=[{"role": "user", "content": f"Business: {tenant['name']}\n\n{sample}"}],
+        max_tokens=2048,
     )
     questions = [
         line.strip(" -•\t0123456789.").strip()
-        for line in (message.content or "").splitlines()
+        for line in llm.text_of(response).splitlines()
         if line.strip()
     ][:count]
     await db.pool().execute(

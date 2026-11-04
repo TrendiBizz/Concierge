@@ -32,7 +32,7 @@ async def _demo(args: argparse.Namespace) -> None:
             )
 
         questions: list[str] = []
-        if result["chunks"] and settings.effective_llm_key:
+        if result["chunks"] and settings.anthropic_api_key:
             questions = await ingest.generate_demo_questions(tenant)
 
         base = settings.public_base_url
