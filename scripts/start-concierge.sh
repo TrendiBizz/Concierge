@@ -11,6 +11,18 @@ export PATH="$HOME/.lmstudio/bin:/opt/homebrew/bin:/usr/local/bin:/Applications/
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
 
+# retry <attempts> <pause-seconds> <command...>: run the command until it succeeds.
+retry() {
+  local attempts="$1" pause="$2" n=1
+  shift 2
+  until "$@"; do
+    [ "$n" -ge "$attempts" ] && return 1
+    log "Attempt ${n}/${attempts} failed; retrying in ${pause}s..."
+    sleep "$pause"
+    n=$((n + 1))
+  done
+}
+
 [ -f .env ] || die ".env not found. Run scripts/gen-env.sh, then scripts/configure-lmstudio.sh"
 get() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 
@@ -74,6 +86,10 @@ else
     lms ls || true
     die "LMSTUDIO_MODEL_PATH is empty. Pick a path from the list above and run scripts/configure-lmstudio.sh \"<path>\""
   fi
+  # A copy already loaded under its default name (for example by LM Studio's just-in-time
+  # loading) leaves no memory for a second copy, and the load below would be refused.
+  # Unloading by model name is a no-op when nothing is loaded.
+  lms unload "$MODEL_PATH" >/dev/null 2>&1 || true
   log "Loading model '${MODEL_PATH}' as '${IDENT}' (gpu=${GPU}, context=${CTX})..."
   lms load "$MODEL_PATH" --identifier="$IDENT" --gpu="$GPU" --context-length="$CTX" -y \
     || die "lms load failed. Check the model path with 'lms ls' and the flags with 'lms load --help'."
@@ -85,7 +101,10 @@ fi
 
 # ---- 4. The concierge stack --------------------------------------------------------
 log "Starting the concierge (docker compose up)..."
-docker compose up -d --build
+# Image pulls can time out right after Docker Desktop starts (its network is not ready yet),
+# so retry; layers already pulled or built are cached and not repeated.
+retry 4 30 docker compose up -d --build \
+  || die "docker compose up failed after 4 attempts. Check your internet connection and Docker Desktop, then re-run."
 
 if wait_for "http://127.0.0.1:8000/healthz" 300; then
   log "Concierge is up."
