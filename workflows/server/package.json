@@ -1,0 +1,14 @@
+{
+  "name": "concierge-workflows",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Concierge Workflows: event-triggered automations (log / webhook actions only). Standalone, no GHL dependency.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/api.test.mjs"
+  }
+}
