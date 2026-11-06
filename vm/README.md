@@ -45,7 +45,7 @@ node nav-test.mjs http://localhost:8080
 
 It checks all 24 pages at desktop (1280px) and mobile (390px) width: the Product dropdown opens on hover and
 keyboard focus and stays open while the pointer is inside it, the hamburger menu opens and closes with the right
-`aria-expanded` value, menu links navigate, "Log in" links point at port 3010, and the pages log no JavaScript errors.
+`aria-expanded` value, menu links navigate, "Log in" links point at the CRM (set EXPECT_APP_URL for an exact match), and the pages log no JavaScript errors.
 
 ## Other commands
 

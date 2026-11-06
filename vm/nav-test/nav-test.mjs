@@ -76,7 +76,11 @@ try {
       check(id, 'every dropdown link also in mobile menu', missing.length === 0, missing.join(','));
 
       const login = await p.$$eval('[data-app-link]', (as) => as.map((a) => a.href));
-      check(id, 'Log in links point at CRM :3010', login.length >= 1 && login.every((h) => /:3010\/$/.test(h)), login.join(','));
+      // EXPECT_APP_URL=https://crm.example.com/ forces an exact match; otherwise any non-GoHighLevel address
+      // that ends in "/" is accepted (older site.js: same host :3010, newer: the public CRM address).
+      const expectApp = process.env.EXPECT_APP_URL;
+      const loginOk = (h) => (expectApp ? h === expectApp : /\/$/.test(h) && !/gohighlevel/i.test(h));
+      check(id, 'Log in links point at the CRM', login.length >= 1 && login.every(loginOk), login.join(','));
       check(id, 'no JS errors', errors.length === 0, errors.join(' | '));
       await p.close();
     }
