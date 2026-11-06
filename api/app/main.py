@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from . import automation, chat as chat_engine, convo, db, ingest, llm, outbox, sms, tenants, voice
+from . import automation, chat as chat_engine, convo, db, events, ingest, llm, outbox, sms, tenants, voice
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -160,7 +160,7 @@ async def sms_inbound(public_key: str, request: Request):
     tenant = await tenants.get_by_key(public_key)
     if tenant is None:
         raise HTTPException(status_code=404, detail="Unknown key")
-    if not settings.twilio_auth_token:
+    if sms.provider() != "twilio" or not settings.twilio_auth_token:
         raise HTTPException(status_code=503, detail="SMS is not configured")
 
     raw = (await request.body()).decode("utf-8", errors="replace")
@@ -173,28 +173,75 @@ async def sms_inbound(public_key: str, request: Request):
     body = (params.get("Body") or "").strip()
     if not sender or not body:
         return _twiml("")
+    # Twilio sends its own opt-out confirmation, so STOP gets no reply of ours here.
+    return _twiml(await _sms_reply(tenant, sender, body, confirm_stop=False))
 
+
+@app.post("/api/v1/smsgate/{public_key}")
+async def smsgate_inbound(public_key: str, request: Request):
+    """Webhook for the self-hosted Android SMS gateway (event sms:received). The reply is sent as a
+    new text, because the gateway has no reply-in-response mechanism like TwiML."""
+    tenant = await tenants.get_by_key(public_key)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Unknown key")
+    if sms.provider() != "smsgate" or not settings.smsgate_signing_key:
+        raise HTTPException(status_code=503, detail="SMS gateway is not configured")
+
+    raw = await request.body()
+    if not sms.validate_smsgate_signature(
+        settings.smsgate_signing_key, raw,
+        request.headers.get("X-Timestamp", ""), request.headers.get("X-Signature", ""),
+    ):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+    try:
+        envelope = json.loads(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    if not isinstance(envelope, dict) or envelope.get("event") != "sms:received":
+        return {"ok": True}  # delivery receipts and pings are acknowledged and ignored
+
+    payload = envelope.get("payload") or {}
+    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", settings.default_country_code)
+    body = (payload.get("message") or "").strip()
+    if not sender or not body:
+        return {"ok": True}
+
+    reply = await _sms_reply(tenant, sender, body, confirm_stop=True)
+    if reply:
+        events.spawn(_send_reply(tenant, sender, reply))
+    return {"ok": True}
+
+
+async def _send_reply(tenant: dict, to: str, text: str) -> None:
+    try:
+        await sms.send_sms(to, text, tenant.get("sms_from"))
+    except Exception:
+        log.exception("sms reply failed for %s", tenant["slug"])
+
+
+async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -> str:
+    """Shared inbound-text logic for every provider. Returns the reply text, or "" for no reply."""
     command = body.upper()
     if command in STOP_WORDS:
         await outbox.opt_out(tenant["id"], sender)
-        return _twiml("")  # Twilio sends its own opt-out confirmation
+        return f"You're unsubscribed from {tenant['name']} messages. Reply START to resume." if confirm_stop else ""
     if command in START_WORDS:
         await outbox.opt_in(tenant["id"], sender)
-        return _twiml(f"You're subscribed to messages from {tenant['name']} again. Reply STOP to opt out.")
+        return f"You're subscribed to messages from {tenant['name']} again. Reply STOP to opt out."
     if command == "HELP":
-        return _twiml(f"{tenant['name']} AI assistant. Msg&data rates may apply. Reply STOP to opt out.")
+        return f"{tenant['name']} AI assistant. Msg&data rates may apply. Reply STOP to opt out."
     if await outbox.is_opted_out(tenant["id"], sender):
-        return _twiml("")
+        return ""
 
     session_id = "sms" + re.sub(r"\D", "", sender)
     if not sms_limiter.check(session_id):
-        return _twiml("")
+        return ""
     try:
         result = await chat_engine.run_turn(tenant, session_id, "sms", body[:1000], sender_phone=sender)
     except Exception:
         log.exception("sms turn failed for %s", tenant["slug"])
-        return _twiml("Sorry, I'm having trouble right now. The team will get back to you.")
-    return _twiml(result["reply"])
+        return "Sorry, I'm having trouble right now. The team will get back to you."
+    return result["reply"]
 
 
 class VoiceTokenRequest(BaseModel):

@@ -204,3 +204,101 @@ def test_next_allowed_send():
     assert next_allowed_send(tz, late).astimezone(tz) == datetime(2026, 11, 3, 8, 0, tzinfo=tz)
     early = datetime(2026, 11, 2, 5, 0, tzinfo=tz).astimezone(timezone.utc)
     assert next_allowed_send(tz, early).astimezone(tz) == datetime(2026, 11, 2, 8, 0, tzinfo=tz)
+
+
+# ---- SMS providers (Twilio / self-hosted Android gateway) --------------------
+def test_smsgate_signature_roundtrip():
+    import hashlib, hmac
+    from app.sms import validate_smsgate_signature
+    key, body, ts = "k", b'{"event":"sms:received"}', "1800000000"
+    good = hmac.new(key.encode(), body + ts.encode(), hashlib.sha256).hexdigest()
+    assert validate_smsgate_signature(key, body, ts, good, now=1800000100)
+    assert validate_smsgate_signature(key, body, ts, good.upper(), now=1800000100)
+    assert not validate_smsgate_signature(key, body + b" ", ts, good, now=1800000100)   # tampered body
+    assert not validate_smsgate_signature("other", body, ts, good, now=1800000100)      # wrong key
+    assert not validate_smsgate_signature(key, body, ts, good, now=1800001000)          # stale timestamp
+    assert not validate_smsgate_signature(key, body, "abc", good, now=1800000100)       # bad timestamp
+    assert not validate_smsgate_signature("", body, ts, good, now=1800000100)           # no key set
+
+
+def test_smsgate_payload_shape():
+    from app.sms import smsgate_payload
+    assert smsgate_payload("+64211234567", "hi") == {"textMessage": {"text": "hi"}, "phoneNumbers": ["+64211234567"]}
+    assert smsgate_payload("+64211234567", "hi", 2)["simNumber"] == 2
+    assert "simNumber" not in smsgate_payload("+64211234567", "hi", 0)
+    assert len(smsgate_payload("+64211234567", "x" * 5000)["textMessage"]["text"]) == 1500
+
+
+def _settings(monkeypatch, **kw):
+    from app import sms
+    from app.config import Settings
+    monkeypatch.setattr(sms, "get_settings", lambda: Settings(_env_file=None, **kw))
+
+
+def test_sender_ready_per_provider(monkeypatch):
+    from app import sms
+    _settings(monkeypatch, sms_provider="none")
+    assert not sms.sender_ready({})
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b")
+    assert not sms.sender_ready({})                              # no sender yet
+    assert sms.sender_ready({"sms_from": "+6421000000"})         # per-client number
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b",
+              twilio_messaging_service_sid="MG1")
+    assert sms.sender_ready({})                                  # short code / pool via messaging service
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw", smsgate_username="u")
+    assert not sms.sender_ready({})                              # password missing
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw",
+              smsgate_username="u", smsgate_password="p")
+    assert sms.sender_ready({})
+
+
+def _mock_client(monkeypatch, handler):
+    import httpx
+    from app import sms
+    real = httpx.AsyncClient
+    monkeypatch.setattr(sms.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+
+
+def test_send_smsgate_posts_expected_request(monkeypatch):
+    import asyncio, httpx
+    from app import sms
+    seen = {}
+
+    def handler(request):
+        seen["url"], seen["auth"] = str(request.url), request.headers["authorization"]
+        seen["json"] = json.loads(request.content)
+        return httpx.Response(202, json={"id": "abc"})
+
+    _mock_client(monkeypatch, handler)
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw.example.com/",
+              smsgate_username="u", smsgate_password="p")
+    assert asyncio.run(sms.send_sms("+64211234567", "hello")) == "abc"
+    assert seen["url"] == "https://gw.example.com/3rdparty/v1/messages"
+    assert seen["json"] == {"textMessage": {"text": "hello"}, "phoneNumbers": ["+64211234567"]}
+    assert seen["auth"].startswith("Basic ")
+
+
+def test_send_twilio_uses_messaging_service_when_set(monkeypatch):
+    import asyncio, httpx
+    from urllib.parse import parse_qs
+    from app import sms
+    seen = {}
+
+    def handler(request):
+        seen["form"] = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+        return httpx.Response(201, json={"sid": "SM1"})
+
+    _mock_client(monkeypatch, handler)
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b",
+              twilio_messaging_service_sid="MG1", twilio_from_number="+6421000000")
+    assert asyncio.run(sms.send_sms("+64211234567", "hi")) == "SM1"
+    assert seen["form"]["MessagingServiceSid"] == "MG1" and "From" not in seen["form"]
+
+
+def test_send_sms_refuses_when_provider_is_none(monkeypatch):
+    import asyncio
+    import pytest
+    from app import sms
+    _settings(monkeypatch, sms_provider="none")
+    with pytest.raises(sms.SmsNotConfigured):
+        asyncio.run(sms.send_sms("+64211234567", "hi"))

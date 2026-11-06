@@ -31,11 +31,21 @@ class Settings(BaseSettings):
     chat_rate_per_minute_ip: int = 20
     chat_rate_per_day_session: int = 200
 
-    # SMS (Twilio). Optional: without these, SMS messages are skipped, not failed.
+    # SMS. Optional: without a configured provider, SMS messages are skipped, not failed.
+    # SMS_PROVIDER = twilio | smsgate | none
+    sms_provider: str = "twilio"
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_from_number: str = ""
+    twilio_messaging_service_sid: str = ""  # use for a short code or a sender pool
     twilio_api_base: str = "https://api.twilio.com"
+    # Self-hosted Android gateway (capcom6/android-sms-gateway). The phone's SIM is the sender.
+    smsgate_base_url: str = ""          # e.g. https://sms.example.com (your private server)
+    smsgate_send_path: str = "/3rdparty/v1/messages"  # docs show /message and /messages: check yours
+    smsgate_username: str = ""
+    smsgate_password: str = ""
+    smsgate_signing_key: str = ""       # from the app: Settings > Webhooks > Signing Key
+    smsgate_sim_number: int = 0         # 0 = the app's own SIM rotation; 1-3 pins a SIM
     default_country_code: str = "1"  # used to turn 10-digit numbers into E.164
 
     # Email (any SMTP server). Optional.
@@ -65,7 +75,13 @@ class Settings(BaseSettings):
 
     @property
     def sms_configured(self) -> bool:
-        return bool(self.twilio_account_sid and self.twilio_auth_token and self.twilio_from_number)
+        name = (self.sms_provider or "none").strip().lower()
+        if name == "twilio":
+            return bool(self.twilio_account_sid and self.twilio_auth_token
+                        and (self.twilio_from_number or self.twilio_messaging_service_sid))
+        if name == "smsgate":
+            return bool(self.smsgate_base_url and self.smsgate_username and self.smsgate_password)
+        return False
 
     @property
     def email_configured(self) -> bool:

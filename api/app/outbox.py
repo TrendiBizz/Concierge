@@ -100,8 +100,7 @@ async def _deliver(row: dict) -> None:
         return
 
     if row["channel"] == "sms":
-        sender = tenant.get("sms_from") or settings.twilio_from_number
-        if not (settings.twilio_account_sid and settings.twilio_auth_token and sender):
+        if not sms.sender_ready(tenant):
             await _finish(row["id"], "skipped", "sms_not_configured")
             return
         allowed = next_allowed_send(
@@ -115,7 +114,7 @@ async def _deliver(row: dict) -> None:
                 row["id"], allowed,
             )
             return
-        await sms.send_sms(row["to_addr"], row["body"], sender)
+        await sms.send_sms(row["to_addr"], row["body"], tenant.get("sms_from"))
     elif row["channel"] == "email":
         if not settings.email_configured:
             await _finish(row["id"], "skipped", "email_not_configured")
