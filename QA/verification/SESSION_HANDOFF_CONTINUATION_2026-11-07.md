@@ -49,3 +49,10 @@
 cd /Users/jo/work-staging/concierge-integration
 PYTHONPATH=QA/verification/shims:api /Users/jo/work-staging/venv-concierge/bin/python -m pytest api/tests/test_units.py -q
 ```
+
+## Additional progress after first checkpoint commit
+- Added separate business-owner web UI at `api/static/owner.html`, served by `/owner-ui`, with login, invite/recovery redemption, role-aware email review, tenant phone history, owner invitations, logout, no browser storage of tokens and DOM text injection-safe rendering.
+- Browser verification `QA/verification/owner_portal_browser.cjs` passed **7/7** in actual headless Chrome against a separate disposable pgvector DB and local API on 127.0.0.1:18083.
+- The owner portal is **not** deployed; operator dashboard still uses global admin token and is internal-only.
+- Continue by checking `git log -2 --oneline` for latest local-only UI commit.
+- Provider-backed inbox webhook is still blocked pending explicit provider choice; do not use `ingest_verified` as a public handler.

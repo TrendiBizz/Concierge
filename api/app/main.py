@@ -1328,6 +1328,15 @@ async def admin_owner_recovery(slug: str, body: OwnerRecovery):
     return {"recovery_token": token, "expires_in_hours": 24}
 
 
+@app.get("/owner-ui")
+async def owner_ui():
+    return FileResponse(
+        STATIC_DIR / "owner.html", media_type="text/html",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                 "Referrer-Policy": "no-referrer"},
+    )
+
+
 @app.post("/owner/auth/redeem")
 async def owner_redeem(body: OwnerRedeem):
     try:

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Concierge — Business Owner</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif;color:#142235;background:#f4f7fb}
+*{box-sizing:border-box}body{margin:0}main{max-width:1060px;margin:24px auto;padding:0 18px}
+h1{font-size:1.7rem;margin:0 0 8px}h2{font-size:1.2rem}p{line-height:1.5}
+.panel{background:white;border:1px solid #d9e2ed;border-radius:12px;padding:20px;margin:16px 0}
+input,textarea,select{display:block;width:100%;font:inherit;padding:10px;border:1px solid #9eacc0;border-radius:7px;margin:6px 0 14px}
+textarea{min-height:130px;resize:vertical}
+label{font-weight:600}button{font:inherit;background:#1648a0;color:#fff;border:0;padding:10px 16px;border-radius:7px;cursor:pointer;margin:4px}
+button.secondary{background:#53657b}button.danger{background:#9d2437}button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:650px){.row{grid-template-columns:1fr}}
+.muted{color:#586c82}.error{color:#aa2438;white-space:pre-wrap}.success{color:#12643f;white-space:pre-wrap}
+.item{border-top:1px solid #e4e9ef;padding:16px 0;overflow-wrap:anywhere}
+pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:6px;padding:10px;max-height:240px;overflow:auto}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Concierge Business Owner</h1>
+<p class="muted">Tenant-specific access. This page does not use the global administrator token.</p>
+<div id="notice" role="status" aria-live="polite"></div>
+<section id="login-panel" class="panel">
+<h2>Sign in</h2>
+<form id="login-form">
+<div class="row"><div><label for="slug">Business slug</label><input id="slug" required autocomplete="organization"></div>
+<div><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div></div>
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="12" required>
+<button type="submit">Sign in</button>
+</form>
+<details><summary>Accept invitation or recovery token</summary>
+<form id="redeem-form">
+<label for="redeem-token">Invitation or recovery token</label><input id="redeem-token" required autocomplete="off">
+<label for="new-password">New password (12+ characters)</label><input id="new-password" type="password" required minlength="12" autocomplete="new-password">
+<button type="submit">Set password</button>
+</form></details>
+</section>
+<section id="app-panel" hidden>
+<div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
+<div class="row">
+<section class="panel"><h2>Telephone numbers</h2><p class="muted">Read-only. Enabling phone reception requires operator verification.</p><div id="numbers"></div></section>
+<section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
+</div>
+<section class="panel">
+<h2>Email drafts awaiting review</h2>
+<p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
+<button type="button" id="refresh">Refresh</button>
+<div id="drafts"></div>
+</section>
+<section id="invite-panel" class="panel" hidden>
+<h2>Invite team member</h2><p class="muted">The generated invitation token is shown once for manual delivery through a verified private channel; it is never emailed automatically.</p>
+<form id="invite-form"><label for="invite-email">Email</label><input id="invite-email" type="email" required>
+<label for="invite-role">Role</label><select id="invite-role"><option>viewer</option><option>editor</option><option>owner</option></select>
+<button type="submit">Create invitation</button></form>
+<div id="invite-result"></div>
+</section>
+</section>
+</main>
+<script>
+"use strict";
+let bearer = "";
+let currentRole = "";
+const $ = id => document.getElementById(id);
+function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
+function node(tag,text,cls){const el=document.createElement(tag);el.textContent=String(text??"");if(cls)el.className=cls;return el;}
+function message(text,failed=false){const host=$("notice");clear(host);host.appendChild(node("p",text,failed?"error":"success"));}
+async function request(path,method="GET",data){
+  const headers={"Accept":"application/json"};
+  if(data!==undefined)headers["Content-Type"]="application/json";
+  if(bearer)headers["Authorization"]="Bearer "+bearer;
+  const result=await fetch(path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),cache:"no-store",credentials:"omit"});
+  const parsed=await result.json().catch(()=>({}));
+  if(!result.ok)throw new Error(typeof parsed.detail==="string"?parsed.detail:"Request failed ("+result.status+")");
+  return parsed;
+}
+$("login-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  const data=await request("/owner/auth/login","POST",{slug:$("slug").value.trim(),email:$("email").value.trim(),password:$("password").value});
+  bearer=data.access_token;
+  $("password").value="";
+  const user=await request("/owner/me");
+  currentRole=user.role;
+  $("identity").textContent=user.tenant+" — "+user.email+" ("+user.role+")";
+  $("login-panel").hidden=true;$("app-panel").hidden=false;
+  $("invite-panel").hidden=user.role!=="owner";
+  message("Signed in. Session held only in this browser tab.");
+  await refresh();
+ }catch(error){message(error.message,true);}
+});
+$("redeem-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  await request("/owner/auth/redeem","POST",{token:$("redeem-token").value,password:$("new-password").value});
+  $("redeem-token").value="";$("new-password").value="";
+  message("Password set. Sign in using your business slug and email.");
+ }catch(error){message(error.message,true);}
+});
+$("logout").addEventListener("click",async()=>{
+ try{await request("/owner/auth/logout","POST");}catch(_){}
+ bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;clear($("drafts"));message("Signed out.");
+});
+$("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
+async function refresh(){
+ const [drafts,numbers,calls]=await Promise.all([
+   request("/owner/email-drafts?status=draft").catch(error=>({error:error.message})),
+   request("/owner/phone-numbers"),request("/owner/phone-calls")
+ ]);
+ clear($("numbers"));clear($("calls"));clear($("drafts"));
+ if(Array.isArray(numbers)){for(const n of numbers){$("numbers").appendChild(node("p",n.e164+" — "+(n.enabled?"enabled":"disabled")));}if(!numbers.length)$("numbers").appendChild(node("p","No numbers registered.","muted"));}
+ if(Array.isArray(calls)){for(const c of calls){$("calls").appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number));}if(!calls.length)$("calls").appendChild(node("p","No calls recorded.","muted"));}
+ if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
+ if(!drafts.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
+ for(const draft of drafts){
+   const item=node("article","","item");
+   item.appendChild(node("h3","#"+draft.id+" — "+draft.subject));
+   item.appendChild(node("p","From: "+draft.sender));
+   item.appendChild(node("strong","Incoming (untrusted)"));
+   item.appendChild(node("pre",draft.inbound_body));
+   if(currentRole!=="viewer"){
+     const edit=node("textarea",draft.reply_body);edit.value=draft.reply_body;
+     edit.setAttribute("aria-label","Proposed reply for draft "+draft.id);
+     item.appendChild(node("strong","Reply for human review"));item.appendChild(edit);
+     const save=node("button","Save changes");
+     save.addEventListener("click",async()=>{
+       try{await request("/owner/email-drafts/"+draft.id,"PATCH",{reply_body:edit.value});message("Draft saved.");}
+       catch(error){message(error.message,true);}
+     });
+     item.appendChild(save);
+     const discard=node("button","Discard","danger");
+     discard.addEventListener("click",async()=>{
+       if(!confirm("Discard this draft?"))return;
+       try{await request("/owner/email-drafts/"+draft.id+"/discard","POST");await refresh();message("Draft discarded.");}
+       catch(error){message(error.message,true);}
+     });
+     item.appendChild(discard);
+     if(currentRole==="owner"){
+       const approve=node("button","Approve for outbound queue");
+       approve.addEventListener("click",async()=>{
+         if(!confirm("Have you reviewed recipient, claims, and the complete reply? This action may queue an email for delivery if outbound service is enabled."))return;
+         try{await request("/owner/email-drafts/"+draft.id+"/approve","POST");await refresh();message("Draft approved and queued (only if outbound service is enabled).");}
+         catch(error){message(error.message,true);}
+       });
+       item.appendChild(approve);
+     }
+   }else{item.appendChild(node("pre",draft.reply_body));}
+   $("drafts").appendChild(item);
+ }
+}
+$("invite-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  const result=await request("/owner/invitations","POST",{email:$("invite-email").value,role:$("invite-role").value});
+  const host=$("invite-result");clear(host);
+  host.appendChild(node("p","Copy this one-time token privately. Expires in 24 hours."));
+  const field=node("textarea",result.invitation_token);field.value=result.invitation_token;field.readOnly=true;host.appendChild(field);
+  message("Invitation created but not delivered.");
+ }catch(error){message(error.message,true);}
+});
+</script>
+</body>
+</html>
