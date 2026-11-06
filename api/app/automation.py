@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import events, outbox
+from . import events, outbox, scoring
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -20,6 +20,18 @@ def fmt_local(tenant: dict, moment: datetime) -> str:
     hour12 = local.hour % 12 or 12
     suffix = "AM" if local.hour < 12 else "PM"
     return f"{local:%A, %B} {local.day} at {hour12}:{local:%M} {suffix} {local:%Z}"
+
+
+def _score_tag(lead: dict) -> str:
+    label = lead.get("score_label")
+    return f"[{label.upper()}] " if label in ("hot", "warm") else ""
+
+
+def _score_lines(lead: dict) -> str:
+    if lead.get("score") is None:
+        return ""
+    why = "; ".join(scoring.reasons_of(lead)) or "-"
+    return f"Score: {lead['score']}/100 ({lead.get('score_label')})\nWhy: {why}\n\n"
 
 
 def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
@@ -38,13 +50,17 @@ async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> No
 
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
+    try:
+        lead = await scoring.apply(lead)
+    except Exception:  # scoring must never stop a lead from being handled
+        log.exception("lead scoring failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
 
     contact = lead["phone"] or lead["email"] or "-"
     await _owner_alert(
         tenant,
-        f"New lead for {tenant['name']}: {lead['name'] or contact}",
-        f"Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
+        f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",
+        f"{_score_lines(lead)}Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
         f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
         f"lead:{lead['id']}:owner",
     )
@@ -64,6 +80,11 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
 
 
 async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> None:
+    if lead:
+        try:
+            lead = await scoring.apply(lead, booked=True)
+        except Exception:
+            log.exception("lead scoring failed for %s", lead.get("id"))
     events.emit(
         tenant, "appointment.booked",
         appointment=events.appointment_view(appt, tenant["timezone"]),

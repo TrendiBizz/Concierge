@@ -148,3 +148,10 @@ CREATE TABLE IF NOT EXISTS opt_outs (
     created_at  timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, contact)
 );
+
+-- Lead scoring (rule-based, see app/scoring.py)
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS score integer NOT NULL DEFAULT 0;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_label text NOT NULL DEFAULT 'cold';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_reasons jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS scored_at timestamptz;
+CREATE INDEX IF NOT EXISTS leads_score_idx ON leads (tenant_id, score DESC);

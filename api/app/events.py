@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from . import db
+from . import db, scoring
 
 log = logging.getLogger("concierge.events")
 
@@ -54,6 +54,9 @@ def lead_view(lead: dict) -> dict:
         "phone": lead["phone"],
         "message": lead["message"],
         "channel": lead["channel"],
+        "score": lead.get("score"),
+        "score_label": lead.get("score_label"),
+        "score_reasons": scoring.reasons_of(lead),
         "page_url": lead.get("page_url"),
         "utm": json.loads(utm) if isinstance(utm, str) else (utm or {}),
         "created_at": lead["created_at"].isoformat(),

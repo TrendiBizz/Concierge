@@ -302,3 +302,79 @@ def test_send_sms_refuses_when_provider_is_none(monkeypatch):
     _settings(monkeypatch, sms_provider="none")
     with pytest.raises(sms.SmsNotConfigured):
         asyncio.run(sms.send_sms("+64211234567", "hi"))
+
+
+# ---- lead scoring -----------------------------------------------------------
+def _lead(**kw):
+    base = {"name": "", "email": "", "phone": "", "message": "", "channel": "chat",
+            "page_url": None, "consent_contact": False}
+    base.update(kw)
+    return base
+
+
+def test_scoring_hot_lead():
+    from app.scoring import assess
+    r = assess(_lead(name="Pat Lee", phone="+6421000000", email="pat@example.com", consent_contact=True,
+                     message="Hi, how much is a full service and can I book for tomorrow morning?",
+                     page_url="https://acme.nz/pricing"), user_turns=4)
+    assert r["label"] == "hot" and r["score"] >= 70
+    assert any("phone" in x for x in r["reasons"]) and any("price, booking" in x for x in r["reasons"])
+
+
+def test_scoring_cold_lead_and_floor():
+    from app.scoring import assess
+    r = assess(_lead(email="a@b.co"))
+    assert r["label"] == "cold" and r["score"] == 10
+    assert assess(_lead(message="see http://spam.example"))["score"] == 0   # clamped at 0, never negative
+
+
+def test_scoring_spam_link_costs_points():
+    from app.scoring import assess
+    clean = assess(_lead(phone="+6421000000", message="quote please"))["score"]
+    spam = assess(_lead(phone="+6421000000", message="quote please http://x.example"))["score"]
+    assert spam == clean - 25
+
+
+def test_scoring_booked_is_strong_and_skips_message_intent():
+    from app.scoring import assess
+    r = assess(_lead(name="Sam", phone="+6421000000", message="Booked appointment for Monday at 9 AM"), booked=True)
+    assert any("Booked an appointment" in x for x in r["reasons"])
+    assert not any("price, booking" in x for x in r["reasons"])         # no double count
+    assert r["label"] == "warm" or r["label"] == "hot"
+    assert r["score"] == 25 + 5 + 30
+
+
+def test_scoring_caps_at_100_and_thresholds():
+    from app.scoring import assess, label_for
+    top = assess(_lead(name="Pat", phone="+6421000000", email="p@e.co", consent_contact=True, channel="sms",
+                       message="price quote book today asap please I need this " * 3,
+                       page_url="/book"), user_turns=9, booked=False)
+    assert top["score"] == 100
+    assert [label_for(x) for x in (0, 39, 40, 69, 70, 100)] == ["cold", "cold", "warm", "warm", "hot", "hot"]
+
+
+def test_scoring_intent_words_capped_and_deterministic():
+    from app.scoring import assess
+    lead = _lead(message="price cost quote book appointment urgent")
+    a, b = assess(lead), assess(lead)
+    assert a == b
+    assert sum(1 for x in a["reasons"] if "price, booking" in x) == 1
+    assert a["reasons"][0].startswith("+20")                            # capped at two intent hits
+
+
+def test_scoring_reasons_of_parses_db_values():
+    from app.scoring import reasons_of
+    assert reasons_of({"score_reasons": '["+25 Gave a phone number"]'}) == ["+25 Gave a phone number"]
+    assert reasons_of({"score_reasons": ["x"]}) == ["x"]
+    assert reasons_of({"score_reasons": "not json"}) == []
+    assert reasons_of({}) == []
+
+
+def test_lead_view_carries_score():
+    from datetime import datetime, timezone
+    from app.events import lead_view
+    lead = {"id": "1", "name": "A", "email": "", "phone": "+6421000000", "message": "hi", "channel": "chat",
+            "page_url": None, "utm": "{}", "created_at": datetime(2026, 11, 6, tzinfo=timezone.utc),
+            "score": 55, "score_label": "warm", "score_reasons": '["+25 Gave a phone number"]'}
+    v = lead_view(lead)
+    assert v["score"] == 55 and v["score_label"] == "warm" and v["score_reasons"] == ["+25 Gave a phone number"]

@@ -440,13 +440,14 @@ async def client_report(token: str, days: int = 30):
             f'<rect x="{x + bar_w * 0.45:.1f}" y="{110 - h_l:.1f}" width="{max(bar_w * 0.4, 1):.1f}" height="{h_l:.1f}" fill="{html.escape(tenant["accent_color"])}"/>'
         )
     leads = await db.pool().fetch(
-        "SELECT name, message, channel, status, created_at FROM leads WHERE tenant_id = $1 "
+        "SELECT name, message, channel, status, score_label, created_at FROM leads WHERE tenant_id = $1 "
         "AND created_at > now() - make_interval(days => $2) ORDER BY created_at DESC LIMIT 25",
         tenant["id"], s["days"],
     )
     rows = "".join(
         f"<tr><td>{r['created_at']:%b %d}</td><td>{html.escape((r['name'] or 'Visitor').split(' ')[0])}</td>"
-        f"<td>{html.escape(r['message'][:140])}</td><td>{html.escape(r['channel'])}</td><td>{html.escape(r['status'])}</td></tr>"
+        f"<td>{html.escape(r['message'][:140])}</td><td>{html.escape(r['channel'])}</td><td>{html.escape(r['status'])}</td>"
+        f"<td>{html.escape((r['score_label'] or 'cold').title())}</td></tr>"
         for r in leads
     )
     card = lambda label, value: f'<div class="c"><b>{value}</b><span>{label}</span></div>'  # noqa: E731
@@ -476,7 +477,7 @@ async def client_report(token: str, days: int = 30):
 <div class="g">{cards}</div>
 <section><b>Daily activity</b> <small>grey = conversations, colour = leads</small>
 <svg viewBox="0 0 600 115" width="100%" role="img" aria-label="Daily conversations and leads">{''.join(bars)}</svg></section>
-<section><b>Recent leads</b><table><tr><th>Date</th><th>Who</th><th>What they wanted</th><th>Via</th><th>Status</th></tr>{rows or '<tr><td colspan=5>No leads yet.</td></tr>'}</table></section>
+<section><b>Recent leads</b><table><tr><th>Date</th><th>Who</th><th>What they wanted</th><th>Via</th><th>Status</th><th>Interest</th></tr>{rows or '<tr><td colspan=6>No leads yet.</td></tr>'}</table></section>
 <p><small>Estimated pipeline = leads x the average lead value agreed with your provider. Contact details are not shown on this page.</small></p>
 </main></body></html>"""
     return HTMLResponse(page)
@@ -685,11 +686,11 @@ async def admin_demo_questions(slug: str):
 
 
 @app.get("/admin/tenants/{slug}/leads", dependencies=admin)
-async def admin_leads(slug: str, limit: int = 100):
+async def admin_leads(slug: str, limit: int = 100, min_score: int = 0):
     tenant = await _require_tenant(slug)
     rows = await db.pool().fetch(
-        "SELECT * FROM leads WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2",
-        tenant["id"], min(max(limit, 1), 500),
+        "SELECT * FROM leads WHERE tenant_id = $1 AND score >= $3 ORDER BY created_at DESC LIMIT $2",
+        tenant["id"], min(max(limit, 1), 500), max(min_score, 0),
     )
     return [dict(r) for r in rows]
 
