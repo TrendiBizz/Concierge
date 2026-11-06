@@ -204,3 +204,322 @@ def test_next_allowed_send():
     assert next_allowed_send(tz, late).astimezone(tz) == datetime(2026, 11, 3, 8, 0, tzinfo=tz)
     early = datetime(2026, 11, 2, 5, 0, tzinfo=tz).astimezone(timezone.utc)
     assert next_allowed_send(tz, early).astimezone(tz) == datetime(2026, 11, 2, 8, 0, tzinfo=tz)
+
+
+# ---- SMS providers (Twilio / self-hosted Android gateway) --------------------
+def test_smsgate_signature_roundtrip():
+    import hashlib, hmac
+    from app.sms import validate_smsgate_signature
+    key, body, ts = "k", b'{"event":"sms:received"}', "1800000000"
+    good = hmac.new(key.encode(), body + ts.encode(), hashlib.sha256).hexdigest()
+    assert validate_smsgate_signature(key, body, ts, good, now=1800000100)
+    assert validate_smsgate_signature(key, body, ts, good.upper(), now=1800000100)
+    assert not validate_smsgate_signature(key, body + b" ", ts, good, now=1800000100)   # tampered body
+    assert not validate_smsgate_signature("other", body, ts, good, now=1800000100)      # wrong key
+    assert not validate_smsgate_signature(key, body, ts, good, now=1800001000)          # stale timestamp
+    assert not validate_smsgate_signature(key, body, "abc", good, now=1800000100)       # bad timestamp
+    assert not validate_smsgate_signature("", body, ts, good, now=1800000100)           # no key set
+
+
+def test_smsgate_payload_shape():
+    from app.sms import smsgate_payload
+    assert smsgate_payload("+64211234567", "hi") == {"textMessage": {"text": "hi"}, "phoneNumbers": ["+64211234567"]}
+    assert smsgate_payload("+64211234567", "hi", 2)["simNumber"] == 2
+    assert "simNumber" not in smsgate_payload("+64211234567", "hi", 0)
+    assert len(smsgate_payload("+64211234567", "x" * 5000)["textMessage"]["text"]) == 1500
+
+
+def _settings(monkeypatch, **kw):
+    from app import sms
+    from app.config import Settings
+    monkeypatch.setattr(sms, "get_settings", lambda: Settings(_env_file=None, **kw))
+
+
+def test_sender_ready_per_provider(monkeypatch):
+    from app import sms
+    _settings(monkeypatch, sms_provider="none")
+    assert not sms.sender_ready({})
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b")
+    assert not sms.sender_ready({})                              # no sender yet
+    assert sms.sender_ready({"sms_from": "+6421000000"})         # per-client number
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b",
+              twilio_messaging_service_sid="MG1")
+    assert sms.sender_ready({})                                  # short code / pool via messaging service
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw", smsgate_username="u")
+    assert not sms.sender_ready({})                              # password missing
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw",
+              smsgate_username="u", smsgate_password="p")
+    assert sms.sender_ready({})
+
+
+def _mock_client(monkeypatch, handler):
+    import httpx
+    from app import sms
+    real = httpx.AsyncClient
+    monkeypatch.setattr(sms.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+
+
+def test_send_smsgate_posts_expected_request(monkeypatch):
+    import asyncio, httpx
+    from app import sms
+    seen = {}
+
+    def handler(request):
+        seen["url"], seen["auth"] = str(request.url), request.headers["authorization"]
+        seen["json"] = json.loads(request.content)
+        return httpx.Response(202, json={"id": "abc"})
+
+    _mock_client(monkeypatch, handler)
+    _settings(monkeypatch, sms_provider="smsgate", smsgate_base_url="https://gw.example.com/",
+              smsgate_username="u", smsgate_password="p")
+    assert asyncio.run(sms.send_sms("+64211234567", "hello")) == "abc"
+    assert seen["url"] == "https://gw.example.com/3rdparty/v1/messages"
+    assert seen["json"] == {"textMessage": {"text": "hello"}, "phoneNumbers": ["+64211234567"]}
+    assert seen["auth"].startswith("Basic ")
+
+
+def test_send_twilio_uses_messaging_service_when_set(monkeypatch):
+    import asyncio, httpx
+    from urllib.parse import parse_qs
+    from app import sms
+    seen = {}
+
+    def handler(request):
+        seen["form"] = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+        return httpx.Response(201, json={"sid": "SM1"})
+
+    _mock_client(monkeypatch, handler)
+    _settings(monkeypatch, sms_provider="twilio", twilio_account_sid="a", twilio_auth_token="b",
+              twilio_messaging_service_sid="MG1", twilio_from_number="+6421000000")
+    assert asyncio.run(sms.send_sms("+64211234567", "hi")) == "SM1"
+    assert seen["form"]["MessagingServiceSid"] == "MG1" and "From" not in seen["form"]
+
+
+def test_send_sms_refuses_when_provider_is_none(monkeypatch):
+    import asyncio
+    import pytest
+    from app import sms
+    _settings(monkeypatch, sms_provider="none")
+    with pytest.raises(sms.SmsNotConfigured):
+        asyncio.run(sms.send_sms("+64211234567", "hi"))
+
+
+# ---- lead scoring -----------------------------------------------------------
+def _lead(**kw):
+    base = {"name": "", "email": "", "phone": "", "message": "", "channel": "chat",
+            "page_url": None, "consent_contact": False}
+    base.update(kw)
+    return base
+
+
+def test_scoring_hot_lead():
+    from app.scoring import assess
+    r = assess(_lead(name="Pat Lee", phone="+6421000000", email="pat@example.com", consent_contact=True,
+                     message="Hi, how much is a full service and can I book for tomorrow morning?",
+                     page_url="https://acme.nz/pricing"), user_turns=4)
+    assert r["label"] == "hot" and r["score"] >= 70
+    assert any("phone" in x for x in r["reasons"]) and any("price, booking" in x for x in r["reasons"])
+
+
+def test_scoring_cold_lead_and_floor():
+    from app.scoring import assess
+    r = assess(_lead(email="a@b.co"))
+    assert r["label"] == "cold" and r["score"] == 10
+    assert assess(_lead(message="see http://spam.example"))["score"] == 0   # clamped at 0, never negative
+
+
+def test_scoring_spam_link_costs_points():
+    from app.scoring import assess
+    clean = assess(_lead(phone="+6421000000", message="quote please"))["score"]
+    spam = assess(_lead(phone="+6421000000", message="quote please http://x.example"))["score"]
+    assert spam == clean - 25
+
+
+def test_scoring_booked_is_strong_and_skips_message_intent():
+    from app.scoring import assess
+    r = assess(_lead(name="Sam", phone="+6421000000", message="Booked appointment for Monday at 9 AM"), booked=True)
+    assert any("Booked an appointment" in x for x in r["reasons"])
+    assert not any("price, booking" in x for x in r["reasons"])         # no double count
+    assert r["label"] == "warm" or r["label"] == "hot"
+    assert r["score"] == 25 + 5 + 30
+
+
+def test_scoring_caps_at_100_and_thresholds():
+    from app.scoring import assess, label_for
+    top = assess(_lead(name="Pat", phone="+6421000000", email="p@e.co", consent_contact=True, channel="sms",
+                       message="price quote book today asap please I need this " * 3,
+                       page_url="/book"), user_turns=9, booked=False)
+    assert top["score"] == 100
+    assert [label_for(x) for x in (0, 39, 40, 69, 70, 100)] == ["cold", "cold", "warm", "warm", "hot", "hot"]
+
+
+def test_scoring_intent_words_capped_and_deterministic():
+    from app.scoring import assess
+    lead = _lead(message="price cost quote book appointment urgent")
+    a, b = assess(lead), assess(lead)
+    assert a == b
+    assert sum(1 for x in a["reasons"] if "price, booking" in x) == 1
+    assert a["reasons"][0].startswith("+20")                            # capped at two intent hits
+
+
+def test_scoring_reasons_of_parses_db_values():
+    from app.scoring import reasons_of
+    assert reasons_of({"score_reasons": '["+25 Gave a phone number"]'}) == ["+25 Gave a phone number"]
+    assert reasons_of({"score_reasons": ["x"]}) == ["x"]
+    assert reasons_of({"score_reasons": "not json"}) == []
+    assert reasons_of({}) == []
+
+
+def test_lead_view_carries_score():
+    from datetime import datetime, timezone
+    from app.events import lead_view
+    lead = {"id": "1", "name": "A", "email": "", "phone": "+6421000000", "message": "hi", "channel": "chat",
+            "page_url": None, "utm": "{}", "created_at": datetime(2026, 11, 6, tzinfo=timezone.utc),
+            "score": 55, "score_label": "warm", "score_reasons": '["+25 Gave a phone number"]'}
+    v = lead_view(lead)
+    assert v["score"] == 55 and v["score_label"] == "warm" and v["score_reasons"] == ["+25 Gave a phone number"]
+
+
+# ---- reactivation campaigns ---------------------------------------------------
+def _unsub_settings(monkeypatch, **kw):
+    from app import unsub
+    from app.config import Settings
+    monkeypatch.setattr(unsub, "get_settings", lambda: Settings(_env_file=None, **kw))
+
+
+def test_unsub_token_roundtrip(monkeypatch):
+    from app import unsub
+    _unsub_settings(monkeypatch, unsubscribe_secret="s3cret")
+    tok = unsub.make_token("11111111-1111-1111-1111-111111111111", "pat@example.com")
+    assert unsub.read_token(tok) == ("11111111-1111-1111-1111-111111111111", "pat@example.com")
+    payload, sig = tok.split(".")
+    assert unsub.read_token(payload + "." + "0" * len(sig)) is None          # bad signature
+    other = unsub.make_token("22222222-2222-2222-2222-222222222222", "pat@example.com")
+    assert unsub.read_token(other.split(".")[0] + "." + sig) is None          # payload swapped, signature kept
+    assert unsub.read_token("") is None and unsub.read_token("nodot") is None
+    _unsub_settings(monkeypatch, unsubscribe_secret="different")
+    assert unsub.read_token(tok) is None                                       # wrong secret
+
+
+def test_unsub_needs_a_secret(monkeypatch):
+    import pytest
+    from app import unsub
+    _unsub_settings(monkeypatch)
+    assert not unsub.available() and unsub.read_token("a.b") is None
+    with pytest.raises(RuntimeError):
+        unsub.make_token("t", "c")
+    _unsub_settings(monkeypatch, admin_token="admin-fallback")
+    assert unsub.available()                                                   # falls back to ADMIN_TOKEN
+
+
+def test_campaign_template_validation_and_render():
+    import pytest
+    from app.campaigns import CampaignError, render, validate_template
+    validate_template("Hi {first}, it's been a while since {business} saw you.")
+    for bad in ("", "   ", "Hi {name}", "Hi {first.__class__}", "Hi {0}", "Hi {first", "x" * 601):
+        with pytest.raises(CampaignError):
+            validate_template(bad)
+    out = render("Hi {first} from {business}", {"name": "Pat Lee"}, {"name": "Acme"})
+    assert out == "Hi Pat from Acme"
+    assert render("Hi {first}", {"name": ""}, {"name": "Acme"}) == "Hi there"
+
+
+def test_campaign_send_times_are_spread():
+    from datetime import datetime, timedelta, timezone
+    from app.campaigns import send_times
+    start = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    times = send_times(start, 4, 20)                                           # 20 an hour = every 3 minutes
+    assert times[0] == start and times[1] - times[0] == timedelta(minutes=3) and len(times) == 4
+    assert send_times(start, 0, 20) == []
+    assert send_times(start, 2, 0)[1] - start == timedelta(hours=1)           # never divides by zero
+
+
+def test_campaign_filters_are_validated_and_capped():
+    import pytest
+    from app.campaigns import CampaignError, clean_filters
+    f = clean_filters({})
+    assert f["statuses"] == ["new", "contacted", "lost"] and f["older_than_days"] == 30 and f["max_recipients"] == 200
+    assert clean_filters({"max_recipients": 99999})["max_recipients"] == 200   # server cap wins
+    for bad in ({"statuses": ["nope"]}, {"older_than_days": -1}, {"min_score": 101}, {"max_recipients": 0}):
+        with pytest.raises(CampaignError):
+            clean_filters(bad)
+
+
+def test_campaign_readiness_rules(monkeypatch):
+    from app import campaigns, unsub
+    from app.config import Settings
+    s = Settings(_env_file=None, smtp_host="smtp.example.com", smtp_from="hi@example.com", unsubscribe_secret="k")
+    monkeypatch.setattr(campaigns, "get_settings", lambda: s)
+    monkeypatch.setattr(unsub, "get_settings", lambda: s)
+    assert campaigns.readiness({"campaigns_enabled": True}, "email") == []
+    assert any("switched off" in p for p in campaigns.readiness({"campaigns_enabled": False}, "email"))
+    s2 = Settings(_env_file=None, smtp_host="smtp.example.com", smtp_from="hi@example.com")
+    monkeypatch.setattr(campaigns, "get_settings", lambda: s2)
+    monkeypatch.setattr(unsub, "get_settings", lambda: s2)
+    assert any("UNSUBSCRIBE_SECRET" in p for p in campaigns.readiness({"campaigns_enabled": True}, "email"))
+    sms_problems = campaigns.readiness({"campaigns_enabled": True, "sms_enabled": False}, "sms")
+    assert any("sms_enabled" in p for p in sms_problems) and any("provider" in p for p in sms_problems)
+
+
+def test_campaign_mask_hides_contact_details():
+    from app.campaigns import mask
+    assert mask("pat@example.com") == "p***@example.com"
+    assert mask("+6421123456") == "+64*****456" and "1123" not in mask("+6421123456")
+
+
+# ---- per-client scoring weights and response-time alerts -----------------------
+def test_scoring_validate_overrides():
+    import pytest
+    from app.scoring import validate_overrides
+    assert validate_overrides({}) == {}
+    assert validate_overrides({"phone": 40, "hot_at": 80, "spam_link": -50}) == {"phone": 40, "hot_at": 80, "spam_link": -50}
+    for bad in ({"nope": 1}, {"phone": True}, {"phone": 5.5}, {"phone": "9"}, {"phone": 51}, {"phone": -51},
+                {"intent_cap": 6}, {"hot_at": 0}, {"hot_at": 101}, {"warm_at": 70}, {"hot_at": 40},
+                {"warm_at": 90}, ["phone"], "phone"):
+        with pytest.raises(ValueError):
+            validate_overrides(bad)
+
+
+def test_scoring_weights_change_the_result():
+    from app.scoring import assess, weights_for
+    lead = _lead(name="Pat", phone="+6421000000", email="p@e.co")
+    base = assess(lead)
+    assert base["score"] == 25 + 10 + 5
+    assert assess(lead, weights={"phone": 0})["score"] == 10 + 5
+    assert not any("phone" in r for r in assess(lead, weights={"phone": 0})["reasons"])   # zero-weight rules are not listed
+    assert assess(lead, weights={"phone": 50})["score"] == 50 + 10 + 5
+    assert assess(lead)["label"] == "warm" and assess(lead, weights={"warm_at": 45})["label"] == "cold"
+    assert assess(lead, weights={"hot_at": 45, "warm_at": 20})["label"] == "warm"
+    assert assess(lead, weights={"hot_at": 40, "warm_at": 20})["label"] == "hot"
+    assert weights_for({"scoring": {"phone": 1}})["phone"] == 1 and weights_for({"scoring": {"phone": 1}})["email"] == 10
+    assert weights_for({"scoring": '{"phone": 2}'})["phone"] == 2                          # jsonb arrives as a string
+    assert weights_for({"scoring": "garbage"})["phone"] == 25 and weights_for(None)["phone"] == 25
+
+
+def test_scoring_intent_weights():
+    from app.scoring import assess
+    lead = _lead(message="price cost quote book appointment")
+    assert assess(lead)["score"] == 20                                                     # default cap of 2 words
+    assert assess(lead, weights={"intent_cap": 4})["score"] == 40
+    assert assess(lead, weights={"intent_each": 5})["score"] == 10
+    assert assess(lead, weights={"intent_cap": 0})["score"] == 0
+
+
+def test_scoring_describe_lists_every_weight():
+    from app.scoring import DEFAULT_WEIGHTS, describe
+    rows = describe({"scoring": {"phone": 30}})
+    assert {r["key"] for r in rows} == set(DEFAULT_WEIGHTS)
+    phone = next(r for r in rows if r["key"] == "phone")
+    assert phone["default"] == 25 and phone["value"] == 30 and phone["label"] and phone["kind"] == "points"
+
+
+def test_sla_alert_text():
+    from app.sla import _alert_text
+    tenant = {"name": "Acme", "sla_minutes": 15}
+    lead = {"name": "Pat Lee", "phone": "+6421000000", "email": "", "channel": "chat", "message": "need a quote",
+            "score": 82, "score_label": "hot", "minutes_waiting": 31}
+    subject, body = _alert_text(tenant, lead)
+    assert subject == "[ACTION] HOT lead waiting 31 min: Pat Lee"
+    assert "31 minutes" in body and "target is 15" in body and "need a quote" in body and "contacted" in body
+    anon = _alert_text(tenant, {**lead, "name": "", "phone": "", "email": ""})[0]
+    assert anon.endswith("a visitor")

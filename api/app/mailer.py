@@ -9,12 +9,14 @@ class EmailNotConfigured(RuntimeError):
     pass
 
 
-def _send_sync(to_addr: str, subject: str, body: str) -> None:
+def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None) -> None:
     s = get_settings()
     msg = EmailMessage()
     msg["From"] = s.smtp_from
     msg["To"] = to_addr
     msg["Subject"] = subject
+    for name, value in (headers or {}).items():
+        msg[name] = value
     msg.set_content(body)
 
     if s.smtp_security == "ssl":
@@ -34,7 +36,7 @@ def _send_sync(to_addr: str, subject: str, body: str) -> None:
             pass
 
 
-async def send_email(to_addr: str, subject: str, body: str) -> None:
+async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
-    await asyncio.to_thread(_send_sync, to_addr, subject, body)
+    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers)

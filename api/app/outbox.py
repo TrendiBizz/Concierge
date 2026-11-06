@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import db, mailer, sms, tenants
+from . import db, mailer, sms, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -36,16 +36,18 @@ async def enqueue(
     dedupe_key: str | None = None,
     appointment_id=None,
     lead_id=None,
+    campaign_id=None,
 ) -> bool:
     """Queue a message. Returns False if an identical dedupe_key already exists."""
     result = await db.pool().execute(
         """
         INSERT INTO outbox (tenant_id, kind, channel, to_addr, subject, body, send_at, dedupe_key,
-                            appointment_id, lead_id)
-        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, now()), $8, $9, $10)
+                            appointment_id, lead_id, campaign_id)
+        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, now()), $8, $9, $10, $11)
         ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
         """,
         tenant_id, kind, channel, to_addr, subject, body, send_at, dedupe_key, appointment_id, lead_id,
+        campaign_id,
     )
     return result.endswith("1")
 
@@ -99,9 +101,12 @@ async def _deliver(row: dict) -> None:
         await _finish(row["id"], "skipped", "opted_out")
         return
 
+    if row.get("campaign_id") and not tenant.get("campaigns_enabled"):
+        await _finish(row["id"], "skipped", "campaigns_disabled")  # kill switch, checked at send time
+        return
+
     if row["channel"] == "sms":
-        sender = tenant.get("sms_from") or settings.twilio_from_number
-        if not (settings.twilio_account_sid and settings.twilio_auth_token and sender):
+        if not sms.sender_ready(tenant):
             await _finish(row["id"], "skipped", "sms_not_configured")
             return
         allowed = next_allowed_send(
@@ -115,12 +120,18 @@ async def _deliver(row: dict) -> None:
                 row["id"], allowed,
             )
             return
-        await sms.send_sms(row["to_addr"], row["body"], sender)
+        await sms.send_sms(row["to_addr"], row["body"], tenant.get("sms_from"))
     elif row["channel"] == "email":
         if not settings.email_configured:
             await _finish(row["id"], "skipped", "email_not_configured")
             return
-        await mailer.send_email(row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"])
+        headers = None
+        if row.get("campaign_id"):
+            link = unsub.url_for(row["tenant_id"], row["to_addr"])
+            headers = {"List-Unsubscribe": f"<{link}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+        await mailer.send_email(
+            row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"], headers,
+        )
     else:
         await _finish(row["id"], "failed", f"unknown channel {row['channel']}")
         return

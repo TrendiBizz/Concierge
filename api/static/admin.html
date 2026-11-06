@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Concierge admin</title>
 <style>
-  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e5e8;--ink:#111;--mute:#666;--acc:#2563eb}
+  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e5e8;--ink:#111;--mute:#666;--acc:#2563eb;--hot:#b42318;--warm:#b54708;--cold:#475467;--ok:#027a48}
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
   header{background:#111827;color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
@@ -14,9 +14,12 @@
   select,input,button,textarea{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
   button{background:var(--acc);color:#fff;border:0;cursor:pointer}
   button.sec{background:#e5e7eb;color:#111}
-  main{max-width:1100px;margin:16px auto;padding:0 16px}
+  button.danger{background:var(--hot)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  main{max-width:1180px;margin:16px auto;padding:0 16px}
   .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
   .tabs button{background:#e5e7eb;color:#111}.tabs button.on{background:var(--acc);color:#fff}
+  .tabs .count{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--hot);color:#fff;font-size:12px;line-height:18px;text-align:center}
   .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;overflow-x:auto}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
   .stat b{display:block;font-size:24px}.stat span{color:var(--mute);font-size:12px}
@@ -27,6 +30,16 @@
   .bubble{padding:6px 10px;border-radius:10px;margin:3px 0;max-width:80%}
   .user{background:#dbeafe;margin-left:auto}.assistant{background:#f1f5f9}.flag{outline:2px solid #f59e0b}
   #login{max-width:360px;margin:80px auto}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+  .badge.hot{background:var(--hot)}.badge.warm{background:var(--warm)}.badge.cold{background:var(--cold)}
+  .badge.ok{background:var(--ok)}
+  .notice{border-left:4px solid var(--warm);background:#fffaeb;padding:8px 12px;border-radius:6px;margin:8px 0}
+  .notice.bad{border-color:var(--hot);background:#fef3f2}
+  .notice.good{border-color:var(--ok);background:#ecfdf3}
+  .field{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+  .field label{width:170px}
+  .small{font-size:12px}
+  h2{font-size:15px;margin:0 0 8px}
 </style>
 </head>
 <body>
@@ -54,7 +67,10 @@
 <script>
 (function () {
   "use strict";
-  var token = "", tenants = [], current = null, tab = "overview";
+  var token = "", tenants = [], current = null, tab = "overview", waitingCount = 0;
+  var campaignPreview = null;   // the preview currently shown on the Campaigns tab
+  var leadFilter = { minScore: "0", sortScore: false };
+  var flash = "";               // a confirmation that must survive the re-render that follows a save
   var $ = function (id) { return document.getElementById(id); };
 
   function el(tag, props, kids) {
@@ -76,12 +92,17 @@
       body: opts.body ? JSON.stringify(opts.body) : undefined
     });
     if (res.status === 401) throw new Error("auth");
-    if (!res.ok) throw new Error((await res.text()).slice(0, 200));
+    if (!res.ok) {
+      var text = await res.text(), msg = text;
+      try { var j = JSON.parse(text); msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch (e) {}
+      throw new Error(msg.slice(0, 300));
+    }
     return res.json();
   }
 
   function money(c) { return c ? "$" + (c / 100).toLocaleString() : "-"; }
   function when(s) { return s ? new Date(s).toLocaleString() : ""; }
+  function waited(min) { return min < 60 ? min + " min" : Math.floor(min / 60) + " h " + (min % 60) + " min"; }
   function table(head, rows) {
     var t = el("table");
     t.appendChild(el("tr", {}, head.map(function (h) { return el("th", { text: h }); })));
@@ -95,16 +116,280 @@
     return s;
   }
   function card(title, child) { return el("div", { class: "card" }, [title ? el("b", { text: title }) : "", child]); }
+  function badge(label, score, reasons) {
+    var b = el("span", { class: "badge " + (label || "cold"), text: (label || "cold") + (score != null ? " " + score : "") });
+    if (reasons && reasons.length) b.setAttribute("title", reasons.join("\n"));
+    return b;
+  }
+  function reasonsOf(l) {
+    var r = l.score_reasons;
+    if (typeof r === "string") { try { r = JSON.parse(r); } catch (e) { r = []; } }
+    return Array.isArray(r) ? r : [];
+  }
+  function notice(kind, text) { return el("div", { class: "notice " + kind, text: text }); }
+  function fail(e) { if (e.message === "auth") return logout(); alert(e.message); }
 
-  var TABS = ["overview", "leads", "appointments", "conversations", "outbox", "setup"];
+  var TABS = ["overview", "attention", "leads", "campaigns", "appointments", "conversations", "outbox", "setup"];
 
   function renderTabs() {
     var box = $("tabs"); box.textContent = "";
     TABS.forEach(function (t) {
-      var b = el("button", { text: t, class: t === tab ? "on" : "" });
+      var b = el("button", { text: t === "attention" ? "needs attention" : t, class: t === tab ? "on" : "" });
+      if (t === "attention" && waitingCount > 0) b.appendChild(el("span", { class: "count", text: String(waitingCount) }));
       b.addEventListener("click", function () { tab = t; renderTabs(); render(); });
       box.appendChild(b);
     });
+  }
+
+  async function refreshWaiting() {
+    if (!current) { waitingCount = 0; return; }
+    try { waitingCount = (await api("/admin/tenants/" + current.slug + "/sla")).waiting.length; } catch (e) { waitingCount = 0; }
+    renderTabs();
+  }
+
+  // ---------------------------------------------------------------- views
+  async function viewOverview(v, slug, days) {
+    var s = await api("/admin/tenants/" + slug + "/stats?days=" + days);
+    var sla = await api("/admin/tenants/" + slug + "/sla");
+    var stat = function (l, val) { return el("div", { class: "card stat" }, [el("b", { text: String(val) }), el("span", { text: l })]); };
+    v.appendChild(el("div", { class: "grid" }, [
+      stat("Conversations", s.conversations), stat("Leads", s.leads), stat("Appointments", s.appointments),
+      stat("Lead rate", (s.lead_rate * 100).toFixed(1) + "%"), stat("Est. pipeline", money(s.estimated_pipeline_cents)),
+      stat("Won value", money(s.won_value_cents)), stat("Quote-guard saves", s.quote_guard_interventions),
+      stat("Leads waiting for a reply", sla.sla_minutes ? sla.waiting.length : "off")
+    ]));
+    if (!sla.sla_minutes) {
+      v.appendChild(notice("", "Response alerts are off. Turn them on under Setup to be told when a hot lead is left waiting."));
+    } else if (sla.waiting.length) {
+      var go = el("button", { text: "See them" });
+      go.addEventListener("click", function () { tab = "attention"; renderTabs(); render(); });
+      v.appendChild(el("div", { class: "notice bad" }, [sla.waiting.length + " lead(s) have been waiting longer than " + sla.sla_minutes + " minutes. ", go]));
+    }
+    v.appendChild(card("By channel", el("pre", { text: JSON.stringify(s.by_channel) + "   messages sent: " + JSON.stringify(s.messages_sent) })));
+    v.appendChild(card("Leads by status", el("pre", { text: JSON.stringify(s.leads_by_status) })));
+  }
+
+  async function viewAttention(v, slug) {
+    var sla = await api("/admin/tenants/" + slug + "/sla");
+    waitingCount = sla.waiting.length; renderTabs();
+    if (!sla.sla_minutes) {
+      var on = el("button", { text: "Turn on: alert after 15 minutes for hot leads" });
+      on.addEventListener("click", async function () {
+        try { await api("/admin/tenants/" + slug, { method: "PATCH", body: { sla_minutes: 15, sla_min_score: 70 } }); await loadTenants(slug); }
+        catch (e) { fail(e); }
+      });
+      v.appendChild(card("Response alerts are off", el("div", {}, [
+        el("p", { text: "When on, the owner gets one email if a promising lead has had no reply for the target time. Emails sent overnight wait until morning." }),
+        el("p", { class: "mut", text: "Needs notify_email set under Setup." }), on
+      ])));
+      return;
+    }
+    v.appendChild(el("p", { class: "mut", text: "Leads scoring " + sla.sla_min_score + "+ still marked 'new' after " + sla.sla_minutes + " minutes, with no booking. Mark one contacted once you have replied." }));
+    if (!sla.waiting.length) { v.appendChild(notice("good", "Nobody is waiting. Every promising lead has been picked up.")); return; }
+    v.appendChild(card("Waiting for a reply", table(["Waiting", "Score", "Who", "Phone", "Email", "What they wanted", "Alert sent", ""], sla.waiting.map(function (w) {
+      var btn = el("button", { text: "Mark contacted" });
+      btn.addEventListener("click", async function () {
+        btn.disabled = true;
+        try { await api("/admin/leads/" + w.id, { method: "PATCH", body: { status: "contacted" } }); render(); }
+        catch (e) { btn.disabled = false; fail(e); }
+      });
+      return [waited(w.minutes_waiting), badge(w.score_label, w.score, w.reasons), w.name || "(no name)", w.phone, w.email, w.message, w.alerted ? "yes" : "not yet", btn];
+    }))));
+  }
+
+  async function viewLeads(v, slug) {
+    var minScore = leadFilter.minScore;
+    var leads = await api("/admin/tenants/" + slug + "/leads?min_score=" + encodeURIComponent(minScore));
+    if (leadFilter.sortScore) leads.sort(function (a, b) { return b.score - a.score; });
+    var bar = el("div", { class: "row", style: "margin-bottom:10px" });
+    var f = el("select", { id: "leadFilter" });
+    [["0", "All leads"], ["40", "Warm and hot"], ["70", "Hot only"]].forEach(function (o) {
+      var op = el("option", { value: o[0], text: o[1] }); if (o[0] === minScore) op.selected = true; f.appendChild(op);
+    });
+    f.addEventListener("change", function () { leadFilter.minScore = f.value; render(); });
+    var sortCb = el("input", { type: "checkbox", id: "sortScore" }); sortCb.checked = leadFilter.sortScore;
+    sortCb.addEventListener("change", function () { leadFilter.sortScore = sortCb.checked; render(); });
+    bar.appendChild(f); bar.appendChild(el("label", { class: "row" }, [sortCb, "Highest score first"]));
+    v.appendChild(bar);
+    v.appendChild(card("Leads", table(["When", "Score", "Name", "Phone", "Email", "Message", "Via", "Status", "Value $", "Marketing consent"], leads.map(function (l) {
+      var st = select(["new", "contacted", "booked", "won", "lost"], l.status, function (val) {
+        api("/admin/leads/" + l.id, { method: "PATCH", body: { status: val } }).then(refreshWaiting).catch(fail);
+      });
+      var val = el("input", { type: "number", min: "0", value: String(l.value_cents / 100), style: "width:90px" });
+      val.addEventListener("change", function () {
+        api("/admin/leads/" + l.id, { method: "PATCH", body: { value_cents: Math.round(Number(val.value) * 100) } }).catch(fail);
+      });
+      var consent = el("div", {}, [el("span", { text: l.consent_marketing ? "Yes" : "No", class: l.consent_marketing ? "badge ok" : "mut" })]);
+      if (l.consent_marketing && l.consent_marketing_basis) consent.firstChild.setAttribute("title", l.consent_marketing_basis);
+      var rec = el("button", { class: "sec small", text: l.consent_marketing ? "Withdraw" : "Record consent" });
+      rec.addEventListener("click", async function () {
+        var granting = !l.consent_marketing;
+        var basis = prompt(granting ? "Where did this person agree to receive promotions? (kept as the audit record)" : "Why is consent being withdrawn?");
+        if (!basis || basis.trim().length < 5) return;
+        try { await api("/admin/leads/" + l.id + "/marketing-consent", { method: "PATCH", body: { consent: granting, basis: basis.trim() } }); render(); }
+        catch (e) { fail(e); }
+      });
+      consent.appendChild(rec);
+      return [when(l.created_at), badge(l.score_label, l.score, reasonsOf(l)), l.name, l.phone, l.email, l.message, l.channel, st, val, consent];
+    }))));
+  }
+
+  function previewPanel(slug, campaign, preview) {
+    var box = el("div", { class: "card", id: "previewPanel" });
+    box.appendChild(el("h2", { text: "Preview: " + campaign.name }));
+    box.appendChild(el("p", {}, [el("b", { text: String(preview.recipients) }), " people would receive this " + campaign.channel + " campaign."]));
+    var sk = preview.skipped || {};
+    box.appendChild(el("p", { class: "mut small", text: "Left out: " + (sk.opted_out || 0) + " opted out, " + (sk.cooldown || 0) + " messaged recently, " + (sk.duplicate || 0) + " duplicates, " + (sk.over_cap || 0) + " over the cap." }));
+    (preview.problems || []).forEach(function (p) { box.appendChild(notice("bad", p)); });
+    if (preview.sample_message) box.appendChild(el("pre", { text: "Sample message:\n" + preview.sample_message }));
+    if (preview.sample_recipients && preview.sample_recipients.length) {
+      box.appendChild(table(["Name", "Contact", "Score"], preview.sample_recipients.map(function (s) { return [s.name, s.contact, s.score]; })));
+    }
+    var row = el("div", { class: "row", style: "margin-top:10px" });
+    var send = el("button", { id: "sendCampaign", text: "Send to " + preview.recipients + " people" });
+    send.disabled = !preview.ready || preview.recipients === 0 || campaign.status !== "draft";
+    send.addEventListener("click", async function () {
+      if (!confirm("Send this campaign to " + preview.recipients + " people? Messages go out gradually and you can cancel while they are pending.")) return;
+      send.disabled = true;
+      try {
+        var r = await api("/admin/campaigns/" + campaign.id + "/send", { method: "POST", body: { expected_recipients: preview.recipients } });
+        campaignPreview = null; alert("Queued " + r.queued + " messages."); render();
+      } catch (e) { send.disabled = false; fail(e); }
+    });
+    var cancel = el("button", { class: "sec", text: "Cancel campaign" });
+    cancel.addEventListener("click", async function () {
+      if (!confirm("Cancel this campaign? Pending messages will not be sent.")) return;
+      try { await api("/admin/campaigns/" + campaign.id + "/cancel", { method: "POST" }); campaignPreview = null; render(); } catch (e) { fail(e); }
+    });
+    var close = el("button", { class: "sec", text: "Close preview" });
+    close.addEventListener("click", function () { campaignPreview = null; render(); });
+    row.appendChild(send); if (campaign.status !== "cancelled") row.appendChild(cancel); row.appendChild(close);
+    box.appendChild(row);
+    if (campaign.status !== "draft") box.appendChild(el("p", { class: "mut small", text: "This campaign is " + campaign.status + ", so it cannot be sent again." }));
+    return box;
+  }
+
+  async function viewCampaigns(v, slug) {
+    var tenant = current;
+    if (!tenant.campaigns_enabled) v.appendChild(notice("", "Campaigns are switched off for this client. You can draft and preview, but nothing can be sent until you turn them on under Setup."));
+    v.appendChild(el("p", { class: "mut small", text: "Reactivation campaigns only reach leads with recorded marketing consent. Emails carry an unsubscribe link; texts end with 'Reply STOP to opt out.'" }));
+
+    var form = el("div");
+    function field(label, node) { return el("div", { class: "field" }, [el("label", { text: label }), node]); }
+    var name = el("input", { id: "c_name", value: "Win-back", style: "flex:1;min-width:240px" });
+    var channel = select(["email", "sms"], "email", function () {});
+    channel.id = "c_channel";
+    var subject = el("input", { id: "c_subject", value: "We miss you at {business}", style: "flex:1;min-width:240px" });
+    var body = el("textarea", { id: "c_body", rows: "4", style: "flex:1;min-width:240px", text: "Hi {first}, it has been a while since we heard from you. Reply to this message if we can help." });
+    var older = el("input", { id: "c_older", type: "number", min: "0", max: "3650", value: "30", style: "width:90px" });
+    var minScore = el("input", { id: "c_minscore", type: "number", min: "0", max: "100", value: "0", style: "width:90px" });
+    form.appendChild(field("Name", name)); form.appendChild(field("Channel", channel)); form.appendChild(field("Subject (email)", subject));
+    form.appendChild(field("Message", body));
+    form.appendChild(el("p", { class: "mut small", text: "Placeholders: {first} and {business}. Nothing else is allowed." }));
+    form.appendChild(field("Lead is older than (days)", older)); form.appendChild(field("Minimum score", minScore));
+    var create = el("button", { id: "createCampaign", text: "Create draft and preview" });
+    create.addEventListener("click", async function () {
+      create.disabled = true;
+      try {
+        var r = await api("/admin/tenants/" + slug + "/campaigns", { method: "POST", body: {
+          name: name.value, channel: channel.value, subject: subject.value, body: body.value,
+          older_than_days: Number(older.value || 0), min_score: Number(minScore.value || 0)
+        } });
+        campaignPreview = { campaign: r.campaign, preview: r.preview }; render();
+      } catch (e) { create.disabled = false; fail(e); }
+    });
+    form.appendChild(el("div", { class: "row" }, [create]));
+    v.appendChild(card("New campaign", form));
+
+    if (campaignPreview) {
+      // Never show a stale preview: settings or the audience may have changed since it was made.
+      try {
+        campaignPreview.campaign = await api("/admin/campaigns/" + campaignPreview.campaign.id);
+        campaignPreview.preview = await api("/admin/campaigns/" + campaignPreview.campaign.id + "/preview");
+        v.appendChild(previewPanel(slug, campaignPreview.campaign, campaignPreview.preview));
+      } catch (e) { campaignPreview = null; }
+    }
+
+    var list = await api("/admin/tenants/" + slug + "/campaigns");
+    v.appendChild(card("Campaigns", list.length ? table(["#", "Name", "Channel", "Status", "People", "Delivery", ""], list.map(function (c) {
+      var open = el("button", { class: "sec small", text: "Open" });
+      open.addEventListener("click", async function () {
+        try { campaignPreview = { campaign: c, preview: await api("/admin/campaigns/" + c.id + "/preview") }; render(); } catch (e) { fail(e); }
+      });
+      return [c.id, c.name, c.channel, c.status, c.recipient_count, JSON.stringify(c.delivery || {}), open];
+    })) : el("p", { class: "mut", text: "No campaigns yet." })));
+  }
+
+  async function viewSetup(v, slug) {
+    var t = await api("/admin/tenants/" + slug);
+    if (flash) { v.appendChild(notice("good", flash)); flash = ""; }
+    v.appendChild(card("Embed snippet", el("pre", { text: t.embed_snippet })));
+    v.appendChild(card("Links", table(["What", "URL"], [
+      ["Demo (presenter)", t.demo_url], ["Client report (share with the client)", t.report_url],
+      ["Twilio inbound-SMS webhook", t.sms_webhook_url], ["Knowledge chunks", t.chunk_count]
+    ])));
+    var keys = ["name", "persona", "greeting", "incentive", "booking_url", "lead_webhook_url", "notify_email", "review_url", "timezone", "sms_from", "lead_sms_template"];
+    var form = el("div");
+    keys.forEach(function (k) {
+      form.appendChild(el("div", { class: "field" }, [el("label", { text: k }), el("input", { id: "f_" + k, value: t[k] || "", style: "flex:1;min-width:240px" })]));
+    });
+    var flags = ["native_booking", "sms_enabled", "voice_enabled", "campaigns_enabled"];
+    flags.forEach(function (k) {
+      var cb = el("input", { type: "checkbox", id: "f_" + k }); cb.checked = !!t[k];
+      form.appendChild(el("div", { class: "field" }, [el("label", { text: k }), cb]));
+    });
+    form.appendChild(el("p", { class: "mut small", text: "campaigns_enabled lets this client send reactivation campaigns. Leave it off until the consent wording on your forms has been checked." }));
+    form.appendChild(el("div", { class: "field" }, [el("label", { text: "lead_value ($)" }), el("input", { id: "f_lead_value", type: "number", value: String((t.lead_value_cents || 0) / 100) })]));
+    form.appendChild(el("div", { class: "field" }, [el("label", { text: "Alert if a lead waits (minutes, 0 = off)" }), el("input", { id: "f_sla_minutes", type: "number", min: "0", max: "1440", value: String(t.sla_minutes || 0), style: "width:90px" })]));
+    form.appendChild(el("div", { class: "field" }, [el("label", { text: "...for leads scoring at least" }), el("input", { id: "f_sla_min_score", type: "number", min: "0", max: "100", value: String(t.sla_min_score == null ? 70 : t.sla_min_score), style: "width:90px" })]));
+    form.appendChild(el("div", { class: "field" }, [el("label", { text: "business_hours" }), el("textarea", { id: "f_business_hours", rows: "6", style: "flex:1;min-width:240px;font-family:monospace", text: JSON.stringify(t.business_hours, null, 1) })]));
+    var save = el("button", { id: "saveSettings", text: "Save settings" });
+    var msg = el("span", { class: "mut", id: "saveMsg" });
+    save.addEventListener("click", async function () {
+      var body = {};
+      keys.forEach(function (k) { var val = $("f_" + k).value; if (val !== (t[k] || "")) body[k] = val; });
+      flags.forEach(function (k) { body[k] = $("f_" + k).checked; });
+      body.lead_value_cents = Math.round(Number($("f_lead_value").value || 0) * 100);
+      body.sla_minutes = Number($("f_sla_minutes").value || 0);
+      body.sla_min_score = Number($("f_sla_min_score").value || 0);
+      try { body.business_hours = JSON.parse($("f_business_hours").value); } catch (e) { msg.textContent = "business_hours is not valid JSON"; return; }
+      try { await api("/admin/tenants/" + slug, { method: "PATCH", body: body }); flash = "Settings saved."; await loadTenants(slug); }
+      catch (e) { msg.textContent = "Error: " + e.message; }
+    });
+    form.appendChild(el("div", { class: "row" }, [save, msg]));
+    v.appendChild(card("Settings", form));
+
+    // ---- lead scoring weights
+    var sc = await api("/admin/tenants/" + slug + "/scoring");
+    var inputs = {};
+    var scBox = el("div");
+    scBox.appendChild(el("p", { class: "mut small", text: "Every point has a stated reason and the same lead always scores the same. Change a number to tune what counts as a good lead for this client, then re-score." }));
+    scBox.appendChild(table(["Rule", "Default", "This client"], sc.weights.map(function (w) {
+      var inp = el("input", { type: "number", id: "w_" + w.key, value: String(w.value), style: "width:90px" });
+      inputs[w.key] = { node: inp, def: w.default };
+      return [w.label, String(w.default), inp];
+    })));
+    var scSave = el("button", { id: "saveScoring", text: "Save scoring" });
+    var scReset = el("button", { class: "sec", id: "resetScoring", text: "Reset to defaults" });
+    var scRe = el("button", { class: "sec", id: "rescoreLeads", text: "Re-score all leads" });
+    var scMsg = el("span", { class: "mut", id: "scoringMsg" });
+    scSave.addEventListener("click", async function () {
+      var overrides = {};
+      Object.keys(inputs).forEach(function (k) { var n = Number(inputs[k].node.value); if (n !== inputs[k].def) overrides[k] = n; });
+      try { await api("/admin/tenants/" + slug, { method: "PATCH", body: { scoring: overrides } }); scMsg.textContent = "Saved. Existing leads keep their old score until you re-score."; }
+      catch (e) { scMsg.textContent = "Error: " + e.message; }
+    });
+    scReset.addEventListener("click", async function () {
+      try { await api("/admin/tenants/" + slug, { method: "PATCH", body: { scoring: {} } }); render(); } catch (e) { fail(e); }
+    });
+    scRe.addEventListener("click", async function () {
+      scRe.disabled = true;
+      try { var r = await api("/admin/tenants/" + slug + "/rescore", { method: "POST" }); scMsg.textContent = "Re-scored " + r.rescored + " leads: " + r.hot + " hot, " + r.warm + " warm, " + r.cold + " cold."; }
+      catch (e) { scMsg.textContent = "Error: " + e.message; }
+      scRe.disabled = false;
+    });
+    scBox.appendChild(el("div", { class: "row", style: "margin-top:10px" }, [scSave, scReset, scRe, scMsg]));
+    v.appendChild(card("Lead scoring", scBox));
   }
 
   async function render() {
@@ -112,33 +397,15 @@
     if (!current) { v.appendChild(card("", el("p", { text: "No clients yet. Create one with POST /admin/tenants or the CLI demo command." }))); return; }
     var slug = current.slug, days = $("days").value;
     try {
-      if (tab === "overview") {
-        var s = await api("/admin/tenants/" + slug + "/stats?days=" + days);
-        var stat = function (l, val) { return el("div", { class: "card stat" }, [el("b", { text: String(val) }), el("span", { text: l })]); };
-        v.appendChild(el("div", { class: "grid" }, [
-          stat("Conversations", s.conversations), stat("Leads", s.leads), stat("Appointments", s.appointments),
-          stat("Lead rate", (s.lead_rate * 100).toFixed(1) + "%"), stat("Est. pipeline", money(s.estimated_pipeline_cents)),
-          stat("Won value", money(s.won_value_cents)), stat("Quote-guard saves", s.quote_guard_interventions)
-        ]));
-        v.appendChild(card("By channel", el("pre", { text: JSON.stringify(s.by_channel) + "   messages sent: " + JSON.stringify(s.messages_sent) })));
-        v.appendChild(card("Leads by status", el("pre", { text: JSON.stringify(s.leads_by_status) })));
-      } else if (tab === "leads") {
-        var leads = await api("/admin/tenants/" + slug + "/leads");
-        v.appendChild(card("Leads", table(["When", "Name", "Phone", "Email", "Message", "Via", "Status", "Value $"], leads.map(function (l) {
-          var st = select(["new", "contacted", "booked", "won", "lost"], l.status, function (val) {
-            api("/admin/leads/" + l.id, { method: "PATCH", body: { status: val } }).catch(function (e) { alert(e.message); });
-          });
-          var val = el("input", { type: "number", min: "0", value: String(l.value_cents / 100), style: "width:90px" });
-          val.addEventListener("change", function () {
-            api("/admin/leads/" + l.id, { method: "PATCH", body: { value_cents: Math.round(Number(val.value) * 100) } }).catch(function (e) { alert(e.message); });
-          });
-          return [when(l.created_at), l.name, l.phone, l.email, l.message, l.channel, st, val];
-        }))));
-      } else if (tab === "appointments") {
+      if (tab === "overview") await viewOverview(v, slug, days);
+      else if (tab === "attention") await viewAttention(v, slug);
+      else if (tab === "leads") await viewLeads(v, slug);
+      else if (tab === "campaigns") await viewCampaigns(v, slug);
+      else if (tab === "appointments") {
         var ap = await api("/admin/tenants/" + slug + "/appointments");
         v.appendChild(card("Appointments", table(["Starts", "Name", "Phone", "Email", "Notes", "Status"], ap.map(function (a) {
           var st = select(["booked", "completed", "cancelled", "no_show"], a.status, function (val) {
-            api("/admin/appointments/" + a.id, { method: "PATCH", body: { status: val } }).catch(function (e) { alert(e.message); });
+            api("/admin/appointments/" + a.id, { method: "PATCH", body: { status: val } }).then(refreshWaiting).catch(fail);
           });
           return [when(a.starts_at), a.name, a.phone, a.email, a.notes, st];
         }))));
@@ -156,39 +423,7 @@
         v.appendChild(card("Follow-up messages", table(["#", "Kind", "Channel", "To", "Status", "Tries", "Error", "Send at"], ob.map(function (o) {
           return [o.id, o.kind, o.channel, o.to_addr, o.status, o.attempts, o.last_error, when(o.send_at)];
         }))));
-      } else if (tab === "setup") {
-        var t = await api("/admin/tenants/" + slug);
-        v.appendChild(card("Embed snippet", el("pre", { text: t.embed_snippet })));
-        v.appendChild(card("Links", table(["What", "URL"], [
-          ["Demo (presenter)", t.demo_url], ["Client report (share with the client)", t.report_url],
-          ["Twilio inbound-SMS webhook", t.sms_webhook_url], ["Knowledge chunks", t.chunk_count]
-        ])));
-        var keys = ["name", "persona", "greeting", "incentive", "booking_url", "lead_webhook_url", "notify_email", "review_url", "timezone", "sms_from", "lead_sms_template"];
-        var form = el("div");
-        keys.forEach(function (k) {
-          form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: k, style: "width:150px" }), el("input", { id: "f_" + k, value: t[k] || "", style: "flex:1;min-width:240px" })]));
-        });
-        var flags = ["native_booking", "sms_enabled", "voice_enabled"];
-        flags.forEach(function (k) {
-          var cb = el("input", { type: "checkbox", id: "f_" + k }); cb.checked = !!t[k];
-          form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: k, style: "width:150px" }), cb]));
-        });
-        form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: "lead_value ($)", style: "width:150px" }), el("input", { id: "f_lead_value", type: "number", value: String((t.lead_value_cents || 0) / 100) })]));
-        form.appendChild(el("div", { class: "row", style: "margin-bottom:6px" }, [el("label", { text: "business_hours", style: "width:150px" }), el("textarea", { id: "f_business_hours", rows: "6", style: "flex:1;min-width:240px;font-family:monospace" , text: JSON.stringify(t.business_hours, null, 1) })]));
-        var save = el("button", { text: "Save settings" });
-        var msg = el("span", { class: "mut" });
-        save.addEventListener("click", async function () {
-          var body = {};
-          keys.forEach(function (k) { var val = $("f_" + k).value; if (val !== (t[k] || "")) body[k] = val; });
-          flags.forEach(function (k) { body[k] = $("f_" + k).checked; });
-          body.lead_value_cents = Math.round(Number($("f_lead_value").value || 0) * 100);
-          try { body.business_hours = JSON.parse($("f_business_hours").value); } catch (e) { msg.textContent = "business_hours is not valid JSON"; return; }
-          try { await api("/admin/tenants/" + slug, { method: "PATCH", body: body }); msg.textContent = "Saved."; await loadTenants(slug); }
-          catch (e) { msg.textContent = "Error: " + e.message; }
-        });
-        form.appendChild(el("div", { class: "row" }, [save, msg]));
-        v.appendChild(card("Settings", form));
-      }
+      } else if (tab === "setup") await viewSetup(v, slug);
     } catch (e) {
       if (e.message === "auth") return logout();
       v.appendChild(card("Error", el("pre", { text: e.message })));
@@ -201,7 +436,7 @@
     tenants.forEach(function (t) { sel.appendChild(el("option", { value: t.slug, text: t.name })); });
     current = tenants.find(function (t) { return t.slug === keep; }) || tenants[0] || null;
     if (current) sel.value = current.slug;
-    renderTabs(); render();
+    renderTabs(); render(); refreshWaiting();
   }
 
   function logout() { try { sessionStorage.removeItem("cc_admin"); } catch (e) {} token = ""; $("app").hidden = true; $("login").hidden = false; }
@@ -213,10 +448,12 @@
 
   $("go").addEventListener("click", function () { token = $("token").value.trim(); start(); });
   $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") $("go").click(); });
-  $("refresh").addEventListener("click", render);
+  $("refresh").addEventListener("click", function () { refreshWaiting(); render(); });
   $("days").addEventListener("change", render);
   $("logout").addEventListener("click", logout);
-  $("tenant").addEventListener("change", function () { current = tenants.find(function (t) { return t.slug === $("tenant").value; }); render(); });
+  $("tenant").addEventListener("change", function () {
+    current = tenants.find(function (t) { return t.slug === $("tenant").value; }); campaignPreview = null; renderTabs(); render(); refreshWaiting();
+  });
   try { var saved = sessionStorage.getItem("cc_admin"); if (saved) { token = saved; start(); } } catch (e) {}
 })();
 </script>

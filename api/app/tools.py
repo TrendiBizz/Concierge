@@ -36,6 +36,13 @@ TOOL_SPECS: list[dict] = [
                     "type": "boolean",
                     "description": "True only if the visitor agreed to be texted or emailed by the business",
                 },
+                "consent_to_marketing": {
+                    "type": "boolean",
+                    "description": (
+                        "True only if the visitor explicitly said yes when asked whether they also want "
+                        "offers and promotions. Never assume it, and never set it just because they gave contact details."
+                    ),
+                },
             },
             "required": ["message"],
         },
@@ -134,6 +141,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     phone_raw = str(args.get("phone") or ctx.get("sender_phone") or "").strip()[:40]
     message = str(args.get("message") or "").strip()[:1000]
     consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
+    marketing = bool(args.get("consent_to_marketing"))  # explicit only; texting us first is not marketing consent
 
     phone = normalize_phone(phone_raw, settings.default_country_code) or ""
     email_ok = is_email(email)
@@ -145,8 +153,11 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     row = await db.pool().fetchrow(
         """
         INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
-                           page_url, utm, webhook_status, consent_contact)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
+                           page_url, utm, webhook_status, consent_contact, consent_marketing,
+                           consent_marketing_basis, consent_marketing_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12,
+                CASE WHEN $12 THEN 'visitor agreed to promotions in ' || $7 || ' conversation' ELSE '' END,
+                CASE WHEN $12 THEN now() END)
         RETURNING *
         """,
         tenant["id"],
@@ -160,6 +171,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
         json.dumps(ctx.get("utm") or {}),
         "pending" if tenant.get("lead_webhook_url") else "none",
         consent,
+        marketing,
     )
     await automation.on_lead_created(tenant, dict(row))
     ctx["lead_captured"] = True

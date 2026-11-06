@@ -105,6 +105,22 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      # SMS provider switch, campaigns and response alerts. Every default matches app/config.py, so an
+      # unchanged .env behaves exactly as before.
+      SMS_PROVIDER: ${SMS_PROVIDER:-twilio}
+      TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
+      SMSGATE_BASE_URL: ${SMSGATE_BASE_URL:-}
+      SMSGATE_SEND_PATH: ${SMSGATE_SEND_PATH:-/3rdparty/v1/messages}
+      SMSGATE_USERNAME: ${SMSGATE_USERNAME:-}
+      SMSGATE_PASSWORD: ${SMSGATE_PASSWORD:-}
+      SMSGATE_SIGNING_KEY: ${SMSGATE_SIGNING_KEY:-}
+      SMSGATE_SIM_NUMBER: ${SMSGATE_SIM_NUMBER:-0}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:-}
+      CAMPAIGN_MAX_RECIPIENTS: ${CAMPAIGN_MAX_RECIPIENTS:-200}
+      CAMPAIGN_COOLDOWN_DAYS: ${CAMPAIGN_COOLDOWN_DAYS:-30}
+      CAMPAIGN_EMAIL_PER_HOUR: ${CAMPAIGN_EMAIL_PER_HOUR:-60}
+      CAMPAIGN_SMS_PER_HOUR: ${CAMPAIGN_SMS_PER_HOUR:-20}
+      SLA_POLL_SECONDS: ${SLA_POLL_SECONDS:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach LM Studio running on the host machine
     ports:
