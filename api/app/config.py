@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_security: str = "starttls"  # starttls | ssl | none
 
+    # Reactivation campaigns
+    unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
+    campaign_max_recipients: int = 200
+    campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window
+    campaign_email_per_hour: int = 60
+    campaign_sms_per_hour: int = 20     # keep low: a phone-SIM gateway is not built for bulk
+
     # Follow-up engine
     outbox_enabled: bool = True
     outbox_poll_seconds: int = 20

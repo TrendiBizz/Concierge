@@ -378,3 +378,90 @@ def test_lead_view_carries_score():
             "score": 55, "score_label": "warm", "score_reasons": '["+25 Gave a phone number"]'}
     v = lead_view(lead)
     assert v["score"] == 55 and v["score_label"] == "warm" and v["score_reasons"] == ["+25 Gave a phone number"]
+
+
+# ---- reactivation campaigns ---------------------------------------------------
+def _unsub_settings(monkeypatch, **kw):
+    from app import unsub
+    from app.config import Settings
+    monkeypatch.setattr(unsub, "get_settings", lambda: Settings(_env_file=None, **kw))
+
+
+def test_unsub_token_roundtrip(monkeypatch):
+    from app import unsub
+    _unsub_settings(monkeypatch, unsubscribe_secret="s3cret")
+    tok = unsub.make_token("11111111-1111-1111-1111-111111111111", "pat@example.com")
+    assert unsub.read_token(tok) == ("11111111-1111-1111-1111-111111111111", "pat@example.com")
+    payload, sig = tok.split(".")
+    assert unsub.read_token(payload + "." + "0" * len(sig)) is None          # bad signature
+    other = unsub.make_token("22222222-2222-2222-2222-222222222222", "pat@example.com")
+    assert unsub.read_token(other.split(".")[0] + "." + sig) is None          # payload swapped, signature kept
+    assert unsub.read_token("") is None and unsub.read_token("nodot") is None
+    _unsub_settings(monkeypatch, unsubscribe_secret="different")
+    assert unsub.read_token(tok) is None                                       # wrong secret
+
+
+def test_unsub_needs_a_secret(monkeypatch):
+    import pytest
+    from app import unsub
+    _unsub_settings(monkeypatch)
+    assert not unsub.available() and unsub.read_token("a.b") is None
+    with pytest.raises(RuntimeError):
+        unsub.make_token("t", "c")
+    _unsub_settings(monkeypatch, admin_token="admin-fallback")
+    assert unsub.available()                                                   # falls back to ADMIN_TOKEN
+
+
+def test_campaign_template_validation_and_render():
+    import pytest
+    from app.campaigns import CampaignError, render, validate_template
+    validate_template("Hi {first}, it's been a while since {business} saw you.")
+    for bad in ("", "   ", "Hi {name}", "Hi {first.__class__}", "Hi {0}", "Hi {first", "x" * 601):
+        with pytest.raises(CampaignError):
+            validate_template(bad)
+    out = render("Hi {first} from {business}", {"name": "Pat Lee"}, {"name": "Acme"})
+    assert out == "Hi Pat from Acme"
+    assert render("Hi {first}", {"name": ""}, {"name": "Acme"}) == "Hi there"
+
+
+def test_campaign_send_times_are_spread():
+    from datetime import datetime, timedelta, timezone
+    from app.campaigns import send_times
+    start = datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc)
+    times = send_times(start, 4, 20)                                           # 20 an hour = every 3 minutes
+    assert times[0] == start and times[1] - times[0] == timedelta(minutes=3) and len(times) == 4
+    assert send_times(start, 0, 20) == []
+    assert send_times(start, 2, 0)[1] - start == timedelta(hours=1)           # never divides by zero
+
+
+def test_campaign_filters_are_validated_and_capped():
+    import pytest
+    from app.campaigns import CampaignError, clean_filters
+    f = clean_filters({})
+    assert f["statuses"] == ["new", "contacted", "lost"] and f["older_than_days"] == 30 and f["max_recipients"] == 200
+    assert clean_filters({"max_recipients": 99999})["max_recipients"] == 200   # server cap wins
+    for bad in ({"statuses": ["nope"]}, {"older_than_days": -1}, {"min_score": 101}, {"max_recipients": 0}):
+        with pytest.raises(CampaignError):
+            clean_filters(bad)
+
+
+def test_campaign_readiness_rules(monkeypatch):
+    from app import campaigns, unsub
+    from app.config import Settings
+    s = Settings(_env_file=None, smtp_host="smtp.example.com", smtp_from="hi@example.com", unsubscribe_secret="k")
+    monkeypatch.setattr(campaigns, "get_settings", lambda: s)
+    monkeypatch.setattr(unsub, "get_settings", lambda: s)
+    assert campaigns.readiness({"campaigns_enabled": True}, "email") == []
+    assert any("switched off" in p for p in campaigns.readiness({"campaigns_enabled": False}, "email"))
+    s2 = Settings(_env_file=None, smtp_host="smtp.example.com", smtp_from="hi@example.com")
+    monkeypatch.setattr(campaigns, "get_settings", lambda: s2)
+    monkeypatch.setattr(unsub, "get_settings", lambda: s2)
+    assert any("UNSUBSCRIBE_SECRET" in p for p in campaigns.readiness({"campaigns_enabled": True}, "email"))
+    sms_problems = campaigns.readiness({"campaigns_enabled": True, "sms_enabled": False}, "sms")
+    assert any("sms_enabled" in p for p in sms_problems) and any("provider" in p for p in sms_problems)
+
+
+def test_campaign_mask_hides_contact_details():
+    from app.campaigns import mask
+    assert mask("pat@example.com") == "p***@example.com"
+    assert mask("+6421123456") == "+64*****456" and "1123" not in mask("+6421123456")

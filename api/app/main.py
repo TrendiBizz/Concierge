@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from . import automation, chat as chat_engine, convo, db, events, ingest, llm, outbox, sms, tenants, voice
+from . import automation, campaigns, chat as chat_engine, convo, db, events, ingest, llm, outbox, sms, tenants, unsub, voice
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -693,6 +693,142 @@ async def admin_leads(slug: str, limit: int = 100, min_score: int = 0):
         tenant["id"], min(max(limit, 1), 500), max(min_score, 0),
     )
     return [dict(r) for r in rows]
+
+
+class CampaignCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    channel: Literal["sms", "email"]
+    subject: str = Field(default="", max_length=200)
+    body: str = Field(min_length=1, max_length=600)
+    older_than_days: int = Field(default=30, ge=0, le=3650)
+    statuses: list[Literal["new", "contacted", "booked", "won", "lost"]] = ["new", "contacted", "lost"]
+    min_score: int = Field(default=0, ge=0, le=100)
+    max_recipients: int | None = Field(default=None, ge=1)
+
+
+class CampaignSend(BaseModel):
+    expected_recipients: int = Field(ge=0)
+
+
+class MarketingConsent(BaseModel):
+    consent: bool
+    basis: str = Field(min_length=5, max_length=300)  # where the consent came from, kept as the audit trail
+
+
+def _campaign_view(campaign: dict) -> dict:
+    view = dict(campaign)
+    if isinstance(view.get("filters"), str):
+        view["filters"] = json.loads(view["filters"])
+    return view
+
+
+async def _require_campaign(campaign_id: int) -> tuple[dict, dict]:
+    campaign = await campaigns.get(campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Unknown campaign")
+    return campaign, await tenants.get_by_id(campaign["tenant_id"])
+
+
+@app.post("/admin/tenants/{slug}/campaigns", dependencies=admin, status_code=201)
+async def admin_create_campaign(slug: str, body: CampaignCreate):
+    """Create a DRAFT campaign and return who it would reach. Nothing is sent."""
+    tenant = await _require_tenant(slug)
+    try:
+        campaign = await campaigns.create(
+            tenant, body.name, body.channel, body.subject, body.body,
+            body.model_dump(include={"older_than_days", "statuses", "min_score", "max_recipients"}),
+        )
+    except campaigns.CampaignError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"campaign": _campaign_view(campaign), "preview": await campaigns.preview(tenant, campaign)}
+
+
+@app.get("/admin/tenants/{slug}/campaigns", dependencies=admin)
+async def admin_list_campaigns(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT * FROM campaigns WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100", tenant["id"])
+    return [{**_campaign_view(dict(r)), "delivery": await campaigns.stats(r["id"])} for r in rows]
+
+
+@app.get("/admin/campaigns/{campaign_id}/preview", dependencies=admin)
+async def admin_preview_campaign(campaign_id: int):
+    campaign, tenant = await _require_campaign(campaign_id)
+    return await campaigns.preview(tenant, campaign)
+
+
+@app.post("/admin/campaigns/{campaign_id}/send", dependencies=admin)
+async def admin_send_campaign(campaign_id: int, body: CampaignSend):
+    """Queue the campaign. `expected_recipients` must match the preview's recipient count."""
+    campaign, tenant = await _require_campaign(campaign_id)
+    try:
+        return await campaigns.send(tenant, campaign, body.expected_recipients)
+    except campaigns.CampaignError as exc:
+        raise HTTPException(status_code=409 if str(exc).startswith("Audience changed") else 400, detail=str(exc))
+
+
+@app.post("/admin/campaigns/{campaign_id}/cancel", dependencies=admin)
+async def admin_cancel_campaign(campaign_id: int):
+    campaign, _ = await _require_campaign(campaign_id)
+    return {"cancelled_pending": await campaigns.cancel(campaign)}
+
+
+@app.get("/admin/campaigns/{campaign_id}", dependencies=admin)
+async def admin_get_campaign(campaign_id: int):
+    campaign, _ = await _require_campaign(campaign_id)
+    return {**_campaign_view(campaign), "delivery": await campaigns.stats(campaign_id)}
+
+
+@app.patch("/admin/leads/{lead_id}/marketing-consent", dependencies=admin)
+async def admin_marketing_consent(lead_id: str, body: MarketingConsent):
+    """Record (or withdraw) marketing consent for a lead, with where it came from."""
+    try:
+        row = await db.pool().fetchrow(
+            "UPDATE leads SET consent_marketing = $2, consent_marketing_basis = $3, "
+            "consent_marketing_at = CASE WHEN $2 THEN now() END, updated_at = now() WHERE id = $1::uuid "
+            "RETURNING id, consent_marketing, consent_marketing_basis, consent_marketing_at",
+            lead_id, body.consent, body.basis.strip(),
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid lead id")
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown lead")
+    return dict(row)
+
+
+def _plain_page(title: str, body_html: str, status: int = 200) -> HTMLResponse:
+    page = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
+        f"<title>{html.escape(title)}</title>"
+        "<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}"
+        "button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style>"
+        f"</head><body><h1>{html.escape(title)}</h1>{body_html}</body></html>"
+    )
+    return HTMLResponse(page, status_code=status)
+
+
+@app.get("/api/v1/unsubscribe/{token}", response_class=HTMLResponse)
+async def unsubscribe_page(token: str):
+    """Confirm page. Opening the link does nothing by itself, so mail scanners cannot unsubscribe anyone."""
+    if unsub.read_token(token) is None:
+        return _plain_page("This link is not valid", "<p>It may be incomplete. Reply to the email and we will remove you.</p>", 404)
+    return _plain_page(
+        "Unsubscribe",
+        '<p>Stop receiving promotional messages from this business?</p><form method="post"><button>Unsubscribe</button></form>',
+    )
+
+
+@app.post("/api/v1/unsubscribe/{token}", response_class=HTMLResponse)
+async def unsubscribe_do(token: str):
+    """Performs the unsubscribe. Also serves mail apps' one-click unsubscribe (RFC 8058)."""
+    result = await campaigns.unsubscribe(token)
+    if result is None:
+        return _plain_page("This link is not valid", "<p>Reply to the email and we will remove you.</p>", 404)
+    return _plain_page(
+        "You are unsubscribed",
+        f"<p>{html.escape(result['tenant_name'])} will not send you promotional messages again.</p>",
+    )
 
 
 @app.patch("/admin/leads/{lead_id}", dependencies=admin)

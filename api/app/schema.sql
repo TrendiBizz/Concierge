@@ -155,3 +155,26 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_label text NOT NULL DEFAULT 'co
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_reasons jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS scored_at timestamptz;
 CREATE INDEX IF NOT EXISTS leads_score_idx ON leads (tenant_id, score DESC);
+
+-- Reactivation campaigns (see app/campaigns.py). Marketing consent is separate from consent_contact.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing boolean NOT NULL DEFAULT false;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing_basis text NOT NULL DEFAULT '';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing_at timestamptz;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS campaigns_enabled boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS campaigns (
+    id              bigserial PRIMARY KEY,
+    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name            text NOT NULL,
+    channel         text NOT NULL CHECK (channel IN ('sms', 'email')),
+    subject         text NOT NULL DEFAULT '',
+    body            text NOT NULL,
+    filters         jsonb NOT NULL DEFAULT '{}'::jsonb,
+    status          text NOT NULL DEFAULT 'draft',
+    recipient_count integer NOT NULL DEFAULT 0,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    queued_at       timestamptz
+);
+CREATE INDEX IF NOT EXISTS campaigns_tenant_idx ON campaigns (tenant_id, created_at DESC);
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS campaign_id bigint REFERENCES campaigns(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS outbox_campaign_idx ON outbox (campaign_id) WHERE campaign_id IS NOT NULL;
