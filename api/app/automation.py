@@ -51,7 +51,7 @@ async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> No
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
     try:
-        lead = await scoring.apply(lead)
+        lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
     except Exception:  # scoring must never stop a lead from being handled
         log.exception("lead scoring failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
@@ -82,7 +82,7 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
 async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> None:
     if lead:
         try:
-            lead = await scoring.apply(lead, booked=True)
+            lead = await scoring.apply(lead, booked=True, weights=scoring.weights_for(tenant))
         except Exception:
             log.exception("lead scoring failed for %s", lead.get("id"))
     events.emit(

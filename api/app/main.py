@@ -16,7 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from . import automation, campaigns, chat as chat_engine, convo, db, events, ingest, llm, outbox, sms, tenants, unsub, voice
+from . import (
+    automation, campaigns, chat as chat_engine, convo, db, events, ingest, llm, outbox, scoring, sla, sms,
+    tenants, unsub, voice,
+)
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -45,10 +48,13 @@ async def lifespan(_: FastAPI):
     await tenants.ensure_report_tokens()
     stop = asyncio.Event()
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
+    sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
     yield
     stop.set()
     if worker:
         await worker
+    if sla_worker:
+        await sla_worker
     await db.close()
 
 
@@ -531,6 +537,17 @@ class TenantUpdate(BaseModel):
     lead_sms_template: str | None = None
     review_url: str | None = None
     lead_value_cents: int | None = Field(default=None, ge=0, le=100_000_000)
+    sla_minutes: int | None = Field(default=None, ge=0, le=1440)       # 0 = response alerts off
+    sla_min_score: int | None = Field(default=None, ge=0, le=100)
+    campaigns_enabled: bool | None = None
+    scoring: dict[str, int] | None = None                              # {} resets to the defaults
+
+    @field_validator("scoring")
+    @classmethod
+    def _scoring(cls, value):
+        if value is None:
+            return value
+        return scoring.validate_overrides(value)
 
     @field_validator("timezone")
     @classmethod
@@ -829,6 +846,41 @@ async def unsubscribe_do(token: str):
         "You are unsubscribed",
         f"<p>{html.escape(result['tenant_name'])} will not send you promotional messages again.</p>",
     )
+
+
+@app.get("/admin/tenants/{slug}/scoring", dependencies=admin)
+async def admin_scoring(slug: str):
+    """The scoring weights in force for this client, with defaults, for the dashboard editor."""
+    tenant = await _require_tenant(slug)
+    return {"weights": scoring.describe(tenant)}
+
+
+@app.post("/admin/tenants/{slug}/rescore", dependencies=admin)
+async def admin_rescore(slug: str):
+    """Recompute every lead's score with the client's current weights."""
+    tenant = await _require_tenant(slug)
+    return await scoring.rescore_tenant(tenant)
+
+
+@app.get("/admin/tenants/{slug}/sla", dependencies=admin)
+async def admin_sla(slug: str):
+    """Response-time settings and the leads currently waiting longer than the target."""
+    tenant = await _require_tenant(slug)
+    waiting = await sla.overdue(tenant)
+    return {
+        "sla_minutes": tenant.get("sla_minutes") or 0,
+        "sla_min_score": tenant.get("sla_min_score") if tenant.get("sla_min_score") is not None else 70,
+        "waiting": [
+            {
+                "id": str(w["id"]), "name": w["name"], "phone": w["phone"], "email": w["email"],
+                "message": w["message"], "channel": w["channel"], "score": w["score"],
+                "score_label": w["score_label"], "reasons": scoring.reasons_of(w),
+                "minutes_waiting": w["minutes_waiting"], "alerted": w["sla_alerted_at"] is not None,
+                "created_at": w["created_at"].isoformat(),
+            }
+            for w in waiting
+        ],
+    }
 
 
 @app.patch("/admin/leads/{lead_id}", dependencies=admin)

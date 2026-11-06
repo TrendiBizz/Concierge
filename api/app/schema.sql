@@ -178,3 +178,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
 CREATE INDEX IF NOT EXISTS campaigns_tenant_idx ON campaigns (tenant_id, created_at DESC);
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS campaign_id bigint REFERENCES campaigns(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS outbox_campaign_idx ON outbox (campaign_id) WHERE campaign_id IS NOT NULL;
+
+-- Per-client scoring weights and response-time alerts (see app/scoring.py, app/sla.py)
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS scoring jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_minutes integer NOT NULL DEFAULT 0;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_min_score integer NOT NULL DEFAULT 70;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS sla_alerted_at timestamptz;

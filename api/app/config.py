@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     campaign_email_per_hour: int = 60
     campaign_sms_per_hour: int = 20     # keep low: a phone-SIM gateway is not built for bulk
 
+    # Response-time alerts
+    sla_poll_seconds: int = 60
+
     # Follow-up engine
     outbox_enabled: bool = True
     outbox_poll_seconds: int = 20

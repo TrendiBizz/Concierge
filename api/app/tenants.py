@@ -30,8 +30,12 @@ UPDATABLE_FIELDS = {
     "lead_sms_template": str,
     "review_url": str,
     "lead_value_cents": int,
+    "sla_minutes": int,
+    "sla_min_score": int,
+    "campaigns_enabled": bool,
+    "scoring": dict,
 }
-JSONB_FIELDS = {"business_hours"}
+JSONB_FIELDS = {"business_hours", "scoring"}
 
 # Copied by "clone" (a snapshot of settings, never knowledge, contacts or keys).
 CLONE_FIELDS = [

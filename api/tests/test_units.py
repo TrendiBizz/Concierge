@@ -465,3 +465,61 @@ def test_campaign_mask_hides_contact_details():
     from app.campaigns import mask
     assert mask("pat@example.com") == "p***@example.com"
     assert mask("+6421123456") == "+64*****456" and "1123" not in mask("+6421123456")
+
+
+# ---- per-client scoring weights and response-time alerts -----------------------
+def test_scoring_validate_overrides():
+    import pytest
+    from app.scoring import validate_overrides
+    assert validate_overrides({}) == {}
+    assert validate_overrides({"phone": 40, "hot_at": 80, "spam_link": -50}) == {"phone": 40, "hot_at": 80, "spam_link": -50}
+    for bad in ({"nope": 1}, {"phone": True}, {"phone": 5.5}, {"phone": "9"}, {"phone": 51}, {"phone": -51},
+                {"intent_cap": 6}, {"hot_at": 0}, {"hot_at": 101}, {"warm_at": 70}, {"hot_at": 40},
+                {"warm_at": 90}, ["phone"], "phone"):
+        with pytest.raises(ValueError):
+            validate_overrides(bad)
+
+
+def test_scoring_weights_change_the_result():
+    from app.scoring import assess, weights_for
+    lead = _lead(name="Pat", phone="+6421000000", email="p@e.co")
+    base = assess(lead)
+    assert base["score"] == 25 + 10 + 5
+    assert assess(lead, weights={"phone": 0})["score"] == 10 + 5
+    assert not any("phone" in r for r in assess(lead, weights={"phone": 0})["reasons"])   # zero-weight rules are not listed
+    assert assess(lead, weights={"phone": 50})["score"] == 50 + 10 + 5
+    assert assess(lead)["label"] == "warm" and assess(lead, weights={"warm_at": 45})["label"] == "cold"
+    assert assess(lead, weights={"hot_at": 45, "warm_at": 20})["label"] == "warm"
+    assert assess(lead, weights={"hot_at": 40, "warm_at": 20})["label"] == "hot"
+    assert weights_for({"scoring": {"phone": 1}})["phone"] == 1 and weights_for({"scoring": {"phone": 1}})["email"] == 10
+    assert weights_for({"scoring": '{"phone": 2}'})["phone"] == 2                          # jsonb arrives as a string
+    assert weights_for({"scoring": "garbage"})["phone"] == 25 and weights_for(None)["phone"] == 25
+
+
+def test_scoring_intent_weights():
+    from app.scoring import assess
+    lead = _lead(message="price cost quote book appointment")
+    assert assess(lead)["score"] == 20                                                     # default cap of 2 words
+    assert assess(lead, weights={"intent_cap": 4})["score"] == 40
+    assert assess(lead, weights={"intent_each": 5})["score"] == 10
+    assert assess(lead, weights={"intent_cap": 0})["score"] == 0
+
+
+def test_scoring_describe_lists_every_weight():
+    from app.scoring import DEFAULT_WEIGHTS, describe
+    rows = describe({"scoring": {"phone": 30}})
+    assert {r["key"] for r in rows} == set(DEFAULT_WEIGHTS)
+    phone = next(r for r in rows if r["key"] == "phone")
+    assert phone["default"] == 25 and phone["value"] == 30 and phone["label"] and phone["kind"] == "points"
+
+
+def test_sla_alert_text():
+    from app.sla import _alert_text
+    tenant = {"name": "Acme", "sla_minutes": 15}
+    lead = {"name": "Pat Lee", "phone": "+6421000000", "email": "", "channel": "chat", "message": "need a quote",
+            "score": 82, "score_label": "hot", "minutes_waiting": 31}
+    subject, body = _alert_text(tenant, lead)
+    assert subject == "[ACTION] HOT lead waiting 31 min: Pat Lee"
+    assert "31 minutes" in body and "target is 15" in body and "need a quote" in body and "contacted" in body
+    anon = _alert_text(tenant, {**lead, "name": "", "phone": "", "email": ""})[0]
+    assert anon.endswith("a visitor")
