@@ -40,6 +40,16 @@
   .field label{width:170px}
   .small{font-size:12px}
   h2{font-size:15px;margin:0 0 8px}
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px;align-items:start}
+  .col{background:#eceff3;border-radius:10px;padding:10px}
+  .col h3{margin:0 0 2px;font-size:14px;text-transform:capitalize}
+  .deal{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px}
+  .deal .name{font-weight:600;margin-right:6px}
+  .deal label{display:block;font-size:11px;color:var(--mute);margin-top:6px}
+  .deal input,.deal select{width:100%;padding:4px 6px;font-size:13px}
+  .overdue{color:var(--hot);font-weight:600}
+  .todo-done td{opacity:.55;text-decoration:line-through}
+  .src{font-size:11px;padding:1px 7px;border-radius:999px;background:#e5e7eb;color:#333}
 </style>
 </head>
 <body>
@@ -70,6 +80,8 @@
   var token = "", tenants = [], current = null, tab = "overview", waitingCount = 0;
   var campaignPreview = null;   // the preview currently shown on the Campaigns tab
   var leadFilter = { minScore: "0", sortScore: false };
+  var todoFilter = { done: false };
+  var overdueTodos = 0;
   var flash = "";               // a confirmation that must survive the re-render that follows a save
   var $ = function (id) { return document.getElementById(id); };
 
@@ -128,14 +140,30 @@
   }
   function notice(kind, text) { return el("div", { class: "notice " + kind, text: text }); }
   function fail(e) { if (e.message === "auth") return logout(); alert(e.message); }
+  function moveLead(id, status) {
+    var body = { status: status };
+    if (status === "lost") {
+      var why = prompt("Why was this lead lost? (optional)");
+      if (why === null) return Promise.resolve(false);
+      body.lost_reason = why.trim();
+    }
+    return api("/admin/leads/" + id, { method: "PATCH", body: body }).then(function () { return true; });
+  }
+  function localInputValue(iso) {
+    if (!iso) return "";
+    var d = new Date(iso), p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  var TABS = ["overview", "attention", "leads", "campaigns", "appointments", "conversations", "outbox", "setup"];
+  var TABS = ["overview", "attention", "pipeline", "leads", "to-dos", "campaigns", "appointments", "conversations", "outbox", "setup"];
 
   function renderTabs() {
     var box = $("tabs"); box.textContent = "";
     TABS.forEach(function (t) {
       var b = el("button", { text: t === "attention" ? "needs attention" : t, class: t === tab ? "on" : "" });
       if (t === "attention" && waitingCount > 0) b.appendChild(el("span", { class: "count", text: String(waitingCount) }));
+      if (t === "to-dos" && overdueTodos > 0) b.appendChild(el("span", { class: "count", text: String(overdueTodos) }));
       b.addEventListener("click", function () { tab = t; renderTabs(); render(); });
       box.appendChild(b);
     });
@@ -144,6 +172,10 @@
   async function refreshWaiting() {
     if (!current) { waitingCount = 0; return; }
     try { waitingCount = (await api("/admin/tenants/" + current.slug + "/sla")).waiting.length; } catch (e) { waitingCount = 0; }
+    try {
+      var open = await api("/admin/tenants/" + current.slug + "/tasks");
+      overdueTodos = open.filter(function (x) { return x.due_at && new Date(x.due_at) < new Date(); }).length;
+    } catch (e) { overdueTodos = 0; }
     renderTabs();
   }
 
@@ -151,12 +183,16 @@
   async function viewOverview(v, slug, days) {
     var s = await api("/admin/tenants/" + slug + "/stats?days=" + days);
     var sla = await api("/admin/tenants/" + slug + "/sla");
+    var sm = await api("/admin/tenants/" + slug + "/sales-summary?days=" + days);
     var stat = function (l, val) { return el("div", { class: "card stat" }, [el("b", { text: String(val) }), el("span", { text: l })]); };
     v.appendChild(el("div", { class: "grid" }, [
       stat("Conversations", s.conversations), stat("Leads", s.leads), stat("Appointments", s.appointments),
       stat("Lead rate", (s.lead_rate * 100).toFixed(1) + "%"), stat("Est. pipeline", money(s.estimated_pipeline_cents)),
       stat("Won value", money(s.won_value_cents)), stat("Quote-guard saves", s.quote_guard_interventions),
-      stat("Leads waiting for a reply", sla.sla_minutes ? sla.waiting.length : "off")
+      stat("Leads waiting for a reply", sla.sla_minutes ? sla.waiting.length : "off"),
+      stat("Won in this period", sm.won + " (" + money(sm.won_value_cents) + ")"),
+      stat("Open pipeline", money(sm.open_value_cents)), stat("Weighted pipeline", money(sm.weighted_value_cents)),
+      stat("Overdue to-dos", sm.overdue_todos)
     ]));
     if (!sla.sla_minutes) {
       v.appendChild(notice("", "Response alerts are off. Turn them on under Setup to be told when a hot lead is left waiting."));
@@ -213,7 +249,7 @@
     v.appendChild(bar);
     v.appendChild(card("Leads", table(["When", "Score", "Name", "Phone", "Email", "Message", "Via", "Status", "Value $", "Marketing consent"], leads.map(function (l) {
       var st = select(["new", "contacted", "booked", "won", "lost"], l.status, function (val) {
-        api("/admin/leads/" + l.id, { method: "PATCH", body: { status: val } }).then(refreshWaiting).catch(fail);
+        moveLead(l.id, val).then(function (ok) { if (ok) refreshWaiting(); else render(); }).catch(fail);
       });
       var val = el("input", { type: "number", min: "0", value: String(l.value_cents / 100), style: "width:90px" });
       val.addEventListener("change", function () {
@@ -320,25 +356,124 @@
     })) : el("p", { class: "mut", text: "No campaigns yet." })));
   }
 
+  function dealCard(l, stage) {
+    var c = el("div", { class: "deal", "data-lead": l.id });
+    c.appendChild(el("div", {}, [el("span", { class: "name", text: l.name || l.phone || l.email || "(no name)" }), badge(l.score_label, l.score)]));
+    if (l.message) c.appendChild(el("div", { class: "mut small", text: l.message.length > 90 ? l.message.slice(0, 90) + "..." : l.message }));
+    if (stage === "lost" && l.lost_reason) c.appendChild(el("div", { class: "small", text: "Lost: " + l.lost_reason }));
+    var stageSel = select(["new", "contacted", "booked", "won", "lost"], stage, function (val) {
+      moveLead(l.id, val).then(function () { render(); refreshWaiting(); }).catch(fail);
+    });
+    stageSel.className = "stageSel";
+    c.appendChild(el("label", { text: "Stage" })); c.appendChild(stageSel);
+    var value = el("input", { type: "number", min: "0", class: "dealValue", value: String(Math.round(l.effective_value_cents / 100)) });
+    value.addEventListener("change", function () {
+      api("/admin/leads/" + l.id, { method: "PATCH", body: { value_cents: Math.round(Number(value.value || 0) * 100) } }).then(render).catch(fail);
+    });
+    c.appendChild(el("label", { text: l.value_cents ? "Value ($)" : "Value ($, using the client average)" })); c.appendChild(value);
+    if (stage !== "won" && stage !== "lost") {
+      var next = el("input", { type: "datetime-local", class: "dealNext", value: localInputValue(l.next_action_at) });
+      next.addEventListener("change", function () {
+        if (!next.value) return;
+        api("/admin/leads/" + l.id, { method: "PATCH", body: { next_action_at: new Date(next.value).toISOString() } }).then(refreshWaiting).catch(fail);
+      });
+      c.appendChild(el("label", { text: "Follow up on" })); c.appendChild(next);
+    }
+    return c;
+  }
+
+  async function viewPipeline(v, slug) {
+    var pl = await api("/admin/tenants/" + slug + "/pipeline");
+    var stat = function (l, val) { return el("div", { class: "card stat" }, [el("b", { text: String(val) }), el("span", { text: l })]); };
+    v.appendChild(el("div", { class: "grid" }, [
+      stat("Open pipeline", money(pl.open_value_cents)), stat("Weighted forecast", money(pl.weighted_value_cents)),
+      stat("Won (last 30 days)", money(pl.won_value_cents))
+    ]));
+    var o = pl.odds;
+    v.appendChild(el("p", { class: "mut small", text: "Each open stage is weighted by how often leads there tend to close: new " + Math.round(o.new * 100) + "%, contacted " + Math.round(o.contacted * 100) + "%, booked " + Math.round(o.booked * 100) + "%. Leads with no value of their own use the client's average lead value (" + money(pl.average_lead_value_cents) + ")." }));
+    var board = el("div", { class: "board", id: "board" });
+    ["new", "contacted", "booked", "won", "lost"].forEach(function (stage) {
+      var col = pl.stages[stage];
+      var box = el("div", { class: "col", id: "col_" + stage }, [el("h3", { text: stage + " (" + col.count + ")" }), el("div", { class: "mut small", text: money(col.value_cents) })]);
+      col.leads.forEach(function (l) { box.appendChild(dealCard(l, stage)); });
+      if (!col.leads.length) box.appendChild(el("p", { class: "mut small", text: "Nothing here." }));
+      board.appendChild(box);
+    });
+    v.appendChild(board);
+  }
+
+  async function viewTodos(v, slug) {
+    var form = el("div", { class: "row" });
+    var title = el("input", { id: "t_title", placeholder: "What needs doing?", style: "flex:1;min-width:220px" });
+    var due = el("input", { id: "t_due", type: "datetime-local" });
+    var add = el("button", { id: "addTodo", text: "Add to-do" });
+    add.addEventListener("click", async function () {
+      if (!title.value.trim()) { title.focus(); return; }
+      add.disabled = true;
+      try {
+        var body = { title: title.value.trim() };
+        if (due.value) body.due_at = new Date(due.value).toISOString();
+        await api("/admin/tenants/" + slug + "/tasks", { method: "POST", body: body });
+        render(); refreshWaiting();
+      } catch (e) { add.disabled = false; fail(e); }
+    });
+    title.addEventListener("keydown", function (e) { if (e.key === "Enter") add.click(); });
+    form.appendChild(title); form.appendChild(due); form.appendChild(add);
+    v.appendChild(card("New to-do", form));
+
+    var showDone = el("input", { type: "checkbox", id: "showDone" }); showDone.checked = todoFilter.done;
+    showDone.addEventListener("change", function () { todoFilter.done = showDone.checked; render(); });
+    v.appendChild(el("label", { class: "row", style: "margin-bottom:8px" }, [showDone, "Show completed"]));
+
+    var list = await api("/admin/tenants/" + slug + "/tasks?status=" + (todoFilter.done ? "all" : "open"));
+    if (!list.length) { v.appendChild(card("", el("p", { class: "mut", text: "Nothing to do. New leads add a follow-up here automatically." }))); return; }
+    var t = el("table", { id: "todoTable" });
+    t.appendChild(el("tr", {}, ["", "To-do", "Due", "From", ""].map(function (h) { return el("th", { text: h }); })));
+    list.forEach(function (x) {
+      var done = x.status === "done";
+      var cb = el("input", { type: "checkbox", class: "todoCheck", "aria-label": "Done" }); cb.checked = done;
+      cb.addEventListener("change", async function () {
+        try { await api("/admin/tasks/" + x.id, { method: "PATCH", body: { status: cb.checked ? "done" : "open" } }); render(); refreshWaiting(); } catch (e) { cb.checked = !cb.checked; fail(e); }
+      });
+      var overdue = !done && x.due_at && new Date(x.due_at) < new Date();
+      var what = el("div", {}, [el("div", { text: x.title })]);
+      if (x.notes) what.appendChild(el("div", { class: "mut small", text: x.notes.length > 120 ? x.notes.slice(0, 120) + "..." : x.notes }));
+      var del = el("button", { class: "sec small", text: "Delete" });
+      del.addEventListener("click", async function () {
+        if (!confirm("Delete this to-do?")) return;
+        try { await api("/admin/tasks/" + x.id, { method: "DELETE" }); render(); refreshWaiting(); } catch (e) { fail(e); }
+      });
+      var row = el("tr", { class: done ? "todo-done" : "" }, [
+        el("td", {}, [cb]), el("td", {}, [what]),
+        el("td", { class: overdue ? "overdue" : "" }, [x.due_at ? (overdue ? "Overdue: " : "") + when(x.due_at) : "-"]),
+        el("td", {}, [el("span", { class: "src", text: x.source === "system" ? "automatic" : x.source })]),
+        el("td", {}, [del])
+      ]);
+      t.appendChild(row);
+    });
+    v.appendChild(card("", t));
+  }
+
   async function viewSetup(v, slug) {
     var t = await api("/admin/tenants/" + slug);
     if (flash) { v.appendChild(notice("good", flash)); flash = ""; }
     v.appendChild(card("Embed snippet", el("pre", { text: t.embed_snippet })));
     v.appendChild(card("Links", table(["What", "URL"], [
       ["Demo (presenter)", t.demo_url], ["Client report (share with the client)", t.report_url],
-      ["Twilio inbound-SMS webhook", t.sms_webhook_url], ["Knowledge chunks", t.chunk_count]
+      ["Twilio inbound-SMS webhook", t.sms_webhook_url], ["Calendar feed (subscribe in Google, Apple or Outlook Calendar; keep it private)", t.calendar_url || "-"], ["Knowledge chunks", t.chunk_count]
     ])));
     var keys = ["name", "persona", "greeting", "incentive", "booking_url", "lead_webhook_url", "notify_email", "review_url", "timezone", "sms_from", "lead_sms_template"];
     var form = el("div");
     keys.forEach(function (k) {
       form.appendChild(el("div", { class: "field" }, [el("label", { text: k }), el("input", { id: "f_" + k, value: t[k] || "", style: "flex:1;min-width:240px" })]));
     });
-    var flags = ["native_booking", "sms_enabled", "voice_enabled", "campaigns_enabled"];
+    var flags = ["native_booking", "sms_enabled", "voice_enabled", "campaigns_enabled", "weekly_digest"];
     flags.forEach(function (k) {
       var cb = el("input", { type: "checkbox", id: "f_" + k }); cb.checked = !!t[k];
       form.appendChild(el("div", { class: "field" }, [el("label", { text: k }), cb]));
     });
     form.appendChild(el("p", { class: "mut small", text: "campaigns_enabled lets this client send reactivation campaigns. Leave it off until the consent wording on your forms has been checked." }));
+    form.appendChild(el("p", { class: "mut small", text: "weekly_digest emails notify_email a summary of the week every Monday morning (local time)." }));
     form.appendChild(el("div", { class: "field" }, [el("label", { text: "lead_value ($)" }), el("input", { id: "f_lead_value", type: "number", value: String((t.lead_value_cents || 0) / 100) })]));
     form.appendChild(el("div", { class: "field" }, [el("label", { text: "Alert if a lead waits (minutes, 0 = off)" }), el("input", { id: "f_sla_minutes", type: "number", min: "0", max: "1440", value: String(t.sla_minutes || 0), style: "width:90px" })]));
     form.appendChild(el("div", { class: "field" }, [el("label", { text: "...for leads scoring at least" }), el("input", { id: "f_sla_min_score", type: "number", min: "0", max: "100", value: String(t.sla_min_score == null ? 70 : t.sla_min_score), style: "width:90px" })]));
@@ -399,7 +534,9 @@
     try {
       if (tab === "overview") await viewOverview(v, slug, days);
       else if (tab === "attention") await viewAttention(v, slug);
+      else if (tab === "pipeline") await viewPipeline(v, slug);
       else if (tab === "leads") await viewLeads(v, slug);
+      else if (tab === "to-dos") await viewTodos(v, slug);
       else if (tab === "campaigns") await viewCampaigns(v, slug);
       else if (tab === "appointments") {
         var ap = await api("/admin/tenants/" + slug + "/appointments");

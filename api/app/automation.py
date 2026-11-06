@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import events, outbox, scoring
+from . import events, outbox, sales, scoring, tasks
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -54,6 +54,10 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
         lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
     except Exception:  # scoring must never stop a lead from being handled
         log.exception("lead scoring failed for %s", lead.get("id"))
+    try:
+        await tasks.create_follow_up(tenant, lead)  # one to-do per new lead, completes itself when answered
+    except Exception:
+        log.exception("follow-up to-do failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
 
     contact = lead["phone"] or lead["email"] or "-"
@@ -85,6 +89,11 @@ async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> 
             lead = await scoring.apply(lead, booked=True, weights=scoring.weights_for(tenant))
         except Exception:
             log.exception("lead scoring failed for %s", lead.get("id"))
+    if lead:  # a booking is a deal that has reached the 'booked' stage
+        try:
+            await sales.change_status(lead["id"], "booked")
+        except Exception:
+            log.exception("could not move lead to booked: %s", lead.get("id"))
     events.emit(
         tenant, "appointment.booked",
         appointment=events.appointment_view(appt, tenant["timezone"]),

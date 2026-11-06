@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # Response-time alerts
     sla_poll_seconds: int = 60
+    digest_poll_seconds: int = 300
 
     # Follow-up engine
     outbox_enabled: bool = True

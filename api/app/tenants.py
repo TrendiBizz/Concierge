@@ -34,6 +34,7 @@ UPDATABLE_FIELDS = {
     "sla_min_score": int,
     "campaigns_enabled": bool,
     "scoring": dict,
+    "weekly_digest": bool,
 }
 JSONB_FIELDS = {"business_hours", "scoring"}
 
@@ -87,6 +88,27 @@ async def get_by_report_token(token: str) -> dict | None:
     return _load(row) if row else None
 
 
+async def get_by_calendar_token(token: str) -> dict | None:
+    row = await db.pool().fetchrow("SELECT * FROM tenants WHERE calendar_token = $1", token)
+    return _load(row) if row else None
+
+
+async def ensure_calendar_tokens() -> None:
+    """Backfill calendar-feed tokens for clients created before the feature existed."""
+    for row in await db.pool().fetch("SELECT id FROM tenants WHERE calendar_token IS NULL"):
+        await db.pool().execute("UPDATE tenants SET calendar_token = $2 WHERE id = $1", row["id"], new_report_token())
+
+
+async def ensure_calendar_token(tenant: dict) -> dict:
+    """A client's calendar token, created on the spot if it does not have one yet (e.g. inserted by hand)."""
+    if tenant.get("calendar_token"):
+        return tenant
+    row = await db.pool().fetchrow(
+        "UPDATE tenants SET calendar_token = COALESCE(calendar_token, $2) WHERE id = $1 RETURNING *",
+        tenant["id"], new_report_token())
+    return _load(row)
+
+
 async def list_all() -> list[dict]:
     rows = await db.pool().fetch("SELECT * FROM tenants ORDER BY created_at DESC")
     return [_load(r) for r in rows]
@@ -128,6 +150,8 @@ async def create(name: str, site_url: str | None, slug: str | None = None, **fie
         fields.get("lead_webhook_url"),
         fields.get("incentive") or "",
     )
+    row = await db.pool().fetchrow(
+        "UPDATE tenants SET calendar_token = $2 WHERE id = $1 RETURNING *", row["id"], new_report_token())
     return _load(row)
 
 

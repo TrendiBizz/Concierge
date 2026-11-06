@@ -184,3 +184,40 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS scoring jsonb NOT NULL DEFAULT '{}'
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_minutes integer NOT NULL DEFAULT 0;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_min_score integer NOT NULL DEFAULT 70;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS sla_alerted_at timestamptz;
+
+-- To-dos, sales pipeline and calendar feed (see app/tasks.py, app/sales.py, app/ical.py)
+CREATE TABLE IF NOT EXISTS tasks (
+    id            bigserial PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    lead_id       uuid REFERENCES leads(id) ON DELETE SET NULL,
+    title         text NOT NULL,
+    notes         text NOT NULL DEFAULT '',
+    due_at        timestamptz,
+    status        text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+    kind          text NOT NULL DEFAULT 'manual',
+    source        text NOT NULL DEFAULT 'manual',
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    completed_at  timestamptz
+);
+CREATE INDEX IF NOT EXISTS tasks_tenant_idx ON tasks (tenant_id, status, due_at);
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_follow_up_idx ON tasks (lead_id) WHERE kind = 'follow_up';
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS won_at timestamptz;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_at timestamptz;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_reason text NOT NULL DEFAULT '';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_action_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS lead_events (
+    id           bigserial PRIMARY KEY,
+    lead_id      uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    from_status  text NOT NULL,
+    to_status    text NOT NULL,
+    note         text NOT NULL DEFAULT '',
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lead_events_tenant_idx ON lead_events (tenant_id, created_at DESC);
+
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_token text;
+CREATE UNIQUE INDEX IF NOT EXISTS tenants_calendar_token_idx ON tenants (calendar_token);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS weekly_digest boolean NOT NULL DEFAULT false;
