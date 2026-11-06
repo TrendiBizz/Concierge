@@ -21,7 +21,7 @@ Responses: 200 `{ok,twenty_id,duplicate,note}`, 400 invalid input, 413 too large
   (must be a duplicate), confirms exactly one person exists in Twenty, then deletes the test person.
 
 ## Known limits
-- Twenty REST field names (people, notes, noteTargets) are written from Twenty's documented API and have NOT yet
-  been confirmed against the running instance: run `test/live.sh` once a key exists. Notes are best effort.
+- Twenty REST shapes are confirmed against a real Twenty 2.56.0 by `test/live.sh` (people create, duplicate lookup, notes and
+  noteTargets via `targetPersonId`). Re-run it after upgrading Twenty. Notes are still best effort: a note failure never fails a lead.
 - Non-NZ phone numbers are stored whole in E.164 form; only +64 numbers are split into country and national parts.
 - `company` is accepted but not linked (Twenty companies are separate records).

@@ -1,2 +1,5 @@
 .env
 *.log
+
+# one-off scratch used to set up the local Twenty workspace (never commit)
+.bootstrap-scratch/

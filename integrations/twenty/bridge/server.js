@@ -164,7 +164,7 @@ export function createBridge(opts = {}) {
       const n = await twenty('POST', '/rest/notes', key, { title: 'Website enquiry', bodyV2: { markdown: lines.join('\n') } });
       const note = pick(n.json, 'createNote', 'note');
       if (n.status >= 400 || !note || !note.id) return false;
-      const t = await twenty('POST', '/rest/noteTargets', key, { noteId: note.id, personId });
+      const t = await twenty('POST', '/rest/noteTargets', key, { noteId: note.id, targetPersonId: personId });
       return t.status < 400;
     } catch { return false; }
   }

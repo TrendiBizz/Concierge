@@ -6,8 +6,11 @@ cd "$(dirname "$0")/.."
 KEYFILE="${TWENTY_API_KEY_FILE:-.twenty-key}"
 TW="${TWENTY_URL:-http://127.0.0.1:3010}"
 PORT="${LIVE_PORT:-4419}"
-[ -s "$KEYFILE" ] || { echo "FAIL: no API key. Put your Twenty API key in $(pwd)/$KEYFILE first."; exit 2; }
-KEY="$(tr -d '[:space:]' < "$KEYFILE")"
+# Key sources, in order: TWENTY_API_KEY env, the key file, the macOS keychain item concierge-twenty-api-key.
+if [ -n "${TWENTY_API_KEY:-}" ]; then KEY="$TWENTY_API_KEY"
+elif [ -s "$KEYFILE" ]; then KEY="$(tr -d '[:space:]' < "$KEYFILE")"
+else KEY="$(security find-generic-password -s concierge-twenty-api-key -w 2>/dev/null | tr -d '[:space:]')"; fi
+[ -n "$KEY" ] || { echo "FAIL: no Twenty API key (env, $KEYFILE, or keychain item concierge-twenty-api-key)."; exit 2; }
 
 PORT="$PORT" TWENTY_URL="$TW" TWENTY_API_KEY="$KEY" node server.js > "${TMPDIR:-/tmp}/bridge-live.log" 2>&1 &
 PID=$!

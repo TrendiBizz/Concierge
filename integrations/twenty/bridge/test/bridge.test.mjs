@@ -94,7 +94,7 @@ test('new lead: creates person, adds note, sends bearer key', async () => {
   const note = calls.find((c) => c.path === '/rest/notes');
   assert.match(note.body.bodyV2.markdown, /Need a quote/);
   assert.match(note.body.bodyV2.markdown, /Plan: Starter/);
-  assert.equal(calls.find((c) => c.path === '/rest/noteTargets').body.personId, 'p-new');
+  assert.equal(calls.find((c) => c.path === '/rest/noteTargets').body.targetPersonId, 'p-new');
   assert.ok(calls.every((c) => c.auth === 'Bearer ' + KEY));
 });
 
@@ -113,7 +113,7 @@ test('duplicate email: no second person, note still added', async () => {
   assert.equal(j.duplicate, true);
   assert.equal(j.twenty_id, 'p-existing');
   assert.equal(calls.filter((c) => c.method === 'POST' && c.path === '/rest/people').length, 0);
-  assert.equal(calls.find((c) => c.path === '/rest/noteTargets').body.personId, 'p-existing');
+  assert.equal(calls.find((c) => c.path === '/rest/noteTargets').body.targetPersonId, 'p-existing');
 });
 
 test('note failure does not fail the lead', async () => {
