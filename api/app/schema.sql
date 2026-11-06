@@ -268,3 +268,35 @@ CREATE TABLE IF NOT EXISTS phone_calls (
     ended_at     timestamptz
 );
 CREATE INDEX IF NOT EXISTS phone_calls_tenant_idx ON phone_calls (tenant_id, started_at DESC);
+
+
+-- Tenant owner access, isolated from the global operator token.
+CREATE TABLE IF NOT EXISTS tenant_users (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ email text NOT NULL,
+ role text NOT NULL CHECK (role IN ('viewer','editor','owner')),
+ password_hash text NOT NULL,
+ active boolean NOT NULL DEFAULT true,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE (tenant_id,email)
+);
+CREATE TABLE IF NOT EXISTS tenant_invites (
+ id bigserial PRIMARY KEY,
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ email text NOT NULL,
+ role text NOT NULL CHECK (role IN ('viewer','editor','owner')),
+ purpose text NOT NULL CHECK (purpose IN ('invite','recovery')),
+ token_hash text UNIQUE NOT NULL,
+ expires_at timestamptz NOT NULL,
+ used_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS tenant_sessions (
+ id bigserial PRIMARY KEY,
+ user_id uuid NOT NULL REFERENCES tenant_users(id) ON DELETE CASCADE,
+ token_hash text UNIQUE NOT NULL,
+ expires_at timestamptz NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tenant_sessions_user_idx ON tenant_sessions(user_id);

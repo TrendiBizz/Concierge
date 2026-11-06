@@ -116,6 +116,8 @@ async def approve(tenant_id, draft_id: int) -> dict | None:
             )
             if not row or row["status"] != "draft":
                 return None
+            if row["reply_body"].startswith("REVIEW REQUIRED —"):
+                raise DraftError("An authenticated human must write the response before approval")
             await conn.execute(
                 """
                 INSERT INTO outbox

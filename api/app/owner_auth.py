@@ -1,0 +1,144 @@
+"""Tenant-scoped owner authentication. Opaque tokens are stored only as SHA-256 hashes.
+No invitations or recovery tokens are emailed automatically.
+"""
+import hashlib
+import hmac
+import re
+import secrets
+
+from fastapi import Header, HTTPException
+from . import db
+
+ROLES = {"viewer": 0, "editor": 1, "owner": 2}
+EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+ITERATIONS = 600_000
+
+
+def digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def password_hash(password: str) -> str:
+    if len(password) < 12 or len(password) > 256:
+        raise ValueError("Password must contain 12-256 characters")
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITERATIONS)
+    return f"pbkdf2_sha256:{ITERATIONS}:{salt.hex()}:{derived.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        kind, rounds, salt, expected = stored.split(":")
+        if kind != "pbkdf2_sha256":
+            return False
+        computed = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), int(rounds))
+        return hmac.compare_digest(computed, bytes.fromhex(expected))
+    except (ValueError, TypeError):
+        return False
+
+
+def clean_email(email: str) -> str:
+    value = email.strip().lower()
+    if len(value) > 320 or not EMAIL.fullmatch(value):
+        raise ValueError("Invalid email")
+    return value
+
+
+async def make_invite(tenant_id, email: str, role: str, purpose: str = "invite") -> str:
+    if role not in ROLES or purpose not in ("invite", "recovery"):
+        raise ValueError("Invalid role or purpose")
+    email = clean_email(email)
+    token = secrets.token_urlsafe(32)
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            if purpose == "recovery":
+                user = await conn.fetchrow("SELECT role FROM tenant_users WHERE tenant_id=$1 AND email=$2 AND active", tenant_id, email)
+                if not user:
+                    raise ValueError("Active user not found")
+                role = user["role"]
+            await conn.execute(
+                "UPDATE tenant_invites SET used_at=now() WHERE tenant_id=$1 AND email=$2 AND purpose=$3 AND used_at IS NULL",
+                tenant_id, email, purpose,
+            )
+            await conn.execute(
+                "INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) "
+                "VALUES($1,$2,$3,$4,$5,now()+interval '24 hours')",
+                tenant_id, email, role, purpose, digest(token),
+            )
+    return token
+
+
+async def redeem(token: str, password: str) -> dict:
+    pwd = password_hash(password)
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            invitation = await conn.fetchrow(
+                "SELECT * FROM tenant_invites WHERE token_hash=$1 AND used_at IS NULL "
+                "AND expires_at>now() FOR UPDATE", digest(token),
+            )
+            if not invitation:
+                raise ValueError("Invalid or expired invitation")
+            existing = await conn.fetchrow(
+                "SELECT id FROM tenant_users WHERE tenant_id=$1 AND email=$2",
+                invitation["tenant_id"], invitation["email"],
+            )
+            if invitation["purpose"] == "recovery" and not existing:
+                raise ValueError("Account no longer exists")
+            if invitation["purpose"] == "invite" and existing:
+                raise ValueError("Account already exists")
+            if existing:
+                await conn.execute(
+                    "UPDATE tenant_users SET password_hash=$2, active=true WHERE id=$1",
+                    existing["id"], pwd,
+                )
+                user_id = existing["id"]
+                await conn.execute("DELETE FROM tenant_sessions WHERE user_id=$1", user_id)
+            else:
+                user_id = await conn.fetchval(
+                    "INSERT INTO tenant_users(tenant_id,email,role,password_hash) "
+                    "VALUES($1,$2,$3,$4) RETURNING id",
+                    invitation["tenant_id"], invitation["email"], invitation["role"], pwd,
+                )
+            await conn.execute("UPDATE tenant_invites SET used_at=now() WHERE id=$1", invitation["id"])
+    return {"email": invitation["email"], "role": invitation["role"]}
+
+
+async def login_for_tenant(slug: str, email: str, password: str) -> str | None:
+    email = clean_email(email)
+    user = await db.pool().fetchrow(
+        "SELECT u.id,u.password_hash FROM tenant_users u JOIN tenants t ON t.id=u.tenant_id "
+        "WHERE t.slug=$1 AND u.email=$2 AND u.active", slug, email,
+    )
+    if not user or not verify_password(password, user["password_hash"]):
+        return None
+    token = secrets.token_urlsafe(32)
+    await db.pool().execute(
+        "INSERT INTO tenant_sessions(user_id,token_hash,expires_at) "
+        "VALUES($1,$2,now()+interval '12 hours')", user["id"], digest(token),
+    )
+    return token
+
+
+async def current_user(authorization: str = Header(default="")) -> dict:
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token or len(token) > 256:
+        raise HTTPException(401, "Bearer authentication required")
+    row = await db.pool().fetchrow(
+        "SELECT u.id,u.tenant_id,u.email,u.role,t.slug,t.name "
+        "FROM tenant_sessions s JOIN tenant_users u ON u.id=s.user_id "
+        "JOIN tenants t ON t.id=u.tenant_id "
+        "WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active",
+        digest(token),
+    )
+    if not row:
+        raise HTTPException(401, "Session expired or invalid")
+    return dict(row)
+
+
+def require_role(user: dict, role: str) -> None:
+    if ROLES[user["role"]] < ROLES[role]:
+        raise HTTPException(403, "Insufficient permissions")
+
+
+async def logout(token: str) -> None:
+    await db.pool().execute("DELETE FROM tenant_sessions WHERE token_hash=$1", digest(token))

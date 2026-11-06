@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, sms, tasks, tenants, unsub, voice,
+    phone_relay, owner_auth, sms, tasks, tenants, unsub, voice,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -36,6 +36,7 @@ settings = get_settings()
 ip_limiter = RateLimiter(settings.chat_rate_per_minute_ip, 60)
 session_limiter = RateLimiter(settings.chat_rate_per_day_session, 86_400)
 sms_limiter = RateLimiter(30, 3600)
+owner_login_limiter = RateLimiter(8, 300)
 
 LEAD_STATUSES = ("new", "contacted", "booked", "won", "lost")
 APPT_STATUSES = ("booked", "completed", "cancelled", "no_show")
@@ -71,7 +72,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token"],
+    allow_headers=["Content-Type", "X-Admin-Token", "Authorization"],
 )
 
 
@@ -1282,5 +1283,156 @@ async def admin_phone_call_history(slug: str):
         "SELECT call_sid, from_number, to_number, status, started_at, ended_at "
         "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
         tenant["id"],
+    )
+    return [dict(row) for row in rows]
+
+# ------------------------------------------------- tenant-owner access (separate from operator)
+class OwnerInvite(BaseModel):
+    email: str = Field(max_length=320)
+    role: Literal["viewer", "editor", "owner"] = "viewer"
+
+
+class OwnerRecovery(BaseModel):
+    email: str = Field(max_length=320)
+
+
+class OwnerRedeem(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=12, max_length=256)
+
+
+class OwnerLogin(BaseModel):
+    slug: str
+    email: str
+    password: str
+
+
+@app.post("/admin/tenants/{slug}/owner-invitations", dependencies=admin, status_code=201)
+async def admin_invite_owner(slug: str, body: OwnerInvite):
+    tenant = await _require_tenant(slug)
+    try:
+        token = await owner_auth.make_invite(tenant["id"], body.email, body.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    # Do not auto-email credentials; operator delivers token over verified channel.
+    return {"invitation_token": token, "expires_in_hours": 24}
+
+
+@app.post("/admin/tenants/{slug}/owner-recovery", dependencies=admin)
+async def admin_owner_recovery(slug: str, body: OwnerRecovery):
+    tenant = await _require_tenant(slug)
+    try:
+        token = await owner_auth.make_invite(tenant["id"], body.email, "viewer", "recovery")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"recovery_token": token, "expires_in_hours": 24}
+
+
+@app.post("/owner/auth/redeem")
+async def owner_redeem(body: OwnerRedeem):
+    try:
+        return await owner_auth.redeem(body.token, body.password)
+    except ValueError:
+        raise HTTPException(400, "Invalid invitation or password")
+
+
+@app.post("/owner/auth/login")
+async def owner_login(body: OwnerLogin, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    if not owner_login_limiter.check(ip):
+        raise HTTPException(429, "Too many login attempts")
+    try:
+        token = await owner_auth.login_for_tenant(body.slug, body.email, body.password)
+    except ValueError:
+        token = None
+    if token is None:
+        raise HTTPException(401, "Invalid credentials")
+    return {"access_token": token, "token_type": "bearer", "expires_in": 43200}
+
+
+@app.get("/owner/me")
+async def owner_me(user: dict = Depends(owner_auth.current_user)):
+    return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}
+
+
+@app.post("/owner/auth/logout")
+async def owner_logout(request: Request, user: dict = Depends(owner_auth.current_user)):
+    await owner_auth.logout(request.headers["authorization"].partition(" ")[2])
+    return {"ok": True}
+
+
+@app.post("/owner/invitations", status_code=201)
+async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    try:
+        token = await owner_auth.make_invite(user["tenant_id"], body.email, body.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"invitation_token": token, "expires_in_hours": 24}
+
+
+@app.get("/owner/email-drafts")
+async def owner_drafts(
+    status: Literal["draft", "approved", "discarded", "all"] = "draft",
+    user: dict = Depends(owner_auth.current_user),
+):
+    _email_feature_gate()
+    return await email_drafts.list_drafts(user["tenant_id"], status)
+
+
+@app.patch("/owner/email-drafts/{draft_id}")
+async def owner_edit_draft(
+    draft_id: int, body: EmailDraftRevision,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    try:
+        row = await email_drafts.revise(user["tenant_id"], draft_id, body.reply_body)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(400, str(exc))
+    if not row:
+        raise HTTPException(404, "Draft not found")
+    return row
+
+
+@app.post("/owner/email-drafts/{draft_id}/discard")
+async def owner_discard_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    row = await email_drafts.discard(user["tenant_id"], draft_id)
+    if not row:
+        raise HTTPException(404, "Draft not found")
+    return row
+
+
+@app.post("/owner/email-drafts/{draft_id}/approve")
+async def owner_approve_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    _email_feature_gate()
+    try:
+        row = await email_drafts.approve(user["tenant_id"], draft_id)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(503, str(exc))
+    if not row:
+        raise HTTPException(409, "Draft unavailable")
+    return row
+
+
+@app.get("/owner/phone-numbers")
+async def owner_phone_numbers(user: dict = Depends(owner_auth.current_user)):
+    rows = await db.pool().fetch(
+        "SELECT e164,enabled,created_at FROM phone_numbers WHERE tenant_id=$1",
+        user["tenant_id"],
+    )
+    return [dict(row) for row in rows]
+
+
+@app.get("/owner/phone-calls")
+async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
+    rows = await db.pool().fetch(
+        "SELECT call_sid,from_number,to_number,status,started_at,ended_at "
+        "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
+        user["tenant_id"],
     )
     return [dict(row) for row in rows]
