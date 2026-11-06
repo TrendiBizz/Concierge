@@ -308,3 +308,13 @@ CREATE TABLE IF NOT EXISTS owner_login_limits (
  window_until timestamptz NOT NULL
 );
 CREATE INDEX IF NOT EXISTS owner_login_limits_expiry_idx ON owner_login_limits(window_until);
+
+-- Private mailbox ownership verified by operator; never accept tenant from email.
+CREATE TABLE IF NOT EXISTS inbound_mailboxes (
+ recipient text PRIMARY KEY,
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ provider text NOT NULL CHECK (provider IN ('cloudflare')),
+ enabled boolean NOT NULL DEFAULT false,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS inbound_mailboxes_tenant_idx ON inbound_mailboxes(tenant_id);

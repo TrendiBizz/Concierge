@@ -23,7 +23,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
     Tenant identity must come from a private recipient mapping, not user input.
     Caller must have authenticated the provider before reaching this function.
     """
-    if provider not in ("brevo", "mailgun", "postmark", "ses"):
+    if provider not in ("brevo", "mailgun", "postmark", "ses", "cloudflare"):
         raise InboundError("Unsupported provider")
     if not MESSAGE_ID.fullmatch(message_id):
         raise InboundError("Invalid message identifier")

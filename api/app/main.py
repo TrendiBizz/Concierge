@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, sms, tasks, tenants, unsub, voice,
+    phone_relay, owner_auth, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -1305,6 +1305,27 @@ async def admin_phone_call_history(slug: str):
         tenant["id"],
     )
     return [dict(row) for row in rows]
+
+# Mailbox registration is operator-only; sending and receipt remain disabled by default.
+class InboundMailbox(BaseModel):
+    recipient: str = Field(min_length=3, max_length=320)
+    enabled: bool = False
+
+
+@app.post("/admin/tenants/{slug}/inbound-mailboxes", dependencies=admin)
+async def register_inbound_mailbox(slug: str, body: InboundMailbox):
+    tenant = await _require_tenant(slug)
+    try:
+        await cloudflare_inbound.register_mailbox(tenant["id"], body.recipient, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "enabled": body.enabled}
+
+
+@app.post("/api/v1/inbound/cloudflare")
+async def cloudflare_email_webhook(request: Request):
+    return await cloudflare_inbound.handle(request)
+
 
 # ------------------------------------------------- tenant-owner access (separate from operator)
 class OwnerInvite(BaseModel):

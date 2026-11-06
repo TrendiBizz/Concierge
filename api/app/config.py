@@ -53,6 +53,8 @@ class Settings(BaseSettings):
 
     # Email (any SMTP server). Optional.
     email_drafts_enabled: bool = False  # staging-only until explicitly enabled
+    inbound_cloudflare_enabled: bool = False  # no public ingestion until authorized
+    inbound_cloudflare_secret: str = ""  # same randomly generated secret in Worker and API
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
