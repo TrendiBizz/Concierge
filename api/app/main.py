@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qs, urlsplit
@@ -17,8 +18,8 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
-    automation, campaigns, chat as chat_engine, convo, db, events, ingest, llm, outbox, scoring, sla, sms,
-    tenants, unsub, voice,
+    automation, campaigns, chat as chat_engine, convo, db, events, ical, ingest, llm, outbox, sales, scoring, sla,
+    sms, tasks, tenants, unsub, voice,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -46,15 +47,19 @@ START_WORDS = {"START", "UNSTOP"}
 async def lifespan(_: FastAPI):
     await db.init()
     await tenants.ensure_report_tokens()
+    await tenants.ensure_calendar_tokens()
     stop = asyncio.Event()
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
     sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
+    digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
     yield
     stop.set()
     if worker:
         await worker
     if sla_worker:
         await sla_worker
+    if digest_worker:
+        await digest_worker
     await db.close()
 
 
@@ -540,6 +545,7 @@ class TenantUpdate(BaseModel):
     sla_minutes: int | None = Field(default=None, ge=0, le=1440)       # 0 = response alerts off
     sla_min_score: int | None = Field(default=None, ge=0, le=100)
     campaigns_enabled: bool | None = None
+    weekly_digest: bool | None = None                                  # Monday summary email to notify_email
     scoring: dict[str, int] | None = None                              # {} resets to the defaults
 
     @field_validator("scoring")
@@ -597,6 +603,13 @@ class LeadUpdate(BaseModel):
     status: Literal["new", "contacted", "booked", "won", "lost"] | None = None
     notes: str | None = Field(default=None, max_length=4000)
     value_cents: int | None = Field(default=None, ge=0, le=100_000_000)
+    lost_reason: str | None = Field(default=None, max_length=300)   # only used together with status = lost
+    next_action_at: datetime | None = None                          # also moves the lead's follow-up to-do
+
+    @field_validator("next_action_at")
+    @classmethod
+    def _aware(cls, value):
+        return value if value is None or value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 class AppointmentUpdate(BaseModel):
@@ -611,6 +624,7 @@ def _with_snippet(tenant: dict) -> dict:
         "demo_url": f"{base}/demo/{tenant['slug']}?presenter=1",
         "report_url": f"{base}/report/{tenant['report_token']}",
         "sms_webhook_url": f"{base}/api/v1/sms/{tenant['public_key']}",
+        "calendar_url": f"{base}/api/v1/calendar/{tenant['calendar_token']}.ics" if tenant.get("calendar_token") else None,
     }
 
 
@@ -635,7 +649,7 @@ async def admin_list_tenants():
 
 @app.get("/admin/tenants/{slug}", dependencies=admin)
 async def admin_get_tenant(slug: str):
-    tenant = await _require_tenant(slug)
+    tenant = await tenants.ensure_calendar_token(await _require_tenant(slug))
     chunks = await db.pool().fetchval("SELECT count(*) FROM chunks WHERE tenant_id = $1", tenant["id"])
     return {**_with_snippet(tenant), "chunk_count": chunks}
 
@@ -883,22 +897,134 @@ async def admin_sla(slug: str):
     }
 
 
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    notes: str = Field(default="", max_length=2000)
+    due_at: datetime | None = None
+    lead_id: str | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _aware(cls, value):
+        return _aware(value)
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+    due_at: datetime | None = None
+    status: Literal["open", "done"] | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _aware(cls, value):
+        return _aware(value)
+
+
+def _aware(value):
+    """A date typed without a timezone is taken as UTC, so it can never be misread as local time."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+@app.get("/admin/tenants/{slug}/tasks", dependencies=admin)
+async def admin_list_tasks(slug: str, status: Literal["open", "done", "all"] = "open"):
+    tenant = await _require_tenant(slug)
+    return await tasks.list_tasks(tenant["id"], status)
+
+
+@app.post("/admin/tenants/{slug}/tasks", dependencies=admin, status_code=201)
+async def admin_create_task(slug: str, body: TaskCreate):
+    tenant = await _require_tenant(slug)
+    if body.lead_id:
+        try:
+            found = await db.pool().fetchval("SELECT 1 FROM leads WHERE id = $1::uuid AND tenant_id = $2", body.lead_id, tenant["id"])
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid lead id")
+        if not found:
+            raise HTTPException(status_code=404, detail="Unknown lead")
+    try:
+        return await tasks.create(tenant["id"], body.title, body.notes, body.due_at, lead_id=body.lead_id)
+    except tasks.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.patch("/admin/tasks/{task_id}", dependencies=admin)
+async def admin_update_task(task_id: int, body: TaskUpdate):
+    try:
+        row = await tasks.update(task_id, body.model_dump(exclude_unset=True))
+    except tasks.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown to-do")
+    return row
+
+
+@app.delete("/admin/tasks/{task_id}", dependencies=admin)
+async def admin_delete_task(task_id: int):
+    if not await tasks.delete(task_id):
+        raise HTTPException(status_code=404, detail="Unknown to-do")
+    return {"deleted": True}
+
+
+@app.get("/admin/tenants/{slug}/pipeline", dependencies=admin)
+async def admin_pipeline(slug: str):
+    return await sales.pipeline(await _require_tenant(slug))
+
+
+@app.get("/admin/tenants/{slug}/sales-summary", dependencies=admin)
+async def admin_sales_summary(slug: str, days: int = 7):
+    return await sales.summary(await _require_tenant(slug), min(max(days, 1), 365))
+
+
+@app.get("/api/v1/calendar/{token}.ics")
+async def calendar_feed(token: str):
+    """Read-only appointment feed to subscribe to from Google / Apple / Outlook Calendar. The token is the credential."""
+    tenant = await tenants.get_by_calendar_token(token)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Unknown calendar")
+    rows = await db.pool().fetch(
+        "SELECT * FROM appointments WHERE tenant_id = $1 AND starts_at > now() - interval '30 days' ORDER BY starts_at",
+        tenant["id"],
+    )
+    return Response(
+        content=ical.build(tenant, [dict(r) for r in rows]),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
 @app.patch("/admin/leads/{lead_id}", dependencies=admin)
 async def admin_update_lead(lead_id: str, body: LeadUpdate):
     data = body.model_dump(exclude_unset=True)
     data = {k: v for k, v in data.items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    parts = [f"{col} = ${i}" for i, col in enumerate(data, start=2)]
+    status = data.pop("status", None)
+    reason = data.pop("lost_reason", "") or ""
+    row = None
     try:
-        row = await db.pool().fetchrow(
-            f"UPDATE leads SET {', '.join(parts)}, updated_at = now() WHERE id = $1::uuid RETURNING *",
-            lead_id, *data.values(),
-        )
+        if data:
+            parts = [f"{col} = ${i}" for i, col in enumerate(data, start=2)]
+            row = await db.pool().fetchrow(
+                f"UPDATE leads SET {', '.join(parts)}, updated_at = now() WHERE id = $1::uuid RETURNING *",
+                lead_id, *data.values(),
+            )
+            if row is None:
+                raise LookupError
+        if status:
+            row = await sales.change_status(lead_id, status, reason)  # records history, tidies the follow-up
+            if row is None:
+                raise LookupError
+        if "next_action_at" in data and row is not None:
+            await tasks.set_follow_up_due(dict(row), data["next_action_at"])
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Unknown lead")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid lead id")
-    if row is None:
-        raise HTTPException(status_code=404, detail="Unknown lead")
     return dict(row)
 
 

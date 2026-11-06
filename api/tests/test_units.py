@@ -523,3 +523,103 @@ def test_sla_alert_text():
     assert "31 minutes" in body and "target is 15" in body and "need a quote" in body and "contacted" in body
     anon = _alert_text(tenant, {**lead, "name": "", "phone": "", "email": ""})[0]
     assert anon.endswith("a visitor")
+
+
+# ---- to-dos, sales pipeline, calendar feed ------------------------------------
+def test_follow_up_due_hot_and_cold():
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+    from app.tasks import default_follow_up_due
+    tenant = {"timezone": "Pacific/Auckland"}
+    now = datetime(2026, 11, 6, 18, 0, tzinfo=timezone.utc)                      # 07:00 on 7 Nov in Auckland
+    assert default_follow_up_due(tenant, {"score_label": "hot"}, now) == now + timedelta(minutes=60)
+    assert default_follow_up_due({**tenant, "sla_minutes": 15}, {"score_label": "hot"}, now) == now + timedelta(minutes=15)
+    early = default_follow_up_due(tenant, {"score_label": "cold"}, now)             # before 9am: same morning
+    assert early == datetime(2026, 11, 7, 9, 0, tzinfo=ZoneInfo("Pacific/Auckland")).astimezone(timezone.utc)
+    late_now = datetime(2026, 11, 6, 21, 0, tzinfo=timezone.utc)                    # 10:00 local: tomorrow 9am
+    late = default_follow_up_due(tenant, {"score_label": "warm"}, late_now)
+    assert late == datetime(2026, 11, 8, 9, 0, tzinfo=ZoneInfo("Pacific/Auckland")).astimezone(timezone.utc)
+    assert late.astimezone(ZoneInfo("Pacific/Auckland")).hour == 9
+
+
+def test_task_title_rules():
+    import pytest
+    from app.tasks import TaskError, clean_title
+    assert clean_title("  Call Pat  ") == "Call Pat"
+    for bad in ("", "   ", "x" * 201):
+        with pytest.raises(TaskError):
+            clean_title(bad)
+
+
+def test_sales_forecast_math():
+    from app.sales import STAGE_ODDS, effective_value, forecast
+    avg = 50_000                                                                    # $500 average lead value
+    leads = [
+        {"id": 1, "status": "new", "value_cents": 0},                               # uses the average: 500
+        {"id": 2, "status": "contacted", "value_cents": 100_000},                   # own value: 1000
+        {"id": 3, "status": "booked", "value_cents": 200_000},                      # own value: 2000
+        {"id": 4, "status": "won", "value_cents": 300_000},
+        {"id": 5, "status": "lost", "value_cents": 999_999},
+        {"id": 6, "status": "weird-status", "value_cents": 0},                      # unknown counts as new
+    ]
+    f = forecast(leads, avg)
+    assert {s: f["stages"][s]["count"] for s in f["stages"]} == {"new": 2, "contacted": 1, "booked": 1, "won": 1, "lost": 1}
+    assert f["stages"]["new"]["value_cents"] == 100_000
+    assert f["open_value_cents"] == 100_000 + 100_000 + 200_000
+    assert f["weighted_value_cents"] == round(100_000 * 0.10 + 100_000 * 0.25 + 200_000 * 0.60)
+    assert f["won_value_cents"] == 300_000 and f["stages"]["lost"]["value_cents"] == 999_999
+    assert f["odds"] == STAGE_ODDS and STAGE_ODDS["won"] == 1.0 and STAGE_ODDS["lost"] == 0.0
+    assert effective_value({"value_cents": 0}, 0) == 0 and effective_value({"value_cents": 7}, 50_000) == 7
+    capped = forecast(leads, avg, per_stage=1)
+    assert len(capped["stages"]["new"]["leads"]) == 1 and capped["stages"]["new"]["count"] == 2   # totals unaffected by the cap
+    assert forecast([], 0)["open_value_cents"] == 0
+
+
+def test_digest_timing_and_text():
+    from datetime import datetime
+    from app.sales import digest_is_due, digest_text
+    assert datetime(2026, 11, 9).weekday() == 0
+    assert digest_is_due(datetime(2026, 11, 9, 9, 0)) and digest_is_due(datetime(2026, 11, 9, 20, 59))
+    assert not digest_is_due(datetime(2026, 11, 9, 7, 59)) and not digest_is_due(datetime(2026, 11, 9, 21, 0))
+    assert not digest_is_due(datetime(2026, 11, 10, 10, 0))                          # Tuesday
+    s = {"days": 7, "new_leads": 4, "contacted": 3, "booked": 1, "won": 2, "won_value_cents": 250_000, "lost": 1,
+         "open_value_cents": 400_000, "weighted_value_cents": 90_000, "overdue_todos": 2, "leads_waiting": 1}
+    subject, body = digest_text({"name": "Acme"}, s)
+    assert subject == "Your week at Acme: 4 new lead(s), 2 won"
+    assert "$2,500" in body and "$4,000" in body and "$900" in body and "waiting for a reply: 1" in body
+    assert "waiting for a reply" not in digest_text({"name": "Acme"}, {**s, "leads_waiting": None})[1]
+
+
+def test_ical_escape_and_fold():
+    from app.ical import esc, fold
+    assert esc("a,b;c\\d\nline2") == "a\\,b\\;c\\\\d\\nline2"
+    short = "SUMMARY:short"
+    assert fold(short) == short
+    long_line = "DESCRIPTION:" + "word " * 40
+    folded = fold(long_line)
+    parts = folded.split("\r\n ")
+    assert len(parts) > 1 and all(len(p.encode()) <= 75 for p in parts) and "".join(parts) == long_line
+    accented = "SUMMARY:" + "\u0101" * 60                                           # multi-byte characters never split
+    out = fold(accented).split("\r\n ")
+    assert all(len(p.encode()) <= 75 for p in out) and "".join(out) == accented
+
+
+def test_ical_build_feed():
+    from datetime import datetime, timezone
+    from app.ical import build
+    tenant = {"name": "Acme, Ltd"}
+    appts = [
+        {"id": "a1", "starts_at": datetime(2026, 11, 9, 21, 0, tzinfo=timezone.utc), "ends_at": datetime(2026, 11, 9, 21, 30, tzinfo=timezone.utc),
+         "name": "Pat Lee", "phone": "+6421000000", "email": "p@e.co", "notes": "Bring photos; boiler, old", "status": "booked"},
+        {"id": "a2", "starts_at": datetime(2026, 11, 10, 1, 0, tzinfo=timezone.utc), "ends_at": datetime(2026, 11, 10, 1, 30, tzinfo=timezone.utc),
+         "name": "", "phone": "", "email": "", "notes": "", "status": "cancelled"},
+    ]
+    feed = build(tenant, appts, now=datetime(2026, 11, 6, 1, 2, 3, tzinfo=timezone.utc))
+    assert feed.startswith("BEGIN:VCALENDAR\r\n") and feed.endswith("END:VCALENDAR\r\n")
+    assert feed.count("BEGIN:VEVENT") == 2 and feed.count("END:VEVENT") == 2
+    assert "DTSTART:20261109T210000Z" in feed and "DTEND:20261109T213000Z" in feed and "DTSTAMP:20261106T010203Z" in feed
+    assert "UID:appt-a1@concierge" in feed and "X-WR-CALNAME:Acme\\, Ltd appointments" in feed
+    assert "Phone: +6421000000\\nEmail: p@e.co\\nBring photos\\; boiler\\, old" in feed.replace("\r\n ", "")
+    assert feed.count("STATUS:CONFIRMED") == 1 and feed.count("STATUS:CANCELLED") == 1
+    assert "SUMMARY:Appointment - Acme\\, Ltd" in feed                                  # blank name falls back
+    assert all(len(line.encode()) <= 75 for line in feed.split("\r\n"))
