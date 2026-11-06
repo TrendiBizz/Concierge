@@ -27,6 +27,10 @@ fi
 if [ "${1:-}" = "--from-clipboard" ]; then
   K="$(pbpaste | tr -d '[:space:]')"
   [ -n "$K" ] || { echo "Clipboard is empty." >&2; exit 1; }
+  case "$K" in
+    xai-*) ;;
+    *) echo "The clipboard does not look like an xAI key (xAI keys start with xai-). Copy the key from the xAI console, then run this again. Nothing was stored." >&2; exit 1 ;;
+  esac
   # stdin, so the key does not appear in the process list
   printf 'add-generic-password -U -a "xai" -s "xai-api-key" -l "xAI API key (Grok)" -w "%s"\n' "$K" | security -i
   unset K
