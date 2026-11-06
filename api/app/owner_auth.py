@@ -103,6 +103,33 @@ async def redeem(token: str, password: str) -> dict:
     return {"email": invitation["email"], "role": invitation["role"]}
 
 
+async def allow_login_attempt(ip: str, slug: str, email: str) -> bool:
+    """Atomic shared-DB throttle, per IP and per (IP,tenant,email) pair.
+
+    Count attempts even on success; never trust forwarded IP headers.
+    A database failure fails closed rather than bypassing the limiter.
+    """
+    identities = ("ip:" + ip, "identity:" + ip + ":" + slug.lower() + ":" + email.lower())
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            for identity in identities:
+                key = digest(identity)
+                attempts = await conn.fetchval(
+                    """INSERT INTO owner_login_limits(key_hash,attempts,window_until)
+                       VALUES ($1,1,now()+interval '5 minutes')
+                       ON CONFLICT (key_hash) DO UPDATE SET
+                         attempts=CASE WHEN owner_login_limits.window_until<=now()
+                           THEN 1 ELSE owner_login_limits.attempts+1 END,
+                         window_until=CASE WHEN owner_login_limits.window_until<=now()
+                           THEN now()+interval '5 minutes'
+                           ELSE owner_login_limits.window_until END
+                       RETURNING attempts""", key,
+                )
+                if attempts > 8:
+                    return False
+    return True
+
+
 async def login_for_tenant(slug: str, email: str, password: str) -> str | None:
     email = clean_email(email)
     user = await db.pool().fetchrow(

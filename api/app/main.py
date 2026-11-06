@@ -36,7 +36,6 @@ settings = get_settings()
 ip_limiter = RateLimiter(settings.chat_rate_per_minute_ip, 60)
 session_limiter = RateLimiter(settings.chat_rate_per_day_session, 86_400)
 sms_limiter = RateLimiter(30, 3600)
-owner_login_limiter = RateLimiter(8, 300)
 
 LEAD_STATUSES = ("new", "contacted", "booked", "won", "lost")
 APPT_STATUSES = ("booked", "completed", "cancelled", "no_show")
@@ -74,6 +73,27 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Admin-Token", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def owner_boundary(request: Request, call_next):
+    """Same-origin owner portal; no third-party browser access to owner APIs."""
+    path = request.url.path
+    if path == "/owner-ui" or path.startswith("/owner/"):
+        origin = request.headers.get("origin")
+        if origin:
+            allowed = {
+                f"{request.url.scheme}://{request.url.netloc}".lower(),
+                _origin_of(settings.public_base_url),
+            }
+            if origin.rstrip("/").lower() not in allowed:
+                return Response(status_code=403, headers={"Cache-Control": "no-store"})
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+    return await call_next(request)
 
 
 # ------------------------------------------------------------------ helpers
@@ -1348,7 +1368,7 @@ async def owner_redeem(body: OwnerRedeem):
 @app.post("/owner/auth/login")
 async def owner_login(body: OwnerLogin, request: Request):
     ip = request.client.host if request.client else "unknown"
-    if not owner_login_limiter.check(ip):
+    if not await owner_auth.allow_login_attempt(ip, body.slug, body.email):
         raise HTTPException(429, "Too many login attempts")
     try:
         token = await owner_auth.login_for_tenant(body.slug, body.email, body.password)

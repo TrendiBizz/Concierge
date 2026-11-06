@@ -300,3 +300,11 @@ CREATE TABLE IF NOT EXISTS tenant_sessions (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS tenant_sessions_user_idx ON tenant_sessions(user_id);
+
+-- Shared owner-login limiter; no raw client IP or email is persisted.
+CREATE TABLE IF NOT EXISTS owner_login_limits (
+ key_hash text PRIMARY KEY,
+ attempts integer NOT NULL,
+ window_until timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS owner_login_limits_expiry_idx ON owner_login_limits(window_until);
