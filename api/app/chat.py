@@ -80,7 +80,7 @@ async def run_turn(
     await convo.save_message(conversation_id, "user", message)
 
     hits = await retrieve(tenant["id"], message)
-    prompt_channel = "sms" if channel == "sms" else "chat"
+    prompt_channel = "voice" if channel in ("voice", "phone") else ("sms" if channel == "sms" else "chat")
     messages: list[dict] = [{"role": "system", "content": build_system_prompt(tenant, hits, prompt_channel)}]
     messages += history
     messages.append({"role": "user", "content": message})

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     chat_model: str = "grok-4"
 
+    # PSTN telephone receptionist: opt-in and off until a real provider is validated.
+    phone_receptionist_enabled: bool = False
+
     # Grok Voice Agent API
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"
     xai_realtime_url: str = "wss://api.x.ai/v1/realtime"
@@ -49,6 +52,7 @@ class Settings(BaseSettings):
     default_country_code: str = "1"  # used to turn 10-digit numbers into E.164
 
     # Email (any SMTP server). Optional.
+    email_drafts_enabled: bool = False  # staging-only until explicitly enabled
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""

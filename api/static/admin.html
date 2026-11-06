@@ -81,6 +81,7 @@
   var campaignPreview = null;   // the preview currently shown on the Campaigns tab
   var leadFilter = { minScore: "0", sortScore: false };
   var todoFilter = { done: false };
+  var emailFeature = false;
   var overdueTodos = 0;
   var flash = "";               // a confirmation that must survive the re-render that follows a save
   var $ = function (id) { return document.getElementById(id); };
@@ -454,6 +455,80 @@
     v.appendChild(card("", t));
   }
 
+  async function viewEmail(v, slug) {
+    var base = "/admin/tenants/" + encodeURIComponent(slug) + "/email-drafts";
+    v.appendChild(notice("good", "Drafts are private until you approve them. Generation never sends email."));
+    var form = el("div");
+    var sender = el("input", { type: "email", placeholder: "Sender email", style: "width:100%;margin-top:7px" });
+    var subject = el("input", { placeholder: "Subject", style: "width:100%;margin-top:7px" });
+    var inbound = el("textarea", { placeholder: "Paste incoming email", rows: "5", style: "width:100%;margin-top:7px" });
+    var manual = el("textarea", { placeholder: "Optional: write your own draft reply", rows: "4", style: "width:100%;margin-top:7px" });
+    var generate = el("button", { text: "Generate draft for approval" });
+    var save = el("button", { text: "Save manual draft", class: "sec" });
+    var status = el("div", { class: "mut small" });
+    async function create(isGenerated) {
+      status.textContent = "Working...";
+      try {
+        await api(base, { method: "POST", body: {
+          sender: sender.value, subject: subject.value, inbound_body: inbound.value,
+          reply_body: isGenerated ? null : manual.value, generate: isGenerated
+        } });
+        status.textContent = "Draft saved. It has not been sent.";
+        await render();
+      } catch (e) { status.textContent = e.message; }
+    }
+    generate.addEventListener("click", function () { create(true); });
+    save.addEventListener("click", function () { create(false); });
+    form.appendChild(sender);
+    form.appendChild(subject);
+    form.appendChild(inbound);
+    form.appendChild(manual);
+    form.appendChild(el("div", { class: "row" }, [generate, save, status]));
+    v.appendChild(card("Prepare a reply", form));
+
+    var drafts = await api(base + "?status=all");
+    if (!drafts.length) {
+      v.appendChild(card("Review queue", el("p", { class: "mut", text: "No email drafts yet." })));
+      return;
+    }
+    drafts.forEach(function (d) {
+      var box = el("div");
+      box.appendChild(el("p", { text: "From: " + d.sender + " | " + when(d.created_at) }));
+      box.appendChild(el("p", { text: "Subject: " + d.subject }));
+      box.appendChild(el("pre", { text: d.inbound_body }));
+      var reply = el("textarea", { rows: "7", style: "width:100%" });
+      reply.value = d.reply_body;
+      reply.disabled = d.status !== "draft";
+      box.appendChild(reply);
+      box.appendChild(el("p", { class: "mut", text: "Status: " + d.status }));
+      if (d.status === "draft") {
+        var saveEdit = el("button", { class: "sec", text: "Save changes" });
+        var approve = el("button", { text: "Approve and queue email" });
+        var discard = el("button", { class: "danger", text: "Discard" });
+        var info = el("span", { class: "mut small" });
+        async function perform(path, opts) {
+          try {
+            await api(base + "/" + d.id + path, opts);
+            await render();
+          } catch (e) { info.textContent = e.message; }
+        }
+        saveEdit.addEventListener("click", function () {
+          perform("", { method: "PATCH", body: { reply_body: reply.value } });
+        });
+        approve.addEventListener("click", function () {
+          if (!confirm("Queue this email for sending? This cannot be undone after dispatch.")) return;
+          perform("/approve", { method: "POST" });
+        });
+        discard.addEventListener("click", function () {
+          if (!confirm("Discard this draft?")) return;
+          perform("/discard", { method: "POST" });
+        });
+        box.appendChild(el("div", { class: "row" }, [saveEdit, approve, discard, info]));
+      }
+      v.appendChild(card("Draft #" + d.id, box));
+    });
+  }
+
   async function viewSetup(v, slug) {
     var t = await api("/admin/tenants/" + slug);
     if (flash) { v.appendChild(notice("good", flash)); flash = ""; }
@@ -537,6 +612,7 @@
       else if (tab === "pipeline") await viewPipeline(v, slug);
       else if (tab === "leads") await viewLeads(v, slug);
       else if (tab === "to-dos") await viewTodos(v, slug);
+      else if (tab === "email") await viewEmail(v, slug);
       else if (tab === "campaigns") await viewCampaigns(v, slug);
       else if (tab === "appointments") {
         var ap = await api("/admin/tenants/" + slug + "/appointments");
@@ -579,7 +655,7 @@
   function logout() { try { sessionStorage.removeItem("cc_admin"); } catch (e) {} token = ""; $("app").hidden = true; $("login").hidden = false; }
 
   async function start() {
-    try { await loadTenants(); $("login").hidden = true; $("app").hidden = false; try { sessionStorage.setItem("cc_admin", token); } catch (e) {} }
+    try { var caps = await api("/admin/capabilities"); emailFeature = !!caps.email_drafts; if (emailFeature && TABS.indexOf("email") < 0) TABS.splice(TABS.indexOf("outbox"), 0, "email"); await loadTenants(); $("login").hidden = true; $("app").hidden = false; try { sessionStorage.setItem("cc_admin", token); } catch (e) {} }
     catch (e) { $("loginErr").textContent = e.message === "auth" ? "Wrong token." : e.message; }
   }
 

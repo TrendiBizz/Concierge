@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     cta_text          text NOT NULL DEFAULT 'Need a quick answer? Click here',
     accent_color      text NOT NULL DEFAULT '#2563eb',
     voice             text NOT NULL DEFAULT 'eve',
-    voice_enabled     boolean NOT NULL DEFAULT true,
+    voice_enabled     boolean NOT NULL DEFAULT false,
     voice_daily_limit integer NOT NULL DEFAULT 200,
     booking_url       text,
     lead_webhook_url  text,
@@ -221,3 +221,50 @@ CREATE INDEX IF NOT EXISTS lead_events_tenant_idx ON lead_events (tenant_id, cre
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_token text;
 CREATE UNIQUE INDEX IF NOT EXISTS tenants_calendar_token_idx ON tenants (calendar_token);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS weekly_digest boolean NOT NULL DEFAULT false;
+
+
+-- Human-reviewed email replies: no message is sent until explicit approval.
+CREATE TABLE IF NOT EXISTS email_drafts (
+    id            bigserial PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    source_id     text,
+    sender        text NOT NULL,
+    subject       text NOT NULL DEFAULT '',
+    inbound_body  text NOT NULL,
+    reply_body    text NOT NULL,
+    status        text NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft', 'approved', 'discarded')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    approved_at   timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS email_drafts_source_idx
+    ON email_drafts (tenant_id, source_id) WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS email_drafts_inbox_idx
+    ON email_drafts (tenant_id, status, created_at DESC);
+
+-- Voice remains opt-in for new tenants; existing choices stay unchanged.
+ALTER TABLE tenants ALTER COLUMN voice_enabled SET DEFAULT false;
+
+
+-- Opt-in telephone receptionist, requiring number ownership and valid Twilio signatures.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone_daily_limit integer NOT NULL DEFAULT 30;
+CREATE TABLE IF NOT EXISTS phone_numbers (
+    e164         text PRIMARY KEY,
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    enabled      boolean NOT NULL DEFAULT false,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS phone_numbers_tenant_idx ON phone_numbers (tenant_id);
+CREATE TABLE IF NOT EXISTS phone_calls (
+    call_sid     text PRIMARY KEY,
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    session_id   text,
+    from_number  text NOT NULL DEFAULT '',
+    to_number    text NOT NULL,
+    status       text NOT NULL DEFAULT 'ringing',
+    started_at   timestamptz NOT NULL DEFAULT now(),
+    ended_at     timestamptz
+);
+CREATE INDEX IF NOT EXISTS phone_calls_tenant_idx ON phone_calls (tenant_id, started_at DESC);

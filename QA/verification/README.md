@@ -30,3 +30,11 @@ Each runner builds a fresh database, starts the API, seeds demo data, runs the b
 ## Benchmark (`bench/`)
 
 `run_bench.sh` starts the production image (Python 3.12, one worker, real embedding model) on a throwaway database with an instant stand-in model, so only our own code is measured. `api_bench.py` measures latency and throughput from outside; `inside_bench.py` runs inside the container and times retrieval and phone-audio conversion. `run_bench_t1.sh` repeats it with the embedding model limited to one thread per call.
+
+## New: email draft approval (disabled by default)
+
+The integration branch includes an operator-only email draft workflow. EMAIL_DRAFTS_ENABLED=false is the default. It adds an email_drafts table and authenticated admin API endpoints to ingest an inbound email, optionally generate a proposed reply, revise/discard it, and explicitly approve it into the existing outbox. Draft creation and generation never send messages. Approval requires the separately configured SMTP and enabled outbox. No email provider or inbound webhook has been connected; inbound messages must be supplied by an authenticated operator until provider signature checks are implemented. Do not enable for customers before per-tenant owner authentication and provider testing.
+
+Run email_drafts_integration.py with the same throwaway Postgres as the other integration suites; pass PYTHONPATH=QA/verification/shims:api. The 25 checks use a fake model and do not contact SMTP.
+
+**Voice safety:** new tenants default to voice disabled. Existing tenant settings are not overwritten. Real inbound telephone answering remains unimplemented and must not be advertised.

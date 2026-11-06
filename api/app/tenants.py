@@ -15,6 +15,8 @@ UPDATABLE_FIELDS = {
     "voice": str,
     "voice_enabled": bool,
     "voice_daily_limit": int,
+    "phone_enabled": bool,
+    "phone_daily_limit": int,
     "booking_url": str,
     "lead_webhook_url": str,
     "incentive": str,

@@ -12,14 +12,14 @@ from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
-    automation, campaigns, chat as chat_engine, convo, db, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    sms, tasks, tenants, unsub, voice,
+    automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
+    phone_relay, sms, tasks, tenants, unsub, voice,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -526,6 +526,8 @@ class TenantUpdate(BaseModel):
     accent_color: str | None = None
     voice: str | None = None
     voice_enabled: bool | None = None
+    phone_enabled: bool | None = None
+    phone_daily_limit: int | None = Field(default=None, ge=0, le=100_000)
     voice_daily_limit: int | None = Field(default=None, ge=0, le=100_000)
     booking_url: str | None = None
     lead_webhook_url: str | None = None
@@ -1087,3 +1089,198 @@ async def admin_conversations(slug: str, limit: int = 50):
 @app.get("/admin/tenants/{slug}/stats", dependencies=admin)
 async def admin_stats(slug: str, days: int = 30):
     return await _stats(await _require_tenant(slug), days)
+
+
+
+@app.get("/admin/capabilities", dependencies=admin)
+async def admin_capabilities():
+    return {"email_drafts": settings.email_drafts_enabled}
+
+
+# ------------------------------------------- email draft approval (disabled by default)
+class EmailDraftCreate(BaseModel):
+    sender: str = Field(min_length=3, max_length=320)
+    subject: str = Field(default="", max_length=250)
+    inbound_body: str = Field(min_length=1, max_length=20000)
+    reply_body: str | None = Field(default=None, max_length=10000)
+    source_id: str = Field(default="", max_length=500)
+    generate: bool = False
+
+
+class EmailDraftRevision(BaseModel):
+    reply_body: str = Field(min_length=1, max_length=10000)
+
+
+def _email_feature_gate():
+    if not settings.email_drafts_enabled:
+        raise HTTPException(status_code=503, detail="Email draft workflow is disabled")
+
+
+@app.get("/admin/tenants/{slug}/email-drafts", dependencies=admin)
+async def admin_email_drafts(slug: str, status: Literal["draft", "approved", "discarded", "all"] = "draft"):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    return await email_drafts.list_drafts(tenant["id"], status)
+
+
+@app.post("/admin/tenants/{slug}/email-drafts", dependencies=admin, status_code=201)
+async def admin_email_draft_create(slug: str, body: EmailDraftCreate):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    if body.generate and body.reply_body:
+        raise HTTPException(status_code=400, detail="Choose generated or manual draft")
+    if not body.generate and not body.reply_body:
+        raise HTTPException(status_code=400, detail="Provide reply_body or request generation")
+    try:
+        reply = (
+            await email_drafts.propose(tenant, body.sender, body.subject, body.inbound_body)
+            if body.generate else body.reply_body
+        )
+        return await email_drafts.create(
+            tenant["id"], body.sender, body.subject, body.inbound_body,
+            reply, body.source_id,
+        )
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except llm.LLMNotConfigured:
+        raise HTTPException(status_code=503, detail="AI email drafting is not configured")
+
+
+@app.patch("/admin/tenants/{slug}/email-drafts/{draft_id}", dependencies=admin)
+async def admin_email_draft_revise(slug: str, draft_id: int, body: EmailDraftRevision):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    try:
+        result = await email_drafts.revise(tenant["id"], draft_id, body.reply_body)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Editable draft not found")
+    return result
+
+
+@app.post("/admin/tenants/{slug}/email-drafts/{draft_id}/discard", dependencies=admin)
+async def admin_email_draft_discard(slug: str, draft_id: int):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    result = await email_drafts.discard(tenant["id"], draft_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Editable draft not found")
+    return result
+
+
+@app.post("/admin/tenants/{slug}/email-drafts/{draft_id}/approve", dependencies=admin)
+async def admin_email_draft_approve(slug: str, draft_id: int):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    try:
+        result = await email_drafts.approve(tenant["id"], draft_id)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=409, detail="Draft already handled or does not exist")
+    return result
+
+
+
+# -------------------------------------------------------- PSTN phone adapter (opt-in)
+async def _phone_webhook_form(request: Request) -> dict[str, str]:
+    # Twilio sends application/x-www-form-urlencoded, not multipart.
+    if not request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+        raise HTTPException(status_code=415, detail="Invalid telephone webhook content type")
+    raw = await request.body()
+    if len(raw) > 8192:
+        raise HTTPException(status_code=413, detail="Telephone webhook too large")
+    try:
+        items = parse_qs(raw.decode("utf-8"), keep_blank_values=True, strict_parsing=True)
+    except (UnicodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Malformed telephone webhook")
+    if any(len(v) != 1 for v in items.values()):
+        raise HTTPException(status_code=400, detail="Duplicate telephone webhook field")
+    return {key: values[0] for key, values in items.items()}
+
+
+@app.post("/api/v1/phone/twilio/inbound")
+async def twilio_phone_inbound(request: Request):
+    if not phone_relay.configured():
+        raise HTTPException(status_code=503, detail="Telephone receptionist disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/inbound")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid telephone webhook signature")
+    try:
+        tenant = await phone_relay.register_inbound(form)
+    except phone_relay.PhoneError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return Response(content=phone_relay.twiml(tenant), media_type="application/xml")
+
+
+@app.post("/api/v1/phone/twilio/ended")
+async def twilio_phone_ended(request: Request):
+    if not phone_relay.configured():
+        raise HTTPException(status_code=503, detail="Telephone receptionist disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/ended")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid telephone webhook signature")
+    await phone_relay.finish(form.get("CallSid", ""), "completed")
+    return Response(content='<Response><Hangup/></Response>', media_type="application/xml")
+
+
+@app.websocket("/api/v1/phone/relay")
+async def twilio_phone_relay(websocket: WebSocket):
+    await phone_relay.relay(websocket)
+
+
+class PhoneNumberCreate(BaseModel):
+    e164: str = Field(pattern=r"^\+[1-9]\d{6,14}$")
+
+
+class PhoneNumberEnable(BaseModel):
+    enabled: bool
+
+
+@app.get("/admin/tenants/{slug}/phone-numbers", dependencies=admin)
+async def admin_phone_numbers(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT e164, enabled, created_at FROM phone_numbers WHERE tenant_id=$1",
+        tenant["id"],
+    )
+    return [dict(row) for row in rows]
+
+
+@app.post("/admin/tenants/{slug}/phone-numbers", dependencies=admin, status_code=201)
+async def admin_phone_number_create(slug: str, body: PhoneNumberCreate):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "INSERT INTO phone_numbers (e164, tenant_id) VALUES ($1,$2) "
+        "ON CONFLICT DO NOTHING RETURNING e164, enabled, created_at",
+        body.e164, tenant["id"],
+    )
+    if row is None:
+        raise HTTPException(status_code=409, detail="Number already registered")
+    return dict(row)
+
+
+@app.patch("/admin/tenants/{slug}/phone-numbers/{number}", dependencies=admin)
+async def admin_phone_number_enable(slug: str, number: str, body: PhoneNumberEnable):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "UPDATE phone_numbers SET enabled=$3 WHERE e164=$1 AND tenant_id=$2 "
+        "RETURNING e164, enabled, created_at", number, tenant["id"], body.enabled,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Number not found for this business")
+    return dict(row)
+
+
+@app.get("/admin/tenants/{slug}/phone-calls", dependencies=admin)
+async def admin_phone_call_history(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT call_sid, from_number, to_number, status, started_at, ended_at "
+        "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
+        tenant["id"],
+    )
+    return [dict(row) for row in rows]
