@@ -46,3 +46,7 @@ Read one with: security find-generic-password -s <service> -w
 2. Wire chat widget and bookings to POST /lead.
 3. VM test: docker compose for Twenty + bridge + site; run live.sh there.
 4. Click-test mobile nav; update QA/REPORT.md; push.
+
+## HARD RULE from Jo: NO GoHighLevel actions
+Never enable or change anything on GoHighLevel (sub-accounts, reselling, Custom Menu Links, snapshots, billing). Concierge replaces it.
+If a task seems to need it, stop and ask Jo. Earlier OpenBot handoffs list a "GHL Custom Menu Link" step: do not do it.
