@@ -215,7 +215,16 @@
       el("div", { class: "foot", text: "You are chatting with an AI. It can make mistakes. Conversations may be saved to help the team follow up." }),
     ]);
 
-    shadow.appendChild(style);
+    // A site with a strict Content-Security-Policy (style-src 'self') blocks an inline <style> element,
+    // which left the widget unstyled. Constructable stylesheets are not blocked by that policy, so use
+    // one when the browser supports it and fall back to the <style> element in older browsers.
+    try {
+      var sheet = new CSSStyleSheet();
+      sheet.replaceSync(style.textContent);
+      shadow.adoptedStyleSheets = [sheet];
+    } catch (e) {
+      shadow.appendChild(style);
+    }
     shadow.appendChild(launcher);
     shadow.appendChild(panel);
     document.body.appendChild(host);
