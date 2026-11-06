@@ -178,13 +178,13 @@
       ".b.note{align-self:center;background:transparent;color:#555;font-size:12px}" +
       ".status{min-height:20px;padding:2px 14px;font-size:12px;color:#555;background:#f6f7f9}" +
       ".bar{display:flex;gap:8px;padding:10px;border-top:1px solid #e3e5e8;background:#fff}" +
-      ".bar input{flex:1;border:1px solid #cfd3d8;border-radius:999px;padding:10px 14px;font-size:14px;outline:none}" +
+      ".bar input{flex:1;border:1px solid #cfd3d8;border-radius:999px;padding:10px 14px;font-size:16px;outline:none}" +
       ".bar input:focus{border-color:" + accent + "}" +
       ".btn{border:0;border-radius:999px;width:40px;height:40px;cursor:pointer;font-size:16px;background:" + accent + ";color:#fff}" +
       ".btn.mic.on{background:#dc2626}" +
       ".btn[disabled]{opacity:.5;cursor:default}" +
       ".foot{padding:6px 12px 10px;font-size:11px;color:#666;text-align:center;background:#fff}" +
-      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;max-height:100vh;border-radius:0}}";
+      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0}}";
 
     var launcher = el("button", { class: "launcher", type: "button", "aria-label": "Open AI guide" }, [
       el("span", { text: "\u{1F4AC}" }),
