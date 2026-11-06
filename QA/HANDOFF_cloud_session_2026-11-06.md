@@ -50,3 +50,9 @@ Read one with: security find-generic-password -s <service> -w
 ## HARD RULE from Jo: NO GoHighLevel actions
 Never enable or change anything on GoHighLevel (sub-accounts, reselling, Custom Menu Links, snapshots, billing). Concierge replaces it.
 If a task seems to need it, stop and ask Jo. Earlier OpenBot handoffs list a "GHL Custom Menu Link" step: do not do it.
+
+## Update at handoff (2026-11-06, end of cloud session)
+- Terminal session mac-hub-prancy-pudding (id session_01TP9ft8GzAbPRXLDFFt3BkY) received the current state and was asked to: answer whether it ever
+  changed anything on GoHighLevel; build a VM bundle in ~/Concierge/vm/; click-test the site nav. No reply yet at handoff time.
+- OpenBot has still not replied in openbot-to-cloud.md. Its old handoffs mention a pending GHL Custom Menu Link and reselling already enabled; unverified.
+- Latest commits on lmstudio-autostart: a659589, a070780 (PR #2). Full handoff with resume prompt: cloud session scratchpad HANDOFF_Concierge_2026-11-06.md.
