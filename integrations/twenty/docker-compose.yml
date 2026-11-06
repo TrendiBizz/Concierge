@@ -35,7 +35,8 @@ services:
       - "127.0.0.1:3010:3000"
     environment:
       NODE_PORT: "3000"
-      SERVER_URL: http://localhost:3010
+      SERVER_URL: https://crm.trendibizz.com
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "true"
       PG_DATABASE_URL: postgres://postgres:${PG_PASSWORD:?run ./setup.sh first}@db:5432/default
       REDIS_URL: redis://redis:6379
       APP_SECRET: ${APP_SECRET:?run ./setup.sh first}
@@ -60,7 +61,8 @@ services:
     restart: unless-stopped
     command: ["yarn", "worker:prod"]
     environment:
-      SERVER_URL: http://localhost:3010
+      SERVER_URL: https://crm.trendibizz.com
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "true"
       PG_DATABASE_URL: postgres://postgres:${PG_PASSWORD:?run ./setup.sh first}@db:5432/default
       REDIS_URL: redis://redis:6379
       APP_SECRET: ${APP_SECRET:?run ./setup.sh first}
