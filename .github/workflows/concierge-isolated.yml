@@ -30,6 +30,7 @@ jobs:
           - phone_relay_integration
           - owner_rbac_integration
           - owner_security_integration
+          - owner_maintenance_integration
           - cloudflare_inbound_integration
     services:
       postgres:
