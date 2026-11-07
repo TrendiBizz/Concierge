@@ -1,0 +1,14 @@
+# Caller names and phone numbers are saved here. Never commit.
+data/
+.venv/
+.env
+# Cloud backup secrets and the temporary staging copy. Never commit.
+backup.env
+.backup-stage/
+
+# Hermes API key for calling the local Hermes. Never commit.
+hermes/hermes.env
+
+# Rust build output and the social service runtime data. Never commit.
+social-service/target/
+social-service/data/

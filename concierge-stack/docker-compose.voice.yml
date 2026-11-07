@@ -1,0 +1,47 @@
+# Voice core: LiveKit server + SIP bridge + Grok Voice agent.
+# For a Linux VPS (host networking is needed for phone audio). UNTESTED DRAFT.
+# Keep livekit/sip-config.yaml keys identical to LIVEKIT_API_KEY / LIVEKIT_API_SECRET in .env.
+# Bookings, messages and the outbox persist in ./data (back this folder up).
+services:
+  redis:
+    image: redis:7-alpine
+    network_mode: host
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [redis]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      LIVEKIT_CONFIG: |
+        port: 7880
+        redis:
+          address: localhost:6379
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 60000
+          use_external_ip: true
+
+  sip:
+    image: livekit/sip:latest
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [redis, livekit]
+    environment:
+      SIP_CONFIG_FILE: /etc/sip-config.yaml
+    volumes:
+      - ./livekit/sip-config.yaml:/etc/sip-config.yaml:ro
+
+  agent:
+    build: ./agent
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [livekit]
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ws://localhost:7880
+    volumes:
+      - ./data:/data

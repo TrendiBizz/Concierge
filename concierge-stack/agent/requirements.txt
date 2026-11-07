@@ -1,0 +1,2 @@
+livekit-agents[xai]~=1.5
+tzdata

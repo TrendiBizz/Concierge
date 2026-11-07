@@ -1,0 +1,16 @@
+# Runtime data: database, uploaded photos, passcode
+data/
+server/data/
+
+# Node
+node_modules/
+
+# Xcode
+ios/build/
+ios/DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# Photos copied from the client website; re-create with: node tools/import-site.mjs
+import/

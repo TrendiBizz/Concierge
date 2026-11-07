@@ -1,0 +1,14 @@
+{
+  "name": "socialsync-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SocialSync: draft, schedule and manage social media posts for Pukeko Construction.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/"
+  }
+}

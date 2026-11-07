@@ -1,0 +1,72 @@
+# Ops tools: monitoring, automation, email campaigns. UNTESTED DRAFT.
+# Bound to 127.0.0.1 only. Put them behind a reverse proxy with login before exposing.
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    ports: ["127.0.0.1:3001:3001"]
+    volumes: ["kuma-data:/app/data"]
+
+  activepieces-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: activepieces
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: ["ap-db:/var/lib/postgresql/data"]
+
+  activepieces-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  activepieces:
+    image: activepieces/activepieces:latest
+    restart: unless-stopped
+    depends_on: [activepieces-db, activepieces-redis]
+    ports: ["127.0.0.1:8080:80"]
+    environment:
+      AP_ENGINE_EXECUTABLE_PATH: dist/packages/engine/main.js
+      AP_ENVIRONMENT: prod
+      AP_FRONTEND_URL: http://localhost:8080
+      AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
+      AP_JWT_SECRET: ${ACTIVEPIECES_JWT_SECRET}
+      AP_POSTGRES_HOST: activepieces-db
+      AP_POSTGRES_PORT: "5432"
+      AP_POSTGRES_DATABASE: activepieces
+      AP_POSTGRES_USERNAME: postgres
+      AP_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AP_REDIS_HOST: activepieces-redis
+      AP_REDIS_PORT: "6379"
+      AP_EXECUTION_MODE: UNSANDBOXED
+
+  listmonk-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: listmonk
+      POSTGRES_USER: listmonk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: ["lm-db:/var/lib/postgresql/data"]
+
+  listmonk:
+    image: listmonk/listmonk:latest
+    restart: unless-stopped
+    depends_on: [listmonk-db]
+    ports: ["127.0.0.1:9000:9000"]
+    command: sh -c "./listmonk --install --idempotent --yes --config '' && ./listmonk --config ''"
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: ${POSTGRES_PASSWORD}
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__host: listmonk-db
+      LISTMONK_db__port: "5432"
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER}
+      LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD}
+
+volumes:
+  kuma-data:
+  ap-db:
+  lm-db:

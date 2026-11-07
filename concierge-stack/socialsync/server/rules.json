@@ -1,0 +1,86 @@
+{
+  "_readme": "SocialSync guardrails for Pukeko Construction. 'facts' and 'forbidden_phrases' are ERRORS (they block scheduling) and mirror the verified facts in Trendi's truth.json. 'warnings' cover claims that are still pending verification: they are shown to the user but do not block. Edit this file at any time; the server reloads it automatically. Set TRUTH_JSON=/path/to/truth.json to merge the owner-verified facts from Trendi automatically.",
+  "platforms": {
+    "linkedin": { "label": "LinkedIn", "limit": 3000, "maxMedia": 9 },
+    "facebook": { "label": "Facebook", "limit": 63206, "maxMedia": 10 },
+    "instagram": {
+      "label": "Instagram",
+      "limit": 2200,
+      "requiresMedia": true,
+      "maxHashtags": 30,
+      "maxMedia": 10,
+      "linksClickable": false
+    },
+    "twitter": { "label": "X", "limit": 280, "linkLength": 23, "maxMedia": 4 }
+  },
+  "facts": [
+    {
+      "key": "years_trading_min",
+      "value": "10",
+      "claim_regex": "(?:more than|over)\\s+(\\d+)\\s+years",
+      "source": "owner, 2026-10-23: 'more than 10 years'",
+      "note": "Posts may say 'more than/over 10 years'. Any other number after 'more than/over' is blocked."
+    },
+    {
+      "key": "years_experience_plain",
+      "value": "10",
+      "claim_regex": "\\b(\\d+)\\+?\\s+years(?: of)? (?:experience|in business|trading)",
+      "source": "owner, 2026-10-23",
+      "note": "Blocks e.g. '25 years of experience'."
+    }
+  ],
+  "forbidden_phrases": [
+    "guaranteed #1",
+    "best in the world",
+    "100% guaranteed",
+    "Auckland's best",
+    "number one in Auckland"
+  ],
+  "warnings": [
+    {
+      "id": "nuwall_status",
+      "pattern": "\\b(preferred|certified|approved|authori[sz]ed)\\b[^.\\n]{0,40}\\b(installer|supplier|applicator)\\b|\\brepresentative\\b",
+      "message": "The Nu-Wall relationship wording is not verified yet (owner says 'certified installer/representative', the website says 'preferred installer'). Confirm the exact term with Nu-Wall before posting."
+    },
+    {
+      "id": "warranty",
+      "pattern": "\\b(warrant(?:y|ies)|guarantee[ds]?)\\b",
+      "message": "Warranty and guarantee claims are not verified yet. Attribute manufacturer warranties to Nu-Wall and link their document; do not imply a separate Pukeko guarantee."
+    },
+    {
+      "id": "lifespan",
+      "pattern": "\\b100[- ]years?\\b|\\b25[- ]year\\b|\\blifetime\\b",
+      "message": "Product lifespan and finish-warranty figures belong to Nu-Wall. Check their current wording and attribute it to them."
+    },
+    {
+      "id": "phone_cta",
+      "pattern": "\\b(?:call|phone|ring)\\s+(?:us|me|conrad|now|today)\\b|\\bgive (?:us|him) a (?:call|ring)\\b",
+      "message": "Conrad is Deaf and leads come by text, email or the quote form. Replace the phone call-to-action with one of those."
+    },
+    {
+      "id": "lbp_number",
+      "pattern": "\\bLBP\\s*(?:no\\.?|number|#)?\\s*\\d{4,}",
+      "message": "The LBP licence number has not been verified yet. Do not quote it until the owner confirms it."
+    },
+    {
+      "id": "memberships",
+      "pattern": "\\b(?:member of|accredited|accreditation)\\b",
+      "message": "Memberships and accreditations are not verified yet. Only name ones the owner has confirmed in writing."
+    },
+    {
+      "id": "pricing",
+      "pattern": "\\$\\s?\\d|\\b\\d+\\s?(?:dollars|k)\\b",
+      "message": "Pukeko's pricing and quoting policy has not been confirmed. Do not publish prices or ranges yet."
+    },
+    {
+      "id": "timelines",
+      "pattern": "\\b\\d+\\s*(?:-|to)?\\s*\\d*\\s*(?:weeks?|days?|months?)\\b",
+      "message": "Typical project timelines have not been provided yet. Avoid stating how long a job takes."
+    },
+    {
+      "id": "superlatives",
+      "pattern": "\\b(?:best|cheapest|#1|top[- ]rated|leading)\\b",
+      "message": "Superlatives need proof (reviews, awards) that we do not have yet. Consider a factual statement instead."
+    }
+  ]
+}
