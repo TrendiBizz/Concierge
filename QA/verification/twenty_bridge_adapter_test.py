@@ -3,6 +3,7 @@
 All network and database calls are mocked. Does not create real CRM records.
 """
 import asyncio
+import hashlib
 import json
 import unittest
 from types import SimpleNamespace
@@ -90,7 +91,10 @@ class TwentyBridgeAdapterTests(unittest.TestCase):
                  patch.object(events,"_twenty_finish",new_callable=AsyncMock) as finish:
                 count=await events.process_twenty_once()
                 self.assertEqual(count,1)
-                self.assertEqual(client.post.await_args.kwargs["json"]["email"],"jane@example.org")
+                sent=client.post.await_args.kwargs["json"]
+                self.assertEqual(sent["email"],"jane@example.org")
+                identity=json.dumps(["tid-a","lead.created","l1"],ensure_ascii=True,separators=(',',':'))
+                self.assertEqual(sent["delivery_id"],hashlib.sha256(identity.encode()).hexdigest())
                 finish.assert_awaited_once_with(1,"sent")
         asyncio.run(run())
 
@@ -134,6 +138,29 @@ class TwentyBridgeAdapterTests(unittest.TestCase):
                  patch.object(events,"_twenty_finish",new_callable=AsyncMock) as finish:
                 await events.process_twenty_once()
                 self.assertEqual(finish.await_args.args[1],"uncertain")
+        asyncio.run(run())
+
+    def test_inflight_delivery_conflict_requires_reconciliation(self):
+        async def run():
+            pool=MagicMock()
+            pool.execute=AsyncMock(return_value="UPDATE 1")
+            pool.fetch=AsyncMock(return_value=[{
+                "id":4,"tenant_id":"tid-a","event":"lead.created","source_id":"l4",
+                "payload":{"email":"jane@example.org","first_name":"Jane"},
+                "attempts":1}])
+            pool.fetchrow=AsyncMock(return_value={"slug":"concierge"})
+            response=MagicMock(status_code=409)
+            client=AsyncMock()
+            client.post.return_value=response
+            ctx=AsyncMock()
+            ctx.__aenter__.return_value=client
+            with patch.object(events,"get_settings",return_value=self.config), \
+                 patch.object(events.db,"pool",return_value=pool), \
+                 patch.object(events.httpx,"AsyncClient",return_value=ctx), \
+                 patch.object(events,"_twenty_finish",new_callable=AsyncMock) as finish:
+                await events.process_twenty_once()
+                self.assertEqual(finish.await_args.args[1],"uncertain")
+                self.assertEqual(client.post.await_count,1)
         asyncio.run(run())
 
     def test_invalid_external_bridge_url_does_not_send(self):

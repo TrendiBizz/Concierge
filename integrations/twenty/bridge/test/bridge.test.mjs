@@ -4,6 +4,9 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createBridge, validateLead, normalizePhone } from '../server.js';
 
 const KEY = 'test-key-123';
@@ -265,4 +268,73 @@ test('private Docker bridge rejects requests missing its service credential', as
     authorization: 'Bearer ' + secret,
   }});
   assert.equal(valid.status, 400);
+});
+
+test('private ledger requires valid delivery id before CRM is touched', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'trendi-crm-ledger-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const base = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  for (const delivery_id of [undefined, 'bad', 'a'.repeat(63)]) {
+    const r = await post(base, { email: 'ana@example.com', first_name: 'Ana', delivery_id });
+    assert.equal(r.status, 400);
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('completed delivery replays receipt without second person or note', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'trendi-crm-ledger-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const delivery_id = 'a'.repeat(64);
+  const payload = { email: 'ana@example.com', first_name: 'Ana', delivery_id };
+  const first = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  const firstResponse = await post(first, payload);
+  assert.equal(firstResponse.status, 200);
+  const receipt = await firstResponse.json();
+  assert.equal(receipt.note, true);
+  const second = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  const replay = await post(second, payload);
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), receipt);
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 1);
+  assert.equal(calls.filter((c) => c.path === '/rest/notes').length, 1);
+  assert.equal(readdirSync(dir).filter((f) => f.endsWith('.done')).length, 1);
+});
+
+test('two concurrent requests for one event cannot create two notes', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'trendi-crm-ledger-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const base = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  const payload = { email: 'ana@example.com', first_name: 'Ana', delivery_id: 'b'.repeat(64) };
+  const pair = await Promise.all([post(base, payload), post(base, payload)]);
+  assert.deepEqual(pair.map((r) => r.status).sort(), [200, 409]);
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 1);
+  assert.equal(calls.filter((c) => c.path === '/rest/notes').length, 1);
+});
+
+test('failed note remains uncertain and never auto-duplicates', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'trendi-crm-ledger-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  state.notesFail = true;
+  const base = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  const payload = { email: 'ana@example.com', first_name: 'Ana', delivery_id: 'c'.repeat(64) };
+  const original = await post(base, payload);
+  assert.equal(original.status, 200);
+  assert.equal((await original.json()).note, false);
+  const replay = await post(base, payload);
+  assert.equal(replay.status, 409);
+  assert.equal((await replay.json()).error, 'delivery_outcome_uncertain');
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 1);
+  assert.equal(calls.filter((c) => c.path === '/rest/notes').length, 1);
+});
+
+test('same delivery ID cannot be reused for a changed payload', async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'trendi-crm-ledger-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const base = await bridge({ idempotencyDir: dir, requireDeliveryId: true });
+  const delivery_id = 'd'.repeat(64);
+  assert.equal((await post(base, { first_name: 'Ana', email: 'ana@example.com', delivery_id })).status, 200);
+  const changed = await post(base, { first_name: 'Ana', email: 'other@example.com', delivery_id });
+  assert.equal(changed.status, 409);
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 1);
+  assert.equal(calls.filter((c) => c.path === '/rest/notes').length, 1);
 });

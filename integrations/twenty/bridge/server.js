@@ -10,8 +10,8 @@
 //   ALLOWED_ORIGINS   comma list, default * (any website may post a lead; rate limited)
 
 import http from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { timingSafeEqual, randomUUID, createHash } from 'node:crypto';
+import { existsSync, readFileSync, mkdirSync, openSync, closeSync, writeSync, fsyncSync, writeFileSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -59,6 +59,57 @@ export function createBridge(opts = {}) {
   const allowed = (opts.allowedOrigins || process.env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean);
   const rateLimit = opts.rateLimitPerMinute || 20;
   const hits = new Map();
+  const idempotencyDir = opts.idempotencyDir ?? process.env.BRIDGE_IDEMPOTENCY_DIR ?? '';
+  const requireDeliveryId = opts.requireDeliveryId ?? process.env.BRIDGE_REQUIRE_DELIVERY_ID === '1';
+  if (requireDeliveryId && !idempotencyDir) throw new Error('delivery_ledger_required');
+
+  // Filesystem O_EXCL claims are atomic across processes on the same local volume.
+  // An interrupted claim is never automatically retried: the remote note may exist.
+  function deliveryPaths(deliveryId) {
+    return {
+      claim: path.join(idempotencyDir, deliveryId + '.claim'),
+      done: path.join(idempotencyDir, deliveryId + '.done'),
+    };
+  }
+  function loadCompleted(file, fingerprint) {
+    try {
+      const record = JSON.parse(readFileSync(file, 'utf8'));
+      if (record.ok !== true || typeof record.twenty_id !== 'string' || record.note !== true || record.fingerprint !== fingerprint) return null;
+      return record;
+    } catch { return null; }
+  }
+  function claimDelivery(deliveryId, fingerprint) {
+    const files = deliveryPaths(deliveryId);
+    mkdirSync(idempotencyDir, { recursive: true, mode: 0o700 });
+    if (existsSync(files.done)) {
+      const completed = loadCompleted(files.done, fingerprint);
+      return completed ? { completed } : { uncertain: true };
+    }
+    let fd;
+    try {
+      fd = openSync(files.claim, 'wx', 0o600);
+      writeSync(fd, JSON.stringify({ deliveryId, fingerprint, startedAt: new Date().toISOString() }));
+      fsyncSync(fd);
+    } catch (error) {
+      if (error.code === 'EEXIST') {
+        const completed = loadCompleted(files.done, fingerprint);
+        return completed ? { completed } : { uncertain: true };
+      }
+      throw error;
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+    return { files };
+  }
+  function finishDelivery(files, result, fingerprint) {
+    const temp = files.done + '.' + process.pid + '.' + randomUUID() + '.tmp';
+    const fd = openSync(temp, 'wx', 0o600);
+    try {
+      writeSync(fd, JSON.stringify({ ...result, fingerprint }));
+      fsyncSync(fd);
+    } finally { closeSync(fd); }
+    renameSync(temp, files.done);
+  }
 
   function internalSecret() {
     if (opts.internalSecret !== undefined) return opts.internalSecret;
@@ -148,7 +199,7 @@ export function createBridge(opts = {}) {
   };
 
   async function findByEmail(key, email) {
-    const q = '/rest/people?limit=1&filter=' + encodeURIComponent('emails.primaryEmail[eq]:"' + email + '"');
+    const q = '/rest/people?limit=2&filter=' + encodeURIComponent('emails.primaryEmail[eq]:"' + email + '"');
     const r = await twenty('GET', q, key);
     if (r.status === 401 || r.status === 403) throw Object.assign(new Error('bad_key'), { code: 'bad_key' });
     if (r.status >= 400) throw new Error('lookup_failed_' + r.status);
@@ -180,6 +231,7 @@ export function createBridge(opts = {}) {
     if (!Array.isArray(people)) throw new Error('phone_lookup_invalid_response');
     // Ambiguous results must never silently select the wrong customer.
     if (people.length > 1) throw new Error('phone_lookup_ambiguous');
+    if (people.length && (!people[0] || typeof people[0].id !== 'string' || !people[0].id)) throw new Error('phone_lookup_invalid_person');
     return people[0] || null;
   }
 
@@ -226,12 +278,31 @@ export function createBridge(opts = {}) {
     if (v.error) return send(req, res, 400, { ok: false, error: v.error });
     const key = apiKey();
     if (!key) return send(req, res, 503, { ok: false, error: 'not_configured' });
+    const deliveryId = typeof body.delivery_id === 'string' ? body.delivery_id : '';
+    if ((requireDeliveryId || deliveryId) && !/^[a-f0-9]{64}$/.test(deliveryId)) {
+      return send(req, res, 400, { ok: false, error: 'invalid_delivery_id' });
+    }
+    if (deliveryId && !idempotencyDir) {
+      return send(req, res, 503, { ok: false, error: 'delivery_ledger_not_configured' });
+    }
+    const fingerprint = createHash('sha256').update(JSON.stringify(v.lead)).digest('hex');
+    let claim = null;
     try {
+      if (deliveryId) {
+        claim = claimDelivery(deliveryId, fingerprint);
+        if (claim.completed) {
+          const { fingerprint: storedFingerprint, ...receipt } = claim.completed;
+          return send(req, res, 200, receipt);
+        }
+        if (claim.uncertain) return send(req, res, 409, { ok: false, error: 'delivery_outcome_uncertain' });
+      }
       let person = v.lead.email ? await findByEmail(key, v.lead.email) : await findByPhone(key, v.lead.phone);
       const duplicate = !!person;
       if (!person) person = await createPerson(key, v.lead);
       const note = await addNote(key, person.id, v.lead);
-      return send(req, res, 200, { ok: true, twenty_id: person.id, duplicate, note });
+      const result = { ok: true, twenty_id: person.id, duplicate, note };
+      if (claim && claim.files && note === true) finishDelivery(claim.files, result, fingerprint);
+      return send(req, res, 200, result);
     } catch (e) {
       if (e.code === 'bad_key') return send(req, res, 503, { ok: false, error: 'not_configured' });
       return send(req, res, 502, { ok: false, error: 'crm_unavailable' });

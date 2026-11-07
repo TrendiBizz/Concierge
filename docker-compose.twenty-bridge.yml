@@ -25,8 +25,11 @@ services:
       TWENTY_API_KEY_FILE: "/run/secrets/twenty_api_key"
       BRIDGE_INTERNAL_SECRET_FILE: "/run/secrets/twenty_bridge_auth"
       ALLOWED_ORIGINS: ""
+      BRIDGE_IDEMPOTENCY_DIR: "/data/delivery-ledger"
+      BRIDGE_REQUIRE_DELIVERY_ID: "1"
     volumes:
       - ./integrations/twenty/bridge:/app:ro
+      - twenty-bridge-ledger:/data
     secrets:
       - twenty_api_key
       - twenty_bridge_auth
@@ -46,3 +49,6 @@ networks:
   twenty-internal:
     external: true
     name: concierge-twenty_default
+
+volumes:
+  twenty-bridge-ledger:

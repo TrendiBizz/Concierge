@@ -1,6 +1,7 @@
 """Outbound webhooks (to n8n, Zapier, a CRM...) for lead and appointment events."""
 
 import asyncio
+import hashlib
 import json
 import logging
 from urllib.parse import urlsplit
@@ -138,6 +139,11 @@ async def process_twenty_once() -> int:
                     payload=json.loads(payload)
                 if not isinstance(payload,dict):
                     raise ValueError("Invalid stored CRM payload")
+                # Stable, tenant-scoped event receipt shared with the private
+                # CRM bridge. No PII appears in the id or filesystem filename.
+                identity=json.dumps([str(row['tenant_id']),row['event'],str(row['source_id'])],
+                                    ensure_ascii=True,separators=(',',':'))
+                payload={**payload,'delivery_id':hashlib.sha256(identity.encode('utf-8')).hexdigest()}
                 headers={}
                 auth_file=getattr(get_settings(),"twenty_bridge_auth_file","")
                 if auth_file:
