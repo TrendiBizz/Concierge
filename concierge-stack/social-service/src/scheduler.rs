@@ -31,6 +31,22 @@ pub async fn run_due(
         let mut networks = Vec::new();
         let mut valid_accounts = true;
         for account_id in &post.account_ids {
+            // Renew provider credentials before claiming the post is publishable.
+            // This only runs for an already-approved scheduled post while the
+            // separately authorized live publishing scheduler is enabled.
+            if let Ok((network, _, _, _, expiry)) =
+                store.refresh_candidate(&post.customer_id, account_id)
+            {
+                if matches!(network.as_str(), "instagram" | "linkedin")
+                    && expiry.is_some_and(|deadline| deadline <= now + 7 * 86400)
+                    && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
+                        .await
+                        .is_err()
+                {
+                    valid_accounts = false;
+                    break;
+                }
+            }
             match store.account(&post.customer_id, account_id) {
                 Ok((network, _, _, _)) => networks.push(network),
                 Err(_) => {

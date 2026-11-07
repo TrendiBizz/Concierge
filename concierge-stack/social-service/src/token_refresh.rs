@@ -1,0 +1,147 @@
+//! Explicit tenant-authorized OAuth renewal; never publishes content.
+//! Instagram long-lived tokens: ig_refresh_token. LinkedIn: MDP partner refresh grant.
+//! Other networks require relinking or provider-specific lifecycle implementation.
+use crate::{
+    store::Store,
+    vault::{account_label, Vault},
+};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Token {
+    access_token: String,
+    expires_in: i64,
+    #[serde(default)]
+    refresh_token: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
+}
+pub async fn refresh(
+    store: &Store,
+    vault: &Vault,
+    customer: &str,
+    account_id: &str,
+) -> Result<i64, String> {
+    let (network, external_id, encrypted, encrypted_refresh, expiry) =
+        store.refresh_candidate(customer, account_id)?;
+    if expiry.is_some_and(|t| t > crate::now_unix() + 7 * 86400) {
+        return Err("Account token does not need renewal yet".into());
+    }
+    let label = account_label(customer, &network, &external_id);
+    let access = vault.open(&encrypted, &label)?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(12))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "OAuth refresh client unavailable")?;
+    let response = match network.as_str() {
+        "instagram" => client
+            .get("https://graph.instagram.com/refresh_access_token")
+            .query(&[
+                ("grant_type", "ig_refresh_token"),
+                ("access_token", access.as_str()),
+            ])
+            .send()
+            .await
+            .map_err(|_| "Instagram renewal unavailable")?,
+        "linkedin" => {
+            let sealed = encrypted_refresh
+                .ok_or("LinkedIn account requires reconnection (refresh permission unavailable)")?;
+            let old_refresh = vault.open(&sealed, &label)?;
+            let cfg =
+                crate::linkedin::from_env().map_err(|_| "LinkedIn OAuth is not configured")?;
+            client
+                .post("https://www.linkedin.com/oauth/v2/accessToken")
+                .form(&[
+                    ("grant_type", "refresh_token"),
+                    ("refresh_token", old_refresh.as_str()),
+                    ("client_id", cfg.client_id.as_str()),
+                    ("client_secret", cfg.client_secret.as_str()),
+                ])
+                .send()
+                .await
+                .map_err(|_| "LinkedIn renewal unavailable")?
+        }
+        _ => return Err("Account must be reconnected to renew this network".into()),
+    };
+    if !response.status().is_success() {
+        return Err("Provider rejected token renewal; reconnect account".into());
+    }
+    let token: Token = response
+        .json()
+        .await
+        .map_err(|_| "Invalid provider renewal response")?;
+    if token.access_token.is_empty() || !(1..=5_184_000).contains(&token.expires_in) {
+        return Err("Invalid renewed token expiry".into());
+    }
+    // LinkedIn must retain the posting scope; token renewal cannot silently narrow rights.
+    if network == "linkedin"
+        && token.scope.as_deref().is_some_and(|scope| {
+            !["openid", "profile", "w_member_social"]
+                .iter()
+                .all(|needed| scope.split_whitespace().any(|granted| granted == *needed))
+        })
+    {
+        return Err("Renewal reduced LinkedIn permissions".into());
+    }
+    let next = vault.seal(&token.access_token, &label)?;
+    let rotated = token
+        .refresh_token
+        .as_deref()
+        .map(|v| vault.seal(v, &label))
+        .transpose()?;
+    let new_expiry = crate::now_unix() + token.expires_in;
+    store.update_refreshed_token(
+        customer,
+        account_id,
+        &encrypted,
+        &next,
+        rotated.as_deref(),
+        new_expiry,
+    )?;
+    Ok(new_expiry)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn refreshed_credentials_never_cross_tenants_or_revocation() {
+        let store = Store::open_memory().unwrap();
+        store.create_customer("a", "A", "").unwrap();
+        store.create_customer("b", "B", "").unwrap();
+        let id = store
+            .upsert_verified_account(crate::store::VerifiedAccount {
+                customer: "a",
+                network: "instagram",
+                external_id: "ig123",
+                display_name: "A",
+                token_enc: "old",
+                refresh_enc: None,
+                expires_at: Some(crate::now_unix() + 5),
+                granted_scopes: "instagram_business_basic",
+            })
+            .unwrap();
+        assert!(store.refresh_candidate("b", &id).is_err());
+        assert!(store
+            .update_refreshed_token("b", &id, "old", "next", None, crate::now_unix() + 1000)
+            .is_err());
+        store
+            .update_refreshed_token("a", &id, "old", "new", None, crate::now_unix() + 1000)
+            .unwrap();
+        assert!(store
+            .update_refreshed_token("a", &id, "old", "again", None, crate::now_unix() + 1000)
+            .is_err());
+        store.disconnect_account("a", &id).unwrap();
+        assert!(store.refresh_candidate("a", &id).is_err());
+        assert!(store
+            .update_refreshed_token(
+                "a",
+                &id,
+                "new",
+                "after-revoke",
+                None,
+                crate::now_unix() + 1000
+            )
+            .is_err());
+    }
+}

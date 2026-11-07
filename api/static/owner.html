@@ -78,6 +78,8 @@ A configured channel still needs Trendi's verification before it is activated.</
 <section id="social-panel" class="panel" hidden>
 <h2>Social publishing</h2>
 <p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. OAuth account linking requires an approved Trendi configuration. Your passwords are never entered into Concierge.</p>
+<button type="button" id="social-facebook-connect" hidden>Connect Facebook Pages</button>
+<button type="button" id="social-instagram-connect" hidden>Connect Instagram</button>
 <button type="button" id="social-mastodon-connect" hidden>Connect Mastodon</button>
 <button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn</button>
 <p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
@@ -89,6 +91,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <select id="social-account" required></select>
 <div class="row">
 <div><label for="social-link">Link (optional)</label><input id="social-link" type="url" maxlength="2000"></div>
+<div><label for="social-media">Public HTTPS image URL (required for Instagram image posts)</label><input id="social-media" type="url" maxlength="2048" placeholder="https://your-cdn.example/photo.jpg"></div>
 <div><label for="social-hashtags">Hashtags (optional)</label><input id="social-hashtags" maxlength="2000"></div>
 </div>
 <button type="submit">Create draft</button>
@@ -174,6 +177,7 @@ $("logout").addEventListener("click",async()=>{
  message("Signed out.");
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
+function socialOAuthPath(provider){return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+provider;}
 async function startSocialOAuth(provider){
  if(currentRole!=="owner")return;
  if(oauthWindow && !oauthWindow.closed && pendingOAuthState){
@@ -185,7 +189,7 @@ async function startSocialOAuth(provider){
  if(!popup){message("Allow popups for this Concierge page to link accounts.",true);return;}
  oauthWindow=popup;
  try{
-   const start=await request("/owner/social/oauth/"+provider+"/start","POST");
+   const start=await request(socialOAuthPath(provider)+"/start","POST");
    const u=new URL(start.authorization_url);
    if(u.protocol!=="https:" || u.username || u.password ||
       !start.state || start.state.length<32)throw new Error("Invalid OAuth start response");
@@ -197,6 +201,8 @@ async function startSocialOAuth(provider){
    message(provider+" linking is not available: "+error.message,true);
  }
 }
+$("social-facebook-connect").addEventListener("click",()=>startSocialOAuth("facebook"));
+$("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("instagram"));
 $("social-mastodon-connect").addEventListener("click",()=>startSocialOAuth("mastodon"));
 $("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
 window.addEventListener("message",async event=>{
@@ -213,7 +219,7 @@ window.addEventListener("message",async event=>{
    message("Social account authorization was cancelled or denied.",true);return;
  }
  try{
-   await request("/owner/social/oauth/"+provider+"/finish","POST",
+   await request(socialOAuthPath(provider)+"/finish","POST",
      {state:data.state,code:data.code});
    await refreshSocial();
    message(provider+" account connected. Posting remains disabled until separately approved.");
@@ -228,9 +234,10 @@ $("social-form").addEventListener("submit",async event=>{
    if(!account)throw new Error("Select a linked account");
    await request("/owner/social/posts","POST",{
      content:$("social-text").value,account_ids:[account],
-     link:$("social-link").value.trim(),hashtags:$("social-hashtags").value.trim()
+     link:$("social-link").value.trim(),hashtags:$("social-hashtags").value.trim(),
+    media:$("social-media").value.trim()?[$("social-media").value.trim()]:[]
    });
-   $("social-text").value="";$("social-link").value="";$("social-hashtags").value="";
+   $("social-text").value="";$("social-link").value="";$("social-hashtags").value="";$("social-media").value="";
    await refreshSocial();message("Social draft created. It has NOT been published.");
  }catch(error){message(error.message,true);}
 });
@@ -316,6 +323,12 @@ async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
   const canLink=status.enabled&&currentRole==="owner";
+  $("social-facebook-connect").hidden=!canLink;
+  $("social-instagram-connect").hidden=!canLink;
+  $("social-facebook-connect").disabled=!status.providers?.facebook;
+  $("social-instagram-connect").disabled=!status.providers?.instagram;
+  $("social-facebook-connect").title=status.providers?.facebook?"Connect a Facebook Page":"Facebook developer app not configured";
+  $("social-instagram-connect").title=status.providers?.instagram?"Connect a professional Instagram account":"Instagram developer app not configured";
   $("social-mastodon-connect").hidden=!canLink;
   $("social-linkedin-connect").hidden=!canLink;
   $("social-mastodon-connect").disabled=!status.providers?.mastodon;
@@ -324,8 +337,8 @@ async function refreshSocial(){
   $("social-linkedin-connect").title=status.providers?.linkedin?"Connect LinkedIn":"Operator must configure and verify LinkedIn OAuth first";
   $("social-oauth-readiness").textContent=!status.enabled?
     "Social service is not activated for this business.":
-    ["linkedin","mastodon"].filter(p=>!status.providers?.[p]).length?
-    "Account linking needs operator setup for: "+["linkedin","mastodon"].filter(p=>!status.providers?.[p]).join(", ")+". Publishing stays off.":
+    ["facebook","instagram","linkedin","mastodon"].filter(p=>!status.providers?.[p]).length?
+    "Account linking needs operator setup for: "+["facebook","instagram","linkedin","mastodon"].filter(p=>!status.providers?.[p]).join(", ")+". Publishing stays off.":
     "Account linking is configured. Choose Connect to authorize your account; live publishing still requires separate approval.";
   if(!status.enabled)return;
   const [accounts,posts]=await Promise.all([
@@ -341,6 +354,28 @@ async function refreshSocial(){
       $("social-accounts").appendChild(node("p",
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
+      if(currentRole==="owner" && !account.needs_reauth && account.expires_at &&
+         ["instagram","linkedin"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
+        const renew=node("button","Renew "+account.display_name,"secondary");
+        renew.addEventListener("click",async()=>{
+          try{
+            await request("/owner/social/oauth/renew/"+encodeURIComponent(account.id),"POST");
+            await refreshSocial();message("Account access renewed with the provider.");
+          }catch(error){message("Token renewal not available: "+error.message+". Reconnect the account if needed.",true);}
+        });
+        $("social-accounts").appendChild(renew);
+      }
+      if(["facebook","instagram"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
+        const unlink=node("button","Disconnect "+account.display_name,"danger");
+        unlink.addEventListener("click",async()=>{
+          if(!confirm("Disconnect this account from Concierge? Future posts will be blocked. You may also remove Trendi access in Meta settings."))return;
+          try{
+            await request(socialOAuthPath(account.network)+"/accounts/"+encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Credentials removed from Concierge. Review provider app access separately.");
+          }catch(error){message("Could not unlink account: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(unlink);
+      }
       if(account.network==="mastodon" && currentRole==="owner" && !account.needs_reauth){
         const disconnect=node("button","Disconnect "+account.display_name,"danger");
         disconnect.addEventListener("click",async()=>{

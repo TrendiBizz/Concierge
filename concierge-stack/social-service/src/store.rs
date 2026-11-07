@@ -12,6 +12,8 @@ pub struct Store {
     db: Mutex<Connection>,
 }
 
+pub type RefreshCandidate = (String, String, String, Option<String>, Option<i64>);
+
 pub struct VerifiedAccount<'a> {
     pub customer: &'a str,
     pub network: &'a str,
@@ -271,6 +273,58 @@ impl Store {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .map_err(|_| "Account not found or requires login".into())
+    }
+
+    /// Read expiring credentials only for an authenticated customer's refresh operation.
+    /// A revoked account is never returned, even when its encrypted token remains in backup.
+    pub fn refresh_candidate(&self, customer: &str, id: &str) -> Result<RefreshCandidate> {
+        let conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        conn.query_row(
+            "SELECT a.network,a.external_id,a.token_enc,a.refresh_enc,x.expires_at
+             FROM accounts a LEFT JOIN account_expiries x ON x.account_id=a.id
+             WHERE a.id=?1 AND a.customer_id=?2 AND a.needs_reauth=0 AND a.token_enc<>''",
+            params![id, customer],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .map_err(|_| "Account not found or disconnected".into())
+    }
+
+    /// Compare-and-swap encrypted credentials, so concurrent disconnect/reauthorization
+    /// cannot be overwritten by an in-flight refresh.
+    pub fn update_refreshed_token(
+        &self,
+        customer: &str,
+        id: &str,
+        old_enc: &str,
+        new_enc: &str,
+        new_refresh: Option<&str>,
+        expires_at: i64,
+    ) -> Result<()> {
+        if new_enc.is_empty() || expires_at <= now() {
+            return Err("Invalid refreshed token".into());
+        }
+        let mut conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|e| e.to_string())?;
+        let changed = tx
+            .execute(
+                "UPDATE accounts SET token_enc=?1,refresh_enc=COALESCE(?2,refresh_enc)
+             WHERE id=?3 AND customer_id=?4 AND needs_reauth=0 AND token_enc=?5",
+                params![new_enc, new_refresh, id, customer, old_enc],
+            )
+            .map_err(|e| e.to_string())?;
+        if changed != 1 {
+            return Err("Account changed or disconnected during refresh".into());
+        }
+        tx.execute(
+            "INSERT INTO account_expiries(account_id,expires_at) VALUES(?1,?2)
+                    ON CONFLICT(account_id) DO UPDATE SET expires_at=excluded.expires_at",
+            params![id, expires_at],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn list_accounts(&self, customer: &str) -> Result<Vec<crate::model::Account>> {

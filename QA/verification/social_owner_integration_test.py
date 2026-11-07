@@ -40,8 +40,58 @@ class SocialOwnerTests(unittest.TestCase):
                 app.dependency_overrides.clear()
         result = asyncio.run(run())
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.json()["providers"], {"linkedin": True, "mastodon": False})
+        self.assertEqual(result.json()["providers"], {"linkedin": True, "mastodon": False, "facebook": False, "instagram": False})
         self.assertNotIn("never-return", result.text)
+
+    def test_meta_connect_finish_unlink_and_renew_are_owner_only(self):
+        async def run(role):
+            identity = {"slug":"customer-a","name":"A","tenant_id":"a","role":role}
+            async def current_user(): return identity
+            app.dependency_overrides[owner_auth.current_user]=current_user
+            try:
+                with patch.object(social_bridge,"start_meta_oauth",new_callable=AsyncMock) as start, \
+                     patch.object(social_bridge,"finish_meta_oauth",new_callable=AsyncMock) as finish, \
+                     patch.object(social_bridge,"unlink_meta",new_callable=AsyncMock) as unlink, \
+                     patch.object(social_bridge,"renew_social_token",new_callable=AsyncMock) as renew:
+                    start.return_value={"state":"x"*43,"authorization_url":"https://www.instagram.com/oauth/authorize"}
+                    finish.return_value={"account_ids":["page-one"]}
+                    unlink.return_value={"ok":True}
+                    renew.return_value={"expires_at":99}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                                 base_url="http://testserver") as client:
+                        a=await client.post("/owner/social/oauth/meta/instagram/start")
+                        b=await client.post("/owner/social/oauth/meta/instagram/finish",
+                                            json={"state":"x"*43,"code":"sample-code"})
+                        c=await client.delete("/owner/social/oauth/meta/instagram/accounts/"+"a"*32)
+                        d=await client.post("/owner/social/oauth/renew/"+"a"*32)
+                    return (a.status_code,b.status_code,c.status_code,d.status_code,
+                            start,finish,unlink,renew)
+            finally:
+                app.dependency_overrides.clear()
+        for role in ("viewer","editor"):
+            a,b,c,d,start,finish,unlink,renew=asyncio.run(run(role))
+            self.assertEqual((a,b,c,d),(403,403,403,403))
+            for call in (start,finish,unlink,renew):
+                call.assert_not_awaited()
+        a,b,c,d,start,finish,unlink,renew=asyncio.run(run("owner"))
+        self.assertEqual((a,b,c,d),(200,200,200,200))
+        self.assertEqual(start.await_args.args[0]["slug"],"customer-a")
+        self.assertEqual(finish.await_args.args[1],"instagram")
+        self.assertEqual(unlink.await_args.args[1],"instagram")
+        self.assertEqual(renew.await_args.args[0]["slug"],"customer-a")
+
+    def test_social_media_draft_forwards_one_https_image_and_rejects_insecure_url(self):
+        async def run():
+            tenant={"slug":"customer-a","name":"A","tenant_id":"a","role":"owner"}
+            with patch.object(social_bridge,"_request",new_callable=AsyncMock) as call:
+                call.return_value={}
+                await social_bridge.create_draft(tenant,"Example image",["a"*32],media=["https://cdn.example.org/image.jpg"])
+                sent=call.await_args_list[-1].args[2]
+                self.assertEqual(sent["media"],["https://cdn.example.org/image.jpg"])
+                with self.assertRaises(HTTPException):
+                    await social_bridge.create_draft(tenant,"Bad",["a"*32],media=["http://localhost/image.jpg"])
+                self.assertEqual(call.await_count,3)  # tenant readiness and draft, then readiness on rejected draft
+        asyncio.run(run())
 
     def test_disabled_by_default(self):
         with patch.object(social_bridge, "get_settings",

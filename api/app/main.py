@@ -1596,6 +1596,7 @@ class OwnerSocialDraft(BaseModel):
     account_ids: list[str] = Field(min_length=1, max_length=10)
     link: str = Field(default="", max_length=2000)
     hashtags: str = Field(default="", max_length=2000)
+    media: list[str] = Field(default_factory=list, max_length=10)
 
 
 class OwnerSocialSchedule(BaseModel):
@@ -1605,7 +1606,7 @@ class OwnerSocialSchedule(BaseModel):
 @app.get("/owner/social/status")
 async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
     # No credentials, client IDs, access tokens or backend hostname in the response.
-    providers = {"linkedin": False, "mastodon": False}
+    providers = {"linkedin": False, "mastodon": False, "facebook": False, "instagram": False}
     if settings.social_service_enabled:
         try:
             status = await social_bridge.provider_status()
@@ -1619,9 +1620,43 @@ async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
             "live_publishing": False}
 
 
+@app.post("/owner/social/oauth/renew/{account_id}")
+async def owner_social_oauth_renew(account_id: str,
+                                  user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.renew_social_token(user, account_id)
+
+
 class OwnerOAuthCallback(BaseModel):
     state: str = Field(min_length=32, max_length=256)
     code: str = Field(min_length=1, max_length=2048)
+
+
+@app.post("/owner/social/oauth/meta/{network}/start")
+async def owner_social_meta_start(network: str,
+                                  user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.start_meta_oauth(user, network)
+
+
+@app.post("/owner/social/oauth/meta/{network}/finish")
+async def owner_social_meta_finish(network: str, body: OwnerOAuthCallback,
+                                   user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.finish_meta_oauth(user, network, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/meta/{network}/accounts/{account_id}")
+async def owner_social_meta_disconnect(network: str, account_id: str,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.unlink_meta(user, network, account_id)
 
 
 @app.delete("/owner/social/oauth/linkedin/accounts/{account_id}")
@@ -1681,7 +1716,7 @@ async def owner_social_create(body: OwnerSocialDraft,
                               user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
     return await social_bridge.create_draft(user, body.content, body.account_ids,
-                                            body.link, body.hashtags)
+                                            body.link, body.hashtags, body.media)
 
 
 @app.post("/owner/social/posts/{post_id}/submit")

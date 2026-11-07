@@ -114,6 +114,8 @@ async fn health() -> Json<Health> {
 struct OAuthProviders {
     linkedin: bool,
     mastodon: bool,
+    facebook: bool,
+    instagram: bool,
     callback_path: &'static str,
 }
 
@@ -131,6 +133,8 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
     Ok(Json(OAuthProviders {
         linkedin,
         mastodon,
+        facebook: crate::meta::from_env("facebook").is_ok(),
+        instagram: crate::meta::from_env("instagram").is_ok(),
         callback_path,
     }))
 }
@@ -477,10 +481,93 @@ async fn linkedin_disconnect(
     Ok(Json(Health { ok: true }))
 }
 
+async fn meta_oauth_start(
+    State(s): State<AppState>,
+    Path((c, network)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let kind = match network.as_str() {
+        "instagram" => "instagram",
+        "facebook" => "facebook",
+        _ => return Err(err(StatusCode::NOT_FOUND, "Unsupported social network")),
+    };
+    let cfg = crate::meta::from_env(kind)
+        .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "Meta OAuth not configured"))?;
+    Ok(Json(
+        crate::meta::start(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+#[derive(Serialize)]
+struct MetaAccounts {
+    account_ids: Vec<String>,
+}
+async fn meta_oauth_finish(
+    State(s): State<AppState>,
+    Path((c, network)): Path<(String, String)>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<MetaAccounts> {
+    role(&h, &s, true, Some(&c))?;
+    let kind = match network.as_str() {
+        "instagram" => "instagram",
+        "facebook" => "facebook",
+        _ => return Err(err(StatusCode::NOT_FOUND, "Unsupported social network")),
+    };
+    let cfg = crate::meta::from_env(kind)
+        .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "Meta OAuth not configured"))?;
+    Ok(Json(MetaAccounts {
+        account_ids: crate::meta::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+            .await
+            .map_err(server_err)?,
+    }))
+}
+async fn meta_oauth_disconnect(
+    State(s): State<AppState>,
+    Path((c, network, id)): Path<(String, String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Health> {
+    role(&h, &s, true, Some(&c))?;
+    if network != "facebook" && network != "instagram" {
+        return Err(err(StatusCode::NOT_FOUND, "Unsupported social network"));
+    }
+    crate::meta::disconnect(&s.store, &c, &id, &network).map_err(server_err)?;
+    Ok(Json(Health { ok: true }))
+}
+
+#[derive(Serialize)]
+struct Renewal {
+    expires_at: i64,
+}
+async fn oauth_renew(
+    State(s): State<AppState>,
+    Path((c, id)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Renewal> {
+    role(&h, &s, true, Some(&c))?;
+    let expires_at = crate::token_refresh::refresh(&s.store, &s.vault, &c, &id)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(Renewal { expires_at }))
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/oauth/providers", get(oauth_providers))
+        .route("/v1/customers/:c/oauth/renew/:id", post(oauth_renew))
+        .route(
+            "/v1/customers/:c/oauth/meta/:network/start",
+            post(meta_oauth_start),
+        )
+        .route(
+            "/v1/customers/:c/oauth/meta/:network/finish",
+            post(meta_oauth_finish),
+        )
+        .route(
+            "/v1/customers/:c/oauth/meta/:network/accounts/:id",
+            axum::routing::delete(meta_oauth_disconnect),
+        )
         .route("/v1/customers", post(new_customer))
         .route("/v1/customers/:c/agent-key", post(rotate_agent_key))
         .route("/v1/customers/:c/rules", get(get_rules).put(set_rules))

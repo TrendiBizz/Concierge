@@ -43,6 +43,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &origin,
             )?));
         }
+        if std::env::var("SOCIAL_ENABLE_FACEBOOK_PUBLISH").as_deref() == Ok("true") {
+            let version =
+                std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v24.0".into());
+            registry.register(Arc::new(concierge_social::meta_publish::Facebook::new(
+                &version,
+            )?));
+        }
+        if std::env::var("SOCIAL_ENABLE_INSTAGRAM_PUBLISH").as_deref() == Ok("true") {
+            registry.register(Arc::new(concierge_social::meta_publish::Instagram::new()));
+        }
         if std::env::var("SOCIAL_ENABLE_LINKEDIN_PUBLISH").as_deref() == Ok("true") {
             let version =
                 std::env::var("SOCIAL_LINKEDIN_API_VERSION").unwrap_or_else(|_| "202603".into());

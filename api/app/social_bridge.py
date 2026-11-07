@@ -82,15 +82,19 @@ async def posts(tenant: dict):
 
 
 async def create_draft(tenant: dict, content: str, account_ids: list[str],
-                       link: str = "", hashtags: str = ""):
+                       link: str = "", hashtags: str = "", media: list[str] | None = None):
     slug = await ensure_tenant(tenant)
     if not content.strip() or len(content) > 10000 or not 1 <= len(account_ids) <= 10:
         raise HTTPException(400, "A valid post and one or more accounts are required")
     if any(not POST_ID.fullmatch(a) for a in account_ids):
         raise HTTPException(400, "Invalid account identifier")
+    media = media or []
+    if len(media) > 10 or any(not isinstance(m, str) or len(m) > 2048
+                              or not m.startswith("https://") for m in media):
+        raise HTTPException(400, "Only HTTPS media URLs are allowed")
     return await _request("POST", f"/v1/customers/{slug}/posts", {
         "content": content, "account_ids": account_ids,
-        "link": link, "hashtags": hashtags, "media": [],
+        "link": link, "hashtags": hashtags, "media": media,
     })
 
 
@@ -117,6 +121,37 @@ async def decide(tenant: dict, token: str, approve: bool):
     return await _request("POST",
         f"/v1/customers/{slug}/approvals/{token}/"
         + ("approve" if approve else "reject"))
+
+
+async def renew_social_token(tenant: dict, account_id: str):
+    if not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid social account")
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/renew/{account_id}")
+
+
+async def start_meta_oauth(tenant: dict, network: str):
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(400, "Unsupported social network")
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/meta/{network}/start")
+
+
+async def finish_meta_oauth(tenant: dict, network: str, state: str, code: str):
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(400, "Unsupported social network")
+    if not POST_ID.fullmatch(state) or not code or len(code) > 2048:
+        raise HTTPException(400, "Invalid OAuth callback")
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/meta/{network}/finish",
+                          {"state": state, "code": code})
+
+
+async def unlink_meta(tenant: dict, network: str, account_id: str):
+    if network not in ("facebook", "instagram") or not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid social account")
+    slug = await ensure_tenant(tenant)
+    return await _request("DELETE", f"/v1/customers/{slug}/oauth/meta/{network}/accounts/{account_id}")
 
 
 async def start_mastodon_oauth(tenant: dict):
