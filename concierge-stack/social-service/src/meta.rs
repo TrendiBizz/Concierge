@@ -64,6 +64,8 @@ struct DebugData {
     #[serde(default)]
     expires_at: Option<i64>,
     #[serde(default)]
+    app_id: Option<String>,
+    #[serde(default)]
     granular_scopes: Vec<GranularScope>,
 }
 #[derive(Deserialize)]
@@ -292,6 +294,36 @@ fn expiry(seconds: Option<i64>) -> Option<i64> {
         .filter(|v| (1..=5_184_000).contains(v))
         .map(|v| crate::now_unix() + v)
 }
+fn validated_meta_expiry(
+    response_seconds: Option<i64>,
+    debug: &DebugData,
+    expected_app: &str,
+) -> Result<Option<i64>, String> {
+    if !debug.is_valid {
+        return Err("Meta token validation failed".into());
+    }
+    if debug
+        .app_id
+        .as_deref()
+        .is_some_and(|actual| actual != expected_app)
+    {
+        return Err("Meta token belongs to another application".into());
+    }
+    let now = crate::now_unix();
+    // Meta may omit expiry or report 0 for a token without fixed expiration.
+    // This is not a promise of irrevocability.
+    if let Some(at) = debug.expires_at {
+        if at < 0 || (at > 0 && at <= now) {
+            return Err("Meta token is expired".into());
+        }
+        return Ok((at > 0).then_some(at));
+    }
+    match response_seconds {
+        Some(seconds) if seconds < 0 => Err("Meta token has invalid expiry".into()),
+        Some(0) | None => Ok(None),
+        Some(seconds) => Ok(Some(now.saturating_add(seconds))),
+    }
+}
 fn check_id(value: &str) -> Result<(), String> {
     if value.is_empty()
         || value.len() > 256
@@ -431,8 +463,8 @@ async fn instagram_facebook_finish(
         .json()
         .await
         .map_err(|_| "Invalid Meta long-lived token")?;
-    if long.access_token.is_empty() || expiry(long.expires_in).is_none() {
-        return Err("Meta token missing expiry".into());
+    if long.access_token.is_empty() {
+        return Err("Meta access token missing".into());
     }
     // Verify actual app, scopes and validity, not just authorization dialog text.
     let app_token = format!("{}|{}", cfg.id, cfg.secret);
@@ -452,6 +484,7 @@ async fn instagram_facebook_finish(
         .json()
         .await
         .map_err(|_| "Meta permission response invalid")?;
+    let _validated_expiry = validated_meta_expiry(long.expires_in, &granted.data, &cfg.id)?;
     if !granted.data.is_valid
         || !IG_FACEBOOK_SCOPE
             .split(',')
@@ -550,8 +583,8 @@ async fn facebook_finish(
         .json()
         .await
         .map_err(|_| "Facebook long-lived token invalid")?;
-    if long.access_token.is_empty() || expiry(long.expires_in).is_none() {
-        return Err("Facebook long-lived token missing expiry".into());
+    if long.access_token.is_empty() {
+        return Err("Facebook long-lived access token missing".into());
     }
     // Check the actual grant, not only the scopes requested in the login dialog.
     let debug = http
@@ -573,6 +606,7 @@ async fn facebook_finish(
         .json()
         .await
         .map_err(|_| "Facebook permission response invalid")?;
+    let verified_expiry = validated_meta_expiry(long.expires_in, &granted.data, &cfg.id)?;
     if !granted.data.is_valid
         || ![
             "pages_show_list",
@@ -618,7 +652,7 @@ async fn facebook_finish(
             token_enc: &sealed,
             refresh_enc: None,
             // Page tokens may not expose an expiry, but upstream grants remain revocable.
-            expires_at: granted.data.expires_at.filter(|v| *v > crate::now_unix()),
+            expires_at: verified_expiry,
             granted_scopes: FB_SCOPE,
         })?;
         result.push(id);
@@ -730,11 +764,61 @@ mod tests {
         assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
     }
     #[test]
+    fn facebook_validated_expiry_can_be_omitted() {
+        let now = crate::now_unix();
+        let debug = DebugData {
+            is_valid: true,
+            scopes: vec![],
+            expires_at: None,
+            app_id: Some("676274422041376".to_string()),
+            granular_scopes: vec![],
+        };
+        assert_eq!(
+            validated_meta_expiry(None, &debug, "676274422041376").unwrap(),
+            None
+        );
+        assert_eq!(
+            validated_meta_expiry(Some(0), &debug, "676274422041376").unwrap(),
+            None
+        );
+        assert!(
+            validated_meta_expiry(Some(3600), &debug, "676274422041376")
+                .unwrap()
+                .unwrap()
+                > now
+        );
+        let never = DebugData {
+            expires_at: Some(0),
+            ..debug
+        };
+        assert_eq!(
+            validated_meta_expiry(None, &never, "676274422041376").unwrap(),
+            None
+        );
+        let expired = DebugData {
+            expires_at: Some(now - 10),
+            ..never
+        };
+        assert!(validated_meta_expiry(None, &expired, "676274422041376").is_err());
+        let invalid = DebugData {
+            is_valid: false,
+            ..expired
+        };
+        assert!(validated_meta_expiry(None, &invalid, "676274422041376").is_err());
+        let other = DebugData {
+            is_valid: true,
+            expires_at: None,
+            ..invalid
+        };
+        assert!(validated_meta_expiry(None, &other, "other-app").is_err());
+    }
+    #[test]
     fn page_candidates_require_granular_oauth_grants() {
         let blank = DebugData {
             is_valid: true,
             scopes: vec!["pages_show_list".into()],
             expires_at: None,
+            app_id: None,
             granular_scopes: vec![],
         };
         assert!(authorized_page_candidates(&blank).is_empty());
