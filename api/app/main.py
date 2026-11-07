@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
+    phone_relay, owner_auth, owner_onboarding, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -205,6 +205,8 @@ async def sms_inbound(public_key: str, request: Request):
     if not sms.validate_signature(settings.twilio_auth_token, url, params, request.headers.get("X-Twilio-Signature", "")):
         raise HTTPException(status_code=403, detail="Invalid signature")
 
+    if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
+        raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     sender = normalize_phone(params.get("From", ""), settings.default_country_code)
     body = (params.get("Body") or "").strip()
     if not sender or not body:
@@ -236,6 +238,8 @@ async def smsgate_inbound(public_key: str, request: Request):
     if not isinstance(envelope, dict) or envelope.get("event") != "sms:received":
         return {"ok": True}  # delivery receipts and pings are acknowledged and ignored
 
+    if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
+        raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     payload = envelope.get("payload") or {}
     sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", settings.default_country_code)
     body = (payload.get("message") or "").strip()
@@ -1252,6 +1256,21 @@ async def twilio_phone_ended(request: Request):
     return Response(content='<Response><Hangup/></Response>', media_type="application/xml")
 
 
+@app.post("/api/v1/phone/twilio/recording")
+async def twilio_phone_recording_receipt(request: Request):
+    if not phone_relay.configured() or not settings.phone_recording_enabled:
+        raise HTTPException(status_code=503, detail="Call recording disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/recording")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid recording callback signature")
+    try:
+        await phone_relay.recording_callback(form)
+    except phone_relay.PhoneError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {"ok": True}
+
+
 @app.websocket("/api/v1/phone/relay")
 async def twilio_phone_relay(websocket: WebSocket):
     await phone_relay.relay(websocket)
@@ -1435,6 +1454,50 @@ async def owner_onboarding_update(
         raise HTTPException(400, str(exc)) from None
 
 
+@app.get("/owner/onboarding/authorizations")
+async def owner_channel_authorizations(user: dict = Depends(owner_auth.current_user)):
+    return await channel_authorization.authorizations(user["tenant_id"])
+
+
+@app.post("/owner/onboarding/authorizations")
+async def owner_channel_authorization_update(
+    body: channel_authorization.ChannelAuthorization,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    try:
+        return await channel_authorization.record_authorization(
+            user["tenant_id"], user["id"], body,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@app.get("/owner/onboarding/readiness")
+async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user)):
+    status = await owner_onboarding.overview(user["tenant_id"])
+    declarations = await channel_authorization.authorizations(user["tenant_id"])
+    settings = get_settings()
+    checks = {
+        "telephone": status["channels"]["telephone"]["configured"],
+        "call_recording": bool(
+            settings.phone_recording_enabled
+            and settings.twilio_account_sid
+            and settings.twilio_auth_token
+        ),
+        "email_read": bool(settings.inbound_cloudflare_enabled),
+        "email_send": status["channels"]["email"]["configured"],
+        "sms_read": status["channels"]["sms"]["configured"],
+        "sms_send": status["channels"]["sms"]["configured"],
+        "social": status["channels"]["social"]["configured"],
+    }
+    return {
+        "business": status["business"]["name"],
+        "channels": channel_authorization.readiness(declarations, checks),
+        "customer_activation_enabled": False,
+    }
+
+
 @app.post("/owner/invitations", status_code=201)
 async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
@@ -1505,7 +1568,8 @@ async def owner_phone_numbers(user: dict = Depends(owner_auth.current_user)):
 @app.get("/owner/phone-calls")
 async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
     rows = await db.pool().fetch(
-        "SELECT call_sid,from_number,to_number,status,started_at,ended_at "
+        "SELECT call_sid,from_number,to_number,status,started_at,ended_at, "
+        "recording_consent,recording_status "
         "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
         user["tenant_id"],
     )

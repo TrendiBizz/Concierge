@@ -48,8 +48,20 @@ with TestClient(app) as client:
     check("missing signature denied",client.post(path,json=payload).status_code==401)
     check("incorrect signature denied",send(secret="this-is-definitely-the-wrong-secret-000").status_code==401)
     check("stale signature denied",send(stamp=int(time.time())-601).status_code==401)
+    check("signed ingress blocked without owner email-read authorization",
+          send().status_code==403)
+    async def authorize_email():
+        uid = await pool.fetchval(
+            "INSERT INTO tenant_users(tenant_id,email,role,password_hash) "
+            "VALUES($1,'owner@cf-a.invalid','owner','test') RETURNING id", a
+        )
+        await pool.execute(
+            "INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id) "
+            "VALUES($1,'email_read',true,$2)", a, uid,
+        )
+    client.portal.call(authorize_email)
     response=send()
-    check("authenticated ingress accepted",response.status_code==200)
+    check("authenticated and authorized ingress accepted",response.status_code==200)
     first=response.json()["draft_id"]
     check("signed replay idempotent",send().json()["draft_id"]==first)
     row=client.portal.call(lambda:pool.fetchrow("SELECT tenant_id,inbound_body,reply_body,status FROM email_drafts WHERE id=$1",first))

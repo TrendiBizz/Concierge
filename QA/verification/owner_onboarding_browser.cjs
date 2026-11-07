@@ -8,6 +8,7 @@ const fs=require("node:fs");
 const path=require("node:path");
 const html=fs.readFileSync(path.join(__dirname,"../../api/static/owner.html"),"utf8");
 let role="owner",saved=null;
+const permissions={};
 const profile={
  business:{name:"Synthetic Business",site_url:"https://synthetic.example",
  greeting:"Welcome",notify_email:"owner@example.com",timezone:"Pacific/Auckland"},
@@ -40,6 +41,20 @@ const server=http.createServer((request,res)=>{
    Object.assign(profile.business,body);
    return json(res,200,body);
   }
+  if(url.pathname==="/owner/onboarding/authorizations"){
+    if(request.method==="GET")return json(res,200,permissions);
+    if(role!=="owner")return json(res,403,{detail:"Owner required"});
+    if(body.authorized && !body.acknowledgement)return json(res,400,{detail:"Acknowledgement required"});
+    permissions[body.channel]={authorized:body.authorized,provider_verified:false,active:false};
+    return json(res,200,{channel:body.channel,...permissions[body.channel]});
+  }
+  if(url.pathname==="/owner/onboarding/readiness"){
+    const keys=["telephone","call_recording","email_read","email_send","sms_read","sms_send","social"];
+    return json(res,200,{business:"Synthetic Business",customer_activation_enabled:false,
+      channels:Object.fromEntries(keys.map(k=>[k,{
+        authorized:!!permissions[k]?.authorized,configured:false,provider_verified:false,active:false
+      }]))});
+  }
   if(url.pathname==="/owner/email-drafts") return json(res,200,[]);
   if(url.pathname==="/owner/phone-numbers") return json(res,200,[]);
   if(url.pathname==="/owner/phone-calls") return json(res,200,[]);
@@ -68,6 +83,20 @@ async function run(){
    const text=await page.$eval("#onboarding-channels",e=>e.textContent);
    check(currentRole+" sees own business",text.includes("Synthetic Business"));
    check(currentRole+" sees unverified label",text.includes("provider test required"));
+   await page.waitForFunction(()=>document.querySelectorAll("#channel-authorizations input[type=checkbox]").length===7);
+   const authCount=await page.$$eval("#channel-authorizations input[type=checkbox]",els=>els.length);
+   check(currentRole+" sees seven consent controls",authCount===7);
+   const authDisabled=await page.$eval("#channel-authorizations input[type=checkbox]",e=>e.disabled);
+   check(currentRole+" consent role protection",authDisabled===(currentRole!=="owner"));
+   if(currentRole==="owner"){
+     page.on("dialog",async dialog=>dialog.accept());
+     await page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click());
+     await page.waitForFunction(()=>document.querySelector("#channel-authorizations input[type=checkbox]").checked);
+     check("owner explicitly authorized one channel",permissions.telephone?.authorized===true);
+     await page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click());
+     await page.waitForFunction(()=>!document.querySelector("#channel-authorizations input[type=checkbox]").checked);
+     check("owner revoked same channel without activation",permissions.telephone?.authorized===false);
+   }
    const disabled=await page.$eval("#onboarding-greeting",e=>e.disabled);
    check(currentRole+" profile edit rights",disabled===(currentRole!=="owner"));
    if(currentRole==="owner"){

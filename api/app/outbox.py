@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import db, mailer, sms, tenants, unsub
+from . import channel_authorization, db, mailer, sms, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -96,6 +96,14 @@ async def _deliver(row: dict) -> None:
     if tenant is None:
         await _finish(row["id"], "skipped", "tenant_deleted")
         return
+
+    # Recheck authorization at actual delivery time. Queued work must not bypass
+    # a customer's revocation; operational owner alerts remain separate.
+    if row["kind"] not in OWNER_KINDS and row["channel"] in ("email", "sms"):
+        permission = "email_send" if row["channel"] == "email" else "sms_send"
+        if not await channel_authorization.is_authorized(row["tenant_id"], permission):
+            await _finish(row["id"], "skipped", "channel_authorization_missing")
+            return
 
     if row["kind"] not in OWNER_KINDS and await is_opted_out(row["tenant_id"], row["to_addr"]):
         await _finish(row["id"], "skipped", "opted_out")

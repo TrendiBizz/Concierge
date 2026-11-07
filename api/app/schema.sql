@@ -268,6 +268,13 @@ CREATE TABLE IF NOT EXISTS phone_calls (
     ended_at     timestamptz
 );
 CREATE INDEX IF NOT EXISTS phone_calls_tenant_idx ON phone_calls (tenant_id, started_at DESC);
+-- Audio capture is never automatic: recording requires an explicit caller
+-- phrase on an opted-in call, per-tenant permission and operator enablement.
+ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS recording_consent text NOT NULL DEFAULT 'not_requested';
+ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS recording_sid text;
+ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS recording_status text NOT NULL DEFAULT 'not_started';
+ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS consent_at timestamptz;
+
 
 
 -- Tenant owner access, isolated from the global operator token.
@@ -339,3 +346,28 @@ CREATE TABLE IF NOT EXISTS twenty_deliveries (
 );
 CREATE INDEX IF NOT EXISTS twenty_delivery_due_idx
 ON twenty_deliveries(status,next_at);
+
+-- Customer authorizations do not activate channels. They are owner declarations
+-- and must be paired with separately verified provider grants and operator enablement.
+CREATE TABLE IF NOT EXISTS tenant_channel_authorizations (
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel text NOT NULL CHECK (channel IN
+        ('telephone','call_recording','email_read','email_send',
+         'sms_read','sms_send','social')),
+    authorized boolean NOT NULL DEFAULT false,
+    actor_id uuid NOT NULL,  -- immutable owner principal even after account deletion
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,channel)
+);
+CREATE TABLE IF NOT EXISTS tenant_channel_authorization_audit (
+    id bigserial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel text NOT NULL CHECK (channel IN
+        ('telephone','call_recording','email_read','email_send',
+         'sms_read','sms_send','social')),
+    authorized boolean NOT NULL,
+    actor_id uuid NOT NULL,  -- preserve audit identity after user deletion
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tenant_channel_audit_tenant_idx
+ON tenant_channel_authorization_audit(tenant_id, created_at DESC);

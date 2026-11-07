@@ -60,6 +60,11 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="submit">Save business setup</button>
 </form>
 </section>
+<section class="panel" id="channel-authorizations-panel">
+<h2>Customer channel permissions</h2>
+<p class="muted">The business owner must explicitly authorize each capability. Authorization does not connect accounts, activate messages or start call recording. Caller consent and live provider verification are separate requirements.</p>
+<div id="channel-authorizations" aria-live="polite"></div>
+</section>
 <div class="row">
 <section class="panel"><h2>Telephone numbers</h2><p class="muted">Read-only. Enabling phone reception requires operator verification.</p><div id="numbers"></div></section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
@@ -145,6 +150,7 @@ $("login-form").addEventListener("submit",async event=>{
   message("Signed in. Session held only in this browser tab.");
   await refresh();
   await refreshOnboarding();
+  await refreshChannelAuthorizations();
   await refreshSocial().catch(error=>message("Social: "+error.message,true));
  }catch(error){message(error.message,true);}
 });
@@ -162,7 +168,7 @@ $("logout").addEventListener("click",async()=>{
  pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;
  bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
  $("social-panel").hidden=true;clear($("social-posts"));clear($("social-accounts"));
- clear($("drafts"));clear($("onboarding-channels"));
+ clear($("drafts"));clear($("onboarding-channels"));clear($("channel-authorizations"));
  $("onboarding-greeting").value="";$("onboarding-email").value="";$("onboarding-timezone").value="";
  message("Signed out.");
 });
@@ -261,6 +267,50 @@ $("onboarding-form").addEventListener("submit",async event=>{
     message("Business setup saved. No phone, email or social channel has been activated.");
   }catch(error){message(error.message,true);}
 });
+const channelLabels={
+ telephone:"Answer customer telephone calls",
+ call_recording:"Allow recording, subject to each caller's consent",
+ email_read:"Read authorized inbound business email",
+ email_send:"Send owner-approved business email",
+ sms_read:"Read authorized inbound business text messages",
+ sms_send:"Send approved business text messages",
+ social:"Connect approved business social accounts"
+};
+async function refreshChannelAuthorizations(){
+ const [declarations,readiness]=await Promise.all([
+   request("/owner/onboarding/authorizations"),
+   request("/owner/onboarding/readiness")
+ ]);
+ const host=$("channel-authorizations");clear(host);
+ for(const [key,label] of Object.entries(channelLabels)){
+   const status=readiness.channels[key];
+   const row=node("div","","item");
+   const title=node("label",label);
+   const checkbox=node("input");checkbox.type="checkbox";
+   checkbox.checked=!!declarations[key]?.authorized;
+   checkbox.disabled=currentRole!=="owner";
+   title.prepend(checkbox);row.appendChild(title);
+   row.appendChild(node("p",status.configured?"Provider configured; live verification outstanding":"Provider not configured","muted"));
+   row.appendChild(node("p","Status: "+(status.active?"Active":"NOT ACTIVE"),"muted"));
+   checkbox.addEventListener("change",async()=>{
+     if(checkbox.checked && !confirm("Do you control this channel and authorize Concierge to use it for your business? This does not enable the channel or replace provider/caller consent.")){
+       checkbox.checked=false;return;
+     }
+     checkbox.disabled=true;
+     try{
+       await request("/owner/onboarding/authorizations","POST",{
+         channel:key,authorized:checkbox.checked,acknowledgement:true
+       });
+       await refreshChannelAuthorizations();
+       message("Permission saved. Provider activation and verification remain separate.");
+     }catch(error){
+       checkbox.checked=!checkbox.checked;
+       checkbox.disabled=false;message(error.message,true);
+     }
+   });
+   host.appendChild(row);
+ }
+}
 async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
@@ -359,7 +409,8 @@ async function refresh(){
  ]);
  clear($("numbers"));clear($("calls"));clear($("drafts"));
  if(Array.isArray(numbers)){for(const n of numbers){$("numbers").appendChild(node("p",n.e164+" — "+(n.enabled?"enabled":"disabled")));}if(!numbers.length)$("numbers").appendChild(node("p","No numbers registered.","muted"));}
- if(Array.isArray(calls)){for(const c of calls){$("calls").appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number));}if(!calls.length)$("calls").appendChild(node("p","No calls recorded.","muted"));}
+ if(Array.isArray(calls)){for(const c of calls){$("calls").appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number+
+    " | Recording: "+(c.recording_status||"not started")));}if(!calls.length)$("calls").appendChild(node("p","No calls recorded.","muted"));}
  if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
  if(!drafts.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
  for(const draft of drafts){

@@ -1,4 +1,4 @@
-"""Cross-repository, real HTTP contract test for Concierge -> Rust Social.
+"""Canonical-repository HTTP contract test for Concierge -> Rust Social.
 
 Only disposable local SQLite and fake social credentials are used. The Rust
 publisher is disabled and no social network request is possible.
@@ -18,7 +18,7 @@ from unittest.mock import patch
 import httpx
 from app import social_bridge
 
-RUST = Path("/Users/jo/work-staging/trendi-site/concierge-stack/social-service")
+RUST = Path(__file__).resolve().parents[2] / "concierge-stack" / "social-service"
 BINARY = RUST / "target/debug/concierge-social"
 HOST = "http://127.0.0.1:4390"
 

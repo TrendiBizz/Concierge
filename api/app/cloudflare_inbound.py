@@ -12,7 +12,7 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import db, inbound_email
+from . import channel_authorization, db, inbound_email
 from .config import get_settings
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
@@ -81,6 +81,8 @@ async def handle(request: Request) -> dict:
         )
         if not mailbox:
             raise HTTPException(404, "Unknown mailbox")
+        if not await channel_authorization.is_authorized(mailbox["tenant_id"], "email_read"):
+            raise HTTPException(403, "Business has not authorized inbound email")
         draft = await inbound_email.ingest_verified(
             mailbox["tenant_id"], "cloudflare", payload["message_id"],
             payload["sender"], recipient, payload["subject"], payload["text"],

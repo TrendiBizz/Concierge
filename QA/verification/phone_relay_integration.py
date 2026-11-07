@@ -15,6 +15,7 @@ os.environ.update({
     "PHONE_RECEPTIONIST_ENABLED": "true",
     "PUBLIC_BASE_URL": "https://chat.example.test",
     "TWILIO_AUTH_TOKEN": "not-a-real-token",
+    "TWILIO_ACCOUNT_SID": "AC" + "a" * 32,
 })
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -85,7 +86,20 @@ with TestClient(app) as client:
     r = client.patch(create_url + "/" + TO, headers=H, json={"enabled": True})
     check("number activation requires explicit action", r.status_code == 200 and r.json()["enabled"] is True)
     r = client.post(hook, data=params, headers=signed_headers)
-    check("valid signed webhook returns TwiML", r.status_code == 200 and "<ConversationRelay" in r.text)
+    check("signed phone call blocked without owner authorization", r.status_code == 403)
+    async def authorize_telephone():
+        uid = await p.fetchval(
+            "INSERT INTO tenant_users(tenant_id,email,role,password_hash) "
+            "VALUES($1,'owner@alpha.invalid','owner','test') RETURNING id", alpha
+        )
+        await p.execute(
+            "INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id) "
+            "VALUES($1,'telephone',true,$2)", alpha, uid,
+        )
+    run(authorize_telephone)
+    r = client.post(hook, data=params, headers=signed_headers)
+    check("valid signed and authorized webhook returns TwiML",
+          r.status_code == 200 and "<ConversationRelay" in r.text)
     check("TwiML has secure WebSocket and end callback",
           "wss://chat.example.test/api/v1/phone/relay" in r.text
           and "https://chat.example.test/api/v1/phone/twilio/ended" in r.text)
@@ -138,5 +152,72 @@ with TestClient(app) as client:
     run(lambda: phone_relay.finish(CALL, "relay_ended"))
     check("late socket cleanup cannot erase completed status", run(lambda: p.fetchval(
         "SELECT status FROM phone_calls WHERE call_sid=$1", CALL)) == "completed")
+
+    # Recording is explicitly off by default even when phone service works.
+    first = run(lambda: p.fetchrow(
+        "SELECT recording_consent,recording_sid FROM phone_calls WHERE call_sid=$1", CALL
+    ))
+    check("ordinary enquiry never started recording",
+          first["recording_sid"] is None and first["recording_consent"] == "not_requested")
+
+    async def authorize_recording():
+        uid = await p.fetchval(
+            "SELECT id FROM tenant_users WHERE tenant_id=$1 LIMIT 1", alpha
+        )
+        await p.execute(
+            "INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id) "
+            "VALUES($1,'call_recording',true,$2)", alpha, uid
+        )
+    run(authorize_recording)
+
+    # No provider call: mock the Twilio REST response while using the real DB.
+    from app.main import settings as api_settings
+    from types import SimpleNamespace
+    class FakeRecordingClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): return False
+        async def post(self, url, **kwargs):
+            assert url.endswith("/Recordings.json")
+            assert kwargs["data"]["RecordingStatusCallback"].endswith("/api/v1/phone/twilio/recording")
+            return SimpleNamespace(status_code=201, json=lambda: {"sid": "RE" + "b" * 32})
+    api_settings.phone_recording_enabled = True
+    RECORD_CALL = "CA" + "b" * 32
+    record_form = {"CallSid": RECORD_CALL, "From": FROM, "To": TO}
+    rr = client.post(hook, data=record_form, headers={
+        "X-Twilio-Signature": sign("https://chat.example.test" + hook, record_form)
+    })
+    check("recording is offered only for authorized business",
+          rr.status_code == 200 and "I consent to recording" in rr.text)
+    with patch.object(phone_relay.httpx, "AsyncClient", return_value=FakeRecordingClient()):
+        with client.websocket_connect("/api/v1/phone/relay", headers=ws_headers) as ws:
+            ws.send_json({
+                "type": "setup", "callSid": RECORD_CALL, "sessionId": "VX" + "a"*32,
+                "from": FROM, "to": TO, "connectionType": "initial"
+            })
+            ws.send_json({"type": "prompt", "voicePrompt": "I consent to recording", "last": True})
+            message = ws.receive_json()
+            check("explicit caller consent is required before recording starts",
+                  message["last"] and "Recording has started" in message["token"])
+    state = run(lambda: p.fetchrow(
+        "SELECT recording_consent,recording_sid,recording_status FROM phone_calls WHERE call_sid=$1",
+        RECORD_CALL
+    ))
+    check("recording metadata persists without storing audio",
+          state["recording_consent"] == "granted"
+          and state["recording_sid"] == "RE" + "b" * 32
+          and state["recording_status"] == "in_progress")
+    callback = "/api/v1/phone/twilio/recording"
+    values = {"CallSid": RECORD_CALL, "RecordingSid": "RE"+"b"*32, "RecordingStatus": "completed"}
+    check("forged recording status rejected",
+          client.post(callback, data=values, headers={"X-Twilio-Signature": "forged"}).status_code == 403)
+    authenticated = client.post(callback, data=values, headers={
+        "X-Twilio-Signature": sign("https://chat.example.test"+callback, values)
+    })
+    check("signed recording receipt updates matching call only",
+          authenticated.status_code == 200 and
+          run(lambda: p.fetchval(
+              "SELECT recording_status FROM phone_calls WHERE call_sid=$1", RECORD_CALL
+          )) == "completed")
+    api_settings.phone_recording_enabled = False
 
 print(f"{n}/{n} simulated phone checks passed")

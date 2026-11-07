@@ -32,6 +32,8 @@ jobs:
           - owner_security_integration
           - owner_maintenance_integration
           - cloudflare_inbound_integration
+          - channel_authorization_db_integration
+          - customer_authorization_test
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -99,3 +101,55 @@ jobs:
           persist-credentials: false
       - name: Backup and restore canary (no production resources)
         run: bash QA/verification/restore_disposable.sh
+
+  rust-social:
+    name: rust-social-locked
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: concierge-stack/social-service
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Verify Rust social service
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --locked
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/requirements-dev.txt
+      - name: Install API contract test dependencies
+        working-directory: .
+        run: python -m pip install -r api/requirements-dev.txt
+      - name: Verify Python-to-Rust isolated HTTP contract
+        working-directory: .
+        env:
+          PYTHONPATH: QA/verification/shims:api
+          SOCIAL_ENABLE_PUBLISH: 'false'
+        run: python QA/verification/social_rust_contract_test.py
+
+  socialsync:
+    name: socialsync-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: concierge-stack/socialsync/server
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run isolated SocialSync tests
+        run: node --test

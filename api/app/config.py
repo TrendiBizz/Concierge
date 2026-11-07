@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     # PSTN telephone receptionist: opt-in and off until a real provider is validated.
     phone_receptionist_enabled: bool = False
+    phone_recording_enabled: bool = False  # separate paid-provider + legal approval
 
     # Grok Voice Agent API
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"

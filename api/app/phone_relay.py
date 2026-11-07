@@ -6,6 +6,7 @@ A real number and signed production webhook/WSS tests are required before rollou
 """
 import asyncio
 import logging
+import httpx
 import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -13,7 +14,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from . import chat, db, sms, tenants
+from . import channel_authorization, chat, db, sms, tenants
 from .config import get_settings
 
 log = logging.getLogger("concierge.phone")
@@ -22,6 +23,12 @@ CALL_SID = re.compile(r"^CA[0-9a-fA-F]{32}$")
 NUMBER = re.compile(r"^\+[1-9]\d{6,14}$")
 MAX_TURNS = 20
 MAX_SECONDS = 600
+RECORDING_CONSENT = re.compile(
+    r"^(?:yes[,]?[ ]+)?i consent to (?:this )?(?:call )?recording[.!]?$",
+    re.IGNORECASE,
+)
+RECORDING_DECLINE = "not_granted"
+
 
 
 class PhoneError(ValueError):
@@ -60,11 +67,19 @@ def twiml(tenant: dict) -> str:
     """Generate TwiML only for an explicitly enabled business."""
     ws = xml_escape(external_url("/api/v1/phone/relay", websocket=True), {'"': "&quot;"})
     action = xml_escape(external_url("/api/v1/phone/twilio/ended"), {'"': "&quot;"})
-    greeting = xml_escape(
+    greeting_text = (
         f"Hello, you've reached {tenant['name']}'s automated receptionist. "
-        "This call may be transcribed to help with your enquiry. How can I help?",
-        {'"': "&quot;"}
+        "This call may be transcribed to answer your enquiry. "
     )
+    if tenant.get("_recording_offer"):
+        greeting_text += (
+            "Recording is optional. To record this call, say exactly "
+            "'I consent to recording' as your first response. "
+            "Otherwise, just tell me how I can help and this call will not be recorded."
+        )
+    else:
+        greeting_text += "How can I help?"
+    greeting = xml_escape(greeting_text, {'"': "&quot;"})
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<Response><Connect action="' + action + '" method="POST">'
@@ -90,6 +105,14 @@ async def register_inbound(params: dict[str, str]) -> dict:
     if not row:
         raise PhoneError("This number has no enabled receptionist")
     tenant = dict(row)
+    if not await channel_authorization.is_authorized(tenant["id"], "telephone"):
+        raise PhoneError("Business has not authorized telephone reception")
+    tenant["_recording_offer"] = bool(
+        get_settings().phone_recording_enabled
+        and await channel_authorization.is_authorized(tenant["id"], "call_recording")
+        and get_settings().twilio_account_sid
+        and get_settings().twilio_auth_token
+    )
     async with db.pool().acquire() as conn:
         async with conn.transaction():
             previous = await conn.fetchrow(
@@ -146,7 +169,99 @@ async def _record_setup(data: dict) -> dict | None:
         "UPDATE phone_calls SET session_id=$2, status='in_progress' WHERE call_sid=$1",
         sid, session[:100],
     )
+    tenant["_recording_offer"] = bool(
+        get_settings().phone_recording_enabled
+        and get_settings().twilio_account_sid
+        and get_settings().twilio_auth_token
+        and await channel_authorization.is_authorized(tenant["id"], "call_recording")
+    )
     return tenant
+
+
+async def begin_recording(call_sid: str, tenant: dict) -> bool:
+    """Start provider recording ONLY after an explicit caller opt-in.
+
+    Provider response must be successful and include a valid RecordingSid.
+    Recording media stays at provider; this function stores only state/IDs.
+    """
+    cfg = get_settings()
+    if (not CALL_SID.fullmatch(call_sid)
+            or not cfg.phone_recording_enabled
+            or not cfg.twilio_account_sid.startswith("AC")
+            or len(cfg.twilio_account_sid) != 34
+            or not cfg.twilio_auth_token
+            or not await channel_authorization.is_authorized(tenant["id"], "call_recording")):
+        return False
+    row = await db.pool().fetchrow(
+        """UPDATE phone_calls SET recording_consent='granted',consent_at=now(),
+                  recording_status='requested'
+           WHERE call_sid=$1 AND tenant_id=$2 AND status='in_progress'
+             AND recording_consent='not_requested'
+           RETURNING call_sid""",
+        call_sid, tenant["id"],
+    )
+    if not row:
+        return False
+    url = (f"https://api.twilio.com/2010-04-01/Accounts/"
+           f"{cfg.twilio_account_sid}/Calls/{call_sid}/Recordings.json")
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=False) as client:
+            response = await client.post(
+                url,
+                auth=(cfg.twilio_account_sid, cfg.twilio_auth_token),
+                data={
+                    "RecordingStatusCallback": external_url("/api/v1/phone/twilio/recording"),
+                    "RecordingStatusCallbackEvent": "completed absent",
+                    "RecordingChannels": "dual",
+                },
+            )
+        if response.status_code not in (200, 201):
+            raise PhoneError("Recording provider rejected request")
+        payload = response.json()
+        recording_sid = payload.get("sid", "")
+        if not re.fullmatch(r"RE[0-9a-fA-F]{32}", recording_sid):
+            raise PhoneError("Invalid recording receipt")
+        await db.pool().execute(
+            """UPDATE phone_calls
+               SET recording_sid=COALESCE(recording_sid,$3),
+                   recording_status=CASE
+                     WHEN recording_status IN ('completed','absent','failed')
+                     THEN recording_status ELSE 'in_progress' END
+               WHERE call_sid=$1 AND tenant_id=$2
+                 AND recording_consent='granted'
+                 AND (recording_sid IS NULL OR recording_sid=$3)""",
+            call_sid, tenant["id"], recording_sid,
+        )
+        return True
+    except (httpx.HTTPError, ValueError, PhoneError):
+        log.warning("Recording start not confirmed for consented call")
+        await db.pool().execute(
+            """UPDATE phone_calls SET recording_status='failed'
+               WHERE call_sid=$1 AND tenant_id=$2""", call_sid, tenant["id"],
+        )
+        return False
+
+
+async def recording_callback(params: dict[str, str]) -> None:
+    """Signed Twilio callback. Never assume media is safely retained on receipt."""
+    sid = params.get("CallSid", "")
+    rec = params.get("RecordingSid", "")
+    status = params.get("RecordingStatus", "")
+    if not CALL_SID.fullmatch(sid) or not re.fullmatch(r"RE[0-9a-fA-F]{32}", rec):
+        raise PhoneError("Invalid recording identifiers")
+    if status not in {"in-progress", "completed", "absent", "failed"}:
+        raise PhoneError("Invalid recording status")
+    await db.pool().execute(
+        """UPDATE phone_calls
+           SET recording_sid=COALESCE(recording_sid,$2),
+               recording_status=CASE
+                 WHEN recording_status IN ('completed','absent','failed')
+                 THEN recording_status ELSE $3 END
+           WHERE call_sid=$1 AND recording_consent='granted'
+             AND recording_status IN ('requested','in_progress','completed','absent','failed')
+             AND (recording_sid=$2 OR recording_sid IS NULL)""",
+        sid, rec, status,
+    )
 
 
 async def relay(websocket: WebSocket) -> None:
@@ -162,6 +277,7 @@ async def relay(websocket: WebSocket) -> None:
     turns = 0
     started = asyncio.get_running_loop().time()
     current: asyncio.Task | None = None
+    awaiting_recording_consent = False
 
     async def respond(prompt: str):
         try:
@@ -204,11 +320,33 @@ async def relay(websocket: WebSocket) -> None:
                     await websocket.close(code=1008)
                     break
                 session = str(data["callSid"])
+                awaiting_recording_consent = bool(tenant.get("_recording_offer"))
                 continue
             if kind == "prompt" and data.get("last") is True:
                 prompt = str(data.get("voicePrompt") or "").strip()[:1000]
                 if not prompt:
                     continue
+                if awaiting_recording_consent:
+                    awaiting_recording_consent = False
+                    if RECORDING_CONSENT.fullmatch(prompt):
+                        succeeded = await begin_recording(session, tenant)
+                        await websocket.send_json({
+                            "type": "text",
+                            "token": (
+                                "Thank you. Recording has started. How can I help?"
+                                if succeeded else
+                                "Recording could not be started, so this call will continue without recording. How can I help?"
+                            ),
+                            "last": True,
+                        })
+                        continue
+                    # An ordinary first enquiry is not consent. This call will
+                    # continue without recording. No implicit YES parsing.
+                    await db.pool().execute(
+                        """UPDATE phone_calls SET recording_consent=$2
+                           WHERE call_sid=$1 AND recording_consent='not_requested'""",
+                        session, RECORDING_DECLINE,
+                    )
                 turns += 1
                 if turns > MAX_TURNS:
                     await websocket.send_json({
