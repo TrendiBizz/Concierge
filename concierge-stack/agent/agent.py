@@ -23,6 +23,7 @@ import booking
 import crm
 import notify
 import transcripts
+import tenant_dispatch
 from livekit import api, rtc
 from livekit.agents import (
     Agent,
@@ -545,6 +546,24 @@ class CallGuard:
 
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
+    # Opt-in hardened ingress. Keep the existing Trendi production worker unchanged
+    # until a trusted SIP dispatcher and customer-isolated tool backends are certified.
+    if os.environ.get("VOICE_REQUIRE_SIGNED_DISPATCH", "false").lower() == "true":
+        sip = [p for p in ctx.room.remote_participants.values()
+               if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP]
+        if len(sip) != 1:
+            raise tenant_dispatch.DispatchDenied("Exactly one authenticated SIP participant required")
+        attributes = sip[0].attributes
+        binding = tenant_dispatch.validate_session(
+            ctx.room.name,
+            ctx.room.metadata or "",
+            attributes.get("sip.calledNumber", ""),
+            attributes.get("sip.trunkID", ""),
+        )
+        # This legacy agent's tools, bookings, CRM and mailer are Trendi-specific.
+        # Do NOT expose them to other tenants just because the SIP envelope validates.
+        if binding.tenant_id != os.environ.get("VOICE_LEGACY_TENANT_ID", ""):
+            raise tenant_dispatch.DispatchDenied("Customer-specific voice tools not provisioned")
     turn_detection = xai.realtime.TurnDetection(
         type="server_vad", threshold=VAD_THRESHOLD, prefix_padding_ms=300, silence_duration_ms=200
     )
