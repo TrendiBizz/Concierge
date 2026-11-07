@@ -10,10 +10,11 @@ use rand::RngCore;
 use serde::Deserialize;
 
 const CALLBACK: &str = "/owner/social/oauth/callback";
-const FB_SCOPE: &str = "pages_show_list,pages_manage_posts,pages_read_engagement";
+const FB_SCOPE: &str =
+    "pages_show_list,pages_manage_posts,pages_read_engagement,business_management";
 const IG_SCOPE: &str = "instagram_business_basic,instagram_business_content_publish";
 const IG_FACEBOOK_SCOPE: &str =
-    "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish";
+    "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,business_management";
 
 #[derive(Clone)]
 pub struct Config {
@@ -43,6 +44,16 @@ struct PageList {
     data: Vec<Page>,
     #[serde(default)]
     paging: Option<serde_json::Value>,
+}
+#[derive(Deserialize)]
+struct PageIdsList {
+    data: Vec<PageIdOnly>,
+    #[serde(default)]
+    paging: Option<serde_json::Value>,
+}
+#[derive(Deserialize)]
+struct PageIdOnly {
+    id: String,
 }
 #[derive(Deserialize)]
 struct IgProfile {
@@ -163,6 +174,43 @@ async fn discover_selected_pages(
     }
     let granular = authorized_page_candidates(grant);
     let mut selected = granular.clone();
+    // Business Portfolio Pages often do not appear in /me/accounts.
+    // Only query the assigned-pages edge when Meta has actually granted
+    // business_management; never infer the grant from the requested scope.
+    let business_granted = grant.scopes.iter().any(|v| v == "business_management");
+    if business_granted {
+        let response = http
+            .get(format!("{graph}/me/assigned_pages"))
+            .query(&[("fields", "id,name,tasks"), ("limit", "100")])
+            .bearer_auth(user_token)
+            .send()
+            .await
+            .map_err(|_| "Meta business Page discovery unavailable")?;
+        if response.status().is_success() {
+            let list: PageIdsList = response
+                .json()
+                .await
+                .map_err(|_| "Meta business Page discovery invalid")?;
+            if list
+                .paging
+                .as_ref()
+                .is_some_and(|p| p.get("next").is_some())
+            {
+                return Err("Meta business Page pagination requires review".into());
+            }
+            for entry in list.data {
+                if !entry.id.is_empty()
+                    && entry.id.len() <= 30
+                    && entry.id.bytes().all(|v| v.is_ascii_digit())
+                    && (granular.is_empty() || granular.contains(&entry.id))
+                    && !selected.contains(&entry.id)
+                {
+                    selected.push(entry.id);
+                }
+            }
+        }
+        // A denied assigned_pages request never authorizes additional IDs.
+    }
     let operator = std::env::var("SOCIAL_FACEBOOK_PAGE_HINTS").unwrap_or_default();
     for id in operator_page_candidates(&operator, customer) {
         if !granular.is_empty() && !granular.contains(&id) {
@@ -176,6 +224,8 @@ async fn discover_selected_pages(
         return Err("Too many selected Facebook Pages for safe discovery".into());
     }
     let mut result = Vec::new();
+    let mut refused = 0usize;
+    let mut no_page_token = 0usize;
     for id in selected {
         let response = http
             .get(format!("{graph}/{id}"))
@@ -185,14 +235,27 @@ async fn discover_selected_pages(
             .await
             .map_err(|_| "Facebook Page lookup unavailable")?;
         if !response.status().is_success() {
-            // A selected Page still might not be accessible by this user.
-            // Never synthesize a Page token or claim this Page is connected.
+            // Not authorized; do not connect it based on a supplied hint.
+            refused += 1;
             continue;
         }
         if let Ok(page) = response.json::<Page>().await {
             if page.id == id && !page.access_token.is_empty() {
                 result.push(page);
+            } else {
+                no_page_token += 1;
             }
+        }
+    }
+    if result.is_empty() {
+        if no_page_token > 0 {
+            return Err("Meta returned Page without usable Page access token".into());
+        }
+        if refused > 0 {
+            return Err("Meta denied access to selected business Page".into());
+        }
+        if !business_granted {
+            return Err("Meta business_management permission missing for Page discovery".into());
         }
     }
     Ok(result)
@@ -488,6 +551,7 @@ async fn instagram_facebook_finish(
     if !granted.data.is_valid
         || !IG_FACEBOOK_SCOPE
             .split(',')
+            .filter(|required| *required != "business_management")
             .all(|required| granted.data.scopes.iter().any(|actual| actual == required))
     {
         return Err("Instagram Graph API permissions not granted".into());
@@ -817,6 +881,7 @@ mod tests {
         assert!(!started
             .authorization_url
             .contains("instagram_business_content_publish"));
+        assert!(started.authorization_url.contains("business_management"));
     }
     #[test]
     fn page_hint_is_tenant_scoped_and_never_authorization() {
