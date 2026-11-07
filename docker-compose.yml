@@ -89,6 +89,11 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/concierge
       ADMIN_TOKEN: ${ADMIN_TOKEN:?run scripts/gen-env.sh}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://api.localhost}
+      # Social integration is explicitly opt-in. API and Rust sidecar share the
+      # API container's loopback network namespace; no public social port.
+      SOCIAL_SERVICE_ENABLED: ${SOCIAL_SERVICE_ENABLED:-false}
+      SOCIAL_SERVICE_URL: http://127.0.0.1:4390
+      SOCIAL_CONCIERGE_KEY: ${SOCIAL_CONCIERGE_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.x.ai/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -135,6 +140,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # Social OAuth backend (optional): shares the API's loopback namespace.
+  # Configure the git-ignored social.env and matching SOCIAL_CONCIERGE_KEY
+  # in the Compose environment before enabling this profile.
+  social:
+    build: ./concierge-stack/social-service
+    <<: *restart
+    profiles: ["social"]
+    network_mode: "service:api"
+    env_file:
+      - path: ./concierge-stack/social-service/data/social.env
+        required: false
+    environment:
+      SOCIAL_DB: /data/social.db
+      SOCIAL_BIND: 127.0.0.1:4390
+      SOCIAL_ENABLE_PUBLISH: "false"
+    volumes:
+      - social_data:/data
+    depends_on:
+      - api
 
   # ---------------------------------------------------------- automation
   n8n:
@@ -238,6 +263,7 @@ services:
       - kuma_data:/app/data
 
 volumes:
+  social_data:
   caddy_data:
   caddy_config:
   pg_data:
