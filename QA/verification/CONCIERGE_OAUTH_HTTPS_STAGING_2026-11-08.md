@@ -34,7 +34,17 @@ The new tunnel routes only `^/(owner-ui|owner(?:/.*)?)$` to the dedicated stagin
 
 ## Social OAuth backend status
 
-The Rust service was tested locally in earlier commits, but its large Docker release builder pull caused resource contention and was **canceled** to protect production health. The staging public API was not redeployed to enable the social service. The private staging social env file is prepared, but the separate Rust backend is not running here. Provider connection buttons remain unavailable until the private social backend and Meta App Secret are activated. Do not call live Meta OAuth certified.
+The Rust service's large Docker release build was **canceled** to protect production health on the 16 GB Mac. Instead, the already-compiled native Rust binary was started as a dedicated launch agent:
+- `com.trendi.concierge-oauth-social-staging` (on Mac.hub, local `127.0.0.1:4390`)
+- Private startup wrapper `.private/oauth-staging/run-social-staging.sh` with permission 0700
+- Private staging database `.private/oauth-staging/social.db`
+- Secret values read only from `.private/oauth-staging/social.env` with permission 0600
+
+The staging API was recreated **without changing the production API**, using `SOCIAL_SERVICE_ENABLED=true`, `SOCIAL_SERVICE_URL=http://host.docker.internal:4390`, and a matching private API-to-Rust key. Docker's host gateway reaches the native service; publishing is explicitly disabled. End-to-end API-to-Rust provider readiness returned `facebook=true`, `instagram=true`, and other providers false as expected.
+
+The user-supplied SocialSync App Secret has been stored in private staging configuration without disclosure. HTTPS portal and callback both passed public Cloudflare checks, and production `/healthz` returned 200. **Provider readiness means credentials and configuration are present, not that Meta has accepted the redirect or customer consent.** Before final certification, use an authorized real account to complete the Meta OAuth browser flow, check permissions and account discovery, and test unlink/relink. No live posting was enabled.
+
+Resource note: Mac.hub had approximately 17 GB swap in use with an idle ~5.2 GB LM Studio model and Docker VM. Do not rebuild the Rust image on this host while production is running without strict resource constraints.
 
 After canceling the large build, the existing production API was checked and returned to `healthy` without restart.
 
@@ -55,7 +65,7 @@ Before using Meta, check both portal and callback return 200, the private API re
 1. In existing SocialSync Meta app (`676274422041376`), Facebook Login > Settings, **add** the exact URL `https://concierge.trendibizz.com/owner/social/oauth/callback` under Valid OAuth Redirect URIs. **Do not delete** `https://trendibizz.github.io/SocialSync/`.
 2. In App Settings > Basic, reveal App Secret and enter it ONLY into the private `SOCIAL_FACEBOOK_CLIENT_SECRET` configuration through an approved secure local process. Never paste into chat or Git.
 3. Confirm SocialSync's Meta app roles, Facebook Page grants, linked Instagram professional account and applicable advanced access / review. Stay in Development mode for the pilot.
-4. Run the Rust social backend in staging with the matching isolated key, then enable only the staging API integration and test tenant-scoped OAuth. Leave publishing disabled.
+4. The native Rust social backend and staging API integration are now active and locally verified. Test real tenant-scoped OAuth in Meta after registering the callback; leave publishing disabled.
 5. Independently certify two customer logins and permissions before production approval.
 
 ## Rollback without affecting live CRM/chat
