@@ -43,6 +43,62 @@ class SocialOwnerTests(unittest.TestCase):
                                  "/v1/customers/customer-one/accounts")
         asyncio.run(run())
 
+    def test_oauth_start_finish_use_authenticated_tenant_and_owner_role(self):
+        async def run(role):
+            identity={"slug":"customer-a","name":"A","tenant_id":"a","role":role}
+            async def current_user(): return identity
+            app.dependency_overrides[owner_auth.current_user]=current_user
+            try:
+                with patch.object(social_bridge,"start_mastodon_oauth",
+                                  new_callable=AsyncMock) as start, \
+                     patch.object(social_bridge,"finish_mastodon_oauth",
+                                  new_callable=AsyncMock) as finish:
+                    start.return_value={"authorization_url":"https://example.org/oauth/authorize",
+                                        "state":"x"*43}
+                    finish.return_value={"account_id":"linked"}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                                 base_url="http://testserver") as client:
+                        first=await client.post("/owner/social/oauth/mastodon/start")
+                        second=await client.post("/owner/social/oauth/mastodon/finish",json={
+                            "state":"x"*43,"code":"test-authorisation-code"})
+                    return first.status_code,second.status_code,start,finish
+            finally:
+                app.dependency_overrides.clear()
+        for denied_role in ("viewer","editor"):
+            first,second,start,finish=asyncio.run(run(denied_role))
+            self.assertEqual((first,second),(403,403))
+            start.assert_not_awaited()
+            finish.assert_not_awaited()
+        first,second,start,finish=asyncio.run(run("owner"))
+        self.assertEqual((first,second),(200,200))
+        self.assertEqual(start.await_args.args[0]["slug"],"customer-a")
+        self.assertEqual(finish.await_args.args[0]["slug"],"customer-a")
+        self.assertEqual(finish.await_args.args[1:],
+                         ("x"*43,"test-authorisation-code"))
+
+    def test_disconnect_is_owner_only(self):
+        async def run(role):
+            identity={"slug":"customer-a","name":"A","tenant_id":"a","role":role}
+            async def current_user(): return identity
+            app.dependency_overrides[owner_auth.current_user]=current_user
+            try:
+                with patch.object(social_bridge,"disconnect_mastodon",
+                                  new_callable=AsyncMock) as disconnect:
+                    disconnect.return_value={"ok":True}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                                 base_url="http://testserver") as client:
+                        response=await client.delete(
+                            "/owner/social/oauth/mastodon/accounts/"+("a"*32))
+                    return response.status_code, disconnect
+            finally:
+                app.dependency_overrides.clear()
+        denied,call=asyncio.run(run("editor"))
+        self.assertEqual(denied,403)
+        call.assert_not_awaited()
+        allowed,call=asyncio.run(run("owner"))
+        self.assertEqual(allowed,200)
+        self.assertEqual(call.await_args.args[0]["slug"],"customer-a")
+
     def test_owner_routes_require_authenticated_session_and_role(self):
         async def run(role):
             identity={"slug":"customer-a","name":"A","tenant_id":"a","role":role}

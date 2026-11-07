@@ -55,7 +55,8 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 </section>
 <section id="social-panel" class="panel" hidden>
 <h2>Social publishing</h2>
-<p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. Account connection is not available until secure OAuth linking has been enabled.</p>
+<p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. OAuth account linking requires an approved Trendi configuration. Your passwords are never entered into Concierge.</p>
+<button type="button" id="social-mastodon-connect" hidden>Connect Mastodon</button>
 <div id="social-accounts" aria-live="polite"></div>
 <form id="social-form" hidden>
 <label for="social-text">Post text</label>
@@ -84,6 +85,20 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 "use strict";
 let bearer = "";
 let currentRole = "";
+let oauthWindow = null;
+let pendingOAuthState = "";
+// The OAuth provider redirects a popup back to this same-origin owner page.
+// Its bearer token never leaves the original owner tab.
+if(window.opener && new URLSearchParams(location.search).has("state")){
+  const params=new URLSearchParams(location.search);
+  window.opener.postMessage({
+    type:"concierge-oauth-mastodon",
+    state:params.get("state")||"",
+    code:params.get("code")||"",
+    error:params.get("error")||""
+  },location.origin);
+  window.close();
+}
 const $ = id => document.getElementById(id);
 function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
 function node(tag,text,cls){const el=document.createElement(tag);el.textContent=String(text??"");if(cls)el.className=cls;return el;}
@@ -128,6 +143,43 @@ $("logout").addEventListener("click",async()=>{
  clear($("drafts"));message("Signed out.");
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
+$("social-mastodon-connect").addEventListener("click", async ()=>{
+ if(currentRole!=="owner" || pendingOAuthState)return;
+ // Open synchronously during the trusted click to avoid popup blockers.
+ const popup=window.open("about:blank","concierge-mastodon-oauth","width=620,height=760");
+ if(!popup){message("Allow popups for this Concierge page to connect Mastodon.",true);return;}
+ oauthWindow=popup;
+ try{
+   const start=await request("/owner/social/oauth/mastodon/start","POST");
+   const u=new URL(start.authorization_url);
+   if(u.protocol!=="https:" || u.username || u.password ||
+      !start.state || start.state.length<32)throw new Error("Invalid OAuth start response");
+   pendingOAuthState=start.state;
+   popup.location.href=u.href;
+ }catch(error){
+   popup.close();oauthWindow=null;pendingOAuthState="";
+   message("Mastodon linking is not available: "+error.message,true);
+ }
+});
+window.addEventListener("message",async event=>{
+ if(event.origin!==location.origin || !oauthWindow ||
+    event.source!==oauthWindow || event.data?.type!=="concierge-oauth-mastodon")return;
+ const data=event.data;
+ if(!pendingOAuthState || data.state!==pendingOAuthState){
+   message("Social connection rejected: OAuth session does not match.",true);return;
+ }
+ pendingOAuthState="";
+ oauthWindow.close();oauthWindow=null;
+ if(data.error || !data.code){
+   message("Social account authorization was cancelled or denied.",true);return;
+ }
+ try{
+   await request("/owner/social/oauth/mastodon/finish","POST",
+     {state:data.state,code:data.code});
+   await refreshSocial();
+   message("Mastodon account connected. Posting remains disabled until separately approved.");
+ }catch(error){message("Account connection failed: "+error.message,true);}
+});
 $("social-refresh").addEventListener("click",()=>refreshSocial().catch(err=>message(err.message,true)));
 $("social-form").addEventListener("submit",async event=>{
  event.preventDefault();
@@ -147,6 +199,7 @@ $("social-form").addEventListener("submit",async event=>{
 async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
+  $("social-mastodon-connect").hidden=!status.enabled||currentRole!=="owner";
   if(!status.enabled)return;
   const [accounts,posts]=await Promise.all([
     request("/owner/social/accounts"),request("/owner/social/posts")
@@ -155,12 +208,24 @@ async function refreshSocial(){
   $("social-form").hidden=currentRole==="viewer"||!accounts.length;
   if(!accounts.length){
     $("social-accounts").appendChild(node("p",
-      "No social accounts are connected. Secure OAuth linking is still awaiting activation.","muted"));
+      "No social accounts connected yet. Use Connect Mastodon when linking is configured.","muted"));
   }else{
     for(const account of accounts){
       $("social-accounts").appendChild(node("p",
          account.network+" — "+account.display_name+
-         (account.needs_reauth?" (reconnection required)":"")));
+         (account.needs_reauth?" (disconnected or reconnection required)":"")));
+      if(account.network==="mastodon" && currentRole==="owner" && !account.needs_reauth){
+        const disconnect=node("button","Disconnect "+account.display_name,"danger");
+        disconnect.addEventListener("click",async()=>{
+          if(!confirm("Revoke this account's access at Mastodon and disconnect it from Concierge?"))return;
+          try{
+            await request("/owner/social/oauth/mastodon/accounts/"+
+              encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Account access revoked and disconnected.");
+          }catch(error){message("Could not verify revocation: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(disconnect);
+      }
       if(!account.needs_reauth){
         const option=node("option",account.network+" — "+account.display_name);
         option.value=account.id;$("social-account").appendChild(option);

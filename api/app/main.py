@@ -1514,6 +1514,32 @@ async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
             "live_publishing": False}
 
 
+class OwnerOAuthCallback(BaseModel):
+    state: str = Field(min_length=32, max_length=256)
+    code: str = Field(min_length=1, max_length=2048)
+
+
+@app.post("/owner/social/oauth/mastodon/start")
+async def owner_social_mastodon_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_mastodon_oauth(user)
+
+
+@app.post("/owner/social/oauth/mastodon/finish")
+async def owner_social_mastodon_finish(body: OwnerOAuthCallback,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_mastodon_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/mastodon/accounts/{account_id}")
+async def owner_social_mastodon_disconnect(
+    account_id: str, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_mastodon(user, account_id)
+
+
 @app.get("/owner/social/accounts")
 async def owner_social_accounts(user: dict = Depends(owner_auth.current_user)):
     return await social_bridge.accounts(user)
