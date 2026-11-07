@@ -93,6 +93,43 @@ class SocialOwnerTests(unittest.TestCase):
                 self.assertEqual(call.await_count,3)  # tenant readiness and draft, then readiness on rejected draft
         asyncio.run(run())
 
+    def test_first_time_parallel_social_provisioning_is_idempotent(self):
+        async def run():
+            tenant = {"slug":"new-business","name":"New Business","role":"owner"}
+            created = False
+            async def backend(method, path, data=None):
+                nonlocal created
+                if path == "/v1/customers/new-business/rules":
+                    if not created:
+                        raise HTTPException(404, "Customer not found")
+                    return {}
+                if method == "POST" and path == "/v1/customers":
+                    await asyncio.sleep(0)
+                    if created:
+                        raise HTTPException(409, "Duplicate customer")
+                    created = True
+                    return {}
+                if path.endswith("/accounts") or path.endswith("/posts"):
+                    return []
+                raise AssertionError((method,path))
+            with patch.object(social_bridge, "_request", side_effect=backend):
+                a,b=await asyncio.gather(social_bridge.accounts(tenant),social_bridge.posts(tenant))
+                self.assertEqual((a,b),([],[]))
+        asyncio.run(run())
+
+    def test_provisioning_error_without_existing_tenant_is_not_suppressed(self):
+        async def run():
+            tenant={"slug":"new-business","name":"New Business"}
+            async def backend(method,path,data=None):
+                if method == "POST":
+                    raise HTTPException(409,"Conflict")
+                raise HTTPException(404,"Not found")
+            with patch.object(social_bridge,"_request",side_effect=backend):
+                with self.assertRaises(HTTPException) as error:
+                    await social_bridge.accounts(tenant)
+                self.assertEqual(error.exception.status_code,404)
+        asyncio.run(run())
+
     def test_disabled_by_default(self):
         with patch.object(social_bridge, "get_settings",
                           return_value=SimpleNamespace(

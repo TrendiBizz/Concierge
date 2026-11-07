@@ -60,10 +60,18 @@ async def ensure_tenant(tenant: dict) -> str:
     except HTTPException as exc:
         if exc.status_code != 404:
             raise
-        await _request("POST", "/v1/customers", {
-            "id": slug, "name": tenant["name"],
-            "approval_contact": "",  # not inferred from a user's email
-        })
+        try:
+            await _request("POST", "/v1/customers", {
+                "id": slug, "name": tenant["name"],
+                "approval_contact": "",  # not inferred from a user's email
+            })
+        except HTTPException as create_exc:
+            if create_exc.status_code not in (400, 409):
+                raise
+            # Parallel requests for posts and accounts can race to provision a
+            # new business. Treat the conflict as success ONLY if the exact
+            # authenticated tenant now exists. Never accept a bare conflict.
+            await _request("GET", f"/v1/customers/{slug}/rules")
     return slug
 
 
