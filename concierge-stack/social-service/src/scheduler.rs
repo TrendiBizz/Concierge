@@ -37,8 +37,10 @@ pub async fn run_due(
             if let Ok((network, _, _, _, expiry)) =
                 store.refresh_candidate(&post.customer_id, account_id)
             {
-                if matches!(network.as_str(), "instagram" | "linkedin")
-                    && expiry.is_some_and(|deadline| deadline <= now + 7 * 86400)
+                if matches!(
+                    network.as_str(),
+                    "instagram" | "linkedin" | "google_business"
+                ) && expiry.is_some_and(|deadline| deadline <= now + 7 * 86400)
                     && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
                         .await
                         .is_err()

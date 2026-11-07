@@ -5,6 +5,8 @@
 pub mod api;
 pub mod bluesky;
 pub mod connector;
+pub mod google_business;
+pub mod google_business_publish;
 pub mod guardrails;
 pub mod linkedin;
 pub mod meta;

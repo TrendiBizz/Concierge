@@ -40,7 +40,7 @@ class SocialOwnerTests(unittest.TestCase):
                 app.dependency_overrides.clear()
         result = asyncio.run(run())
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.json()["providers"], {"linkedin": True, "mastodon": False, "facebook": False, "instagram": False})
+        self.assertEqual(result.json()["providers"], {"linkedin": True, "mastodon": False, "facebook": False, "instagram": False, "google_business": False})
         self.assertNotIn("never-return", result.text)
 
     def test_meta_connect_finish_unlink_and_renew_are_owner_only(self):

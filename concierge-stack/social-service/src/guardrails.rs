@@ -77,6 +77,10 @@ fn rule(label: &str, limit: usize, max_media: Option<usize>) -> PlatformRule {
 pub fn default_platforms() -> BTreeMap<String, PlatformRule> {
     let mut m = BTreeMap::new();
     m.insert("linkedin".to_string(), rule("LinkedIn", 3000, Some(9)));
+    m.insert(
+        "google_business".to_string(),
+        rule("Google Business Profile", 1500, Some(0)),
+    );
     m.insert("facebook".to_string(), rule("Facebook", 63206, Some(10)));
     m.insert(
         "instagram".to_string(),

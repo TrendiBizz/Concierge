@@ -78,6 +78,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <section id="social-panel" class="panel" hidden>
 <h2>Social publishing</h2>
 <p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. OAuth account linking requires an approved Trendi configuration. Your passwords are never entered into Concierge.</p>
+<button type="button" id="social-google_business-connect" hidden>Connect Google Business Profile</button>
 <button type="button" id="social-facebook-connect" hidden>Connect Facebook Pages</button>
 <button type="button" id="social-instagram-connect" hidden>Connect Instagram</button>
 <button type="button" id="social-mastodon-connect" hidden>Connect Mastodon</button>
@@ -177,7 +178,7 @@ $("logout").addEventListener("click",async()=>{
  message("Signed out.");
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
-function socialOAuthPath(provider){return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+provider;}
+function socialOAuthPath(provider){return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+(provider==="google_business"?"google":provider);}
 async function startSocialOAuth(provider){
  if(currentRole!=="owner")return;
  if(oauthWindow && !oauthWindow.closed && pendingOAuthState){
@@ -201,6 +202,7 @@ async function startSocialOAuth(provider){
    message(provider+" linking is not available: "+error.message,true);
  }
 }
+$("social-google_business-connect").addEventListener("click",()=>startSocialOAuth("google_business"));
 $("social-facebook-connect").addEventListener("click",()=>startSocialOAuth("facebook"));
 $("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("instagram"));
 $("social-mastodon-connect").addEventListener("click",()=>startSocialOAuth("mastodon"));
@@ -323,6 +325,9 @@ async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
   const canLink=status.enabled&&currentRole==="owner";
+  $("social-google_business-connect").hidden=!canLink;
+  $("social-google_business-connect").disabled=!status.providers?.google_business;
+  $("social-google_business-connect").title=status.providers?.google_business?"Connect a Google Business Profile":"Google developer project / Business Profile API not configured";
   $("social-facebook-connect").hidden=!canLink;
   $("social-instagram-connect").hidden=!canLink;
   $("social-facebook-connect").disabled=!status.providers?.facebook;
@@ -337,8 +342,8 @@ async function refreshSocial(){
   $("social-linkedin-connect").title=status.providers?.linkedin?"Connect LinkedIn":"Operator must configure and verify LinkedIn OAuth first";
   $("social-oauth-readiness").textContent=!status.enabled?
     "Social service is not activated for this business.":
-    ["facebook","instagram","linkedin","mastodon"].filter(p=>!status.providers?.[p]).length?
-    "Account linking needs operator setup for: "+["facebook","instagram","linkedin","mastodon"].filter(p=>!status.providers?.[p]).join(", ")+". Publishing stays off.":
+    ["facebook","instagram","linkedin","mastodon","google_business"].filter(p=>!status.providers?.[p]).length?
+    "Account linking needs operator setup for: "+["facebook","instagram","linkedin","mastodon","google_business"].filter(p=>!status.providers?.[p]).join(", ")+". Publishing stays off.":
     "Account linking is configured. Choose Connect to authorize your account; live publishing still requires separate approval.";
   if(!status.enabled)return;
   const [accounts,posts]=await Promise.all([
@@ -355,7 +360,7 @@ async function refreshSocial(){
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
       if(currentRole==="owner" && !account.needs_reauth && account.expires_at &&
-         ["instagram","linkedin"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
+         ["instagram","linkedin","google_business"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
         const renew=node("button","Renew "+account.display_name,"secondary");
         renew.addEventListener("click",async()=>{
           try{
@@ -364,6 +369,17 @@ async function refreshSocial(){
           }catch(error){message("Token renewal not available: "+error.message+". Reconnect the account if needed.",true);}
         });
         $("social-accounts").appendChild(renew);
+      }
+      if(account.network==="google_business" && currentRole==="owner" && !account.needs_reauth){
+        const unlink=node("button","Disconnect "+account.display_name,"danger");
+        unlink.addEventListener("click",async()=>{
+          if(!confirm("Disconnect this business location from Concierge?"))return;
+          try{
+            await request(socialOAuthPath(account.network)+"/accounts/"+encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Google Business location disconnected locally. Remove Trendi access in your Google Account if desired.");
+          }catch(error){message("Google Business disconnection failed: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(unlink);
       }
       if(["facebook","instagram"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
         const unlink=node("button","Disconnect "+account.display_name,"danger");

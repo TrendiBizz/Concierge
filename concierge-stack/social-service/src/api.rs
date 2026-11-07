@@ -116,6 +116,7 @@ struct OAuthProviders {
     mastodon: bool,
     facebook: bool,
     instagram: bool,
+    google_business: bool,
     callback_path: &'static str,
 }
 
@@ -135,6 +136,7 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
         mastodon,
         facebook: crate::meta::from_env("facebook").is_ok(),
         instagram: crate::meta::from_env("instagram").is_ok(),
+        google_business: crate::google_business::from_env().is_ok(),
         callback_path,
     }))
 }
@@ -535,6 +537,51 @@ async fn meta_oauth_disconnect(
     Ok(Json(Health { ok: true }))
 }
 
+async fn google_oauth_start(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::google_business::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Google OAuth not configured",
+        )
+    })?;
+    Ok(Json(
+        crate::google_business::start(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+async fn google_oauth_finish(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<MetaAccounts> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::google_business::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Google OAuth not configured",
+        )
+    })?;
+    let account_ids =
+        crate::google_business::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+            .await
+            .map_err(server_err)?;
+    Ok(Json(MetaAccounts { account_ids }))
+}
+async fn google_oauth_disconnect(
+    State(s): State<AppState>,
+    Path((c, id)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Health> {
+    role(&h, &s, true, Some(&c))?;
+    crate::google_business::disconnect(&s.store, &c, &id).map_err(server_err)?;
+    Ok(Json(Health { ok: true }))
+}
+
 #[derive(Serialize)]
 struct Renewal {
     expires_at: i64,
@@ -555,6 +602,18 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/oauth/providers", get(oauth_providers))
+        .route(
+            "/v1/customers/:c/oauth/google/start",
+            post(google_oauth_start),
+        )
+        .route(
+            "/v1/customers/:c/oauth/google/finish",
+            post(google_oauth_finish),
+        )
+        .route(
+            "/v1/customers/:c/oauth/google/accounts/:id",
+            axum::routing::delete(google_oauth_disconnect),
+        )
         .route("/v1/customers/:c/oauth/renew/:id", post(oauth_renew))
         .route(
             "/v1/customers/:c/oauth/meta/:network/start",

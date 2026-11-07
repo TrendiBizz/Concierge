@@ -43,6 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &origin,
             )?));
         }
+        if std::env::var("SOCIAL_ENABLE_GOOGLE_BUSINESS_PUBLISH").as_deref() == Ok("true") {
+            registry.register(Arc::new(
+                concierge_social::google_business_publish::GoogleBusiness::new(),
+            ));
+        }
         if std::env::var("SOCIAL_ENABLE_FACEBOOK_PUBLISH").as_deref() == Ok("true") {
             let version =
                 std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v24.0".into());

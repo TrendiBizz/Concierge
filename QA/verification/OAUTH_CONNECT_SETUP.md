@@ -26,6 +26,12 @@ The Rust service retains encrypted tokens, and the owner API proxies owner-autho
 4. Verify profile identity, token exchange to long-lived token, refresh, disconnect, and one separately approved image post from a **public HTTPS image URL**.
 5. Confirm Meta App Review and business verification/advanced access needed for customer accounts outside app roles.
 
+**Google Business Profile**
+1. Set up a Trendi Google Cloud OAuth Web Application, exact HTTPS callback, and request scope `https://www.googleapis.com/auth/business.manage` with offline access.
+2. Apply for and enable Google Business Profile API access for the project's OAuth client; verify eligible business locations controlled by authorized test owners.
+3. Private variables: `SOCIAL_GOOGLE_CLIENT_ID`, `SOCIAL_GOOGLE_CLIENT_SECRET`, `SOCIAL_GOOGLE_CALLBACK`. The Rust adapter discovers authorized business accounts and locations, stores encrypted tokens per location, and supports token renewal.
+4. Test a separately approved Standard local post via the Business Profile v4 API. This implementation currently supports text-only Standard updates; media, offers and events need separately verified adapters.
+
 **LinkedIn**
 1. In Trendi's LinkedIn app, activate Sign In with LinkedIn using OpenID Connect and Share on LinkedIn; authorize scopes `openid profile w_member_social`.
 2. Register exact callback and provide private client ID/secret.
@@ -37,7 +43,7 @@ The Rust service retains encrypted tokens, and the owner API proxies owner-autho
 2. Grant `read:accounts write:statuses`; account authorizes itself.
 
 **Other major networks**
-Google Business Profile, TikTok, Bluesky OAuth, and X customer OAuth require additional official adapter development and provider-account approvals. They are NOT certified by the current Meta/LinkedIn/Mastodon service. Do not invent successful integrations or turn on placeholder buttons.
+TikTok, Bluesky OAuth, and X customer OAuth require additional official adapter development and provider-account approvals. Google Business Profile now has a local adapter but still requires live Google API approval and certification. They are NOT certified by the current Meta/LinkedIn/Mastodon service. Do not invent successful integrations or turn on placeholder buttons.
 
 ## Required private configuration
 
@@ -49,12 +55,13 @@ Set these only in the private service environment or the approved secret store (
 - `SOCIAL_FACEBOOK_CLIENT_ID`, `SOCIAL_FACEBOOK_CLIENT_SECRET`, `SOCIAL_FACEBOOK_CALLBACK`.
 - `SOCIAL_INSTAGRAM_CLIENT_ID`, `SOCIAL_INSTAGRAM_CLIENT_SECRET`, `SOCIAL_INSTAGRAM_CALLBACK`.
 - `SOCIAL_META_GRAPH_VERSION` (review and pin a supported API version).
+- `SOCIAL_GOOGLE_CLIENT_ID`, `SOCIAL_GOOGLE_CLIENT_SECRET`, `SOCIAL_GOOGLE_CALLBACK`.
 - `SOCIAL_LINKEDIN_CLIENT_ID`, `SOCIAL_LINKEDIN_CLIENT_SECRET`, `SOCIAL_LINKEDIN_CALLBACK`.
 - `SOCIAL_MASTODON_ORIGIN`, `SOCIAL_MASTODON_CLIENT_ID`, `SOCIAL_MASTODON_CLIENT_SECRET`, `SOCIAL_MASTODON_CALLBACK`.
 
 Concierge API also needs `SOCIAL_SERVICE_ENABLED=true`, `SOCIAL_CONCIERGE_KEY` identical to the Rust service key, and a verified private `SOCIAL_SERVICE_URL` route. Container/host routing must be verified separately.
 
-Keep `SOCIAL_ENABLE_PUBLISH=false` and `SOCIAL_ENABLE_FACEBOOK_PUBLISH=false`, `SOCIAL_ENABLE_INSTAGRAM_PUBLISH=false`, `SOCIAL_ENABLE_LINKEDIN_PUBLISH=false`, `SOCIAL_ENABLE_MASTODON_PUBLISH=false` until separately authorized tests and production approval.
+Keep `SOCIAL_ENABLE_PUBLISH=false` and `SOCIAL_ENABLE_FACEBOOK_PUBLISH=false`, `SOCIAL_ENABLE_INSTAGRAM_PUBLISH=false`, `SOCIAL_ENABLE_GOOGLE_BUSINESS_PUBLISH=false`, `SOCIAL_ENABLE_LINKEDIN_PUBLISH=false`, `SOCIAL_ENABLE_MASTODON_PUBLISH=false` until separately authorized tests and production approval.
 
 ## Acceptance / independent evidence
 

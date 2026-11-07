@@ -44,6 +44,24 @@ pub async fn refresh(
             .send()
             .await
             .map_err(|_| "Instagram renewal unavailable")?,
+        "google_business" => {
+            let sealed =
+                encrypted_refresh.ok_or("Google Business account needs reauthorization")?;
+            let old_refresh = vault.open(&sealed, &label)?;
+            let cfg = crate::google_business::from_env()
+                .map_err(|_| "Google Business OAuth not configured")?;
+            client
+                .post("https://oauth2.googleapis.com/token")
+                .form(&[
+                    ("grant_type", "refresh_token"),
+                    ("refresh_token", old_refresh.as_str()),
+                    ("client_id", cfg.client_id.as_str()),
+                    ("client_secret", cfg.secret.as_str()),
+                ])
+                .send()
+                .await
+                .map_err(|_| "Google Business renewal unavailable")?
+        }
         "linkedin" => {
             let sealed = encrypted_refresh
                 .ok_or("LinkedIn account requires reconnection (refresh permission unavailable)")?;
@@ -73,6 +91,15 @@ pub async fn refresh(
         .map_err(|_| "Invalid provider renewal response")?;
     if token.access_token.is_empty() || !(1..=5_184_000).contains(&token.expires_in) {
         return Err("Invalid renewed token expiry".into());
+    }
+    if network == "google_business"
+        && token.scope.as_deref().is_some_and(|scope| {
+            !scope
+                .split_whitespace()
+                .any(|v| v == "https://www.googleapis.com/auth/business.manage")
+        })
+    {
+        return Err("Google Business permission was not renewed".into());
     }
     // LinkedIn must retain the posting scope; token renewal cannot silently narrow rights.
     if network == "linkedin"
