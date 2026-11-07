@@ -16,6 +16,7 @@ pub mod oauth;
 pub mod scheduler;
 pub mod social_publish;
 pub mod store;
+pub mod tiktok;
 pub mod token_refresh;
 pub mod vault;
 

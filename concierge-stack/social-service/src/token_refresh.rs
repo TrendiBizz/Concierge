@@ -69,6 +69,22 @@ pub async fn refresh(
                 .await
                 .map_err(|_| "Google Business renewal unavailable")?
         }
+        "tiktok" => {
+            let sealed = encrypted_refresh.ok_or("TikTok refresh credential unavailable")?;
+            let old_refresh = vault.open(&sealed, &label)?;
+            let cfg = crate::tiktok::from_env().map_err(|_| "TikTok OAuth is not configured")?;
+            client
+                .post("https://open.tiktokapis.com/v2/oauth/token/")
+                .form(&[
+                    ("grant_type", "refresh_token"),
+                    ("refresh_token", old_refresh.as_str()),
+                    ("client_key", cfg.client_key.as_str()),
+                    ("client_secret", cfg.client_secret.as_str()),
+                ])
+                .send()
+                .await
+                .map_err(|_| "TikTok renewal unavailable")?
+        }
         "linkedin" => {
             let sealed = encrypted_refresh
                 .ok_or("LinkedIn account requires reconnection (refresh permission unavailable)")?;
@@ -117,6 +133,18 @@ pub async fn refresh(
         })
     {
         return Err("Renewal reduced LinkedIn permissions".into());
+    }
+    if network == "tiktok"
+        && (token
+            .refresh_token
+            .as_ref()
+            .is_none_or(|refresh| refresh.is_empty())
+            || token
+                .scope
+                .as_deref()
+                .is_some_and(|scopes| !scopes.split(',').any(|s| s == "user.info.basic")))
+    {
+        return Err("TikTok refresh token or basic grant missing".into());
     }
     let next = vault.seal(&token.access_token, &label)?;
     let rotated = token

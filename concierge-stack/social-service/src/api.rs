@@ -52,6 +52,14 @@ fn server_err(msg: String) -> (StatusCode, Json<ErrorBody>) {
     // Return only static, audited descriptions. Never forward provider JSON,
     // raw SQL, authorization codes, access tokens or internal HTTP errors.
     const META_USER_ERRORS: &[&str] = &[
+        "TikTok token exchange unavailable",
+        "TikTok token exchange rejected",
+        "Invalid TikTok token response",
+        "TikTok did not grant valid account access",
+        "TikTok profile verification unavailable",
+        "TikTok profile verification rejected",
+        "Invalid TikTok profile response",
+        "TikTok identity mismatch",
         "Facebook authorization rejected",
         "Facebook long-lived token rejected",
         "Facebook permissions not verified",
@@ -197,6 +205,7 @@ struct OAuthProviders {
     facebook: bool,
     instagram: bool,
     google_business: bool,
+    tiktok: bool,
     callback_path: &'static str,
 }
 
@@ -217,6 +226,7 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
         facebook: crate::meta::from_env("facebook").is_ok(),
         instagram: crate::meta::from_env("instagram").is_ok(),
         google_business: crate::google_business::from_env().is_ok(),
+        tiktok: crate::tiktok::from_env().is_ok(),
         callback_path,
     }))
 }
@@ -617,6 +627,51 @@ async fn meta_oauth_disconnect(
     Ok(Json(Health { ok: true }))
 }
 
+async fn tiktok_oauth_start(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::tiktok::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "TikTok OAuth not configured",
+        )
+    })?;
+    Ok(Json(
+        crate::tiktok::start(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+async fn tiktok_oauth_finish(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<MetaAccounts> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::tiktok::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "TikTok OAuth not configured",
+        )
+    })?;
+    let id = crate::tiktok::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(MetaAccounts {
+        account_ids: vec![id],
+    }))
+}
+async fn tiktok_oauth_disconnect(
+    State(s): State<AppState>,
+    Path((c, id)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Health> {
+    role(&h, &s, true, Some(&c))?;
+    crate::tiktok::disconnect(&s.store, &c, &id).map_err(server_err)?;
+    Ok(Json(Health { ok: true }))
+}
 async fn google_oauth_start(
     State(s): State<AppState>,
     Path(c): Path<String>,
@@ -693,6 +748,18 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/customers/:c/oauth/google/accounts/:id",
             axum::routing::delete(google_oauth_disconnect),
+        )
+        .route(
+            "/v1/customers/:c/oauth/tiktok/start",
+            post(tiktok_oauth_start),
+        )
+        .route(
+            "/v1/customers/:c/oauth/tiktok/finish",
+            post(tiktok_oauth_finish),
+        )
+        .route(
+            "/v1/customers/:c/oauth/tiktok/accounts/:id",
+            axum::routing::delete(tiktok_oauth_disconnect),
         )
         .route("/v1/customers/:c/oauth/renew/:id", post(oauth_renew))
         .route(

@@ -603,11 +603,18 @@ async fn instagram_facebook_finish(
             {
                 return Err("Instagram Page link identity mismatch".into());
             }
+            // Meta's instagram_business_account edge is specifically the
+            // professional account linked to this authorized Page. A separate
+            // /{ig_id}?fields=account_type request is not needed for this edge
+            // and can be denied despite the Page linkage being valid.
             for field in ["instagram_business_account", "connected_instagram_account"] {
                 if let Some(candidate) = value.get(field) {
                     let profile: IgProfile = serde_json::from_value(candidate.clone())
                         .map_err(|_| "Instagram Page link response invalid")?;
-                    found = Some(profile);
+                    if profile.id.is_empty() {
+                        continue;
+                    }
+                    found = Some((profile, field == "instagram_business_account"));
                     break;
                 }
             }
@@ -615,12 +622,19 @@ async fn instagram_facebook_finish(
                 break;
             }
         }
-        let Some(profile) = found else {
+        let Some((profile, professional_edge)) = found else {
             continue;
         };
         check_id(&profile.id)?;
-        // A connected account may be personal. Verify its Graph identity
-        // and professional type with the freshly authorized Page token.
+        if professional_edge {
+            // The returned Page ID and OAuth scope were verified above, and
+            // Meta itself supplied the professional-only Page relationship.
+            // Retain an explicit label if Meta omitted username.
+            eligible.push((profile, page.access_token));
+            continue;
+        }
+        // connected_instagram_account may refer to a personal account.
+        // Only this weaker edge requires the independent account-type query.
         let mut verified_profile = None;
         for access_token in [&page.access_token, &long.access_token] {
             let response = http
@@ -906,6 +920,21 @@ mod tests {
         assert!(can_manage_content(&["PROFILE_PLUS_CREATE_CONTENT".into()]));
         assert!(can_manage_content(&["PROFILE_PLUS_FULL_CONTROL".into()]));
         assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
+    }
+    #[test]
+    fn facebook_page_professional_link_is_distinct_from_generic_connection() {
+        let payload = serde_json::json!({
+            "instagram_business_account": {"id":"17841400000000001","username":"trendi456"},
+            "connected_instagram_account": {"id":"17841400000000002","username":"other"}
+        });
+        let specific: IgProfile =
+            serde_json::from_value(payload["instagram_business_account"].clone()).unwrap();
+        assert_eq!(specific.id, "17841400000000001");
+        assert_eq!(specific.username, "trendi456");
+        // Do not assume the generic connected_instagram_account is professional.
+        let generic: IgProfile =
+            serde_json::from_value(payload["connected_instagram_account"].clone()).unwrap();
+        assert!(generic.account_type.is_none());
     }
     #[test]
     fn meta_professional_account_types_include_media_creator() {

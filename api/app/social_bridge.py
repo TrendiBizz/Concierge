@@ -216,6 +216,27 @@ async def decide(tenant: dict, token: str, approve: bool):
         + ("approve" if approve else "reject"))
 
 
+async def start_tiktok_oauth(tenant: dict):
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/tiktok/start")
+
+
+async def finish_tiktok_oauth(tenant: dict, state: str, code: str):
+    if not POST_ID.fullmatch(state) or not code or len(code) > 2048:
+        raise HTTPException(400, "Invalid OAuth callback")
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/tiktok/finish",
+                          {"state": state, "code": code})
+
+
+async def disconnect_tiktok(tenant: dict, account_id: str):
+    if not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid account identifier")
+    slug = await ensure_tenant(tenant)
+    return await _request("DELETE",
+                          f"/v1/customers/{slug}/oauth/tiktok/accounts/{account_id}")
+
+
 async def start_google_oauth(tenant: dict):
     slug = await ensure_tenant(tenant)
     return await _request("POST", f"/v1/customers/{slug}/oauth/google/start")

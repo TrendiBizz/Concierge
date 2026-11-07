@@ -81,3 +81,14 @@ Keep `SOCIAL_ENABLE_PUBLISH=false` and `SOCIAL_ENABLE_FACEBOOK_PUBLISH=false`, `
 - Final operator approval is required before changing deployment or paying for provider services.
 
 Existing local Rust/Python/browser test results validate code behavior **only**. They are not real provider authorization receipts.
+
+
+## TikTok Login Kit (new Rust customer OAuth implementation, 2026-11-08)
+
+- Register one Trendi TikTok for Developers app at https://developers.tiktok.com .
+- Add Login Kit for Web and register exactly `https://concierge.trendibizz.com/owner/social/oauth/callback`.
+- Add Content Posting API separately, requesting and obtaining approval for `video.publish` before any future posting integration. Publishing is NOT implemented or enabled by the Login Kit account connector alone.
+- Set `SOCIAL_TIKTOK_CLIENT_KEY`, `SOCIAL_TIKTOK_CLIENT_SECRET`, and `SOCIAL_TIKTOK_CALLBACK` only in gitignored private social configuration. Do not put credentials in Concierge browser or Git.
+- The customer uses the Concierge Connect TikTok button, authorizes only `user.info.basic` for account discovery, and the Rust service verifies `open_id` against the official TikTok User Info API.
+- TikTok access and refresh tokens are encrypted per tenant/account, one-time OAuth state is enforced, and token rotation uses the official refresh endpoint. All social publishing remains disabled.
+- Until TikTok application credentials and approved Login Kit permissions are available, the TikTok Connect button stays disabled and cannot be falsely certified as working.
