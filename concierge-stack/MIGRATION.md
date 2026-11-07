@@ -20,13 +20,24 @@ contents, `.env`, `backup.env`, `social.env`, or unencrypted backups into Git.
 
 ## Deployment transition
 
-The old website-worktree copies and local runtime files are deliberately
-preserved until deployment configuration, launchd schedules, external volume
-mounts, DNS/API endpoints and restore paths have been verified. The old path
-may still be used by running services. Merely copying code does not switch a
-running service. Do not delete originals before an authorized cutover and a
-tested rollback. No live social posting or customer messaging is enabled by
-this migration.
+**Code ownership cutover verified on Mac.hub (2026-11-07):** The 142 tracked
+product files were removed from the `trendi-site` branch `concierge-stack`.
+That website checkout no longer contains an active `concierge-stack` tree.
+The private `.env`, `backup.env`, and customer data were checksum-matched to
+the canonical Concierge paths and the old runtime was moved to a local,
+Git-ignored, owner-only `.migration-rollback/` archive inside this directory.
+
+The launchd daily backup and monthly isolated restore jobs now run the
+**Concierge** repository scripts. A new encrypted backup was uploaded from
+the canonical location, then restored successfully, including 121 Twenty
+tables. The voice Python 3.12 environment was independently rebuilt and all
+54 tests passed. Compose config was validated with the private local env.
+
+The running core platform, Twenty, Caddy and Hermes services were preserved,
+not redeployed. Runtime production migration of individual voice/social
+providers, live social publishing, customer messaging, account OAuth,
+multi-customer SIP routing and authorized recording are **not** represented
+as live-certified. They require separate real-provider authorization/tests.
 
 The website retains its design, SEO and minimal widget/API client. It must
 not acquire new backend product sources.
@@ -34,13 +45,12 @@ not acquire new backend product sources.
 Run offline verification from the **Concierge repo root**:
 
 ```sh
-python3 scripts/check-repository-boundary.py --website-root ../trendi-site --allow-legacy
+python3 scripts/check-repository-boundary.py --website-root ../trendi-site
 python3 -m unittest discover -s concierge-stack/tests
 cd concierge-stack/social-service && cargo test --locked
 ```
 
-The transitional allowance must be removed after runtime cutover and removal
-of redundant files from the website repository. Docker Compose needs
+The strict ownership check now passes without any transitional allowance. Docker Compose needs
 customer/private runtime environment files that are never versioned; use
 `docker compose config` with appropriately provided secrets in the
 authorized runtime, not blank production substitutes.

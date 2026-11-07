@@ -10,13 +10,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
-PRODUCT_PREFIXES = (
-    "concierge-stack/agent/",
-    "concierge-stack/social-service/",
-    "concierge-stack/socialsync/",
-    "concierge-stack/hermes/",
-    "concierge-stack/livekit/",
-)
+PRODUCT_PREFIXES = ("concierge-stack/",)
+
 REQUIRED_PATHS = (
     "concierge-stack/agent/agent.py",
     "concierge-stack/social-service/Cargo.toml",

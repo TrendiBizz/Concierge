@@ -35,12 +35,24 @@ restic check --quiet
 echo "Restoring the newest snapshot to a temporary folder..."
 restic restore latest --tag concierge --target "$TMP" --quiet
 
-# The snapshot keeps the staging path that backup.sh used.
-RESTORED="$TMP$DIR/.backup-stage/data"
-if [[ ! -d "$RESTORED" ]]; then
-  echo "FAILED: the restored snapshot has no data folder." >&2
+# Restic retains the absolute staging path from the snapshot. On migration the
+# source directory changes, but old encrypted snapshots must still restore.
+# Inspect the restored tree and accept exactly one stage that has Twenty data.
+STAGE_ROOT=""
+while IFS= read -r candidate; do
+  if [[ -d "$candidate/data" && -d "$candidate/twenty" ]]; then
+    if [[ -n "$STAGE_ROOT" ]]; then
+      echo "FAILED: ambiguous backup staging paths." >&2
+      exit 1
+    fi
+    STAGE_ROOT="$candidate"
+  fi
+done < <(find "$TMP" -type d -name .backup-stage -print)
+if [[ -z "$STAGE_ROOT" ]]; then
+  echo "FAILED: the restored snapshot has no data and Twenty stage." >&2
   exit 1
 fi
+RESTORED="$STAGE_ROOT/data"
 
 FAILED=0
 if [[ -f "$RESTORED/concierge.db" ]]; then
@@ -69,7 +81,7 @@ fi
 
 # Verify Twenty's database can be restored into a fully disposable Postgres instance.
 # Do not connect to the production network, ports, or Docker volumes.
-TWENTY="$TMP$DIR/.backup-stage/twenty"
+TWENTY="$STAGE_ROOT/twenty"
 if [[ ! -s "$TWENTY/database.dump" || ! -d "$TWENTY/storage" ]]; then
   echo "Twenty CRM: database dump or storage missing from encrypted snapshot" >&2
   FAILED=1
@@ -92,7 +104,7 @@ else
     done
     if [[ "$READY" -eq 1 ]] && docker exec "$TEMP_CONTAINER" \
       pg_restore -U postgres -d default --no-owner --no-acl --exit-on-error \
-      /restore/database.dump >/dev/null 2>&1; then
+      /restore/database.dump >"$TMP/pg-restore.log" 2>&1; then
       COUNT="$(docker exec "$TEMP_CONTAINER" psql -U postgres -d default -Atqc \
         "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema');")"
       if [[ "$COUNT" =~ ^[0-9]+$ ]] && (( COUNT > 0 )); then
@@ -103,6 +115,7 @@ else
       fi
     else
       echo "Twenty CRM: isolated PostgreSQL restore failed" >&2
+      grep -E "pg_restore: error:|ERROR:" "$TMP/pg-restore.log" | head -5 >&2 || true
       FAILED=1
     fi
   else
@@ -147,9 +160,9 @@ PY
   fi
 fi
 
-SOCIAL_DB="$TMP$DIR/.backup-stage/social/social.db"
+SOCIAL_DB="$STAGE_ROOT/social/social.db"
 if [[ -f "$SOCIAL_DB" ]]; then
-  if [[ ! -s "$TMP$DIR/.backup-stage/social/social.env" ]]; then
+  if [[ ! -s "$STAGE_ROOT/social/social.env" ]]; then
     echo "social SQLite: vault-key configuration missing from backup" >&2
     FAILED=1
   fi
