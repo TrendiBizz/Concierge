@@ -153,11 +153,11 @@ async def process_twenty_once() -> int:
                 await _twenty_finish(row["id"],"pending","Rate limited",min(300,2**row["attempts"]*15))
             elif response.status_code==200:
                 data=response.json()
-                if data.get("ok") is True and data.get("twenty_id"):
+                if data.get("ok") is True and data.get("twenty_id") and data.get("note") is True:
                     await _twenty_finish(row["id"],"sent")
                 else:
                     await _twenty_finish(row["id"],"uncertain",
-                        "Successful HTTP status but missing confirmed Twenty identifier")
+                        "CRM person or note not fully confirmed; reconcile manually")
             elif response.status_code in (400,401,403,413):
                 await _twenty_finish(row["id"],"failed",
                     f"Bridge rejected request (HTTP {response.status_code})")

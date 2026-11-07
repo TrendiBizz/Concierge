@@ -79,7 +79,7 @@ class TwentyBridgeAdapterTests(unittest.TestCase):
                 "attempts":1}])
             pool.fetchrow=AsyncMock(return_value={"slug":"concierge"})
             response=MagicMock(status_code=200)
-            response.json.return_value={"ok":True,"twenty_id":"id-from-crm"}
+            response.json.return_value={"ok":True,"twenty_id":"id-from-crm","note":True}
             client=AsyncMock()
             client.post.return_value=response
             ctx=AsyncMock()
@@ -92,6 +92,28 @@ class TwentyBridgeAdapterTests(unittest.TestCase):
                 self.assertEqual(count,1)
                 self.assertEqual(client.post.await_args.kwargs["json"]["email"],"jane@example.org")
                 finish.assert_awaited_once_with(1,"sent")
+        asyncio.run(run())
+
+    def test_person_created_but_note_failed_requires_reconciliation(self):
+        async def run():
+            pool=MagicMock()
+            pool.execute=AsyncMock(return_value="UPDATE 1")
+            pool.fetch=AsyncMock(return_value=[{
+                "id":3,"tenant_id":"tid-a","event":"appointment.booked","source_id":"a3",
+                "payload":{"email":"jane@example.org"},"attempts":1}])
+            pool.fetchrow=AsyncMock(return_value={"slug":"concierge"})
+            response=MagicMock(status_code=200)
+            response.json.return_value={"ok":True,"twenty_id":"person-created","note":False}
+            client=AsyncMock()
+            client.post.return_value=response
+            ctx=AsyncMock()
+            ctx.__aenter__.return_value=client
+            with patch.object(events,"get_settings",return_value=self.config), \
+                 patch.object(events.db,"pool",return_value=pool), \
+                 patch.object(events.httpx,"AsyncClient",return_value=ctx), \
+                 patch.object(events,"_twenty_finish",new_callable=AsyncMock) as finish:
+                await events.process_twenty_once()
+                self.assertEqual(finish.await_args.args[1],"uncertain")
         asyncio.run(run())
 
     def test_timeout_requires_manual_reconciliation_no_blind_retry(self):
