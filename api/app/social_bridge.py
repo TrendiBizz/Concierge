@@ -134,3 +134,24 @@ async def disconnect_mastodon(tenant: dict, account_id: str):
         raise HTTPException(400, "Invalid account identifier")
     return await _request("DELETE",
         f"/v1/customers/{slug}/oauth/mastodon/accounts/{account_id}")
+
+
+async def start_linkedin_oauth(tenant: dict):
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/linkedin/start")
+
+
+async def finish_linkedin_oauth(tenant: dict, state: str, code: str):
+    slug = await ensure_tenant(tenant)
+    if not POST_ID.fullmatch(state) or not code or len(code) > 2048:
+        raise HTTPException(400, "Invalid OAuth callback")
+    return await _request("POST", f"/v1/customers/{slug}/oauth/linkedin/finish",
+                          {"state": state, "code": code})
+
+
+async def unlink_linkedin(tenant: dict, account_id: str):
+    slug = await ensure_tenant(tenant)
+    if not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid account identifier")
+    return await _request("DELETE",
+        f"/v1/customers/{slug}/oauth/linkedin/accounts/{account_id}")

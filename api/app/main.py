@@ -1519,6 +1519,27 @@ class OwnerOAuthCallback(BaseModel):
     code: str = Field(min_length=1, max_length=2048)
 
 
+@app.delete("/owner/social/oauth/linkedin/accounts/{account_id}")
+async def owner_social_linkedin_unlink(
+    account_id: str, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.unlink_linkedin(user, account_id)
+
+
+@app.post("/owner/social/oauth/linkedin/start")
+async def owner_social_linkedin_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_linkedin_oauth(user)
+
+
+@app.post("/owner/social/oauth/linkedin/finish")
+async def owner_social_linkedin_finish(body: OwnerOAuthCallback,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_linkedin_oauth(user, body.state, body.code)
+
+
 @app.post("/owner/social/oauth/mastodon/start")
 async def owner_social_mastodon_start(user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")

@@ -99,6 +99,44 @@ class SocialOwnerTests(unittest.TestCase):
         self.assertEqual(allowed,200)
         self.assertEqual(call.await_args.args[0]["slug"],"customer-a")
 
+    def test_linkedin_connect_and_unlink_are_owner_only(self):
+        async def run(role):
+            identity={"slug":"customer-a","name":"A","tenant_id":"a","role":role}
+            async def current_user(): return identity
+            app.dependency_overrides[owner_auth.current_user]=current_user
+            try:
+                with patch.object(social_bridge,"start_linkedin_oauth",
+                                  new_callable=AsyncMock) as start, \
+                     patch.object(social_bridge,"finish_linkedin_oauth",
+                                  new_callable=AsyncMock) as finish, \
+                     patch.object(social_bridge,"unlink_linkedin",
+                                  new_callable=AsyncMock) as unlink:
+                    start.return_value={"authorization_url":"https://www.linkedin.com/oauth/v2/authorization",
+                                        "state":"x"*43}
+                    finish.return_value={"account_id":"linked"}
+                    unlink.return_value={"ok":True}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                                 base_url="http://testserver") as client:
+                        first=await client.post("/owner/social/oauth/linkedin/start")
+                        second=await client.post("/owner/social/oauth/linkedin/finish",json={
+                            "state":"x"*43,"code":"test-code"})
+                        third=await client.delete("/owner/social/oauth/linkedin/accounts/"+("a"*32))
+                    return (first.status_code,second.status_code,third.status_code,
+                            start,finish,unlink)
+            finally:
+                app.dependency_overrides.clear()
+        for denied in ("viewer","editor"):
+            a,b,c,start,finish,unlink=asyncio.run(run(denied))
+            self.assertEqual((a,b,c),(403,403,403))
+            start.assert_not_awaited()
+            finish.assert_not_awaited()
+            unlink.assert_not_awaited()
+        a,b,c,start,finish,unlink=asyncio.run(run("owner"))
+        self.assertEqual((a,b,c),(200,200,200))
+        self.assertEqual(start.await_args.args[0]["slug"],"customer-a")
+        self.assertEqual(finish.await_args.args[1:],("x"*43,"test-code"))
+        self.assertEqual(unlink.await_args.args[1],"a"*32)
+
     def test_owner_routes_require_authenticated_session_and_role(self):
         async def run(role):
             identity={"slug":"customer-a","name":"A","tenant_id":"a","role":role}
