@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Concierge account connection</title></head>
+<body><main><h1>Returning to Concierge</h1><p id="status">Completing account authorization…</p></main>
+<script>
+"use strict";
+(function(){
+ const params=new URLSearchParams(window.location.search);
+ const state=params.get("state")||"";
+ const code=params.get("code")||"";
+ const error=params.get("error")||"";
+ // Only return credentials to the same-origin window that initiated this popup.
+ // Never persist the authorization code or send it to any remote script.
+ if(!window.opener || !/^[A-Za-z0-9_-]{32,256}$/.test(state) ||
+    (code.length>2048 || error.length>256)){
+    document.getElementById("status").textContent="Unable to verify the connection. Return to Concierge and try again.";
+    history.replaceState(null,"",location.pathname);
+    return;
+ }
+ window.opener.postMessage({type:"concierge-social-oauth",state,code,error},location.origin);
+ history.replaceState(null,"",location.pathname);
+ document.getElementById("status").textContent="Authorization returned to Concierge. You can close this window.";
+ window.close();
+})();
+</script></body></html>

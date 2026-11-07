@@ -11,6 +11,38 @@ from app.main import app
 
 
 class SocialOwnerTests(unittest.TestCase):
+    def test_callback_landing_is_public_but_never_exchanges_token(self):
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                         base_url="http://testserver") as client:
+                return await client.get("/owner/social/oauth/callback?state=sample&code=secret")
+        result = asyncio.run(run())
+        self.assertEqual(result.status_code, 200)
+        self.assertIn("no-store", result.headers["cache-control"])
+        self.assertEqual(result.headers["referrer-policy"], "no-referrer")
+        self.assertNotIn("secret", result.text)
+        self.assertIn("window.opener.postMessage", result.text)
+
+    def test_provider_readiness_has_no_secrets(self):
+        async def run():
+            identity = {"slug": "customer-a", "name": "A", "tenant_id": "a", "role": "owner"}
+            async def current_user(): return identity
+            app.dependency_overrides[owner_auth.current_user] = current_user
+            try:
+                with patch("app.main.settings", SimpleNamespace(social_service_enabled=True)), \
+                     patch.object(social_bridge, "provider_status", new_callable=AsyncMock) as status:
+                    status.return_value = {"linkedin": True, "mastodon": False, "hidden_secret": "never-return"}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                                 base_url="http://testserver") as client:
+                        response = await client.get("/owner/social/status")
+                return response
+            finally:
+                app.dependency_overrides.clear()
+        result = asyncio.run(run())
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["providers"], {"linkedin": True, "mastodon": False})
+        self.assertNotIn("never-return", result.text)
+
     def test_disabled_by_default(self):
         with patch.object(social_bridge, "get_settings",
                           return_value=SimpleNamespace(

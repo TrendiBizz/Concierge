@@ -80,6 +80,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. OAuth account linking requires an approved Trendi configuration. Your passwords are never entered into Concierge.</p>
 <button type="button" id="social-mastodon-connect" hidden>Connect Mastodon</button>
 <button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn</button>
+<p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
 <div id="social-accounts" aria-live="polite"></div>
 <form id="social-form" hidden>
 <label for="social-text">Post text</label>
@@ -314,8 +315,18 @@ async function refreshChannelAuthorizations(){
 async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
-  $("social-mastodon-connect").hidden=!status.enabled||currentRole!=="owner";
-  $("social-linkedin-connect").hidden=!status.enabled||currentRole!=="owner";
+  const canLink=status.enabled&&currentRole==="owner";
+  $("social-mastodon-connect").hidden=!canLink;
+  $("social-linkedin-connect").hidden=!canLink;
+  $("social-mastodon-connect").disabled=!status.providers?.mastodon;
+  $("social-linkedin-connect").disabled=!status.providers?.linkedin;
+  $("social-mastodon-connect").title=status.providers?.mastodon?"Connect Mastodon":"Operator must configure and verify Mastodon OAuth first";
+  $("social-linkedin-connect").title=status.providers?.linkedin?"Connect LinkedIn":"Operator must configure and verify LinkedIn OAuth first";
+  $("social-oauth-readiness").textContent=!status.enabled?
+    "Social service is not activated for this business.":
+    ["linkedin","mastodon"].filter(p=>!status.providers?.[p]).length?
+    "Account linking needs operator setup for: "+["linkedin","mastodon"].filter(p=>!status.providers?.[p]).join(", ")+". Publishing stays off.":
+    "Account linking is configured. Choose Connect to authorize your account; live publishing still requires separate approval.";
   if(!status.enabled)return;
   const [accounts,posts]=await Promise.all([
     request("/owner/social/accounts"),request("/owner/social/posts")

@@ -1401,6 +1401,18 @@ async def owner_ui():
     )
 
 
+@app.get("/owner/social/oauth/callback", include_in_schema=False)
+async def owner_social_oauth_callback():
+    # Public landing page only. It cannot exchange a code or authenticate anyone.
+    # The original logged-in tab compares state before exchanging the code itself.
+    return FileResponse(
+        STATIC_DIR / "social-oauth-callback.html", media_type="text/html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate",
+                 "Pragma": "no-cache", "Referrer-Policy": "no-referrer",
+                 "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"},
+    )
+
+
 @app.post("/owner/auth/redeem")
 async def owner_redeem(body: OwnerRedeem):
     try:
@@ -1592,9 +1604,18 @@ class OwnerSocialSchedule(BaseModel):
 
 @app.get("/owner/social/status")
 async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
-    # Does not reveal private keys or backend host information.
+    # No credentials, client IDs, access tokens or backend hostname in the response.
+    providers = {"linkedin": False, "mastodon": False}
+    if settings.social_service_enabled:
+        try:
+            status = await social_bridge.provider_status()
+            providers = {name: status.get(name) is True for name in providers}
+        except HTTPException:
+            pass
     return {"enabled": bool(settings.social_service_enabled),
             "customer": user["slug"],
+            "providers": providers,
+            "callback_path": "/owner/social/oauth/callback",
             "live_publishing": False}
 
 

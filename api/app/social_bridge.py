@@ -67,6 +67,10 @@ async def ensure_tenant(tenant: dict) -> str:
     return slug
 
 
+async def provider_status() -> dict:
+    return await _request("GET", "/v1/oauth/providers")
+
+
 async def accounts(tenant: dict):
     slug = await ensure_tenant(tenant)
     return await _request("GET", f"/v1/customers/{slug}/accounts")

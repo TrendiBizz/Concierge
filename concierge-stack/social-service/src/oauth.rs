@@ -60,6 +60,8 @@ pub fn from_env() -> Result<Config, String> {
         || cb.username() != ""
         || cb.password().is_some()
         || cb.fragment().is_some()
+        || cb.query().is_some()
+        || cb.path() != "/owner/social/oauth/callback"
         || client_id.len() < 8
         || client_secret.len() < 8
     {

@@ -53,6 +53,7 @@ pub fn from_env() -> Result<Config, String> {
         || url.password().is_some()
         || url.fragment().is_some()
         || url.query().is_some()
+        || url.path() != "/owner/social/oauth/callback"
         || client_id.len() < 8
         || client_secret.len() < 8
     {

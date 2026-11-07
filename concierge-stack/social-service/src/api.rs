@@ -109,6 +109,31 @@ struct Health {
 async fn health() -> Json<Health> {
     Json(Health { ok: true })
 }
+
+#[derive(Serialize)]
+struct OAuthProviders {
+    linkedin: bool,
+    mastodon: bool,
+    callback_path: &'static str,
+}
+
+async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<OAuthProviders> {
+    role(&h, &s, true, None)?;
+    let callback_path = "/owner/social/oauth/callback";
+    // Report configured only when the registered redirect targets the real
+    // same-origin Concierge callback. Never expose secrets or client IDs.
+    let linkedin = crate::linkedin::from_env().is_ok_and(|cfg| {
+        reqwest::Url::parse(&cfg.callback).is_ok_and(|url| url.path() == callback_path)
+    });
+    let mastodon = crate::oauth::from_env().is_ok_and(|cfg| {
+        reqwest::Url::parse(&cfg.callback).is_ok_and(|url| url.path() == callback_path)
+    });
+    Ok(Json(OAuthProviders {
+        linkedin,
+        mastodon,
+        callback_path,
+    }))
+}
 #[derive(Deserialize)]
 pub struct CreateCustomer {
     id: String,
@@ -455,6 +480,7 @@ async fn linkedin_disconnect(
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/v1/oauth/providers", get(oauth_providers))
         .route("/v1/customers", post(new_customer))
         .route("/v1/customers/:c/agent-key", post(rotate_agent_key))
         .route("/v1/customers/:c/rules", get(get_rules).put(set_rules))
