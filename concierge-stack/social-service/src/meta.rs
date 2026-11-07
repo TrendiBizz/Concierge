@@ -63,8 +63,97 @@ struct DebugData {
     scopes: Vec<String>,
     #[serde(default)]
     expires_at: Option<i64>,
+    #[serde(default)]
+    granular_scopes: Vec<GranularScope>,
+}
+#[derive(Deserialize)]
+struct GranularScope {
+    scope: String,
+    #[serde(default)]
+    target_ids: Vec<String>,
 }
 
+// Operator-owned Page IDs are *candidates*, never authorizations. Each candidate
+// must be bound to the new OAuth token's Page-level grant and separately checked
+// with Meta before its Page token can be encrypted and stored.
+fn authorized_page_candidates(grant: &DebugData) -> Vec<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    // These granular grants are Meta's binding of the user's OAuth consent to
+    // specific Page resources. No token-free or caller-supplied IDs are trusted.
+    for entry in &grant.granular_scopes {
+        if [
+            "pages_show_list",
+            "pages_manage_posts",
+            "pages_read_engagement",
+        ]
+        .contains(&entry.scope.as_str())
+        {
+            for id in &entry.target_ids {
+                if !id.is_empty() && id.bytes().all(|c| c.is_ascii_digit()) && id.len() <= 30 {
+                    ids.insert(id.clone());
+                }
+            }
+        }
+    }
+    ids.into_iter().collect()
+}
+async fn discover_selected_pages(
+    http: &reqwest::Client,
+    graph: &str,
+    user_token: &str,
+    grant: &DebugData,
+    fields: &str,
+) -> Result<Vec<Page>, String> {
+    let response = http
+        .get(format!("{graph}/me/accounts"))
+        .query(&[("fields", fields), ("limit", "100")])
+        .bearer_auth(user_token)
+        .send()
+        .await
+        .map_err(|_| "Facebook Page lookup unavailable")?;
+    if !response.status().is_success() {
+        return Err("Facebook Page lookup rejected".into());
+    }
+    let listed: PageList = response
+        .json()
+        .await
+        .map_err(|_| "Facebook Page list invalid")?;
+    if listed
+        .paging
+        .as_ref()
+        .is_some_and(|p| p.get("next").is_some())
+    {
+        return Err("Facebook account has too many Pages; pagination not yet supported".into());
+    }
+    if !listed.data.is_empty() {
+        return Ok(listed.data);
+    }
+    let selected = authorized_page_candidates(grant);
+    if selected.len() > 25 {
+        return Err("Too many selected Facebook Pages for safe discovery".into());
+    }
+    let mut result = Vec::new();
+    for id in selected {
+        let response = http
+            .get(format!("{graph}/{id}"))
+            .query(&[("fields", fields)])
+            .bearer_auth(user_token)
+            .send()
+            .await
+            .map_err(|_| "Facebook Page lookup unavailable")?;
+        if !response.status().is_success() {
+            // A selected Page still might not be accessible by this user.
+            // Never synthesize a Page token or claim this Page is connected.
+            continue;
+        }
+        if let Ok(page) = response.json::<Page>().await {
+            if page.id == id && !page.access_token.is_empty() {
+                result.push(page);
+            }
+        }
+    }
+    Ok(result)
+}
 fn random_state() -> String {
     let mut b = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut b);
@@ -329,35 +418,16 @@ async fn instagram_facebook_finish(
     {
         return Err("Instagram Graph API permissions not granted".into());
     }
-    let response = http
-        .get(format!("{graph}/me/accounts"))
-        .query(&[
-            (
-                "fields",
-                "id,name,access_token,tasks,instagram_business_account{id,username}",
-            ),
-            ("limit", "100"),
-        ])
-        .bearer_auth(&long.access_token)
-        .send()
-        .await
-        .map_err(|_| "Meta connected Pages lookup unavailable")?;
-    if !response.status().is_success() {
-        return Err("Meta connected Pages rejected".into());
-    }
-    let pages: PageList = response
-        .json()
-        .await
-        .map_err(|_| "Invalid Meta Pages response")?;
-    if pages
-        .paging
-        .as_ref()
-        .is_some_and(|p| p.get("next").is_some())
-    {
-        return Err("Meta Page pagination requires operator review".into());
-    }
+    let pages = discover_selected_pages(
+        &http,
+        &graph,
+        &long.access_token,
+        &granted.data,
+        "id,name,access_token,tasks,instagram_business_account{id,username}",
+    )
+    .await?;
     let mut eligible = Vec::new();
-    for page in pages.data {
+    for page in pages {
         check_id(&page.id)?;
         let Some(profile) = page.instagram_business_account else {
             continue;
@@ -477,33 +547,19 @@ async fn facebook_finish(
     {
         return Err("Facebook Page permissions not granted".into());
     }
-    let response = http
-        .get(format!("{graph}/me/accounts"))
-        .query(&[("fields", "id,name,access_token,tasks"), ("limit", "100")])
-        .bearer_auth(&long.access_token)
-        .send()
-        .await
-        .map_err(|_| "Facebook Page lookup unavailable")?;
-    if !response.status().is_success() {
-        return Err("Facebook Page lookup rejected".into());
-    }
-    let pages: PageList = response
-        .json()
-        .await
-        .map_err(|_| "Facebook Page list invalid")?;
-    // Fail closed rather than silently omit a second page.
-    if pages
-        .paging
-        .as_ref()
-        .is_some_and(|p| p.get("next").is_some())
-    {
-        return Err("Facebook account has too many Pages; pagination not yet supported".into());
-    }
-    if pages.data.is_empty() {
+    let pages = discover_selected_pages(
+        &http,
+        &graph,
+        &long.access_token,
+        &granted.data,
+        "id,name,access_token,tasks",
+    )
+    .await?;
+    if pages.is_empty() {
         return Err("No authorized Facebook Pages found".into());
     }
     // Validate the entire response before writing any credentials.
-    for page in &pages.data {
+    for page in &pages {
         check_id(&page.id)?;
         if page.access_token.is_empty()
             || page.name.trim().is_empty()
@@ -516,7 +572,7 @@ async fn facebook_finish(
         }
     }
     let mut result = Vec::new();
-    for page in pages.data {
+    for page in pages {
         let label = account_label(customer, "facebook", &page.id);
         let sealed = vault.seal(&page.access_token, &label)?;
         let id = store.upsert_verified_account(VerifiedAccount {
@@ -621,6 +677,33 @@ mod tests {
         assert!(!started
             .authorization_url
             .contains("instagram_business_content_publish"));
+    }
+    #[test]
+    fn page_candidates_require_granular_oauth_grants() {
+        let blank = DebugData {
+            is_valid: true,
+            scopes: vec!["pages_show_list".into()],
+            expires_at: None,
+            granular_scopes: vec![],
+        };
+        assert!(authorized_page_candidates(&blank).is_empty());
+        let allowed = DebugData {
+            granular_scopes: vec![
+                GranularScope {
+                    scope: "pages_show_list".into(),
+                    target_ids: vec!["270235042840463".into(), "../1".into()],
+                },
+                GranularScope {
+                    scope: "unrelated".into(),
+                    target_ids: vec!["123456".into()],
+                },
+            ],
+            ..blank
+        };
+        assert_eq!(
+            authorized_page_candidates(&allowed),
+            vec!["270235042840463".to_string()]
+        );
     }
     #[test]
     fn facebook_scopes_and_url_are_scoped() {
