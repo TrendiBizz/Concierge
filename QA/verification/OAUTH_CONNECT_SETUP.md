@@ -11,13 +11,17 @@ The Rust service retains encrypted tokens, and the owner API proxies owner-autho
 
 ## Developer apps Trendi must control
 
-**Meta Facebook Pages**
-1. Create or open a Trendi Meta Developer app (Facebook Login for Business / Pages).
-2. Provide its Facebook client ID and secret to the approved private secret store.
-3. Register the exact HTTPS callback.
-4. Request `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`; complete Meta verification and app review where required.
-5. Authorize a test user who manages an actual Facebook Page with content-management tasks.
-6. Test list of Pages, linking, disconnection, and a separately approved text-only test post.
+**Meta Facebook Pages — EXISTING APP: SocialSync, App ID `676274422041376`**
+1. Reuse the existing **SocialSync** Meta Developer app (administrator access confirmed by the supplied 2026-11-08 screenshot). It is currently **in Development mode**, has **Type: None**, and shows **no selected business portfolio**. Do not create another app unless Meta proves its existing type/use cases cannot support the needed capabilities. The visible App ID is public and may be recorded in the tracked template; the **App Secret must never be committed**.
+2. Open its dashboard and check that the **Facebook Login for Business/Pages** use case or product can be added. If the app's type prevents it, confirm that limitation in Meta before creating a replacement. Link the appropriate Trendi business portfolio where Meta requires it.
+3. Register the exact OAuth redirect URI that serves the Concierge owner portal. Do not guess the public host name; verify HTTPS reachability first.
+4. Configure app contact email, privacy policy URL, user-data deletion instructions, app domains, and allowed OAuth domains as required by the dashboard. Public privacy terms must accurately describe connected social accounts and tokens before approval.
+5. For initial development tests, authorize an app role/tester who manages a real Facebook Page. Customer accounts outside app roles require Live mode plus App Review/Advanced Access as applicable.
+6. Provide the App Secret only through Mac.hub's private `concierge-stack/social-service/data/social.env` or approved secret store. Its App ID is already preset in the tracked example and local private config.
+
+For Facebook Pages grant `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`. The exact permissions required may vary with Meta's chosen Login product and its dashboard approval flow.
+
+After approving the development permissions, test real Page enumeration, disconnect/reconnect, cross-tenant isolation and an explicitly approved text-only post. Do not enable production customer access while the app remains in Development mode.
 
 **Meta Instagram**
 1. Configure *Instagram API with Instagram Login* in the Meta developer console (may have a distinct Instagram client ID/secret).
