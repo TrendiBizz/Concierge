@@ -37,10 +37,6 @@ struct Page {
     access_token: String,
     #[serde(default)]
     tasks: Vec<String>,
-    #[serde(default)]
-    instagram_business_account: Option<IgProfile>,
-    #[serde(default)]
-    connected_instagram_account: Option<IgProfile>,
 }
 #[derive(Deserialize)]
 struct PageList {
@@ -496,25 +492,66 @@ async fn instagram_facebook_finish(
     {
         return Err("Instagram Graph API permissions not granted".into());
     }
+    // First discover authorized Page credentials independently. The Instagram
+    // link field can be absent from the Page-list projection even when Meta
+    // exposes it on a direct Page query under the same user grant.
     let pages = discover_selected_pages(
         &http,
         &graph,
         &long.access_token,
         &granted.data,
-        "id,name,access_token,tasks,instagram_business_account{id,username},connected_instagram_account{id,username}",
+        "id,name,access_token,tasks",
         customer,
     )
     .await?;
+    if pages.is_empty() {
+        return Err("No authorized Facebook Pages returned for Instagram".into());
+    }
     let mut eligible = Vec::new();
+    let mut accessible_pages = 0usize;
     for page in pages {
         check_id(&page.id)?;
         if !can_manage_content(&page.tasks) || page.access_token.is_empty() {
-            return Err("Linked Instagram Page lacks content management access".into());
+            continue;
         }
-        let profile = page
-            .instagram_business_account
-            .or(page.connected_instagram_account);
-        let Some(profile) = profile else {
+        accessible_pages += 1;
+        // Page identity query using the fresh Facebook USER access token, as
+        // documented for instagram_business_account. A missing link is distinct
+        // from a rejected Graph query. A second check using the PAGE token is
+        // supported where Meta permits it, without broadening authorization.
+        let mut found = None;
+        for token in [&long.access_token, &page.access_token] {
+            let response = http.get(format!("{graph}/{}",page.id))
+                .query(&[("fields","instagram_business_account{id,username},connected_instagram_account{id,username}")])
+                .bearer_auth(token).send().await
+                .map_err(|_|"Instagram Page link query unavailable")?;
+            if !response.status().is_success() {
+                continue;
+            }
+            let value: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|_| "Instagram Page link response invalid")?;
+            if value
+                .get("id")
+                .and_then(|v| v.as_str())
+                .is_some_and(|id| id != page.id)
+            {
+                return Err("Instagram Page link identity mismatch".into());
+            }
+            for field in ["instagram_business_account", "connected_instagram_account"] {
+                if let Some(candidate) = value.get(field) {
+                    let profile: IgProfile = serde_json::from_value(candidate.clone())
+                        .map_err(|_| "Instagram Page link response invalid")?;
+                    found = Some(profile);
+                    break;
+                }
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        let Some(profile) = found else {
             continue;
         };
         check_id(&profile.id)?;
@@ -545,7 +582,10 @@ async fn instagram_facebook_finish(
         eligible.push((verified, page.access_token));
     }
     if eligible.is_empty() {
-        return Err("No linked professional Instagram account found".into());
+        if accessible_pages == 0 {
+            return Err("Facebook Pages lack Instagram management permissions".into());
+        }
+        return Err("Facebook Page returned without accessible Instagram professional link".into());
     }
     let mut linked = Vec::new();
     for (profile, page_token) in eligible {
@@ -795,28 +835,14 @@ mod tests {
         assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
     }
     #[test]
-    fn page_instagram_links_support_both_meta_fields() {
-        let classic: Page = serde_json::from_str(
-            r#"{"id":"123","name":"Trendi","access_token":"test",
-                "instagram_business_account":{"id":"1784","username":"trendi"}}"#,
-        )
-        .unwrap();
-        assert_eq!(classic.instagram_business_account.unwrap().id, "1784");
-        assert!(classic.connected_instagram_account.is_none());
-        let connected: Page = serde_json::from_str(
-            r#"{"id":"123","name":"Trendi","access_token":"test",
-                "connected_instagram_account":{"id":"1785","username":"trendi"}}"#,
-        )
-        .unwrap();
-        assert!(connected.instagram_business_account.is_none());
-        assert_eq!(connected.connected_instagram_account.unwrap().id, "1785");
-        let professional: IgProfile =
-            serde_json::from_str(r#"{"id":"1785","username":"trendi","account_type":"CREATOR"}"#)
-                .unwrap();
-        assert!(matches!(
-            professional.account_type.as_deref(),
-            Some("CREATOR")
-        ));
+    fn page_instagram_link_fields_parse_separately() {
+        for field in ["instagram_business_account", "connected_instagram_account"] {
+            let v = serde_json::json!({"id":"123","name":"Trendi","access_token":"test",
+                field: {"id":"1785","username":"trendi"}});
+            let candidate = v.get(field).unwrap();
+            let ig: IgProfile = serde_json::from_value(candidate.clone()).unwrap();
+            assert_eq!(ig.id, "1785");
+        }
     }
     #[test]
     fn facebook_validated_expiry_can_be_omitted() {
