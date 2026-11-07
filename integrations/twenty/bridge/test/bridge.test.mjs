@@ -24,8 +24,10 @@ function startMock() {
         if (req.headers.authorization !== 'Bearer ' + KEY) return send(401, { error: 'unauthorized' });
         if (req.method === 'GET' && u.pathname === '/rest/people') {
           const f = decodeURIComponent(u.searchParams.get('filter') || '');
-          const hit = state.existingEmail && f.includes(state.existingEmail);
-          return send(200, { data: { people: hit ? [{ id: 'p-existing' }] : [] } });
+          const hitEmail = state.existingEmail && f.includes(state.existingEmail);
+          const hitPhone = state.existingPhone && f.includes('phones.primaryPhoneNumber[eq]:"' + state.existingPhone + '"');
+          if (state.phoneLookupFails && f.includes('phones.primaryPhoneNumber')) return send(500, { error: 'lookup_error' });
+          return send(200, { data: { people: hitEmail || hitPhone ? [{ id: 'p-existing' }] : [] } });
         }
         if (req.method === 'POST' && u.pathname === '/rest/people') return send(state.createStatus || 201, { data: { createPerson: { id: 'p-new' } } });
         if (req.method === 'POST' && u.pathname === '/rest/notes') return state.notesFail ? send(500, { error: 'x' }) : send(201, { data: { createNote: { id: 'n1' } } });
@@ -114,6 +116,27 @@ test('duplicate email: no second person, note still added', async () => {
   assert.equal(j.twenty_id, 'p-existing');
   assert.equal(calls.filter((c) => c.method === 'POST' && c.path === '/rest/people').length, 0);
   assert.equal(calls.find((c) => c.path === '/rest/noteTargets').body.targetPersonId, 'p-existing');
+});
+
+test('phone-only NZ lead reuses matching person rather than creating duplicate', async () => {
+  state.existingPhone = '215550101';
+  const base = await bridge();
+  const r = await post(base, { first_name: 'Ana', phone: '021 555 0101' });
+  const result = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(result.duplicate, true);
+  assert.equal(result.twenty_id, 'p-existing');
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 0);
+  const lookup = calls.find((c) => c.path === '/rest/people' && c.method === 'GET');
+  assert.match(lookup.search, /primaryPhoneCallingCode/);
+});
+
+test('phone lookup failure fails closed before create', async () => {
+  state.phoneLookupFails = true;
+  const base = await bridge();
+  const r = await post(base, { first_name: 'Ana', phone: '021 555 0101' });
+  assert.equal(r.status, 502);
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 0);
 });
 
 test('note failure does not fail the lead', async () => {

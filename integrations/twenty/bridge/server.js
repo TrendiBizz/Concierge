@@ -156,6 +156,28 @@ export function createBridge(opts = {}) {
     return people.length ? people[0] : null;
   }
 
+  // Twenty stores NZ numbers as national digits plus country calling code.
+  // Match both components so numbers from different countries never collide.
+  async function findByPhone(key, phone) {
+    if (!phone) return null;
+    // Other countries are stored as a single E.164 field by createPerson.
+    const nz = phone.startsWith('+64');
+    const national = nz ? phone.slice(3) : phone;
+    const phoneFilter = 'phones.primaryPhoneNumber[eq]:"' + national + '"';
+    const combinedFilter = nz
+      ? 'and(' + phoneFilter + ',phones.primaryPhoneCallingCode[eq]:"+64")'
+      : phoneFilter;
+    const q = '/rest/people?limit=2&filter=' + encodeURIComponent(combinedFilter);
+    const r = await twenty('GET', q, key);
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error('bad_key'), { code: 'bad_key' });
+    if (r.status >= 400) throw new Error('phone_lookup_failed_' + r.status);
+    const people = pick(r.json, 'people');
+    if (!Array.isArray(people)) throw new Error('phone_lookup_invalid_response');
+    // Ambiguous results must never silently select the wrong customer.
+    if (people.length > 1) throw new Error('phone_lookup_ambiguous');
+    return people[0] || null;
+  }
+
   async function createPerson(key, lead) {
     const person = { name: { firstName: lead.first_name, lastName: lead.last_name }, emails: { primaryEmail: lead.email } };
     if (lead.phone) {
@@ -200,7 +222,7 @@ export function createBridge(opts = {}) {
     const key = apiKey();
     if (!key) return send(req, res, 503, { ok: false, error: 'not_configured' });
     try {
-      let person = v.lead.email ? await findByEmail(key, v.lead.email) : null;
+      let person = v.lead.email ? await findByEmail(key, v.lead.email) : await findByPhone(key, v.lead.phone);
       const duplicate = !!person;
       if (!person) person = await createPerson(key, v.lead);
       const note = await addNote(key, person.id, v.lead);
