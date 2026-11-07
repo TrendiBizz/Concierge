@@ -130,6 +130,26 @@ class SocialOwnerTests(unittest.TestCase):
                 self.assertEqual(error.exception.status_code,404)
         asyncio.run(run())
 
+    def test_meta_oauth_errors_are_specific_but_never_leak_provider_data(self):
+        async def run():
+            from httpx import Response, Request
+            with patch.object(social_bridge, "_configuration",
+                              return_value=("http://127.0.0.1:4390", "x"*40)):
+                with patch("httpx.AsyncClient.request", new_callable=AsyncMock) as request:
+                    request.return_value=Response(400, json={"error":"Facebook Page permissions not granted"},
+                        request=Request("POST","http://127.0.0.1:4390/v1/customers/a/oauth/meta/facebook/finish"))
+                    with self.assertRaises(HTTPException) as e:
+                        await social_bridge._request("POST","/v1/customers/a/oauth/meta/facebook/finish",{})
+                    self.assertEqual(e.exception.status_code,400)
+                    self.assertEqual(e.exception.detail,"Facebook Page permissions not granted")
+                    request.return_value=Response(400,json={"error":"SECRET_DO_NOT_LEAK"},
+                        request=Request("POST","http://127.0.0.1:4390/v1/customers/a/oauth/meta/facebook/finish"))
+                    with self.assertRaises(HTTPException) as e:
+                        await social_bridge._request("POST","/v1/customers/a/oauth/meta/facebook/finish",{})
+                    self.assertEqual(e.exception.status_code,400)
+                    self.assertNotIn("SECRET_DO_NOT_LEAK",str(e.exception.detail))
+        asyncio.run(run())
+
     def test_disabled_by_default(self):
         with patch.object(social_bridge, "get_settings",
                           return_value=SimpleNamespace(

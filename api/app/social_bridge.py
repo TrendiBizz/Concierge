@@ -43,8 +43,38 @@ async def _request(method: str, path: str, data: dict | None = None):
         if response.status_code >= 300:
             if response.status_code == 404:
                 raise HTTPException(404, "Social resource not found")
-            if response.status_code in (400, 409):
-                raise HTTPException(409, "Social post cannot be changed in its current state")
+            if response.status_code == 400 and "/oauth/meta/" in path:
+                # Rust only returns audited, static errors for expected Meta
+                # provider failures. Do not forward arbitrary untrusted text.
+                safe = {
+                    "Facebook authorization rejected",
+                    "Facebook long-lived token rejected",
+                    "Facebook permissions not verified",
+                    "Facebook Page permissions not granted",
+                    "Facebook Page lookup rejected",
+                    "No authorized Facebook Pages found",
+                    "Facebook Page lacks content management access",
+                    "Meta authorization rejected",
+                    "Meta long-lived token rejected",
+                    "Meta permission lookup rejected",
+                    "Instagram Graph API permissions not granted",
+                    "Meta connected Pages rejected",
+                    "No linked professional Instagram account found",
+                    "Linked Instagram Page lacks content management access",
+                    "Facebook account has too many Pages; pagination not yet supported",
+                    "Meta Page pagination requires operator review",
+                    "OAuth state expired or invalid",
+                }
+                try:
+                    message = response.json().get("error")
+                except (ValueError, AttributeError):
+                    message = None
+                raise HTTPException(400, message if message in safe
+                                    else "Meta authorization could not be completed")
+            if response.status_code == 400:
+                raise HTTPException(400, "Social request could not be completed")
+            if response.status_code == 409:
+                raise HTTPException(409, "Social action conflicts with its current state")
             raise HTTPException(502, "Social service rejected request")
         return response.json()
     except httpx.HTTPError:

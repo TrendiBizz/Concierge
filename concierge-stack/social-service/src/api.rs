@@ -48,6 +48,31 @@ fn server_err(msg: String) -> (StatusCode, Json<ErrorBody>) {
             "Social action conflicts with current state",
         );
     }
+    // Meta OAuth has several *expected* operator-actionable failures.
+    // Return only static, audited descriptions. Never forward provider JSON,
+    // raw SQL, authorization codes, access tokens or internal HTTP errors.
+    const META_USER_ERRORS: &[&str] = &[
+        "Facebook authorization rejected",
+        "Facebook long-lived token rejected",
+        "Facebook permissions not verified",
+        "Facebook Page permissions not granted",
+        "Facebook Page lookup rejected",
+        "No authorized Facebook Pages found",
+        "Facebook Page lacks content management access",
+        "Meta authorization rejected",
+        "Meta long-lived token rejected",
+        "Meta permission lookup rejected",
+        "Instagram Graph API permissions not granted",
+        "Meta connected Pages rejected",
+        "No linked professional Instagram account found",
+        "Linked Instagram Page lacks content management access",
+        "Facebook account has too many Pages; pagination not yet supported",
+        "Meta Page pagination requires operator review",
+        "OAuth state expired or invalid",
+    ];
+    if META_USER_ERRORS.contains(&msg.as_str()) {
+        return err(StatusCode::BAD_REQUEST, msg);
+    }
     if msg.contains("Guardrails blocked") {
         return err(
             StatusCode::UNPROCESSABLE_ENTITY,
