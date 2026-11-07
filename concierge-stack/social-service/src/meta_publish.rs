@@ -16,6 +16,8 @@ pub struct Facebook {
 }
 pub struct Instagram {
     http: reqwest::Client,
+    version: String,
+    via_facebook: bool,
 }
 fn http() -> reqwest::Client {
     reqwest::Client::builder()
@@ -91,7 +93,28 @@ impl Default for Instagram {
 }
 impl Instagram {
     pub fn new() -> Self {
-        Self { http: http() }
+        let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
+        let via_facebook =
+            std::env::var("SOCIAL_INSTAGRAM_LOGIN_MODE").as_deref() != Ok("instagram");
+        Self {
+            http: http(),
+            version,
+            via_facebook,
+        }
+    }
+    fn graph_endpoint(&self, id: &str, suffix: &str) -> String {
+        if self.via_facebook {
+            format!("https://graph.facebook.com/{}/{id}/{suffix}", self.version)
+        } else {
+            format!("https://graph.instagram.com/{id}/{suffix}")
+        }
+    }
+    fn status_endpoint(&self, id: &str) -> String {
+        if self.via_facebook {
+            format!("https://graph.facebook.com/{}/{id}", self.version)
+        } else {
+            format!("https://graph.instagram.com/{id}")
+        }
     }
 }
 #[async_trait]
@@ -166,7 +189,7 @@ impl Connector for Instagram {
                 "Instagram caption exceeds limit".into(),
             ));
         }
-        let endpoint = format!("https://graph.instagram.com/{}/media", request.external_id);
+        let endpoint = self.graph_endpoint(&request.external_id, "media");
         let response = self
             .http
             .post(endpoint)
@@ -190,7 +213,7 @@ impl Connector for Instagram {
             ));
         }
         // Media processing may be asynchronous; query status before publishing.
-        let status_endpoint = format!("https://graph.instagram.com/{}", container.id);
+        let status_endpoint = self.status_endpoint(&container.id);
         let mut ready = false;
         for _ in 0..6 {
             let result = self
@@ -234,10 +257,7 @@ impl Connector for Instagram {
                 "Instagram media processing not finished; reconcile before retry".into(),
             ));
         }
-        let endpoint = format!(
-            "https://graph.instagram.com/{}/media_publish",
-            request.external_id
-        );
+        let endpoint = self.graph_endpoint(&request.external_id, "media_publish");
         let response = self
             .http
             .post(endpoint)
@@ -282,6 +302,31 @@ mod tests {
             assert!(!safe_media(value), "{value}");
         }
         assert!(safe_media("https://media.example-cdn.com/photo.png"));
+    }
+    #[test]
+    fn instagram_graph_hosts_match_login_product() {
+        let facebook = Instagram {
+            http: http(),
+            version: "v27.0".into(),
+            via_facebook: true,
+        };
+        assert_eq!(
+            facebook.graph_endpoint("123", "media"),
+            "https://graph.facebook.com/v27.0/123/media"
+        );
+        assert_eq!(
+            facebook.status_endpoint("456"),
+            "https://graph.facebook.com/v27.0/456"
+        );
+        let standalone = Instagram {
+            http: http(),
+            version: "v27.0".into(),
+            via_facebook: false,
+        };
+        assert_eq!(
+            standalone.graph_endpoint("123", "media_publish"),
+            "https://graph.instagram.com/123/media_publish"
+        );
     }
     #[test]
     fn identifier_validation() {

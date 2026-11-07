@@ -24,6 +24,13 @@ pub async fn refresh(
 ) -> Result<i64, String> {
     let (network, external_id, encrypted, encrypted_refresh, expiry) =
         store.refresh_candidate(customer, account_id)?;
+    if network == "instagram"
+        && std::env::var("SOCIAL_INSTAGRAM_LOGIN_MODE").as_deref() != Ok("instagram")
+    {
+        return Err(
+            "Facebook-linked Instagram access uses Page permissions; reconnect if revoked".into(),
+        );
+    }
     if expiry.is_some_and(|t| t > crate::now_unix() + 7 * 86400) {
         return Err("Account token does not need renewal yet".into());
     }

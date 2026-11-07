@@ -4,7 +4,9 @@ This is a lightweight service for one Concierge installation serving multiple
 customers. It is not a Postiz fork, translation or derivative. Its connectors
 are implemented against official network API specifications.
 
-## Current status (2026-11-07)
+## Current status (2026-11-08)
+
+**Meta SocialSync alignment:** Existing app ID 676274422041376 has Facebook Login and Instagram Graph API products. The new default is Graph API v27.0 (Meta release 2026-11-04), and Instagram is connected through Facebook Login to a linked professional Instagram account and managed Facebook Page. SOCIAL_INSTAGRAM_LOGIN_MODE=facebook is the default; standalone Instagram Login remains an explicit alternative. Network publishing remains disabled until authorization and real-provider tests. Local tests do not certify Meta approval.
 
 Implemented and tested:
 

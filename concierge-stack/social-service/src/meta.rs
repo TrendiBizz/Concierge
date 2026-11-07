@@ -12,6 +12,8 @@ use serde::Deserialize;
 const CALLBACK: &str = "/owner/social/oauth/callback";
 const FB_SCOPE: &str = "pages_show_list,pages_manage_posts,pages_read_engagement";
 const IG_SCOPE: &str = "instagram_business_basic,instagram_business_content_publish";
+const IG_FACEBOOK_SCOPE: &str =
+    "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish";
 
 #[derive(Clone)]
 pub struct Config {
@@ -20,6 +22,7 @@ pub struct Config {
     pub secret: String,
     pub callback: String,
     pub version: String,
+    pub via_facebook: bool,
 }
 #[derive(Deserialize)]
 struct CodeToken {
@@ -34,6 +37,8 @@ struct Page {
     access_token: String,
     #[serde(default)]
     tasks: Vec<String>,
+    #[serde(default)]
+    instagram_business_account: Option<IgProfile>,
 }
 #[derive(Deserialize)]
 struct PageList {
@@ -66,8 +71,11 @@ fn random_state() -> String {
     URL_SAFE_NO_PAD.encode(b)
 }
 pub fn from_env(network: &'static str) -> Result<Config, String> {
+    let via_facebook = network == "instagram"
+        && std::env::var("SOCIAL_INSTAGRAM_LOGIN_MODE").as_deref() != Ok("instagram");
     let prefix = match network {
         "facebook" => "SOCIAL_FACEBOOK",
+        "instagram" if via_facebook => "SOCIAL_FACEBOOK",
         "instagram" => "SOCIAL_INSTAGRAM",
         _ => return Err("Unsupported Meta provider".into()),
     };
@@ -77,7 +85,7 @@ pub fn from_env(network: &'static str) -> Result<Config, String> {
         .map_err(|_| "Meta OAuth not configured")?;
     let callback =
         std::env::var(format!("{prefix}_CALLBACK")).map_err(|_| "Meta OAuth not configured")?;
-    let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v24.0".into());
+    let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
     let url = reqwest::Url::parse(&callback).map_err(|_| "Invalid Meta callback")?;
     if id.len() < 5
         || secret.len() < 8
@@ -99,6 +107,7 @@ pub fn from_env(network: &'static str) -> Result<Config, String> {
         secret,
         callback,
         version,
+        via_facebook,
     })
 }
 pub fn start(
@@ -115,7 +124,8 @@ pub fn start(
     )?;
     store.oauth_begin(customer, cfg.network, &state, &nonce, 600)?;
     let endpoint = match cfg.network {
-        "instagram" => "https://www.instagram.com/oauth/authorize",
+        "instagram" if !cfg.via_facebook => "https://www.instagram.com/oauth/authorize",
+        "instagram" => "https://www.facebook.com/dialog/oauth",
         "facebook" => "https://www.facebook.com/dialog/oauth",
         _ => return Err("Unsupported Meta provider".into()),
     };
@@ -128,6 +138,8 @@ pub fn start(
             "scope",
             if cfg.network == "facebook" {
                 FB_SCOPE
+            } else if cfg.via_facebook {
+                IG_FACEBOOK_SCOPE
             } else {
                 IG_SCOPE
             },
@@ -241,6 +253,150 @@ async fn instagram_finish(
         granted_scopes: IG_SCOPE,
     })?;
     Ok(vec![id])
+}
+/// Instagram Graph API with Facebook Login (the product installed in SocialSync).
+/// Only Pages containing a linked professional Instagram account are eligible.
+async fn instagram_facebook_finish(
+    store: &Store,
+    vault: &Vault,
+    customer: &str,
+    cfg: &Config,
+    code: &str,
+) -> Result<Vec<String>, String> {
+    let http = client()?;
+    let graph = format!("https://graph.facebook.com/{}", cfg.version);
+    let short_resp = http
+        .get(format!("{graph}/oauth/access_token"))
+        .query(&[
+            ("client_id", cfg.id.as_str()),
+            ("client_secret", cfg.secret.as_str()),
+            ("redirect_uri", cfg.callback.as_str()),
+            ("code", code),
+        ])
+        .send()
+        .await
+        .map_err(|_| "Meta authorization unavailable")?;
+    if !short_resp.status().is_success() {
+        return Err("Meta authorization rejected".into());
+    }
+    let short: CodeToken = short_resp.json().await.map_err(|_| "Invalid Meta token")?;
+    if short.access_token.is_empty() {
+        return Err("Meta token missing".into());
+    }
+    let long_resp = http
+        .get(format!("{graph}/oauth/access_token"))
+        .query(&[
+            ("grant_type", "fb_exchange_token"),
+            ("client_id", cfg.id.as_str()),
+            ("client_secret", cfg.secret.as_str()),
+            ("fb_exchange_token", short.access_token.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|_| "Meta long-lived exchange unavailable")?;
+    if !long_resp.status().is_success() {
+        return Err("Meta long-lived token rejected".into());
+    }
+    let long: CodeToken = long_resp
+        .json()
+        .await
+        .map_err(|_| "Invalid Meta long-lived token")?;
+    if long.access_token.is_empty() || expiry(long.expires_in).is_none() {
+        return Err("Meta token missing expiry".into());
+    }
+    // Verify actual app, scopes and validity, not just authorization dialog text.
+    let app_token = format!("{}|{}", cfg.id, cfg.secret);
+    let debug_resp = http
+        .get(format!("{graph}/debug_token"))
+        .query(&[
+            ("input_token", long.access_token.as_str()),
+            ("access_token", app_token.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|_| "Meta permissions unavailable")?;
+    if !debug_resp.status().is_success() {
+        return Err("Meta permission lookup rejected".into());
+    }
+    let granted: DebugResponse = debug_resp
+        .json()
+        .await
+        .map_err(|_| "Meta permission response invalid")?;
+    if !granted.data.is_valid
+        || !IG_FACEBOOK_SCOPE
+            .split(',')
+            .all(|required| granted.data.scopes.iter().any(|actual| actual == required))
+    {
+        return Err("Instagram Graph API permissions not granted".into());
+    }
+    let response = http
+        .get(format!("{graph}/me/accounts"))
+        .query(&[
+            (
+                "fields",
+                "id,name,access_token,tasks,instagram_business_account{id,username}",
+            ),
+            ("limit", "100"),
+        ])
+        .bearer_auth(&long.access_token)
+        .send()
+        .await
+        .map_err(|_| "Meta connected Pages lookup unavailable")?;
+    if !response.status().is_success() {
+        return Err("Meta connected Pages rejected".into());
+    }
+    let pages: PageList = response
+        .json()
+        .await
+        .map_err(|_| "Invalid Meta Pages response")?;
+    if pages
+        .paging
+        .as_ref()
+        .is_some_and(|p| p.get("next").is_some())
+    {
+        return Err("Meta Page pagination requires operator review".into());
+    }
+    let mut eligible = Vec::new();
+    for page in pages.data {
+        check_id(&page.id)?;
+        let Some(profile) = page.instagram_business_account else {
+            continue;
+        };
+        check_id(&profile.id)?;
+        if !page
+            .tasks
+            .iter()
+            .any(|task| task == "CREATE_CONTENT" || task == "MANAGE")
+            || page.access_token.is_empty()
+        {
+            return Err("Linked Instagram Page lacks content management access".into());
+        }
+        eligible.push((profile, page.access_token));
+    }
+    if eligible.is_empty() {
+        return Err("No linked professional Instagram account found".into());
+    }
+    let mut linked = Vec::new();
+    for (profile, page_token) in eligible {
+        let label = account_label(customer, "instagram", &profile.id);
+        let sealed = vault.seal(&page_token, &label)?;
+        let id = store.upsert_verified_account(VerifiedAccount {
+            customer,
+            network: "instagram",
+            external_id: &profile.id,
+            display_name: if profile.username.trim().is_empty() {
+                "Instagram professional account"
+            } else {
+                &profile.username
+            },
+            token_enc: &sealed,
+            refresh_enc: None,
+            expires_at: None,
+            granted_scopes: IG_FACEBOOK_SCOPE,
+        })?;
+        linked.push(id);
+    }
+    Ok(linked)
 }
 async fn facebook_finish(
     store: &Store,
@@ -391,6 +547,9 @@ pub async fn finish(
     }
     let _ = store.oauth_consume(customer, cfg.network, state)?;
     match cfg.network {
+        "instagram" if cfg.via_facebook => {
+            instagram_facebook_finish(store, vault, customer, cfg, code).await
+        }
         "instagram" => instagram_finish(store, vault, customer, cfg, code).await,
         "facebook" => facebook_finish(store, vault, customer, cfg, code).await,
         _ => Err("Unsupported Meta provider".into()),
@@ -425,7 +584,8 @@ mod tests {
             id: "123456".into(),
             secret: "some-secret".into(),
             callback: "https://example.com/owner/social/oauth/callback".into(),
-            version: "v24.0".into(),
+            version: "v27.0".into(),
+            via_facebook: false,
         };
         let a = start(&store, &vault, "a", &cfg).unwrap();
         assert!(a
@@ -435,6 +595,32 @@ mod tests {
         assert!(store.oauth_consume("a", "facebook", &a.state).is_err());
         assert!(store.oauth_consume("a", "instagram", &a.state).is_ok());
         assert!(store.oauth_consume("a", "instagram", &a.state).is_err());
+    }
+    #[test]
+    fn socialsync_uses_facebook_login_for_linked_instagram() {
+        let store = Store::open_memory().unwrap();
+        let vault =
+            Vault::from_base64_key(&base64::engine::general_purpose::STANDARD.encode([9u8; 32]))
+                .unwrap();
+        store.create_customer("a", "A", "").unwrap();
+        let cfg = Config {
+            network: "instagram",
+            id: "676274422041376".into(),
+            secret: "some-secret".into(),
+            callback: "https://example.com/owner/social/oauth/callback".into(),
+            version: "v27.0".into(),
+            via_facebook: true,
+        };
+        let started = start(&store, &vault, "a", &cfg).unwrap();
+        assert!(started
+            .authorization_url
+            .starts_with("https://www.facebook.com/dialog/oauth"));
+        assert!(started
+            .authorization_url
+            .contains("instagram_content_publish"));
+        assert!(!started
+            .authorization_url
+            .contains("instagram_business_content_publish"));
     }
     #[test]
     fn facebook_scopes_and_url_are_scoped() {
@@ -448,7 +634,8 @@ mod tests {
             id: "123456".into(),
             secret: "some-secret".into(),
             callback: "https://example.com/owner/social/oauth/callback".into(),
-            version: "v24.0".into(),
+            version: "v27.0".into(),
+            via_facebook: false,
         };
         let a = start(&store, &vault, "a", &cfg).unwrap();
         assert!(a.authorization_url.contains("pages_manage_posts"));

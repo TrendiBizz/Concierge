@@ -23,12 +23,13 @@ For Facebook Pages grant `pages_show_list`, `pages_manage_posts`, `pages_read_en
 
 After approving the development permissions, test real Page enumeration, disconnect/reconnect, cross-tenant isolation and an explicitly approved text-only post. Do not enable production customer access while the app remains in Development mode.
 
-**Meta Instagram**
-1. Configure *Instagram API with Instagram Login* in the Meta developer console (may have a distinct Instagram client ID/secret).
-2. Register the exact HTTPS callback; request `instagram_business_basic` and `instagram_business_content_publish`.
-3. Authorize an Instagram Professional account (Business/Creator), not a personal account.
-4. Verify profile identity, token exchange to long-lived token, refresh, disconnect, and one separately approved image post from a **public HTTPS image URL**.
-5. Confirm Meta App Review and business verification/advanced access needed for customer accounts outside app roles.
+**Meta Instagram — existing SocialSync Instagram Graph API with Facebook Login**
+1. SocialSync already has **Instagram Graph API** installed. Use its Facebook Login product and the SAME Facebook App ID/secret; do not create a separate Instagram Login app for this configuration.
+2. The default `SOCIAL_INSTAGRAM_LOGIN_MODE=facebook` uses `https://www.facebook.com/dialog/oauth`, Meta Graph API v27.0 and permissions `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`.
+3. The authorized person must manage a Facebook Page linked to an Instagram Business/Creator professional account. Concierge discovers only accounts returned by the trusted Page listing, encrypts the Page access token with a tenant/account-bound label, and posts images through versioned `graph.facebook.com` endpoints.
+4. Test a professional account, a public HTTPS image URL, owner approval, connection/disconnection and receipt; Meta App Review/Advanced Access is required before onboarding unrelated customers.
+5. The optional standalone **Instagram API with Instagram Login** path remains available only if a different Instagram Login product is expressly configured: set `SOCIAL_INSTAGRAM_LOGIN_MODE=instagram` and provide separate Instagram app credentials. It uses `instagram_business_basic`, `instagram_business_content_publish`, and `graph.instagram.com`. These two flows must not mix tokens, scopes, or refresh endpoints.
+6. Linked Facebook Page tokens are not refreshed through the standalone `ig_refresh_token` endpoint. Revoke/expire requires secure reconnect; provider tests are still outstanding.
 
 **Google Business Profile**
 1. Set up a Trendi Google Cloud OAuth Web Application, exact HTTPS callback, and request scope `https://www.googleapis.com/auth/business.manage` with offline access.
@@ -58,7 +59,8 @@ Set these only in the private service environment or the approved secret store (
 - `SOCIAL_DB` (persistent private SQLite path), `SOCIAL_BIND=127.0.0.1:4390`.
 - `SOCIAL_FACEBOOK_CLIENT_ID`, `SOCIAL_FACEBOOK_CLIENT_SECRET`, `SOCIAL_FACEBOOK_CALLBACK`.
 - `SOCIAL_INSTAGRAM_CLIENT_ID`, `SOCIAL_INSTAGRAM_CLIENT_SECRET`, `SOCIAL_INSTAGRAM_CALLBACK`.
-- `SOCIAL_META_GRAPH_VERSION` (review and pin a supported API version).
+- `SOCIAL_META_GRAPH_VERSION=v27.0` (latest confirmed from Meta release notes on 2026-11-08; re-audit on upgrades).
+- `SOCIAL_INSTAGRAM_LOGIN_MODE=facebook` (the installed SocialSync Instagram Graph API product).
 - `SOCIAL_GOOGLE_CLIENT_ID`, `SOCIAL_GOOGLE_CLIENT_SECRET`, `SOCIAL_GOOGLE_CALLBACK`.
 - `SOCIAL_LINKEDIN_CLIENT_ID`, `SOCIAL_LINKEDIN_CLIENT_SECRET`, `SOCIAL_LINKEDIN_CALLBACK`.
 - `SOCIAL_MASTODON_ORIGIN`, `SOCIAL_MASTODON_CLIENT_ID`, `SOCIAL_MASTODON_CLIENT_SECRET`, `SOCIAL_MASTODON_CALLBACK`.

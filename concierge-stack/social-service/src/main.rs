@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if std::env::var("SOCIAL_ENABLE_FACEBOOK_PUBLISH").as_deref() == Ok("true") {
             let version =
-                std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v24.0".into());
+                std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
             registry.register(Arc::new(concierge_social::meta_publish::Facebook::new(
                 &version,
             )?));
