@@ -4,7 +4,7 @@ All backend product work stays in `TrendiBizz/Concierge`. The public `trendi-sit
 
 ## Registered redirect
 
-Use **exactly** `https://<concierge-api-public-host>/owner/social/oauth/callback`.
+The verified staging redirect is **`https://concierge.trendibizz.com/owner/social/oauth/callback`**, reachable over Cloudflare HTTPS.
 The host must be the one that serves `/owner-ui`, including the same scheme and hostname. A customer must log into Concierge and click Connect, then grant access in the provider's own login screen. No customer supplies developer keys.
 
 The Rust service retains encrypted tokens, and the owner API proxies owner-authorized operations without passing provider secrets to browsers. An OAuth configuration flag means **configured**, not externally certified.
