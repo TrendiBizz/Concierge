@@ -621,28 +621,36 @@ async fn instagram_facebook_finish(
         check_id(&profile.id)?;
         // A connected account may be personal. Verify its Graph identity
         // and professional type with the freshly authorized Page token.
-        let account_response = http
-            .get(format!("{graph}/{}", profile.id))
-            .query(&[("fields", "id,username,account_type")])
-            .bearer_auth(&page.access_token)
-            .send()
-            .await
-            .map_err(|_| "Instagram professional identity lookup unavailable")?;
-        if !account_response.status().is_success() {
+        let mut verified_profile = None;
+        for access_token in [&page.access_token, &long.access_token] {
+            let response = http
+                .get(format!("{graph}/{}", profile.id))
+                .query(&[("fields", "id,username,account_type")])
+                .bearer_auth(access_token)
+                .send()
+                .await
+                .map_err(|_| "Instagram professional identity lookup unavailable")?;
+            if !response.status().is_success() {
+                continue;
+            }
+            let profile_result: IgProfile = response
+                .json()
+                .await
+                .map_err(|_| "Instagram professional identity response invalid")?;
+            if profile_result.id != profile.id {
+                return Err("Instagram professional identity mismatch".into());
+            }
+            if matches!(
+                profile_result.account_type.as_deref(),
+                Some("BUSINESS" | "CREATOR" | "MEDIA_CREATOR")
+            ) {
+                verified_profile = Some(profile_result);
+                break;
+            }
+        }
+        let Some(verified) = verified_profile else {
             return Err("Instagram professional identity not verified".into());
-        }
-        let verified: IgProfile = account_response
-            .json()
-            .await
-            .map_err(|_| "Instagram professional identity response invalid")?;
-        if verified.id != profile.id
-            || !matches!(
-                verified.account_type.as_deref(),
-                Some("BUSINESS" | "CREATOR")
-            )
-        {
-            return Err("Linked Instagram account is not a verified professional account".into());
-        }
+        };
         eligible.push((verified, page.access_token));
     }
     if eligible.is_empty() {
@@ -898,6 +906,16 @@ mod tests {
         assert!(can_manage_content(&["PROFILE_PLUS_CREATE_CONTENT".into()]));
         assert!(can_manage_content(&["PROFILE_PLUS_FULL_CONTROL".into()]));
         assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
+    }
+    #[test]
+    fn meta_professional_account_types_include_media_creator() {
+        fn professional(s: &str) -> bool {
+            matches!(s, "BUSINESS" | "CREATOR" | "MEDIA_CREATOR")
+        }
+        assert!(professional("BUSINESS"));
+        assert!(professional("CREATOR"));
+        assert!(professional("MEDIA_CREATOR"));
+        assert!(!professional("PERSONAL"));
     }
     #[test]
     fn page_instagram_link_fields_parse_separately() {
