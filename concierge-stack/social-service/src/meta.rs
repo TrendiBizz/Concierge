@@ -39,6 +39,8 @@ struct Page {
     tasks: Vec<String>,
     #[serde(default)]
     instagram_business_account: Option<IgProfile>,
+    #[serde(default)]
+    connected_instagram_account: Option<IgProfile>,
 }
 #[derive(Deserialize)]
 struct PageList {
@@ -51,6 +53,8 @@ struct IgProfile {
     id: String,
     #[serde(default)]
     username: String,
+    #[serde(default)]
+    account_type: Option<String>,
 }
 #[derive(Deserialize)]
 struct DebugResponse {
@@ -497,21 +501,48 @@ async fn instagram_facebook_finish(
         &graph,
         &long.access_token,
         &granted.data,
-        "id,name,access_token,tasks,instagram_business_account{id,username}",
+        "id,name,access_token,tasks,instagram_business_account{id,username},connected_instagram_account{id,username}",
         customer,
     )
     .await?;
     let mut eligible = Vec::new();
     for page in pages {
         check_id(&page.id)?;
-        let Some(profile) = page.instagram_business_account else {
-            continue;
-        };
-        check_id(&profile.id)?;
         if !can_manage_content(&page.tasks) || page.access_token.is_empty() {
             return Err("Linked Instagram Page lacks content management access".into());
         }
-        eligible.push((profile, page.access_token));
+        let profile = page
+            .instagram_business_account
+            .or(page.connected_instagram_account);
+        let Some(profile) = profile else {
+            continue;
+        };
+        check_id(&profile.id)?;
+        // A connected account may be personal. Verify its Graph identity
+        // and professional type with the freshly authorized Page token.
+        let account_response = http
+            .get(format!("{graph}/{}", profile.id))
+            .query(&[("fields", "id,username,account_type")])
+            .bearer_auth(&page.access_token)
+            .send()
+            .await
+            .map_err(|_| "Instagram professional identity lookup unavailable")?;
+        if !account_response.status().is_success() {
+            return Err("Instagram professional identity not verified".into());
+        }
+        let verified: IgProfile = account_response
+            .json()
+            .await
+            .map_err(|_| "Instagram professional identity response invalid")?;
+        if verified.id != profile.id
+            || !matches!(
+                verified.account_type.as_deref(),
+                Some("BUSINESS" | "CREATOR")
+            )
+        {
+            return Err("Linked Instagram account is not a verified professional account".into());
+        }
+        eligible.push((verified, page.access_token));
     }
     if eligible.is_empty() {
         return Err("No linked professional Instagram account found".into());
@@ -762,6 +793,30 @@ mod tests {
         assert!(can_manage_content(&["PROFILE_PLUS_CREATE_CONTENT".into()]));
         assert!(can_manage_content(&["PROFILE_PLUS_FULL_CONTROL".into()]));
         assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
+    }
+    #[test]
+    fn page_instagram_links_support_both_meta_fields() {
+        let classic: Page = serde_json::from_str(
+            r#"{"id":"123","name":"Trendi","access_token":"test",
+                "instagram_business_account":{"id":"1784","username":"trendi"}}"#,
+        )
+        .unwrap();
+        assert_eq!(classic.instagram_business_account.unwrap().id, "1784");
+        assert!(classic.connected_instagram_account.is_none());
+        let connected: Page = serde_json::from_str(
+            r#"{"id":"123","name":"Trendi","access_token":"test",
+                "connected_instagram_account":{"id":"1785","username":"trendi"}}"#,
+        )
+        .unwrap();
+        assert!(connected.instagram_business_account.is_none());
+        assert_eq!(connected.connected_instagram_account.unwrap().id, "1785");
+        let professional: IgProfile =
+            serde_json::from_str(r#"{"id":"1785","username":"trendi","account_type":"CREATOR"}"#)
+                .unwrap();
+        assert!(matches!(
+            professional.account_type.as_deref(),
+            Some("CREATOR")
+        ));
     }
     #[test]
     fn facebook_validated_expiry_can_be_omitted() {
