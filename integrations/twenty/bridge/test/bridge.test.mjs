@@ -206,3 +206,31 @@ test('health and 404', async () => {
   assert.equal((await fetch(base + '/nope')).status, 404);
   assert.equal((await fetch(base + '/lead')).status, 404);
 });
+
+test('private Docker bridge rejects requests missing its service credential', async (t) => {
+  const secret = 'test-only-private-service-token-0123456789';
+  const { server } = createBridge({
+    apiKey: 'never-used',
+    internalSecret: secret,
+    twentyUrl: 'http://127.0.0.1:1',
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = 'http://127.0.0.1:' + server.address().port + '/lead';
+  const body = JSON.stringify({ email: 'person@example.test', first_name: 'Example' });
+  const unauthorized = await fetch(url, { method: 'POST', body, headers: {
+    'content-type': 'application/json',
+  }});
+  assert.equal(unauthorized.status, 401);
+  const bad = await fetch(url, { method: 'POST', body, headers: {
+    'content-type': 'application/json',
+    authorization: 'Bearer wrong-credential',
+  }});
+  assert.equal(bad.status, 401);
+  // Valid authentication reaches normal request validation, not a security bypass.
+  const valid = await fetch(url, { method: 'POST', body: '{}', headers: {
+    'content-type': 'application/json',
+    authorization: 'Bearer ' + secret,
+  }});
+  assert.equal(valid.status, 400);
+});

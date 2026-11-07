@@ -1,4 +1,19 @@
 # Concierge integration: social and CRM implementation handoff
+
+## Additional private-bridge preparation (local, not deployed)
+
+- `docker-compose.twenty-bridge.yml` is a no-public-port bridge container
+  attached to `concierge_default` and `concierge-twenty_default`.
+- Docker secrets and `scripts/export-twenty-bridge-key.sh` prepare the
+  existing Keychain API key and a distinct service-to-service bearer secret.
+  The helper was NOT run, secrets were NOT exported.
+- Node bridge optional internal bearer authentication is in source and has
+  **19/19 tests passing**; `docker compose ... config --quiet` passes.
+- Strict opt-in tenant mapping and the durable Twenty event queue remain OFF.
+- Details: `QA/verification/PRIVATE_BRIDGE_INTEGRATION.md`.
+- No Docker service started or replaced. Existing Mac loopback bridge
+  continues operating as before.
+
 Date: 2026-11-07
 
 See also `/Users/jo/work-staging/trendi-site/concierge-stack/HANDOFF.md`

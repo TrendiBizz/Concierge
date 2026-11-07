@@ -10,6 +10,7 @@
 //   ALLOWED_ORIGINS   comma list, default * (any website may post a lead; rate limited)
 
 import http from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -58,6 +59,23 @@ export function createBridge(opts = {}) {
   const allowed = (opts.allowedOrigins || process.env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean);
   const rateLimit = opts.rateLimitPerMinute || 20;
   const hits = new Map();
+
+  function internalSecret() {
+    if (opts.internalSecret !== undefined) return opts.internalSecret;
+    const file = process.env.BRIDGE_INTERNAL_SECRET_FILE;
+    if (!file) return '';
+    try { return readFileSync(file, 'utf8').trim(); }
+    catch { return null; } // configured secret missing: fail closed
+  }
+
+  function authorized(req) {
+    const required = internalSecret();
+    if (required === '') return true; // preserves existing loopback website form mode
+    if (!required) return false;
+    const expected = Buffer.from('Bearer ' + required, 'utf8');
+    const actual = Buffer.from(String(req.headers.authorization || ''), 'utf8');
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
 
   function apiKey() {
     if (opts.apiKey !== undefined) return opts.apiKey;
@@ -170,6 +188,7 @@ export function createBridge(opts = {}) {
   }
 
   async function handleLead(req, res) {
+    if (!authorized(req)) return send(req, res, 401, { ok: false, error: 'unauthorized' });
     const ip = req.socket.remoteAddress || 'x';
     if (limited(ip)) return send(req, res, 429, { ok: false, error: 'rate_limited' });
     let body;

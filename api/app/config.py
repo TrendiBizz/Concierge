@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # silently copy customer leads into Trendi's own CRM.
     twenty_bridge_url: str = ""
     twenty_bridge_tenant_slug: str = ""
+    twenty_bridge_auth_file: str = ""  # Docker secret path, never a browser token
 
     # Local Rust social service, completely off unless operator enables it.
     social_service_enabled: bool = False

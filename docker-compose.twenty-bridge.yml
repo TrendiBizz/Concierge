@@ -1,0 +1,48 @@
+# Optional private Twenty bridge extension for the EXISTING concierge compose
+# project. This is a PREPARED overlay, NOT deployed or activated.
+#
+# 1. Export the API key from Keychain into .private/ using the helper below.
+# 2. Attach the bridge to the existing Twenty network (inspect before use).
+# 3. Enable the tenant-specific TWENTY_BRIDGE_* variables separately.
+# No external ports. The API reaches the bridge only over its Docker network.
+services:
+  api:
+    environment:
+      TWENTY_BRIDGE_URL: ${TWENTY_BRIDGE_URL:-}
+      TWENTY_BRIDGE_TENANT_SLUG: ${TWENTY_BRIDGE_TENANT_SLUG:-}
+      TWENTY_BRIDGE_AUTH_FILE: /run/secrets/twenty_bridge_auth
+    secrets:
+      - twenty_bridge_auth
+
+  twenty-bridge:
+    image: node:22-alpine
+    restart: unless-stopped
+    command: ["node", "/app/server.js"]
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4410"
+      TWENTY_URL: "http://server:3000"
+      TWENTY_API_KEY_FILE: "/run/secrets/twenty_api_key"
+      BRIDGE_INTERNAL_SECRET_FILE: "/run/secrets/twenty_bridge_auth"
+      ALLOWED_ORIGINS: ""
+    volumes:
+      - ./integrations/twenty/bridge:/app:ro
+    secrets:
+      - twenty_api_key
+      - twenty_bridge_auth
+    expose:
+      - "4410"
+    networks:
+      - default
+      - twenty-internal
+
+secrets:
+  twenty_api_key:
+    file: ./.private/twenty-api-key
+  twenty_bridge_auth:
+    file: ./.private/twenty-bridge-auth
+
+networks:
+  twenty-internal:
+    external: true
+    name: concierge-twenty_default

@@ -67,7 +67,7 @@ def _bridge_url() -> str | None:
     url=get_settings().twenty_bridge_url
     parsed=urlsplit(url)
     if (parsed.scheme != "http" or parsed.hostname not in (
-            "127.0.0.1","localhost","host.docker.internal")
+            "127.0.0.1","localhost","host.docker.internal","twenty-bridge")
         or parsed.port != 4410 or parsed.path != "/lead" or parsed.query
         or parsed.fragment or parsed.username or parsed.password):
         log.error("Twenty bridge URL rejected; only internal port 4410 supported")
@@ -138,7 +138,17 @@ async def process_twenty_once() -> int:
                     payload=json.loads(payload)
                 if not isinstance(payload,dict):
                     raise ValueError("Invalid stored CRM payload")
-                response=await client.post(url,json=payload)
+                headers={}
+                auth_file=getattr(get_settings(),"twenty_bridge_auth_file","")
+                if auth_file:
+                    from pathlib import Path
+                    secret=Path(auth_file).read_text().strip()
+                    if len(secret)<32:
+                        raise ValueError("Missing internal CRM bridge authentication")
+                    headers["Authorization"]="Bearer "+secret
+                elif urlsplit(url).hostname=="twenty-bridge":
+                    raise ValueError("Private Docker bridge requires an authentication secret")
+                response=await client.post(url,json=payload,headers=headers)
             if response.status_code==429 and row["attempts"]<5:
                 await _twenty_finish(row["id"],"pending","Rate limited",min(300,2**row["attempts"]*15))
             elif response.status_code==200:

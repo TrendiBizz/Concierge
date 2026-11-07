@@ -18,3 +18,6 @@ node_modules/
 # Never commit environment files or their backups (they hold real secrets). .env.example is the template.
 .env.*
 !.env.example
+
+# Docker-internal credentials are exported locally from the Mac keychain.
+.private/
