@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
+    phone_relay, owner_auth, owner_onboarding, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -1413,6 +1413,26 @@ async def owner_me(user: dict = Depends(owner_auth.current_user)):
 async def owner_logout(request: Request, user: dict = Depends(owner_auth.current_user)):
     await owner_auth.logout(request.headers["authorization"].partition(" ")[2])
     return {"ok": True}
+
+
+@app.get("/owner/onboarding")
+async def owner_onboarding_overview(user: dict = Depends(owner_auth.current_user)):
+    try:
+        return await owner_onboarding.overview(user["tenant_id"])
+    except ValueError:
+        raise HTTPException(404, "Business not found") from None
+
+
+@app.patch("/owner/onboarding/profile")
+async def owner_onboarding_update(
+    body: owner_onboarding.OwnerBusinessProfile,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    try:
+        return await owner_onboarding.update_profile(user["slug"], body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
 
 
 @app.post("/owner/invitations", status_code=201)

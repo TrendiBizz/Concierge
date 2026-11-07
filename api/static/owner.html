@@ -43,6 +43,23 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 </section>
 <section id="app-panel" hidden>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
+<section class="panel" id="onboarding-panel">
+<h2>Business setup</h2>
+<p class="muted">Your business information and channel connections are private to your account.
+A configured channel still needs Trendi's verification before it is activated.</p>
+<div id="onboarding-channels" aria-live="polite"></div>
+<form id="onboarding-form">
+<label for="onboarding-greeting">Business greeting</label>
+<textarea id="onboarding-greeting" maxlength="500"></textarea>
+<div class="row">
+<div><label for="onboarding-email">Notification email</label>
+<input id="onboarding-email" type="email" maxlength="254" autocomplete="email"></div>
+<div><label for="onboarding-timezone">Timezone (IANA name)</label>
+<input id="onboarding-timezone" maxlength="100" placeholder="Pacific/Auckland"></div>
+</div>
+<button type="submit">Save business setup</button>
+</form>
+</section>
 <div class="row">
 <section class="panel"><h2>Telephone numbers</h2><p class="muted">Read-only. Enabling phone reception requires operator verification.</p><div id="numbers"></div></section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
@@ -127,6 +144,7 @@ $("login-form").addEventListener("submit",async event=>{
   $("invite-panel").hidden=user.role!=="owner";
   message("Signed in. Session held only in this browser tab.");
   await refresh();
+  await refreshOnboarding();
   await refreshSocial().catch(error=>message("Social: "+error.message,true));
  }catch(error){message(error.message,true);}
 });
@@ -144,7 +162,9 @@ $("logout").addEventListener("click",async()=>{
  pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;
  bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
  $("social-panel").hidden=true;clear($("social-posts"));clear($("social-accounts"));
- clear($("drafts"));message("Signed out.");
+ clear($("drafts"));clear($("onboarding-channels"));
+ $("onboarding-greeting").value="";$("onboarding-email").value="";$("onboarding-timezone").value="";
+ message("Signed out.");
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
 async function startSocialOAuth(provider){
@@ -208,6 +228,39 @@ $("social-form").addEventListener("submit",async event=>{
  }catch(error){message(error.message,true);}
 });
 
+async function refreshOnboarding(){
+  const data=await request("/owner/onboarding");
+  const channels=$("onboarding-channels");clear(channels);
+  channels.appendChild(node("h3",data.business.name));
+  if(data.business.site_url){
+    channels.appendChild(node("p","Website: "+data.business.site_url,"muted"));
+  }
+  for(const [name,state] of Object.entries(data.channels)){
+    const display=name.replaceAll("_"," ");
+    const label=state.configured?"Configured — provider test required":"Not configured";
+    channels.appendChild(node("p",display+": "+label,"muted"));
+  }
+  $("onboarding-greeting").value=data.business.greeting||"";
+  $("onboarding-email").value=data.business.notify_email||"";
+  $("onboarding-timezone").value=data.business.timezone||"Pacific/Auckland";
+  for(const field of ["onboarding-greeting","onboarding-email","onboarding-timezone"]){
+    $(field).disabled=currentRole!=="owner";
+  }
+  $("onboarding-form").querySelector('button[type="submit"]').disabled=currentRole!=="owner";
+}
+$("onboarding-form").addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(currentRole!=="owner")return;
+  try{
+    await request("/owner/onboarding/profile","PATCH",{
+      greeting:$("onboarding-greeting").value,
+      notify_email:$("onboarding-email").value.trim(),
+      timezone:$("onboarding-timezone").value.trim()
+    });
+    await refreshOnboarding();
+    message("Business setup saved. No phone, email or social channel has been activated.");
+  }catch(error){message(error.message,true);}
+});
 async function refreshSocial(){
   const status=await request("/owner/social/status");
   $("social-panel").hidden=!status.enabled;
