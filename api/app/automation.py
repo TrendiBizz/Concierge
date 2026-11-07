@@ -59,6 +59,11 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
     except Exception:
         log.exception("follow-up to-do failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
+    try:
+        await events.queue_twenty(tenant,"lead.created",str(lead["id"]),
+                                 {"lead":events.lead_view(lead)})
+    except Exception:
+        log.exception("Could not persist Twenty CRM delivery for lead %s",lead["id"])
 
     contact = lead["phone"] or lead["email"] or "-"
     await _owner_alert(
@@ -99,6 +104,13 @@ async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> 
         appointment=events.appointment_view(appt, tenant["timezone"]),
         lead=events.lead_view(lead) if lead else None,
     )
+    try:
+        await events.queue_twenty(tenant,"appointment.booked",str(appt["id"]),{
+            "appointment":events.appointment_view(appt,tenant["timezone"]),
+            "lead":events.lead_view(lead) if lead else None,
+        })
+    except Exception:
+        log.exception("Could not persist Twenty CRM delivery for booking %s",appt["id"])
     when = fmt_local(tenant, appt["starts_at"])
     await _owner_alert(
         tenant,

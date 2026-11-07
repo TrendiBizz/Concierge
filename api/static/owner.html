@@ -53,6 +53,24 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 <button type="button" id="refresh">Refresh</button>
 <div id="drafts"></div>
 </section>
+<section id="social-panel" class="panel" hidden>
+<h2>Social publishing</h2>
+<p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. Account connection is not available until secure OAuth linking has been enabled.</p>
+<div id="social-accounts" aria-live="polite"></div>
+<form id="social-form" hidden>
+<label for="social-text">Post text</label>
+<textarea id="social-text" maxlength="10000" required></textarea>
+<label for="social-account">Linked social account</label>
+<select id="social-account" required></select>
+<div class="row">
+<div><label for="social-link">Link (optional)</label><input id="social-link" type="url" maxlength="2000"></div>
+<div><label for="social-hashtags">Hashtags (optional)</label><input id="social-hashtags" maxlength="2000"></div>
+</div>
+<button type="submit">Create draft</button>
+</form>
+<button type="button" id="social-refresh" class="secondary">Refresh social drafts</button>
+<div id="social-posts" aria-live="polite"></div>
+</section>
 <section id="invite-panel" class="panel" hidden>
 <h2>Invite team member</h2><p class="muted">The generated invitation token is shown once for manual delivery through a verified private channel; it is never emailed automatically.</p>
 <form id="invite-form"><label for="invite-email">Email</label><input id="invite-email" type="email" required>
@@ -92,6 +110,7 @@ $("login-form").addEventListener("submit",async event=>{
   $("invite-panel").hidden=user.role!=="owner";
   message("Signed in. Session held only in this browser tab.");
   await refresh();
+  await refreshSocial().catch(error=>message("Social: "+error.message,true));
  }catch(error){message(error.message,true);}
 });
 $("redeem-form").addEventListener("submit",async event=>{
@@ -104,9 +123,90 @@ $("redeem-form").addEventListener("submit",async event=>{
 });
 $("logout").addEventListener("click",async()=>{
  try{await request("/owner/auth/logout","POST");}catch(_){}
- bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;clear($("drafts"));message("Signed out.");
+ bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
+ $("social-panel").hidden=true;clear($("social-posts"));clear($("social-accounts"));
+ clear($("drafts"));message("Signed out.");
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
+$("social-refresh").addEventListener("click",()=>refreshSocial().catch(err=>message(err.message,true)));
+$("social-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ if(currentRole==="viewer")return;
+ try{
+   const account=$("social-account").value;
+   if(!account)throw new Error("Select a linked account");
+   await request("/owner/social/posts","POST",{
+     content:$("social-text").value,account_ids:[account],
+     link:$("social-link").value.trim(),hashtags:$("social-hashtags").value.trim()
+   });
+   $("social-text").value="";$("social-link").value="";$("social-hashtags").value="";
+   await refreshSocial();message("Social draft created. It has NOT been published.");
+ }catch(error){message(error.message,true);}
+});
+
+async function refreshSocial(){
+  const status=await request("/owner/social/status");
+  $("social-panel").hidden=!status.enabled;
+  if(!status.enabled)return;
+  const [accounts,posts]=await Promise.all([
+    request("/owner/social/accounts"),request("/owner/social/posts")
+  ]);
+  clear($("social-accounts"));clear($("social-account"));clear($("social-posts"));
+  $("social-form").hidden=currentRole==="viewer"||!accounts.length;
+  if(!accounts.length){
+    $("social-accounts").appendChild(node("p",
+      "No social accounts are connected. Secure OAuth linking is still awaiting activation.","muted"));
+  }else{
+    for(const account of accounts){
+      $("social-accounts").appendChild(node("p",
+         account.network+" — "+account.display_name+
+         (account.needs_reauth?" (reconnection required)":"")));
+      if(!account.needs_reauth){
+        const option=node("option",account.network+" — "+account.display_name);
+        option.value=account.id;$("social-account").appendChild(option);
+      }
+    }
+  }
+  if(!posts.length)$("social-posts").appendChild(node("p","No drafts yet.","muted"));
+  for(const post of posts){
+    const item=node("article","","item");
+    item.appendChild(node("strong",post.status.replaceAll("_"," ")));
+    item.appendChild(node("pre",
+      [post.content,post.link,post.hashtags].filter(Boolean).join("\n")));
+    if(post.last_error)item.appendChild(node("p",post.last_error,"error"));
+    if(post.status==="draft" && currentRole!=="viewer"){
+      const submit=node("button","Submit for approval");
+      submit.addEventListener("click",async()=>{
+        try{
+          await request("/owner/social/posts/"+encodeURIComponent(post.id)+"/submit","POST");
+          await refreshSocial();message("Draft submitted for approval. Not published.");
+        }catch(error){message(error.message,true);}
+      });
+      item.appendChild(submit);
+    }
+    if(post.status==="pending_approval" && currentRole==="owner"){
+      const approve=node("button","Review and approve");
+      approve.addEventListener("click",async()=>{
+        try{
+          const approval=await request("/owner/social/posts/"+
+            encodeURIComponent(post.id)+"/approval-request","POST",
+            {scheduled_at:Math.floor(Date.now()/1000)});
+          if(!confirm("Approve this EXACT post for your business?\n\n"+
+                      approval.exact_text+"\n\nLive publishing requires separate operator enablement.")){
+            return;
+          }
+          await request("/owner/social/approvals/"+
+             encodeURIComponent(approval.token)+"/approve","POST");
+          await refreshSocial();
+          message("Post approved and scheduled in Concierge; delivery is NOT confirmed.");
+        }catch(error){message(error.message,true);}
+      });
+      item.appendChild(approve);
+    }
+    $("social-posts").appendChild(item);
+  }
+}
+
 async function refresh(){
  const [drafts,numbers,calls]=await Promise.all([
    request("/owner/email-drafts?status=draft").catch(error=>({error:error.message})),

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
+    phone_relay, owner_auth, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -52,6 +52,8 @@ async def lifespan(_: FastAPI):
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
     sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
+    twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
+        settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
     yield
     stop.set()
     if worker:
@@ -60,6 +62,8 @@ async def lifespan(_: FastAPI):
         await sla_worker
     if digest_worker:
         await digest_worker
+    if twenty_worker:
+        await twenty_worker
     await db.close()
 
 
@@ -1486,3 +1490,68 @@ async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
         user["tenant_id"],
     )
     return [dict(row) for row in rows]
+
+# ------------------------------------------------------------------ owner social
+# The portal is the identity and approval interface; the Rust service never
+# receives a customer browser's auth token, and no social secrets reach the UI.
+
+class OwnerSocialDraft(BaseModel):
+    content: str = Field(min_length=1, max_length=10000)
+    account_ids: list[str] = Field(min_length=1, max_length=10)
+    link: str = Field(default="", max_length=2000)
+    hashtags: str = Field(default="", max_length=2000)
+
+
+class OwnerSocialSchedule(BaseModel):
+    scheduled_at: int = Field(ge=0)
+
+
+@app.get("/owner/social/status")
+async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
+    # Does not reveal private keys or backend host information.
+    return {"enabled": bool(settings.social_service_enabled),
+            "customer": user["slug"],
+            "live_publishing": False}
+
+
+@app.get("/owner/social/accounts")
+async def owner_social_accounts(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.accounts(user)
+
+
+@app.get("/owner/social/posts")
+async def owner_social_posts(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.posts(user)
+
+
+@app.post("/owner/social/posts")
+async def owner_social_create(body: OwnerSocialDraft,
+                              user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.create_draft(user, body.content, body.account_ids,
+                                            body.link, body.hashtags)
+
+
+@app.post("/owner/social/posts/{post_id}/submit")
+async def owner_social_submit(post_id: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.submit_draft(user, post_id)
+
+
+@app.post("/owner/social/posts/{post_id}/approval-request")
+async def owner_social_request_approval(post_id: str, body: OwnerSocialSchedule,
+                                        user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.request_approval(user, post_id, body.scheduled_at)
+
+
+@app.post("/owner/social/approvals/{token}/approve")
+async def owner_social_approve(token: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.decide(user, token, True)
+
+
+@app.post("/owner/social/approvals/{token}/reject")
+async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.decide(user, token, False)

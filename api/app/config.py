@@ -10,6 +10,16 @@ class Settings(BaseSettings):
     admin_token: str = ""
     public_base_url: str = "http://localhost:8000"
 
+    # Optional internal Twenty bridge. One explicitly named tenant only; never
+    # silently copy customer leads into Trendi's own CRM.
+    twenty_bridge_url: str = ""
+    twenty_bridge_tenant_slug: str = ""
+
+    # Local Rust social service, completely off unless operator enables it.
+    social_service_enabled: bool = False
+    social_service_url: str = "http://127.0.0.1:4390"
+    social_concierge_key: str = ""
+
     # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).
     xai_api_key: str = ""
     llm_base_url: str = "https://api.x.ai/v1"
