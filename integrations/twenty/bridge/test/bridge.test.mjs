@@ -24,6 +24,7 @@ function startMock() {
         if (req.headers.authorization !== 'Bearer ' + KEY) return send(401, { error: 'unauthorized' });
         if (req.method === 'GET' && u.pathname === '/rest/people') {
           const f = decodeURIComponent(u.searchParams.get('filter') || '');
+          if (state.malformedEmailLookup && f.includes('emails.primaryEmail')) return send(200, { data: { people: { unexpected: true } } });
           const hitEmail = state.existingEmail && f.includes(state.existingEmail);
           const hitPhone = state.existingPhone && f.includes('phones.primaryPhoneNumber[eq]:"' + state.existingPhone + '"');
           if (state.phoneLookupFails && f.includes('phones.primaryPhoneNumber')) return send(500, { error: 'lookup_error' });
@@ -129,6 +130,14 @@ test('phone-only NZ lead reuses matching person rather than creating duplicate',
   assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 0);
   const lookup = calls.find((c) => c.path === '/rest/people' && c.method === 'GET');
   assert.match(lookup.search, /primaryPhoneCallingCode/);
+});
+
+test('malformed email lookup fails closed before creating a person', async () => {
+  state.malformedEmailLookup = true;
+  const base = await bridge();
+  const r = await post(base, { first_name: 'Ana', email: 'ana@example.com' });
+  assert.equal(r.status, 502);
+  assert.equal(calls.filter((c) => c.path === '/rest/people' && c.method === 'POST').length, 0);
 });
 
 test('phone lookup failure fails closed before create', async () => {

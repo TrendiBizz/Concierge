@@ -152,8 +152,13 @@ export function createBridge(opts = {}) {
     const r = await twenty('GET', q, key);
     if (r.status === 401 || r.status === 403) throw Object.assign(new Error('bad_key'), { code: 'bad_key' });
     if (r.status >= 400) throw new Error('lookup_failed_' + r.status);
-    const people = pick(r.json, 'people') || [];
-    return people.length ? people[0] : null;
+    const people = pick(r.json, 'people');
+    if (!Array.isArray(people)) throw new Error('email_lookup_invalid_response');
+    if (people.length > 1) throw new Error('email_lookup_ambiguous');
+    if (people.length && (!people[0] || typeof people[0].id !== 'string' || !people[0].id)) {
+      throw new Error('email_lookup_invalid_person');
+    }
+    return people[0] || null;
   }
 
   // Twenty stores NZ numbers as national digits plus country calling code.
