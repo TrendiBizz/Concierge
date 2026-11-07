@@ -97,12 +97,43 @@ fn authorized_page_candidates(grant: &DebugData) -> Vec<String> {
     }
     ids.into_iter().collect()
 }
+// Staging-only per-tenant hint for a Page selected by the owner.
+// A hint is NOT proof of consent: Meta must return a Page token under the
+// newly authorized user token and the Page must have publishing tasks.
+fn operator_page_candidates(config: &str, customer: &str) -> Vec<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    for mapping in config.split(',').take(20) {
+        if let Some((tenant, id)) = mapping.trim().split_once(':') {
+            if tenant == customer
+                && !id.is_empty()
+                && id.len() <= 30
+                && id.bytes().all(|c| c.is_ascii_digit())
+            {
+                ids.insert(id.to_string());
+            }
+        }
+    }
+    ids.into_iter().collect()
+}
+fn can_manage_content(tasks: &[String]) -> bool {
+    tasks.iter().any(|t| {
+        matches!(
+            t.as_str(),
+            "CREATE_CONTENT"
+                | "MANAGE"
+                | "PROFILE_PLUS_CREATE_CONTENT"
+                | "PROFILE_PLUS_MANAGE"
+                | "PROFILE_PLUS_FULL_CONTROL"
+        )
+    })
+}
 async fn discover_selected_pages(
     http: &reqwest::Client,
     graph: &str,
     user_token: &str,
     grant: &DebugData,
     fields: &str,
+    customer: &str,
 ) -> Result<Vec<Page>, String> {
     let response = http
         .get(format!("{graph}/me/accounts"))
@@ -128,7 +159,17 @@ async fn discover_selected_pages(
     if !listed.data.is_empty() {
         return Ok(listed.data);
     }
-    let selected = authorized_page_candidates(grant);
+    let granular = authorized_page_candidates(grant);
+    let mut selected = granular.clone();
+    let operator = std::env::var("SOCIAL_FACEBOOK_PAGE_HINTS").unwrap_or_default();
+    for id in operator_page_candidates(&operator, customer) {
+        if !granular.is_empty() && !granular.contains(&id) {
+            continue;
+        }
+        if !selected.contains(&id) {
+            selected.push(id);
+        }
+    }
     if selected.len() > 25 {
         return Err("Too many selected Facebook Pages for safe discovery".into());
     }
@@ -424,6 +465,7 @@ async fn instagram_facebook_finish(
         &long.access_token,
         &granted.data,
         "id,name,access_token,tasks,instagram_business_account{id,username}",
+        customer,
     )
     .await?;
     let mut eligible = Vec::new();
@@ -433,12 +475,7 @@ async fn instagram_facebook_finish(
             continue;
         };
         check_id(&profile.id)?;
-        if !page
-            .tasks
-            .iter()
-            .any(|task| task == "CREATE_CONTENT" || task == "MANAGE")
-            || page.access_token.is_empty()
-        {
+        if !can_manage_content(&page.tasks) || page.access_token.is_empty() {
             return Err("Linked Instagram Page lacks content management access".into());
         }
         eligible.push((profile, page.access_token));
@@ -553,6 +590,7 @@ async fn facebook_finish(
         &long.access_token,
         &granted.data,
         "id,name,access_token,tasks",
+        customer,
     )
     .await?;
     if pages.is_empty() {
@@ -563,10 +601,7 @@ async fn facebook_finish(
         check_id(&page.id)?;
         if page.access_token.is_empty()
             || page.name.trim().is_empty()
-            || !page
-                .tasks
-                .iter()
-                .any(|task| task == "CREATE_CONTENT" || task == "MANAGE")
+            || !can_manage_content(&page.tasks)
         {
             return Err("Facebook Page lacks content management access".into());
         }
@@ -677,6 +712,22 @@ mod tests {
         assert!(!started
             .authorization_url
             .contains("instagram_business_content_publish"));
+    }
+    #[test]
+    fn page_hint_is_tenant_scoped_and_never_authorization() {
+        let hints = "trendi-oauth-staging:270235042840463,tenant-b:12345,tenant-b:../1";
+        assert_eq!(
+            operator_page_candidates(hints, "trendi-oauth-staging"),
+            vec!["270235042840463".to_string()]
+        );
+        assert_eq!(
+            operator_page_candidates(hints, "tenant-b"),
+            vec!["12345".to_string()]
+        );
+        assert!(operator_page_candidates(hints, "other").is_empty());
+        assert!(can_manage_content(&["PROFILE_PLUS_CREATE_CONTENT".into()]));
+        assert!(can_manage_content(&["PROFILE_PLUS_FULL_CONTROL".into()]));
+        assert!(!can_manage_content(&["PROFILE_PLUS_ADVERTISE".into()]));
     }
     #[test]
     fn page_candidates_require_granular_oauth_grants() {
