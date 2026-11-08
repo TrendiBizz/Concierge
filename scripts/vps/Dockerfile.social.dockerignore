@@ -1,0 +1,4 @@
+**
+!concierge-stack/social-service/src/**
+!concierge-stack/social-service/Cargo.toml
+!concierge-stack/social-service/Cargo.lock

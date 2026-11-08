@@ -1,0 +1,157 @@
+name: trendi
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/postgres.env, format: raw}
+    command: [postgres, -c, max_connections=40, -c, shared_buffers=64MB]
+    volumes: [database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d concierge"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 384m
+  api:
+    build:
+      context: ../..
+      dockerfile: scripts/vps/Dockerfile.api
+    image: trendi-concierge-api:vps
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/api.env, format: raw}
+    volumes: [api-model-cache:/opt/fastembed]
+    ports: [127.0.0.1:8000:8000]
+    depends_on:
+      postgres: {condition: service_healthy}
+    mem_limit: 1200m
+    cpus: 1
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  social:
+    build:
+      context: ../..
+      dockerfile: scripts/vps/Dockerfile.social
+    image: trendi-concierge-social:vps
+    network_mode: service:api
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/social.env, format: raw}
+    environment:
+      SOCIAL_DB: /data/social.db
+      SOCIAL_BIND: 127.0.0.1:4390
+      SOCIAL_ENABLE_PUBLISH: "false"
+    volumes: [social:/data]
+    depends_on:
+      api: {condition: service_healthy}
+    mem_limit: 192m
+  website:
+    image: node:22-alpine
+    restart: unless-stopped
+    command: [node, /srv/website.mjs]
+    env_file:
+      - {path: /opt/trendi/shared/website.env, format: raw}
+    environment: {NODE_OPTIONS: --max-old-space-size=96}
+    volumes:
+      - ./website.mjs:/srv/website.mjs:ro
+      - ${TRENDI_WEBSITE}:/website:ro
+    mem_limit: 160m
+  gateway:
+    image: caddy:2
+    restart: unless-stopped
+    ports: [127.0.0.1:8080:8080]
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
+    depends_on:
+      api: {condition: service_healthy}
+      website: {condition: service_started}
+    mem_limit: 96m
+  crm-db:
+    profiles: [crm]
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/crm-db.env, format: raw}
+    volumes: [crm-database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d default"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    mem_limit: 512m
+  crm-redis:
+    profiles: [crm]
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes: [crm-redis:/data]
+    command: [redis-server, --appendonly, "no", --save, "60", "1"]
+    mem_limit: 192m
+  crm:
+    profiles: [crm]
+    image: ${TWENTY_IMAGE:?Use the verified current multi-architecture image digest}
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/crm.env, format: raw}
+    volumes: [crm-storage:/app/packages/twenty-server/.local-storage]
+    depends_on:
+      crm-db: {condition: service_healthy}
+      crm-redis: {condition: service_started}
+    mem_limit: 1536m
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS http://localhost:3000/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+  crm-worker:
+    profiles: [crm]
+    image: ${TWENTY_IMAGE:?Use the verified current multi-architecture image digest}
+    restart: unless-stopped
+    command: [yarn, worker:prod]
+    env_file:
+      - {path: /opt/trendi/shared/crm.env, format: raw}
+    environment:
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes: [crm-storage:/app/packages/twenty-server/.local-storage]
+    depends_on:
+      crm: {condition: service_started}
+    mem_limit: 1536m
+  public-main:
+    profiles: [public]
+    image: cloudflare/cloudflared:latest
+    user: "0:0"
+    restart: unless-stopped
+    command: [tunnel, --no-autoupdate, --config, /etc/cloudflared/config.yml, run]
+    volumes:
+      - /opt/trendi/shared/tunnel-main.yml:/etc/cloudflared/config.yml:ro
+      - /opt/trendi/shared/tunnel-main.json:/etc/cloudflared/credentials.json:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: [gateway]
+    mem_limit: 128m
+  public-owner:
+    profiles: [public]
+    image: cloudflare/cloudflared:latest
+    user: "0:0"
+    restart: unless-stopped
+    command: [tunnel, --no-autoupdate, --config, /etc/cloudflared/config.yml, run]
+    volumes:
+      - /opt/trendi/shared/tunnel-owner.yml:/etc/cloudflared/config.yml:ro
+      - /opt/trendi/shared/tunnel-owner.json:/etc/cloudflared/credentials.json:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: [gateway]
+    mem_limit: 128m
+volumes:
+  database:
+  api-model-cache:
+  social:
+  crm-database:
+  crm-redis:
+  crm-storage:

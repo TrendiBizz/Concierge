@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily encrypted Trendi backup
+[Timer]
+OnCalendar=*-*-* 03:15:00 Pacific/Auckland
+Persistent=true
+Unit=trendi-backup.service
+[Install]
+WantedBy=timers.target
