@@ -88,6 +88,16 @@ class OwnerBusinessProfile(BaseModel):
         return value
 
 
+def website_channel_status(tenant: dict, settings) -> dict:
+    verified = tenant.get("slug") in {v.strip() for v in settings.website_verified_tenants.split(",") if v.strip()}
+    chat = bool(tenant.get("site_url") and settings.effective_llm_key)
+    voice = bool(tenant.get("voice_enabled") and settings.xai_api_key)
+    return {
+        "website_chat": {"configured": chat, "verified": chat and verified},
+        "website_voice": {"configured": voice, "verified": voice and verified},
+    }
+
+
 async def overview(tenant_id) -> dict:
     tenant = await tenants.get_by_id(tenant_id)
     if tenant is None:
@@ -106,21 +116,17 @@ async def overview(tenant_id) -> dict:
             "timezone": tenant.get("timezone") or "Pacific/Auckland",
         },
         "channels": {
-            "website_chat": {"configured": bool(tenant.get("site_url")), "verified": False},
+            **website_channel_status(tenant, settings),
             "telephone": {
                 "configured": bool(tenant.get("phone_enabled") and any(r["enabled"] for r in numbers)),
                 "registered_numbers": len(numbers), "verified": False,
             },
-            "website_voice": {"configured": bool(tenant.get("voice_enabled")), "verified": False},
             "email": {"configured": bool(tenant.get("notify_email") and settings.email_configured),
                       "verified": False},
             "sms": {"configured": bool(tenant.get("sms_enabled") and settings.sms_configured),
                     "verified": False},
             "social": {"configured": bool(settings.social_service_enabled), "verified": False},
-            "crm": {"configured": bool(tenant.get("lead_webhook_url") or
-                                     (settings.twenty_bridge_url and
-                                      tenant.get("slug") == settings.twenty_bridge_tenant_slug)),
-                    "verified": False},
+            "crm": {"configured": True, "verified": True, "built_in": True},
         },
         "customer_activation_enabled": False,
     }

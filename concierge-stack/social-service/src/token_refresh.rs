@@ -69,6 +69,21 @@ pub async fn refresh(
                 .await
                 .map_err(|_| "Google Business renewal unavailable")?
         }
+        "x" => {
+            let sealed = encrypted_refresh.ok_or("Reconnect X for offline access")?;
+            let old_refresh = vault.open(&sealed, &label)?;
+            let cfg = crate::x::from_env()?;
+            client
+                .post("https://api.x.com/2/oauth2/token")
+                .basic_auth(&cfg.client_id, Some(&cfg.secret))
+                .form(&[
+                    ("grant_type", "refresh_token"),
+                    ("refresh_token", old_refresh.as_str()),
+                ])
+                .send()
+                .await
+                .map_err(|_| "X renewal unavailable")?
+        }
         "tiktok" => {
             let sealed = encrypted_refresh.ok_or("TikTok refresh credential unavailable")?;
             let old_refresh = vault.open(&sealed, &label)?;
@@ -89,8 +104,12 @@ pub async fn refresh(
             let sealed = encrypted_refresh
                 .ok_or("LinkedIn account requires reconnection (refresh permission unavailable)")?;
             let old_refresh = vault.open(&sealed, &label)?;
-            let cfg =
-                crate::linkedin::from_env().map_err(|_| "LinkedIn OAuth is not configured")?;
+            let cfg = if network == "linkedin_organization" {
+                crate::linkedin::organizations_from_env()
+            } else {
+                crate::linkedin::from_env()
+            }
+            .map_err(|_| "LinkedIn OAuth is not configured")?;
             client
                 .post("https://www.linkedin.com/oauth/v2/accessToken")
                 .form(&[
@@ -148,6 +167,15 @@ pub async fn refresh(
                 .is_some_and(|scopes| !scopes.split(',').any(|s| s == "user.info.basic")))
     {
         return Err("TikTok refresh token or basic grant missing".into());
+    }
+    if network == "x"
+        && (token.refresh_token.as_deref().is_none_or(str::is_empty)
+            || token
+                .scope
+                .as_deref()
+                .is_none_or(|scope| !crate::x::has_scopes(scope)))
+    {
+        return Err("X renewal did not retain account and publishing permission".into());
     }
     let next = vault.seal(&token.access_token, &label)?;
     let rotated = token

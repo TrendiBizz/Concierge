@@ -96,7 +96,9 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="button" id="social-facebook-connect" hidden>Connect Facebook Pages</button>
 <button type="button" id="social-instagram-connect" hidden>Connect Instagram</button>
 
-<button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn</button>
+<button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn profile</button>
+<button type="button" id="social-linkedin_organization-connect" hidden>Connect LinkedIn company Pages</button>
+<button type="button" id="social-x-connect" hidden>Connect X</button>
 <button type="button" id="social-tiktok-connect" hidden>Connect TikTok</button>
 <p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
 <div id="social-accounts" aria-live="polite"></div>
@@ -259,9 +261,11 @@ async function startSocialOAuth(provider){
  }
  pendingOAuthState="";pendingOAuthProvider="";clearOAuthChannel();
  const instructions={
-  linkedin:"Use your personal LinkedIn login. Choose your member profile and the company Pages you administer when the app has the required permissions.",
+  linkedin:"Use your personal LinkedIn login to connect your member profile.",
+  linkedin_organization:"Use your LinkedIn login to authorize the company Pages you administer through the dedicated Pages app.",
   facebook:"Use the Facebook login that manages your business Pages, then authorize only the Pages for this business.",
   instagram:"Use the login that manages your professional Instagram account and its connected business Page.",
+  x:"Use the X account you want connected to this business.",
   tiktok:"Use the TikTok account you want connected to this business."
  };
  message("Continue in the provider window. "+(instructions[provider]||"Authorize the account for this business."));
@@ -291,7 +295,9 @@ $("social-google_business-connect").addEventListener("click",()=>startSocialOAut
 $("social-facebook-connect").addEventListener("click",()=>startSocialOAuth("facebook"));
 $("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("instagram"));
 
+$("social-linkedin_organization-connect").addEventListener("click",()=>startSocialOAuth("linkedin_organization"));
 $("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
+$("social-x-connect").addEventListener("click",()=>startSocialOAuth("x"));
 $("social-tiktok-connect").addEventListener("click",()=>startSocialOAuth("tiktok"));
 async function finishSocialOAuth(data){
  if(data?.type!=="concierge-social-oauth" || !pendingOAuthState)return;
@@ -349,7 +355,9 @@ $("social-form").addEventListener("submit",async event=>{
    const item=node("article","","item");item.appendChild(node("h4",variant.account_name+" — "+variant.network.replaceAll("_"," ")));
    const edit=node("textarea",variant.content);edit.value=variant.content;edit.setAttribute("aria-label","Post preview for "+variant.account_name);item.appendChild(edit);
    item.appendChild(node("p",[variant.link,variant.hashtags].filter(Boolean).join("\n"),"muted"));
-   item.appendChild(node("p",variant.length+" / "+variant.limit+" characters","muted"));
+   const counter=node("p","","muted");
+   const updateCounter=()=>{counter.textContent=variant.network==="x"?"X limit: 280 weighted characters. Checked when saving.":[edit.value,variant.link,variant.hashtags].filter(Boolean).join("\n").length+" / "+variant.limit+" characters";};
+   edit.addEventListener("input",updateCounter);updateCounter();item.appendChild(counter);
    for(const warning of variant.warnings)item.appendChild(node("p",warning,"muted"));
    for(const error of variant.errors)item.appendChild(node("p",error,"error"));
    const options={};
@@ -413,7 +421,7 @@ async function refreshOnboarding(){
   }
   for(const [name,state] of Object.entries(data.channels)){
     const display=name.replaceAll("_"," ");
-    const label=state.configured?"Configured — provider test required":"Not configured";
+    const label=state.built_in?"Ready — built-in CRM":state.verified?"Configured — live test passed":state.configured?"Configured — provider test required":"Not configured";
     channels.appendChild(node("p",display+": "+label,"muted"));
   }
   $("onboarding-name").value=data.business.name||"";
@@ -562,7 +570,7 @@ async function refreshSocial(){
   $("social-tiktok-connect").hidden=!canLink;
   $("social-tiktok-connect").disabled=!status.providers?.tiktok;
   $("social-tiktok-connect").title=status.providers?.tiktok?"Connect an authorized TikTok account":"TikTok Login Kit developer app and scopes must be approved";
-  for(const provider of ["facebook","instagram","linkedin","tiktok","google_business"]){
+  for(const provider of ["facebook","instagram","linkedin","linkedin_organization","tiktok","google_business","x"]){
     $("social-"+provider+"-connect").hidden=!canLink||!status.providers?.[provider];
   }
   $("social-oauth-readiness").textContent=!status.enabled?
@@ -586,7 +594,7 @@ async function refreshSocial(){
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
       if(currentRole==="owner" && !account.needs_reauth && account.expires_at &&
-         ["instagram","linkedin","google_business"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
+         ["instagram","linkedin","google_business","x"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
         const renew=node("button","Renew "+account.display_name,"secondary");
         renew.addEventListener("click",async()=>{
           try{

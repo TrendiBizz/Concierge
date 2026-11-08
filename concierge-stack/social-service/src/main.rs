@@ -39,6 +39,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &std::env::var("SOCIAL_TIKTOK_VERIFIED_MEDIA_ORIGINS").unwrap_or_default(),
             )?));
         }
+        if std::env::var("SOCIAL_ENABLE_X_PUBLISH").as_deref() == Ok("true") {
+            registry.register(Arc::new(concierge_social::x_publish::X::new()?));
+        }
         // Every new platform requires its own operator switch in addition
         // to the global publishing switch, preventing accidental posting.
         if std::env::var("SOCIAL_ENABLE_GOOGLE_BUSINESS_PUBLISH").as_deref() == Ok("true") {

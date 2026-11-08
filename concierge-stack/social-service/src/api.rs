@@ -219,11 +219,13 @@ async fn health() -> Json<Health> {
 #[derive(Serialize)]
 struct OAuthProviders {
     linkedin: bool,
+    linkedin_organization: bool,
     mastodon: bool,
     facebook: bool,
     instagram: bool,
     google_business: bool,
     tiktok: bool,
+    x: bool,
     callback_path: &'static str,
 }
 
@@ -238,11 +240,13 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
     let mastodon = false;
     Ok(Json(OAuthProviders {
         linkedin,
+        linkedin_organization: crate::linkedin::organizations_from_env().is_ok(),
         mastodon,
         facebook: crate::meta::from_env("facebook").is_ok(),
         instagram: crate::meta::from_env("instagram").is_ok(),
         google_business: crate::google_business::from_env().is_ok(),
         tiktok: crate::tiktok::from_env().is_ok(),
+        x: crate::x::from_env().is_ok(),
         callback_path,
     }))
 }
@@ -403,6 +407,40 @@ async fn compose_post(
         }
     }
     for variant in &mut variants {
+        if variant.network == "x" {
+            for reference in &variant.media {
+                if let Some(id) = reference.strip_prefix("upload:") {
+                    let asset = crate::media::load(&c, id).map_err(server_err)?;
+                    if (asset.kind == "video" && asset.duration_seconds > 140.0)
+                        || (asset.kind == "image" && asset.bytes > 5 * 1024 * 1024)
+                    {
+                        variant.errors.push(
+                            "X requires an image up to 5 MB or a video up to 140 seconds".into(),
+                        );
+                    }
+                } else {
+                    variant
+                        .errors
+                        .push("Upload the image or video for X before approval".into());
+                }
+            }
+            if crate::guardrails::x_length(
+                &[
+                    variant.content.as_str(),
+                    variant.link.as_str(),
+                    variant.hashtags.as_str(),
+                ]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ) > 280
+            {
+                variant
+                    .errors
+                    .push("Shorten this X version to fit its weighted 280-character limit".into());
+            }
+        }
         if variant.network == "tiktok" {
             if !s
                 .store
@@ -705,6 +743,49 @@ async fn linkedin_oauth_finish(
     Ok(Json(OAuthLinked { account_id }))
 }
 
+async fn linkedin_organization_start(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::linkedin::organizations_from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "LinkedIn company Page OAuth not configured",
+        )
+    })?;
+    Ok(Json(
+        crate::linkedin::start_organizations(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+async fn linkedin_organization_finish(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<Vec<String>> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::linkedin::organizations_from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "LinkedIn company Page OAuth not configured",
+        )
+    })?;
+    Ok(Json(
+        crate::linkedin::finish_organizations(
+            &s.store,
+            &s.vault,
+            &c,
+            &cfg,
+            &input.state,
+            &input.code,
+        )
+        .await
+        .map_err(server_err)?,
+    ))
+}
+
 async fn linkedin_disconnect(
     State(s): State<AppState>,
     Path((c, id)): Path<(String, String)>,
@@ -866,6 +947,47 @@ async fn google_oauth_disconnect(
     Ok(Json(Health { ok: true }))
 }
 
+async fn x_oauth_start(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::x::from_env()
+        .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "X OAuth not configured"))?;
+    Ok(Json(
+        crate::x::start(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+async fn x_oauth_finish(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<MetaAccounts> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::x::from_env()
+        .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "X OAuth not configured"))?;
+    let account_id = crate::x::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(MetaAccounts {
+        account_ids: vec![account_id],
+    }))
+}
+async fn x_oauth_disconnect(
+    State(s): State<AppState>,
+    Path((c, id)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Health> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::x::from_env().map_err(server_err)?;
+    crate::x::disconnect(&s.store, &s.vault, &c, &id, &cfg)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(Health { ok: true }))
+}
+
 #[derive(Serialize)]
 struct Renewal {
     expires_at: i64,
@@ -903,6 +1025,12 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/customers/:c/oauth/google/accounts/:id",
             axum::routing::delete(google_oauth_disconnect),
+        )
+        .route("/v1/customers/:c/oauth/x/start", post(x_oauth_start))
+        .route("/v1/customers/:c/oauth/x/finish", post(x_oauth_finish))
+        .route(
+            "/v1/customers/:c/oauth/x/accounts/:id",
+            axum::routing::delete(x_oauth_disconnect),
         )
         .route(
             "/v1/customers/:c/oauth/tiktok/start",
@@ -948,6 +1076,14 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/customers/:c/oauth/linkedin/accounts/:id",
             axum::routing::delete(linkedin_disconnect),
+        )
+        .route(
+            "/v1/customers/:c/oauth/linkedin_organization/start",
+            post(linkedin_organization_start),
+        )
+        .route(
+            "/v1/customers/:c/oauth/linkedin_organization/finish",
+            post(linkedin_organization_finish),
         )
         .route("/v1/customers/:c/oauth/mastodon/start", post(oauth_start))
         .route("/v1/customers/:c/oauth/mastodon/finish", post(oauth_finish))

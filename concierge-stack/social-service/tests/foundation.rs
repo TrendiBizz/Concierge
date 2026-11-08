@@ -141,3 +141,34 @@ fn unknown_network_is_rejected() {
     assert!(!check.ok);
     assert!(check.errors.iter().any(|e| e.code == "unknown_network"));
 }
+
+#[test]
+fn x_composer_fits_unicode_and_counts_links_before_approval() {
+    use concierge_social::{
+        composer::{compose, Brief},
+        model::Account,
+    };
+    let a = Account {
+        id: "x-account".into(),
+        customer_id: "owner".into(),
+        network: "x".into(),
+        display_name: "X".into(),
+        external_id: "123".into(),
+        needs_reauth: false,
+        expires_at: None,
+    };
+    let b = Brief {
+        content: "字".repeat(200),
+        account_ids: vec![a.id.clone()],
+        link: "https://example.com/a/long/destination/path".into(),
+        hashtags: "#office".into(),
+        media: vec![],
+        video: None,
+    };
+    let v = compose(&b, &[a], &Rules::default()).unwrap();
+    assert!(v[0].errors.is_empty(), "{:?}", v[0].errors);
+    assert!(v[0].length <= 280);
+    assert!(v[0].content.ends_with('…'));
+    assert!(!v[0].warnings.is_empty());
+    assert_eq!(v[0].link, b.link);
+}

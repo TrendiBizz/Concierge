@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"
     xai_realtime_url: str = "wss://api.x.ai/v1/realtime"
     voice_model: str = ""  # blank = API default; e.g. "grok-voice-3.0"
+    # Operator records tenant slugs only after live website chat + voice checks.
+    website_verified_tenants: str = ""
     voice_default: str = "eve"
     voice_token_ttl_seconds: int = 300
 

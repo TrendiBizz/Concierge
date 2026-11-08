@@ -1705,7 +1705,7 @@ class OwnerSocialSchedule(BaseModel):
 @app.get("/owner/social/status")
 async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
     # No credentials, client IDs, access tokens or backend hostname in the response.
-    providers = {"linkedin": False, "mastodon": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False}
+    providers = {"linkedin_organization": False, "linkedin": False, "mastodon": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "x": False}
     if settings.social_service_enabled:
         try:
             status = await social_bridge.provider_status()
@@ -1771,6 +1771,26 @@ async def owner_social_google_disconnect(account_id: str,
     return await social_bridge.disconnect_google(user, account_id)
 
 
+@app.post("/owner/social/oauth/x/start")
+async def owner_social_x_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_x_oauth(user)
+
+
+@app.post("/owner/social/oauth/x/finish")
+async def owner_social_x_finish(body: OwnerOAuthCallback,
+                                     user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_x_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/x/accounts/{account_id}")
+async def owner_social_x_disconnect(account_id: str,
+                                          user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_x(user, account_id)
+
+
 @app.post("/owner/social/oauth/meta/{network}/start")
 async def owner_social_meta_start(network: str,
                                   user: dict = Depends(owner_auth.current_user)):
@@ -1804,6 +1824,18 @@ async def owner_social_linkedin_unlink(
 ):
     owner_auth.require_role(user, "owner")
     return await social_bridge.unlink_linkedin(user, account_id)
+
+
+@app.post("/owner/social/oauth/linkedin_organization/start")
+async def owner_social_linkedin_organization_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_linkedin_organization_oauth(user)
+
+
+@app.post("/owner/social/oauth/linkedin_organization/finish")
+async def owner_social_linkedin_organization_finish(body: OwnerOAuthCallback, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_linkedin_organization_oauth(user, body.state, body.code)
 
 
 @app.post("/owner/social/oauth/linkedin/start")

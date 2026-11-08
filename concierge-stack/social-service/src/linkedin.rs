@@ -52,11 +52,17 @@ fn random_state() -> String {
     URL_SAFE_NO_PAD.encode(bytes)
 }
 pub fn from_env() -> Result<Config, String> {
-    let client_id = std::env::var("SOCIAL_LINKEDIN_CLIENT_ID")
+    config_from_env("SOCIAL_LINKEDIN")
+}
+pub fn organizations_from_env() -> Result<Config, String> {
+    config_from_env("SOCIAL_LINKEDIN_ORGANIZATION")
+}
+fn config_from_env(prefix: &str) -> Result<Config, String> {
+    let client_id = std::env::var(format!("{prefix}_CLIENT_ID"))
         .map_err(|_| "LinkedIn OAuth is not configured")?;
-    let client_secret = std::env::var("SOCIAL_LINKEDIN_CLIENT_SECRET")
+    let client_secret = std::env::var(format!("{prefix}_CLIENT_SECRET"))
         .map_err(|_| "LinkedIn OAuth is not configured")?;
-    let callback = std::env::var("SOCIAL_LINKEDIN_CALLBACK")
+    let callback = std::env::var(format!("{prefix}_CALLBACK"))
         .map_err(|_| "LinkedIn OAuth is not configured")?;
     let url = reqwest::Url::parse(&callback).map_err(|_| "Invalid LinkedIn callback")?;
     if url.scheme() != "https"
@@ -97,11 +103,7 @@ pub fn start(
         .append_pair("redirect_uri", &cfg.callback)
         .append_pair(
             "scope",
-            if std::env::var("SOCIAL_LINKEDIN_ORGANIZATIONS_ENABLED").as_deref() == Ok("true") {
-                "openid profile w_member_social w_organization_social r_organization_admin"
-            } else if std::env::var("SOCIAL_LINKEDIN_MEMBER_PUBLISH_ENABLED").as_deref()
-                == Ok("true")
-            {
+            if std::env::var("SOCIAL_LINKEDIN_MEMBER_PUBLISH_ENABLED").as_deref() == Ok("true") {
                 "openid profile w_member_social"
             } else {
                 SCOPE
@@ -259,22 +261,90 @@ async fn finish_at(
             eprintln!("linkedin_oauth_failure phase=account_storage");
             "LinkedIn account storage failed".to_string()
         })?;
-    if verified_scopes
-        .split_whitespace()
-        .any(|v| v == "w_organization_social")
-    {
-        crate::linkedin_pages::discover(
-            store,
-            vault,
-            customer,
-            &token.access_token,
-            token.refresh_token.as_deref(),
-            crate::now_unix() + token.expires_in,
-            verified_scopes,
-        )
-        .await?;
-    }
     Ok(member_id)
+}
+
+/// Community Management must be isolated from the member Sign In app.
+pub fn start_organizations(
+    store: &Store,
+    vault: &Vault,
+    customer: &str,
+    cfg: &Config,
+) -> Result<crate::oauth::Start, String> {
+    store.rules(customer)?;
+    let state = random_state();
+    let nonce = vault.seal(
+        &random_state(),
+        &format!("oauth:linkedin_organization:{customer}"),
+    )?;
+    store.oauth_begin(customer, "linkedin_organization", &state, &nonce, 600)?;
+    let mut url =
+        reqwest::Url::parse(AUTHORIZE).map_err(|_| "LinkedIn authorization unavailable")?;
+    url.query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", &cfg.client_id)
+        .append_pair("redirect_uri", &cfg.callback)
+        .append_pair("scope", "r_organization_admin w_organization_social")
+        .append_pair("state", &state);
+    Ok(crate::oauth::Start {
+        authorization_url: url.to_string(),
+        state,
+    })
+}
+pub async fn finish_organizations(
+    store: &Store,
+    vault: &Vault,
+    customer: &str,
+    cfg: &Config,
+    state: &str,
+    code: &str,
+) -> Result<Vec<String>, String> {
+    if code.is_empty() || code.len() > 2048 {
+        return Err("Invalid LinkedIn authorization code".into());
+    }
+    store.oauth_consume(customer, "linkedin_organization", state)?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "LinkedIn authorization unavailable")?;
+    let response = client
+        .post(TOKEN)
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("client_id", cfg.client_id.as_str()),
+            ("client_secret", cfg.client_secret.as_str()),
+            ("redirect_uri", cfg.callback.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|_| "LinkedIn authorization unavailable")?;
+    if !response.status().is_success() {
+        return Err("LinkedIn authorization was rejected".into());
+    }
+    let token: Token = response
+        .json()
+        .await
+        .map_err(|_| "Invalid LinkedIn OAuth token response")?;
+    if token.access_token.is_empty() || !(1..=31_536_000).contains(&token.expires_in) {
+        return Err("Invalid LinkedIn OAuth token expiry".into());
+    }
+    // A missing grant is not proof of Page access; discovery checks both scopes.
+    let ids = crate::linkedin_pages::discover(
+        store,
+        vault,
+        customer,
+        &token.access_token,
+        token.refresh_token.as_deref(),
+        crate::now_unix() + token.expires_in,
+        &token.scope,
+    )
+    .await?;
+    if ids.is_empty() {
+        return Err("No approved LinkedIn company Pages found".into());
+    }
+    Ok(ids)
 }
 #[cfg(test)]
 mod tests {

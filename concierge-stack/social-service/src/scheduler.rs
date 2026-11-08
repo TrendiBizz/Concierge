@@ -12,9 +12,33 @@ pub async fn run_due(
     registry: &Registry,
     now: i64,
 ) -> Result<usize, String> {
+    run_due_inner(store, vault, registry, now, None).await
+}
+
+pub async fn run_one(
+    store: &Store,
+    vault: &Vault,
+    registry: &Registry,
+    now: i64,
+    customer: &str,
+    post_id: &str,
+) -> Result<usize, String> {
+    run_due_inner(store, vault, registry, now, Some((customer, post_id))).await
+}
+
+async fn run_due_inner(
+    store: &Store,
+    vault: &Vault,
+    registry: &Registry,
+    now: i64,
+    selected: Option<(&str, &str)>,
+) -> Result<usize, String> {
     // Reconcile existing TikTok submissions before considering new posts. A
     // provider receipt is never treated as proof that the video is published.
     for (post, account, receipt) in store.pending_receipts()? {
+        if selected.is_some_and(|(customer, id)| post.customer_id != customer || post.id != id) {
+            continue;
+        }
         if let Ok((network, external, sealed, _)) = store.account(&post.customer_id, &account) {
             if network == "facebook" {
                 if let Ok(token) = vault.open(
@@ -66,7 +90,13 @@ pub async fn run_due(
             }
         }
     }
-    let due = store.claim_due(now)?;
+    let due = match selected {
+        Some((customer, id)) => store
+            .claim_one_due(customer, id, now)?
+            .into_iter()
+            .collect(),
+        None => store.claim_due(now)?,
+    };
     let mut done = 0;
     for post in due {
         if post.approved_revision != Some(post.revision) {
@@ -98,10 +128,12 @@ pub async fn run_due(
                         | "linkedin_organization"
                         | "tiktok"
                         | "google_business"
-                ) && expiry.is_some_and(|deadline| deadline <= now + 7 * 86400)
-                    && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
-                        .await
-                        .is_err()
+                        | "x"
+                ) && expiry.is_some_and(|deadline| {
+                    deadline <= now + if network == "x" { 300 } else { 7 * 86400 }
+                }) && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
+                    .await
+                    .is_err()
                 {
                     valid_accounts = false;
                     break;
@@ -171,6 +203,7 @@ pub async fn run_due(
             let required_scope = match network.as_str() {
                 "linkedin_organization" => Some("w_organization_social"),
                 "tiktok" => Some("video.publish"),
+                "x" => Some("tweet.write"),
                 _ => None,
             };
             if let Some(scope) = required_scope {

@@ -209,3 +209,62 @@ async fn missing_owned_media_fails_one_job_and_preserves_other_due_work() {
     );
     assert_eq!(mock.requests.lock().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn operator_single_post_delivery_never_claims_other_due_jobs() {
+    let (store, v, chosen, account) = seed();
+    let other = store
+        .create_post(
+            "a",
+            NewPost {
+                options: serde_json::Value::Null,
+                content: "Other reviewed post".into(),
+                link: String::new(),
+                hashtags: String::new(),
+                account_ids: vec![account],
+                media: vec![],
+            },
+        )
+        .unwrap();
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    for id in [&chosen, &other.id] {
+        store.submit("a", id).unwrap();
+        let token = store.create_approval("a", id, now, now + 100).unwrap();
+        store.decide("a", &token, true, now).unwrap();
+    }
+    let mock = Arc::new(MockConnector::default());
+    let mut registry = Registry::new();
+    registry.register(mock.clone());
+    assert!(concierge_social::scheduler::run_one(
+        &store,
+        &v,
+        &registry,
+        now,
+        "wrong-tenant",
+        &chosen
+    )
+    .await
+    .is_err());
+    assert_eq!(
+        concierge_social::scheduler::run_one(&store, &v, &registry, now, "a", &chosen)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        store.get_post("a", &chosen).unwrap().status,
+        Status::Published
+    );
+    assert_eq!(
+        store.get_post("a", &other.id).unwrap().status,
+        Status::Scheduled
+    );
+    assert_eq!(mock.requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        concierge_social::scheduler::run_one(&store, &v, &registry, now, "a", &chosen)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(mock.requests.lock().unwrap().len(), 1);
+}

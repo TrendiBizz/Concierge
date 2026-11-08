@@ -116,3 +116,27 @@ async fn tenant_key_cannot_approve_or_rotate() {
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 }
+
+#[tokio::test]
+async fn x_linking_is_owner_only_and_requires_configuration() {
+    let (state, agent, _) = setup();
+    let app = router(state.clone());
+    for (key, expected) in [
+        (&agent, StatusCode::FORBIDDEN),
+        (&state.concierge_key, StatusCode::SERVICE_UNAVAILABLE),
+    ] {
+        let r = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/customers/customer-a/oauth/x/start")
+                    .header("authorization", format!("Bearer {key}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status(), expected);
+    }
+}

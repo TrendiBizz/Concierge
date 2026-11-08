@@ -107,7 +107,7 @@ pub fn default_platforms() -> BTreeMap<String, PlatformRule> {
         "x".to_string(),
         PlatformRule {
             link_length: Some(23),
-            ..rule("X", 280, Some(4))
+            ..rule("X", 280, Some(1))
         },
     );
     m.insert("threads".to_string(), rule("Threads", 500, Some(20)));
@@ -156,6 +156,40 @@ pub fn count_hashtags(text: &str) -> usize {
     }
 }
 
+/// Conservative X weight: Latin 1, other Unicode scalars 2, URLs 23.
+/// Emoji sequences may count high; we never undercount them or shorten silently.
+pub fn x_length(text: &str) -> usize {
+    text.split_inclusive(char::is_whitespace)
+        .map(|part| {
+            let word = part.trim_end_matches(char::is_whitespace);
+            let space = part.len() - word.len();
+            let weight: usize = word
+                .chars()
+                .map(|c| {
+                    if (c as u32) <= 0x10ff
+                        || (0x2000..=0x200d).contains(&(c as u32))
+                        || (0x2010..=0x201f).contains(&(c as u32))
+                        || (0x2032..=0x2037).contains(&(c as u32))
+                    {
+                        1
+                    } else {
+                        2
+                    }
+                })
+                .sum();
+            (if word.starts_with("https://") || word.starts_with("http://") {
+                let url = word.trim_end_matches(|c: char| ".,!?;:)]}\"'".contains(c));
+                if reqwest::Url::parse(url).is_ok_and(|u| u.host_str().is_some()) {
+                    23 + word.len() - url.len()
+                } else {
+                    weight
+                }
+            } else {
+                weight
+            }) + space
+        })
+        .sum()
+}
 fn length_for(post: &PostInput, rule: &PlatformRule) -> usize {
     let content = post.content.trim();
     let link = post.link.trim();
@@ -209,7 +243,17 @@ pub fn check_post(post: &PostInput, rules: &Rules) -> Check {
             });
             continue;
         };
-        let length = length_for(post, rule);
+        let length = if name == "x" {
+            x_length(
+                &[post.content.trim(), post.link.trim(), post.hashtags.trim()]
+                    .into_iter()
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        } else {
+            length_for(post, rule)
+        };
         let over = length > rule.limit;
         networks.insert(
             name.clone(),

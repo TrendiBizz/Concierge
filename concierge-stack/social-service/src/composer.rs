@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const NETWORKS: &[&str] = &[
+    "x",
     "facebook",
     "instagram",
     "linkedin",
@@ -43,25 +44,27 @@ pub struct Variant {
     pub limit: usize,
     pub tiktok_creator: Option<crate::tiktok_publish::Creator>,
 }
-fn shorten(text: &str, limit: usize) -> (String, bool) {
-    if text.encode_utf16().count() <= limit {
+fn shorten(text: &str, limit: usize, count: fn(&str) -> usize) -> (String, bool) {
+    if count(text) <= limit {
         return (text.to_string(), false);
     }
+    let room = limit.saturating_sub(count("…"));
     let mut result = String::new();
     for word in text.split_whitespace() {
         let candidate = if result.is_empty() {
-            word.into()
+            word.to_string()
         } else {
             format!("{result} {word}")
         };
-        if candidate.encode_utf16().count() + 1 > limit {
+        if count(&candidate) > room {
             break;
         }
         result = candidate;
     }
     if result.is_empty() {
         for ch in text.chars() {
-            if result.encode_utf16().count() + ch.len_utf16() + 1 > limit {
+            let candidate = format!("{result}{ch}");
+            if count(&candidate) > room {
                 break;
             }
             result.push(ch);
@@ -70,6 +73,7 @@ fn shorten(text: &str, limit: usize) -> (String, bool) {
     result.push('…');
     (result, true)
 }
+
 pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec<Variant>, String> {
     if brief.content.trim().is_empty()
         || brief.content.len() > 40000
@@ -122,6 +126,7 @@ pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec
         }
         let network = account.network.as_str();
         let limit = match network {
+            "x" => 280,
             "facebook" => 63206,
             "google_business" => 1500,
             "linkedin" | "linkedin_organization" => 3000,
@@ -200,14 +205,19 @@ pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec
                     .into(),
             );
         }
-        let reserved = link.encode_utf16().count()
-            + hashtags.encode_utf16().count()
+        let count: fn(&str) -> usize = if network == "x" {
+            crate::guardrails::x_length
+        } else {
+            |text| text.encode_utf16().count()
+        };
+        let reserved = count(&link)
+            + count(&hashtags)
             + usize::from(!link.is_empty())
             + usize::from(!hashtags.is_empty());
         if reserved + 8 >= limit {
             return Err("Link and hashtags leave no room for the post".into());
         }
-        let (content, shortened) = shorten(brief.content.trim(), limit - reserved);
+        let (content, shortened) = shorten(brief.content.trim(), limit - reserved, count);
         if shortened {
             warnings.push(
                 "This version was shortened to fit. Review that no important detail was removed"
@@ -231,7 +241,7 @@ pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec
         );
         errors.extend(check.errors.into_iter().map(|e| e.message));
         warnings.extend(check.warnings.into_iter().map(|e| e.message));
-        let length = content.encode_utf16().count() + reserved;
+        let length = count(&content) + reserved;
         result.push(Variant {
             account_id: id.clone(),
             account_name: account.display_name.clone(),

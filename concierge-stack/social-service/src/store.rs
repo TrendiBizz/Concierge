@@ -451,6 +451,20 @@ impl Store {
         Ok(claimed)
     }
 
+    /// Claim one explicitly selected, due, approved post without scanning others.
+    pub fn claim_one_due(&self, customer: &str, id: &str, at: i64) -> Result<Option<Post>> {
+        let mut post = self.get_post(customer, id)?;
+        if !post.may_publish(at) {
+            return Ok(None);
+        }
+        post.status = Status::Publishing;
+        post.attempts += 1;
+        match self.move_post(customer, post.clone(), Status::Scheduled) {
+            Ok(()) => Ok(Some(post)),
+            Err(_) => Ok(None),
+        }
+    }
+
     pub fn finish(
         &self,
         customer: &str,
