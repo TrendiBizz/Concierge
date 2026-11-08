@@ -115,19 +115,14 @@ A configured channel still needs Trendi's verification before it is activated.</
 let bearer = "";
 let currentRole = "";
 let oauthWindow = null;
+let oauthChannel = null;
 let pendingOAuthState = "";
 let pendingOAuthProvider = "";
-// The OAuth provider redirects a popup back to this same-origin owner page.
-// Its bearer token never leaves the original owner tab.
-if(window.opener && new URLSearchParams(location.search).has("state")){
-  const params=new URLSearchParams(location.search);
-  window.opener.postMessage({
-    type:"concierge-social-oauth",
-    state:params.get("state")||"",
-    code:params.get("code")||"",
-    error:params.get("error")||""
-  },location.origin);
-  window.close();
+// The original signed-in tab retains its bearer token. The callback may lose
+// window.opener under the provider's Cross-Origin-Opener-Policy. A state-scoped,
+// same-origin BroadcastChannel is a fallback, not an authorization bypass.
+function clearOAuthChannel(){
+ if(oauthChannel){oauthChannel.close();oauthChannel=null;}
 }
 const $ = id => document.getElementById(id);
 function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
@@ -171,7 +166,7 @@ $("redeem-form").addEventListener("submit",async event=>{
 $("logout").addEventListener("click",async()=>{
  try{await request("/owner/auth/logout","POST");}catch(_){}
  if(oauthWindow && !oauthWindow.closed)oauthWindow.close();
- pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;
+ pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;clearOAuthChannel();
  bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
  $("social-panel").hidden=true;clear($("social-posts"));clear($("social-accounts"));
  clear($("drafts"));clear($("onboarding-channels"));clear($("channel-authorizations"));
@@ -185,7 +180,7 @@ async function startSocialOAuth(provider){
  if(oauthWindow && !oauthWindow.closed && pendingOAuthState){
    oauthWindow.focus();return;
  }
- pendingOAuthState="";pendingOAuthProvider="";
+ pendingOAuthState="";pendingOAuthProvider="";clearOAuthChannel();
  // Open synchronously during the trusted click to avoid popup blockers.
  const popup=window.open("about:blank","concierge-social-oauth","width=620,height=760");
  if(!popup){message("Allow popups for this Concierge page to link accounts.",true);return;}
@@ -197,9 +192,14 @@ async function startSocialOAuth(provider){
       !start.state || start.state.length<32)throw new Error("Invalid OAuth start response");
    pendingOAuthState=start.state;
    pendingOAuthProvider=provider;
+   if(typeof BroadcastChannel!=="undefined"){
+     oauthChannel=new BroadcastChannel("concierge-social-oauth:"+start.state);
+     oauthChannel.onmessage=event=>finishSocialOAuth(event.data);
+   }
    popup.location.href=u.href;
  }catch(error){
    popup.close();oauthWindow=null;pendingOAuthState="";pendingOAuthProvider="";
+   clearOAuthChannel();
    message(provider+" linking is not available: "+error.message,true);
  }
 }
@@ -209,16 +209,17 @@ $("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("ins
 $("social-mastodon-connect").addEventListener("click",()=>startSocialOAuth("mastodon"));
 $("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
 $("social-tiktok-connect").addEventListener("click",()=>startSocialOAuth("tiktok"));
-window.addEventListener("message",async event=>{
- if(event.origin!==location.origin || !oauthWindow ||
-    event.source!==oauthWindow || event.data?.type!=="concierge-social-oauth")return;
- const data=event.data;
- if(!pendingOAuthState || data.state!==pendingOAuthState){
+async function finishSocialOAuth(data){
+ if(data?.type!=="concierge-social-oauth" || !pendingOAuthState)return;
+ if(data.state!==pendingOAuthState){
    message("Social connection rejected: OAuth session does not match.",true);return;
  }
  const provider=pendingOAuthProvider;
  pendingOAuthState="";pendingOAuthProvider="";
- oauthWindow.close();oauthWindow=null;
+ clearOAuthChannel();
+ // opener may be severed by the OAuth provider's COOP security headers.
+ try{if(oauthWindow && !oauthWindow.closed)oauthWindow.close();}catch(_){}
+ oauthWindow=null;
  if(data.error || !data.code){
    message("Social account authorization was cancelled or denied.",true);return;
  }
@@ -228,6 +229,11 @@ window.addEventListener("message",async event=>{
    await refreshSocial();
    message(provider+" account connected. Posting remains disabled until separately approved.");
  }catch(error){message("Account connection failed: "+error.message,true);}
+}
+window.addEventListener("message",event=>{
+ if(event.origin!==location.origin || !oauthWindow ||
+    event.source!==oauthWindow)return;
+ void finishSocialOAuth(event.data);
 });
 $("social-refresh").addEventListener("click",()=>refreshSocial().catch(err=>message(err.message,true)));
 $("social-form").addEventListener("submit",async event=>{
