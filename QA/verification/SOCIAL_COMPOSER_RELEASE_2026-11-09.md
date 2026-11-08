@@ -33,3 +33,7 @@ Phone/SMS provider activation and mailbox forwarding are separate pending work. 
 ## Live browser acceptance
 
 Jo supplied the owner login form. Verified four connected accounts, visible composer fields after cosmetic-filter fix, Facebook and LinkedIn destination selection, live AI adaptations with distinct text, editable Facebook preview, and saving two explicit “do not publish” verification drafts. These two drafts remain unapproved and unscheduled; customer connections unchanged. Automated browser file selection is blocked by the ChatGPT extension's disabled file URL permission; native app inspection timed out. This is an automation limitation, not a demonstrated product upload failure. Upload and normalization were exercised through the isolated candidate API and Rust native pipeline. Saved preview fields are locked so later visual edits cannot misrepresent the stored approval version. Upload transport timeout now accommodates the bounded media process.
+
+## Final release identifiers
+
+Product implementation pushed as `908ca02` on `integration/concierge-v1`; website pushed as `8ad8b65` on `concierge-site`. Final amd64 production images: API `eef74ce882be`, social `0b564a9f8c6a`. Original API/social images retained under `:pre-composer`. Isolated candidate containers stopped after testing; their copied data is retained separately under `/opt/trendi/candidate-social`. Production services healthy following final image recreation. Two live browser verification drafts remain unapproved/unscheduled.
