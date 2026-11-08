@@ -135,12 +135,18 @@ pub async fn finish(
     if token.access_token.is_empty() || !(1..=31_536_000).contains(&token.expires_in) {
         return Err("Invalid LinkedIn OAuth token expiry".into());
     }
-    if !SCOPE.split_whitespace().all(|required| {
-        token
-            .scope
-            .split_whitespace()
-            .any(|actual| actual == required)
-    }) {
+    // LinkedIn may omit the scope field from a successful token response.
+    // When supplied, require all requested OIDC scopes; when absent, verify
+    // the token against the authenticated LinkedIn userinfo endpoint below.
+    // Never infer publishing rights from a missing scope field.
+    if !token.scope.trim().is_empty()
+        && !SCOPE.split_whitespace().all(|required| {
+            token
+                .scope
+                .split_whitespace()
+                .any(|actual| actual == required)
+        })
+    {
         eprintln!("linkedin_oauth_failure phase=scope_validation");
         return Err("LinkedIn did not grant the requested permissions".into());
     }
@@ -164,6 +170,13 @@ pub async fn finish(
     if profile.sub.is_empty() || profile.sub.len() > 256 {
         return Err("LinkedIn profile missing identity".into());
     }
+    // Successful userinfo retrieval establishes account-linking access when
+    // LinkedIn omitted scope metadata. Do not infer w_member_social.
+    let verified_scopes = if token.scope.trim().is_empty() {
+        SCOPE
+    } else {
+        &token.scope
+    };
     let label = crate::vault::account_label(customer, "linkedin", &profile.sub);
     let access_enc = vault.seal(&token.access_token, &label).map_err(|_| {
         eprintln!("linkedin_oauth_failure phase=credential_encryption");
@@ -191,7 +204,7 @@ pub async fn finish(
             token_enc: &access_enc,
             refresh_enc: refresh_enc.as_deref(),
             expires_at: Some(crate::now_unix() + token.expires_in),
-            granted_scopes: &token.scope,
+            granted_scopes: verified_scopes,
         })
         .map_err(|_| {
             // Do not log SQLite details or any account, OAuth code, or token data.
@@ -202,6 +215,42 @@ pub async fn finish(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn linkedin_token_response_without_scope_is_accepted_for_later_userinfo_verification() {
+        // LinkedIn does not guarantee a scope field in every token response.
+        let token: Token = serde_json::from_value(serde_json::json!({
+            "access_token": "synthetic-only", "expires_in": 3600,
+            "id_token": "synthetic-not-validated-here"
+        }))
+        .unwrap();
+        assert!(token.scope.is_empty());
+        assert_eq!(SCOPE, "openid profile");
+        // Publishing must remain separately authorized.
+        assert!(!SCOPE
+            .split_whitespace()
+            .any(|scope| scope == "w_member_social"));
+    }
+    #[test]
+    fn linkedin_token_response_with_scope_can_be_checked_exactly() {
+        let token: Token = serde_json::from_value(serde_json::json!({
+            "access_token": "synthetic-only", "expires_in": 3600,
+            "scope": "openid profile"
+        }))
+        .unwrap();
+        assert!(SCOPE.split_whitespace().all(|requested| token
+            .scope
+            .split_whitespace()
+            .any(|granted| requested == granted)));
+        let token: Token = serde_json::from_value(serde_json::json!({
+            "access_token": "synthetic-only", "expires_in": 3600,
+            "scope": "openid"
+        }))
+        .unwrap();
+        assert!(!SCOPE.split_whitespace().all(|requested| token
+            .scope
+            .split_whitespace()
+            .any(|granted| requested == granted)));
+    }
     #[test]
     fn reauthorizing_preserves_id_and_expired_tokens_are_blocked() {
         let store = Store::open_memory().unwrap();
