@@ -35,6 +35,17 @@ struct Profile {
     #[serde(default)]
     name: String,
 }
+// Canonicalize provider response separators before permission checks and storage.
+// Authorization requests still use the standard space-delimited SCOPE value.
+pub(crate) fn normalize_scopes(scopes: &str) -> String {
+    scopes
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter(|scope| !scope.is_empty())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 fn random_state() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
@@ -99,6 +110,18 @@ pub async fn finish(
     state: &str,
     code: &str,
 ) -> Result<String, String> {
+    finish_at(store, vault, customer, cfg, state, code, (TOKEN, USERINFO)).await
+}
+// Fixed provider URLs in production; loopback endpoints exercise the entire flow in tests.
+async fn finish_at(
+    store: &Store,
+    vault: &Vault,
+    customer: &str,
+    cfg: &Config,
+    state: &str,
+    code: &str,
+    endpoints: (&str, &str),
+) -> Result<String, String> {
     if code.is_empty() || code.len() > 2048 {
         return Err("Invalid LinkedIn authorization code".into());
     }
@@ -110,7 +133,7 @@ pub async fn finish(
         .build()
         .map_err(|_| "LinkedIn OAuth client unavailable")?;
     let response = client
-        .post(TOKEN)
+        .post(endpoints.0)
         .form(&[
             ("grant_type", "authorization_code"),
             ("code", code),
@@ -139,19 +162,27 @@ pub async fn finish(
     // When supplied, require all requested OIDC scopes; when absent, verify
     // the token against the authenticated LinkedIn userinfo endpoint below.
     // Never infer publishing rights from a missing scope field.
+    let normalized_scopes = normalize_scopes(&token.scope);
     if !token.scope.trim().is_empty()
         && !SCOPE.split_whitespace().all(|required| {
-            token
-                .scope
+            normalized_scopes
                 .split_whitespace()
                 .any(|actual| actual == required)
         })
     {
-        eprintln!("linkedin_oauth_failure phase=scope_validation");
+        // Never log raw scopes or any provider payload, credential or identity.
+        eprintln!(
+            "linkedin_oauth_failure phase=scope_validation at={} comma={} whitespace={} openid={} profile={}",
+            crate::now_unix(),
+            token.scope.contains(','),
+            token.scope.chars().any(char::is_whitespace),
+            normalized_scopes.split_whitespace().any(|scope| scope == "openid"),
+            normalized_scopes.split_whitespace().any(|scope| scope == "profile"),
+        );
         return Err("LinkedIn did not grant the requested permissions".into());
     }
     let response = client
-        .get(USERINFO)
+        .get(endpoints.1)
         .bearer_auth(&token.access_token)
         .send()
         .await
@@ -175,7 +206,7 @@ pub async fn finish(
     let verified_scopes = if token.scope.trim().is_empty() {
         SCOPE
     } else {
-        &token.scope
+        &normalized_scopes
     };
     let label = crate::vault::account_label(customer, "linkedin", &profile.sub);
     let access_enc = vault.seal(&token.access_token, &label).map_err(|_| {
@@ -206,6 +237,12 @@ pub async fn finish(
             expires_at: Some(crate::now_unix() + token.expires_in),
             granted_scopes: verified_scopes,
         })
+        .inspect(|_| {
+            eprintln!(
+                "linkedin_oauth_success phase=account_storage at={}",
+                crate::now_unix()
+            );
+        })
         .map_err(|_| {
             // Do not log SQLite details or any account, OAuth code, or token data.
             eprintln!("linkedin_oauth_failure phase=account_storage");
@@ -215,6 +252,156 @@ pub async fn finish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn linkedin_finish_scope_formatting_and_profile_verification() {
+        use axum::{
+            http::StatusCode,
+            routing::{get, post},
+            Json, Router,
+        };
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        // Replay token formatting through real HTTP exchange, profile lookup,
+        // encryption and tenant-scoped storage, rather than duplicating the parser.
+        for (scope, profile_status, subject, accepted) in [
+            (Some("openid profile"), StatusCode::OK, "member-1", true),
+            (
+                Some(" \tprofile\n openid  "),
+                StatusCode::OK,
+                "member-1",
+                true,
+            ),
+            (Some("openid,profile"), StatusCode::OK, "member-1", true),
+            (
+                Some(" profile, \topenid \n"),
+                StatusCode::OK,
+                "member-1",
+                true,
+            ),
+            (None, StatusCode::OK, "member-1", true),
+            (Some("  \t"), StatusCode::OK, "member-1", true),
+            (Some("openid"), StatusCode::OK, "member-1", false),
+            (
+                Some("openid,profile_extra"),
+                StatusCode::OK,
+                "member-1",
+                false,
+            ),
+            (Some(", ,"), StatusCode::OK, "member-1", false),
+            (
+                Some("openid%2520profile"),
+                StatusCode::OK,
+                "member-1",
+                false,
+            ),
+            (None, StatusCode::FORBIDDEN, "member-1", false),
+            (Some("openid profile"), StatusCode::OK, "", false),
+        ] {
+            let mut token = serde_json::json!({"access_token":"synthetic-only", "expires_in":3600});
+            if let Some(value) = scope {
+                token["scope"] = value.into();
+            }
+            let profile_hits = Arc::new(AtomicUsize::new(0));
+            let hits = profile_hits.clone();
+            let app = Router::new()
+                .route(
+                    "/token",
+                    post(move || {
+                        let value = token.clone();
+                        async move { Json(value) }
+                    }),
+                )
+                .route(
+                    "/userinfo",
+                    get(move |headers: axum::http::HeaderMap| {
+                        let hits = hits.clone();
+                        async move {
+                            assert_eq!(headers["authorization"], "Bearer synthetic-only");
+                            hits.fetch_add(1, Ordering::SeqCst);
+                            (
+                                profile_status,
+                                Json(serde_json::json!({"sub":subject,"name":"Synthetic member"})),
+                            )
+                        }
+                    }),
+                );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let store = Store::open_memory().unwrap();
+            store.create_customer("a", "A", "").unwrap();
+            store.create_customer("b", "B", "").unwrap();
+            let vault = Vault::from_base64_key(
+                &base64::engine::general_purpose::STANDARD.encode([2u8; 32]),
+            )
+            .unwrap();
+            let cfg = Config {
+                client_id: "synthetic-client".into(),
+                client_secret: "synthetic-secret".into(),
+                callback: "https://example.org/owner/social/oauth/callback".into(),
+            };
+            let pending = start(&store, &vault, "a", &cfg).unwrap();
+            let token_url = format!("{base}/token");
+            let profile_url = format!("{base}/userinfo");
+            assert!(finish_at(
+                &store,
+                &vault,
+                "b",
+                &cfg,
+                &pending.state,
+                "synthetic-code",
+                (&token_url, &profile_url)
+            )
+            .await
+            .is_err());
+            assert_eq!(profile_hits.load(Ordering::SeqCst), 0);
+            let result = finish_at(
+                &store,
+                &vault,
+                "a",
+                &cfg,
+                &pending.state,
+                "synthetic-code",
+                (&token_url, &profile_url),
+            )
+            .await;
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "scope={scope:?} profile={profile_status} result={result:?}"
+            );
+            if let Ok(id) = result {
+                assert!(store.account_has_scope("a", &id, "openid").unwrap());
+                assert!(store.account_has_scope("a", &id, "profile").unwrap());
+                assert!(!store
+                    .account_has_scope("a", &id, "w_member_social")
+                    .unwrap());
+                assert!(store.account("b", &id).is_err());
+                let (_, external_id, encrypted, _) = store.account("a", &id).unwrap();
+                assert_ne!(encrypted, "synthetic-only");
+                assert_eq!(
+                    vault
+                        .open(
+                            &encrypted,
+                            &crate::vault::account_label("a", "linkedin", &external_id)
+                        )
+                        .unwrap(),
+                    "synthetic-only"
+                );
+                assert_eq!(profile_hits.load(Ordering::SeqCst), 1);
+            } else {
+                assert!(store.list_accounts("a").unwrap().is_empty());
+            }
+            assert!(store
+                .oauth_consume("a", "linkedin", &pending.state)
+                .is_err());
+            server.abort();
+        }
+    }
+
     #[test]
     fn linkedin_token_response_without_scope_is_accepted_for_later_userinfo_verification() {
         // LinkedIn does not guarantee a scope field in every token response.

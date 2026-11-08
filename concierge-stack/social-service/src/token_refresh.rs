@@ -127,9 +127,12 @@ pub async fn refresh(
     // Account linking requires OIDC scopes only; publishing is a separate grant.
     if network == "linkedin"
         && token.scope.as_deref().is_some_and(|scope| {
-            !["openid", "profile"]
-                .iter()
-                .all(|needed| scope.split_whitespace().any(|granted| granted == *needed))
+            let normalized = crate::linkedin::normalize_scopes(scope);
+            !["openid", "profile"].iter().all(|needed| {
+                normalized
+                    .split_whitespace()
+                    .any(|granted| granted == *needed)
+            })
         })
     {
         return Err("Renewal reduced LinkedIn permissions".into());
