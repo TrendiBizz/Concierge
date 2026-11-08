@@ -14,7 +14,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from . import channel_authorization, chat, db, sms, tenants
+from . import channel_authorization, chat, convo, db, enquiries, sms, tenants
 from .config import get_settings
 
 log = logging.getLogger("concierge.phone")
@@ -115,25 +115,29 @@ async def register_inbound(params: dict[str, str]) -> dict:
     )
     async with db.pool().acquire() as conn:
         async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", "phone:" + call_sid)
             previous = await conn.fetchrow(
                 "SELECT tenant_id FROM phone_calls WHERE call_sid=$1", call_sid
             )
             if previous:
                 if previous["tenant_id"] != tenant["id"]:
                     raise PhoneError("Call already registered for another business")
-                return tenant
             await conn.execute("SELECT id FROM tenants WHERE id=$1 FOR UPDATE", tenant["id"])
             used = await conn.fetchval(
                 "SELECT count(*) FROM phone_calls WHERE tenant_id=$1 "
                 "AND started_at >= now() - interval '1 day'", tenant["id"]
             )
-            if used >= tenant["phone_daily_limit"]:
+            if not previous and used >= tenant["phone_daily_limit"]:
                 raise PhoneError("Daily telephone limit reached")
             await conn.execute(
                 """INSERT INTO phone_calls (tenant_id, call_sid, from_number, to_number)
-                   VALUES ($1,$2,$3,$4)""",
+                   VALUES ($1,$2,$3,$4) ON CONFLICT(call_sid) DO NOTHING""",
                 tenant["id"], call_sid, from_number[:40], to_number
             )
+    conversation_id = await convo.get_or_create(tenant, call_sid, "phone", None, None)
+    await enquiries.capture(tenant, "phone", call_sid, "Inbound telephone enquiry",
+                            conversation_id=conversation_id,
+                            phone=from_number if NUMBER.fullmatch(from_number) else "")
     return tenant
 
 
@@ -281,6 +285,8 @@ async def relay(websocket: WebSocket) -> None:
 
     async def respond(prompt: str):
         try:
+            conversation_id = await convo.get_or_create(tenant, session, "phone", None, None)
+            await enquiries.capture(tenant, "phone", session, prompt, conversation_id=conversation_id)
             result = await chat.run_turn(
                 tenant, session, "phone", prompt, sender_phone=None
             )

@@ -6,7 +6,7 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import db, email_drafts
+from . import db, email_drafts, enquiries, convo, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
@@ -37,9 +37,14 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
     key = provider + ":" + hashlib.sha256(message_id.encode()).hexdigest()
     try:
         # No model call: an untrusted message must never command the assistant.
-        return await email_drafts.create(
+        draft = await email_drafts.create(
             tenant_id, sender, subject, text_body,
             "REVIEW REQUIRED — write a verified response before approval.", key,
         )
+        tenant = await tenants.get_by_id(tenant_id)
+        conversation_id = await convo.get_or_create(tenant, "email" + key.split(":", 1)[1][:50], "email", None, None)
+        await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
+                                conversation_id=conversation_id, email=draft["sender"])
+        return draft
     except email_drafts.DraftError as exc:
         raise InboundError(str(exc)) from exc

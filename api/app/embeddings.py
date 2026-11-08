@@ -13,7 +13,7 @@ _model: TextEmbedding | None = None
 def _get_model() -> TextEmbedding:
     global _model
     if _model is None:
-        _model = TextEmbedding(model_name=get_settings().embed_model)
+        _model = TextEmbedding(model_name=get_settings().embed_model, threads=1)
     return _model
 
 
@@ -21,7 +21,7 @@ def embed_sync(texts: list[str]) -> list[list[float]]:
     return [vec.tolist() for vec in _get_model().embed(texts)]
 
 
-async def embed_documents(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+async def embed_documents(texts: list[str], batch_size: int = 16) -> list[list[float]]:
     out: list[list[float]] = []
     for i in range(0, len(texts), batch_size):
         out.extend(await asyncio.to_thread(embed_sync, texts[i : i + batch_size]))

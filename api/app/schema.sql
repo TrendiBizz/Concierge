@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS leads (
     created_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS leads_tenant_idx ON leads (tenant_id, created_at DESC);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS source_key text;
+CREATE UNIQUE INDEX IF NOT EXISTS leads_channel_source_idx
+ON leads(tenant_id, channel, source_key) WHERE source_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS voice_tokens (
     id         bigserial PRIMARY KEY,

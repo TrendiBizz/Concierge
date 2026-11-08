@@ -28,7 +28,7 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 <header class="portal-header"><div class="portal-wrap"><a class="portal-brand" href="https://trendibizz.com/" aria-label="Trendi home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" role="img" aria-label="Trendi"><svg width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#14213d"/><path d="M29 13V40A7 7 0 0 0 36 47H46" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 31L46 22" fill="none" stroke="#c6f432" stroke-width="6.5" stroke-linecap="round"/></svg><g transform="translate(78 5)" stroke="#14213d"><g fill="none" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8V38A8 8 0 0 0 18 46H24M2 22H22"/><path d="M38 22V46M38 34C38 27 42 22 50 22"/><path d="M60 34H82A11 11 0 1 0 78.5 42"/><path d="M94 22V46M94 34A10 10 0 0 1 114 34V46"/><circle cx="139" cy="34" r="11"/><path d="M150 8V46"/><path d="M164 22V46"/></g><circle cx="164" cy="10" r="4.2" fill="#14213d" stroke="none"/></g></svg><span>Concierge</span></a><nav aria-label="Trendi services"><a href="https://trendibizz.com/concierge">Concierge</a><a href="https://trendibizz.com/seo">SEO and AI visibility</a><a href="https://trendibizz.com/penetration-testing">Penetration testing</a></nav></div></header>
 <main>
 <h1>Your Concierge workspace</h1>
-<p class="muted">Manage your business setup, connected accounts and approvals with Trendi.</p>
+<p class="muted">Your built-in CRM, enquiries, bookings, business setup and connected accounts.</p>
 <div id="notice" role="status" aria-live="polite"></div>
 <section id="login-panel" class="panel">
 <h2 id="login-heading">Customer sign-in</h2><p class="muted" id="login-help">Use the business ID and email from your Trendi invitation. New to Concierge? <a href="https://trendibizz.com/concierge-start">Request setup</a>.</p>
@@ -46,8 +46,9 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 </form></details>
 </section>
 <section id="app-panel" hidden>
-<nav class="workspace-nav" aria-label="Your workspace"><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
+<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
+<section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
 <section class="panel"><h2>Your setup</h2><p class="muted">Save your business details, add the information Concierge should use, and connect the accounts you choose. Each channel is tested before activation.</p><div id="setup-summary" aria-live="polite"></div></section>
 <section class="panel" id="onboarding-panel">
 <h2>Business setup</h2>
@@ -165,7 +166,7 @@ function resetWorkspace(){
  bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
  $("social-panel").hidden=true;$("invite-panel").hidden=true;
  for(const id of ["social-posts","social-accounts","social-account","drafts","numbers","calls",
-   "onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary"]){clear($(id));$(id).textContent="";}
+   "onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
  for(const id of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone",
    "social-text","social-link","social-hashtags","social-media","invite-email","knowledge-title","knowledge-text","knowledge-file",
    "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
@@ -181,11 +182,37 @@ async function signIn(slug,email,password){
  $("login-panel").hidden=true;$("app-panel").hidden=false;
  $("invite-panel").hidden=user.role!=="owner";
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refresh(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial()]);
+ const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message("Your business workspace is ready. Choose what to set up below.");
 }
+async function refreshCRM(){
+ const data=await request("/owner/crm");
+ for(const id of ["crm-leads","crm-appointments","crm-tasks"])clear($(id));
+ if(!data.leads.length)$("crm-leads").appendChild(node("p","No enquiries yet. Connected channels will capture them here."));
+ for(const lead of data.leads){
+  const item=node("article","","item");
+  item.appendChild(node("h4",lead.name||lead.email||lead.phone||"Enquiry"));
+  item.appendChild(node("p",lead.channel+" · "+lead.status+" · "+new Date(lead.created_at).toLocaleString()));
+  item.appendChild(node("p",[lead.email,lead.phone].filter(Boolean).join(" · ")));
+  item.appendChild(node("p",lead.message));
+  if(currentRole!=="viewer"){
+   const label=node("label","Enquiry status");const select=document.createElement("select");
+   for(const status of ["new","contacted","booked","won","lost"]){const option=node("option",status);option.value=status;select.appendChild(option);}
+   select.value=lead.status;label.appendChild(select);item.appendChild(label);
+   const save=node("button","Save status");save.type="button";
+   save.addEventListener("click",async()=>{save.disabled=true;try{await request("/owner/crm/leads/"+encodeURIComponent(lead.id),"PATCH",{status:select.value});await refreshCRM();message("Enquiry updated.");}catch(error){message(error.message,true);}finally{save.disabled=false;}});
+   item.appendChild(save);
+  }
+  $("crm-leads").appendChild(item);
+ }
+ for(const appointment of data.appointments)$("crm-appointments").appendChild(node("p",new Date(appointment.starts_at).toLocaleString()+" · "+appointment.name+" · "+appointment.status));
+ if(!data.appointments.length)$("crm-appointments").appendChild(node("p","No appointments yet."));
+ for(const task of data.tasks)$("crm-tasks").appendChild(node("p",task.title+" · "+task.status));
+ if(!data.tasks.length)$("crm-tasks").appendChild(node("p","No follow-up tasks yet."));
+}
+$("crm-refresh").addEventListener("click",()=>refreshCRM().catch(error=>message(error.message,true)));
 $("login-form").addEventListener("submit",async event=>{
  event.preventDefault();
  try{await signIn($("slug").value.trim(),$("email").value.trim(),$("password").value);}

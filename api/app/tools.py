@@ -150,6 +150,23 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     if ctx.get("dry_run"):
         return {"ok": True, "note": "(dry run) lead would be saved"}
 
+    # Enquiries captured at channel ingress already exist before the AI runs.
+    # Enrich that record instead of creating a duplicate when the caller gives details.
+    if ctx.get("conversation_id"):
+        existing = await db.pool().fetchrow(
+            "UPDATE leads SET name=CASE WHEN $3<>'' THEN $3 ELSE name END, "
+            "email=CASE WHEN $4<>'' THEN $4 ELSE email END, "
+            "phone=CASE WHEN $5<>'' THEN $5 ELSE phone END, message=$6, "
+            "consent_contact=consent_contact OR $7, consent_marketing=consent_marketing OR $8, "
+            "consent_marketing_basis=CASE WHEN $8 THEN 'visitor agreed to promotions in conversation' ELSE consent_marketing_basis END, "
+            "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
+            "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
+            "AND source_key IS NOT NULL ORDER BY created_at LIMIT 1) RETURNING *",
+            tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
+        if existing:
+            ctx["lead_captured"] = True
+            return {"ok": True, "note": "Enquiry updated in the CRM. The team can follow up."}
+
     row = await db.pool().fetchrow(
         """
         INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,

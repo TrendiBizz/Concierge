@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 root = Path(__file__).resolve().parents[2]
 expected = {}
@@ -21,7 +22,7 @@ for folder in ('app','static'):
 print(json.dumps(result))
 """
 result = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
-                         '--entrypoint', 'python', 'concierge-api:trendi-local', '-c', program],
+                         '--entrypoint', 'python', sys.argv[1] if len(sys.argv) > 1 else 'concierge-api:trendi-local', '-c', program],
                         capture_output=True, text=True, check=True)
 actual = json.loads(result.stdout)
 if actual != expected:

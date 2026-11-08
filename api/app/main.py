@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
-    automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
+    automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
@@ -276,6 +276,9 @@ async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -
     session_id = "sms" + re.sub(r"\D", "", sender)
     if not sms_limiter.check(session_id):
         return ""
+    conversation_id = await convo.get_or_create(tenant, session_id, "sms", None, None)
+    await enquiries.capture(tenant, "sms", session_id, body,
+                            conversation_id=conversation_id, phone=sender, consent_contact=True)
     try:
         result = await chat_engine.run_turn(tenant, session_id, "sms", body[:1000], sender_phone=sender)
     except Exception:
@@ -1440,6 +1443,29 @@ async def owner_login(body: OwnerLogin, request: Request):
 @app.get("/owner/me")
 async def owner_me(user: dict = Depends(owner_auth.current_user)):
     return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}
+
+
+@app.get("/owner/crm")
+async def owner_crm(user: dict = Depends(owner_auth.current_user)):
+    tenant = await tenants.ensure_calendar_token(await _require_tenant(user["slug"]))
+    leads, appointments, todos = await asyncio.gather(
+        admin_leads(user["slug"]), admin_appointments(user["slug"]),
+        tasks.list_tasks(user["tenant_id"], "all"))
+    return {"leads": leads, "appointments": appointments, "tasks": todos,
+            "calendar_url": _origin_of(settings.owner_portal_url) + "/api/v1/calendar/" + tenant["calendar_token"] + ".ics"}
+
+
+@app.patch("/owner/crm/leads/{lead_id}")
+async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        exists = await db.pool().fetchval("SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2::uuid",
+                                         user["tenant_id"], lead_id)
+    except Exception:
+        raise HTTPException(404, "Enquiry not found")
+    if not exists:
+        raise HTTPException(404, "Enquiry not found")
+    return await admin_update_lead(lead_id, body)
 
 
 @app.post("/owner/auth/logout")
