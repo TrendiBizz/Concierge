@@ -26,6 +26,7 @@ jobs:
           - campaign_integration
           - campaign_routes_check
           - office_integration
+          - booking_integration
           - email_drafts_integration
           - phone_relay_integration
           - owner_rbac_integration
