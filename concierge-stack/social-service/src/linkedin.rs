@@ -122,6 +122,10 @@ pub async fn finish(
         .await
         .map_err(|_| "LinkedIn authorization unavailable")?;
     if !response.status().is_success() {
+        eprintln!(
+            "linkedin_oauth_failure phase=token_exchange status={}",
+            response.status().as_u16()
+        );
         return Err("LinkedIn authorization was rejected".into());
     }
     let token: Token = response
@@ -137,6 +141,7 @@ pub async fn finish(
             .split_whitespace()
             .any(|actual| actual == required)
     }) {
+        eprintln!("linkedin_oauth_failure phase=scope_validation");
         return Err("LinkedIn did not grant the requested permissions".into());
     }
     let response = client
@@ -146,6 +151,10 @@ pub async fn finish(
         .await
         .map_err(|_| "LinkedIn profile lookup unavailable")?;
     if !response.status().is_success() {
+        eprintln!(
+            "linkedin_oauth_failure phase=profile status={}",
+            response.status().as_u16()
+        );
         return Err("LinkedIn profile verification failed".into());
     }
     let profile: Profile = response
@@ -156,26 +165,39 @@ pub async fn finish(
         return Err("LinkedIn profile missing identity".into());
     }
     let label = crate::vault::account_label(customer, "linkedin", &profile.sub);
-    let access_enc = vault.seal(&token.access_token, &label)?;
+    let access_enc = vault.seal(&token.access_token, &label).map_err(|_| {
+        eprintln!("linkedin_oauth_failure phase=credential_encryption");
+        "LinkedIn credential encryption failed".to_string()
+    })?;
     let refresh_enc = token
         .refresh_token
         .as_deref()
         .map(|value| vault.seal(value, &label))
-        .transpose()?;
-    store.upsert_verified_account(crate::store::VerifiedAccount {
-        customer,
-        network: "linkedin",
-        external_id: &profile.sub,
-        display_name: if profile.name.trim().is_empty() {
-            "LinkedIn account"
-        } else {
-            &profile.name
-        },
-        token_enc: &access_enc,
-        refresh_enc: refresh_enc.as_deref(),
-        expires_at: Some(crate::now_unix() + token.expires_in),
-        granted_scopes: &token.scope,
-    })
+        .transpose()
+        .map_err(|_| {
+            eprintln!("linkedin_oauth_failure phase=refresh_encryption");
+            "LinkedIn credential encryption failed".to_string()
+        })?;
+    store
+        .upsert_verified_account(crate::store::VerifiedAccount {
+            customer,
+            network: "linkedin",
+            external_id: &profile.sub,
+            display_name: if profile.name.trim().is_empty() {
+                "LinkedIn account"
+            } else {
+                &profile.name
+            },
+            token_enc: &access_enc,
+            refresh_enc: refresh_enc.as_deref(),
+            expires_at: Some(crate::now_unix() + token.expires_in),
+            granted_scopes: &token.scope,
+        })
+        .map_err(|_| {
+            // Do not log SQLite details or any account, OAuth code, or token data.
+            eprintln!("linkedin_oauth_failure phase=account_storage");
+            "LinkedIn account storage failed".to_string()
+        })
 }
 #[cfg(test)]
 mod tests {

@@ -63,6 +63,8 @@ fn server_err(msg: String) -> (StatusCode, Json<ErrorBody>) {
         "LinkedIn profile missing identity",
         "OAuth state expired or invalid",
         "LinkedIn authorization unavailable",
+        "LinkedIn account storage failed",
+        "LinkedIn credential encryption failed",
     ];
     if LINKEDIN_USER_ERRORS.contains(&msg.as_str()) {
         return err(StatusCode::BAD_REQUEST, msg);

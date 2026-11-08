@@ -140,6 +140,8 @@ async def _request(method: str, path: str, data: dict | None = None):
                     "LinkedIn profile missing identity",
                     "OAuth state expired or invalid",
                     "LinkedIn authorization unavailable",
+                    "LinkedIn account storage failed",
+                    "LinkedIn credential encryption failed",
                 }
                 try:
                     message = response.json().get("error")
