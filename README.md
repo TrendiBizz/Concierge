@@ -1,4 +1,32 @@
-# Concierge
+# Trendi Concierge
+
+The current product uses the canonical FastAPI/PostgreSQL backend in `api/`,
+the Rust social service in `concierge-stack/social-service/`, and the existing
+Trendi marketing website in the sibling `trendi-site-web` repository. Customer
+identity, knowledge, office pipeline, native bookings and tenant permissions are
+handled by that backend.
+
+## Run the integrated local product
+
+Double-click **Start Trendi Local.command**. Open **http://127.0.0.1:8793/** for
+the website or **http://127.0.0.1:8793/admin-ui** for the office dashboard. The
+launcher copies the local admin key to the clipboard so you can paste it at sign-in.
+Use **Add customer** to create a business and its private owner invitation.
+
+This runs current source with separate persistent local data. It preserves existing
+production, Twenty CRM, OAuth connections, voice and recording services. Local
+publishing and outbound delivery stay disabled. Double-click **Stop Trendi
+Local.command** to stop only the local stack and retain its data.
+
+See [local runtime instructions and verification](scripts/local/README.md) for
+architecture, source checks, repeatable smoke tests and external-provider limits.
+
+## Legacy standalone module experiments
+
+The material below describes earlier independent Node modules. They are retained
+as source experiments, are not started by the integrated launcher, and do not define
+the current product's identity, OAuth or booking behavior. Their separate databases
+must not be treated as another canonical backend.
 
 An independent, de-bloated alternative to GoHighLevel. Standalone: no GHL
 dependency, no third-party dependency anywhere in any module. Each module
@@ -35,12 +63,12 @@ done
 (cd /Users/jo/Pukeko/SocialSync/server && npm test)
 ```
 
-## The one real unsolved seam: identity
+## Identity in the legacy modules
 
 Every module has its OWN separate `tenants` table, own passcode, own
 database file. Creating a customer in CRM does not create them in
-Calendars, Payments, Sites, Workflows or Social -- each module is correct
-and tested in isolation, but a Concierge customer today has to be created
+Calendars, Payments, Sites, Workflows or Social -- these modules were tested
+in isolation, but a customer of these older modules has to be created
 once per module, with a different passcode each time. A central identity
 service (one "create a customer" call that every module recognizes the
 result of) is the real next step once this set of modules is confirmed to
@@ -53,7 +81,7 @@ booking an appointment could do the same. None of that wiring exists --
 every module works standalone and was proven to with its own smoke test,
 but nothing connects them to each other yet.
 
-## What was deliberately left out, everywhere
+## What was left out of the legacy experiments
 
 Each module's own README has a "Deliberately not built" section specific to
 it. The common thread: no OAuth/live third-party integrations (Social), no

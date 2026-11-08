@@ -26,7 +26,7 @@ def _configuration() -> tuple[str, str]:
     # arbitrary tenant-configured URLs or public hostnames as backend targets.
     if (url.scheme != "http"
             or url.hostname not in ("127.0.0.1", "localhost", "host.docker.internal")
-            or url.port != 4390 or url.path or url.query or url.fragment
+            or not url.port or url.port < 1024 or url.path or url.query or url.fragment
             or url.username or url.password):
         raise HTTPException(503, "Social service address is not an approved internal endpoint")
     return base, s.social_concierge_key

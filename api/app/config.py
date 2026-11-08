@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     @classmethod
     def valid_owner_portal(cls, value: str) -> str:
         url = urlsplit(value)
-        if (url.scheme != "https" or not url.hostname or url.username or url.password
+        local_http = url.scheme == "http" and url.hostname in ("127.0.0.1", "localhost", "::1")
+        if ((url.scheme != "https" and not local_http) or not url.hostname or url.username or url.password
                 or url.query or url.fragment or url.path != "/owner-ui"):
-            raise ValueError("Owner portal must be an HTTPS /owner-ui URL without credentials or parameters")
+            raise ValueError("Owner portal must be an HTTPS /owner-ui URL (HTTP is allowed only on loopback) without credentials or parameters")
         return value
 
     # Optional internal Twenty bridge. One explicitly named tenant only; never
