@@ -51,6 +51,22 @@ fn server_err(msg: String) -> (StatusCode, Json<ErrorBody>) {
     // Meta OAuth has several *expected* operator-actionable failures.
     // Return only static, audited descriptions. Never forward provider JSON,
     // raw SQL, authorization codes, access tokens or internal HTTP errors.
+    // Fixed, audited LinkedIn errors: no upstream bodies, codes or tokens.
+    const LINKEDIN_USER_ERRORS: &[&str] = &[
+        "LinkedIn authorization was rejected",
+        "Invalid LinkedIn OAuth token response",
+        "Invalid LinkedIn OAuth token expiry",
+        "LinkedIn did not grant the requested permissions",
+        "LinkedIn profile lookup unavailable",
+        "LinkedIn profile verification failed",
+        "Invalid LinkedIn profile",
+        "LinkedIn profile missing identity",
+        "OAuth state expired or invalid",
+        "LinkedIn authorization unavailable",
+    ];
+    if LINKEDIN_USER_ERRORS.contains(&msg.as_str()) {
+        return err(StatusCode::BAD_REQUEST, msg);
+    }
     const META_USER_ERRORS: &[&str] = &[
         "TikTok token exchange unavailable",
         "TikTok token exchange rejected",

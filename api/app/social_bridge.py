@@ -126,6 +126,27 @@ async def _request(method: str, path: str, data: dict | None = None):
                     message = None
                 raise HTTPException(400, message if message in safe
                                     else "Meta authorization could not be completed")
+            if response.status_code == 400 and "/oauth/linkedin/" in path:
+                # Forward only audited errors authored by our Rust connector.
+                # Never expose LinkedIn's raw response, tokens or codes.
+                safe_linkedin = {
+                    "LinkedIn authorization was rejected",
+                    "Invalid LinkedIn OAuth token response",
+                    "Invalid LinkedIn OAuth token expiry",
+                    "LinkedIn did not grant the requested permissions",
+                    "LinkedIn profile lookup unavailable",
+                    "LinkedIn profile verification failed",
+                    "Invalid LinkedIn profile",
+                    "LinkedIn profile missing identity",
+                    "OAuth state expired or invalid",
+                    "LinkedIn authorization unavailable",
+                }
+                try:
+                    message = response.json().get("error")
+                except (ValueError, AttributeError):
+                    message = None
+                raise HTTPException(400, message if message in safe_linkedin
+                                    else "LinkedIn authorization could not be completed")
             if response.status_code == 400:
                 raise HTTPException(400, "Social request could not be completed")
             if response.status_code == 409:
