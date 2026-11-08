@@ -1,5 +1,46 @@
 use concierge_social::model::{NewPost, Status};
 use concierge_social::store::Store;
+#[test]
+fn draft_rejects_accounts_owned_by_another_customer_before_storage() {
+    let store = Store::open_memory().unwrap();
+    store.create_customer("a", "A", "").unwrap();
+    store.create_customer("b", "B", "").unwrap();
+    let (_, foreign) = draft(&store, "a");
+    let own = store
+        .add_account("b", "linkedin", "member", "B", "sealed", None)
+        .unwrap();
+    for accounts in [
+        vec![foreign.clone()],
+        vec![own.clone(), foreign],
+        vec!["unknown".into()],
+    ] {
+        assert!(store
+            .create_post(
+                "b",
+                NewPost {
+                    content: "Synthetic draft".into(),
+                    link: "".into(),
+                    hashtags: "".into(),
+                    account_ids: accounts,
+                    media: vec![],
+                }
+            )
+            .is_err());
+        assert!(store.list_posts("b").unwrap().is_empty());
+    }
+    assert!(store
+        .create_post(
+            "b",
+            NewPost {
+                content: "Own account".into(),
+                link: "".into(),
+                hashtags: "".into(),
+                account_ids: vec![own],
+                media: vec![],
+            }
+        )
+        .is_ok());
+}
 fn draft(store: &Store, tenant: &str) -> (String, String) {
     let account = store
         .add_account(tenant, "bluesky", "alice", "Alice", "encrypted", None)

@@ -592,6 +592,18 @@ impl Store {
             updated_at: t,
         };
         let conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        for account in &post.account_ids {
+            let owned: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM accounts WHERE id=?1 AND customer_id=?2)",
+                    params![account, customer],
+                    |row| row.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            if !owned {
+                return Err("Account not found for customer".into());
+            }
+        }
         conn.execute(
             "INSERT INTO posts(id,customer_id,body,status,scheduled_at,revision,approved_revision)
             VALUES(?1,?2,?3,'draft',NULL,1,NULL)",

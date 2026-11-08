@@ -104,6 +104,18 @@ jobs:
 
   rust-social:
     name: rust-social-locked
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -137,6 +149,12 @@ jobs:
           SOCIAL_ENABLE_PUBLISH: 'false'
         run: python QA/verification/social_rust_contract_test.py
 
+      - name: Verify separate customer onboarding against PostgreSQL and Rust
+        working-directory: .
+        env:
+          PYTHONPATH: QA/verification/shims:api
+        run: python -m unittest QA.verification.customer_onboarding_integration -v
+
   socialsync:
     name: socialsync-node
     runs-on: ubuntu-latest
@@ -155,4 +173,4 @@ jobs:
         run: node --test
       - name: Verify website widget controls without browser or providers
         working-directory: .
-        run: node --test QA/verification/widget_host_controls_test.cjs
+        run: node --test QA/verification/widget_host_controls_test.cjs QA/verification/owner_customer_journey_test.cjs QA/verification/operator_customer_creation_test.cjs

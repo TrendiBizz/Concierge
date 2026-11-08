@@ -11,7 +11,8 @@ log = logging.getLogger("concierge.ingest")
 MANUAL_PREFIX = "manual:"
 
 
-async def _store(tenant_id, pages: list[Page], replace_crawled: bool) -> int:
+async def _store(tenant_id, pages: list[Page], replace_crawled: bool,
+                 replace_url: str | None = None) -> int:
     records: list[tuple[str, str, str]] = []
     for page in pages:
         for chunk in chunk_text(page.text):
@@ -23,9 +24,20 @@ async def _store(tenant_id, pages: list[Page], replace_crawled: bool) -> int:
 
     # Embed first so a failure here never wipes the existing knowledge base.
     vectors = await embed_documents([r[2] for r in records])
+    if len(vectors) != len(records):
+        raise RuntimeError("Incomplete document embeddings")
 
     async with db.pool().acquire() as conn:
         async with conn.transaction():
+            if replace_url is not None:
+                # Serialize replacement of one customer's document. Embed first,
+                # then replace in this transaction so failures retain saved data.
+                await conn.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    f"knowledge:{tenant_id}:{replace_url}",
+                )
+                await conn.execute("DELETE FROM chunks WHERE tenant_id=$1 AND url=$2",
+                                   tenant_id, replace_url)
             if replace_crawled:
                 await conn.execute(
                     "DELETE FROM chunks WHERE tenant_id = $1 AND url NOT LIKE $2",
@@ -56,10 +68,8 @@ async def ingest_site(tenant: dict, max_pages: int = 40) -> dict:
 async def ingest_text(tenant: dict, label: str, text: str, title: str = "") -> dict:
     """Add hand-written knowledge (price lists, FAQs). Survives re-crawls."""
     url = f"{MANUAL_PREFIX}{label}"
-    async with db.pool().acquire() as conn:
-        # Re-submitting the same label replaces it.
-        await conn.execute("DELETE FROM chunks WHERE tenant_id = $1 AND url = $2", tenant["id"], url)
-    chunks = await _store(tenant["id"], [Page(url=url, title=title or label, text=text)], replace_crawled=False)
+    chunks = await _store(tenant["id"], [Page(url=url, title=title or label, text=text)],
+                          replace_crawled=False, replace_url=url)
     return {"chunks": chunks}
 
 

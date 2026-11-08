@@ -6,17 +6,51 @@ connect accounts, send messages, modify phone routing or enable a channel.
 from __future__ import annotations
 
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import db, tenants
 from .config import get_settings
 
 
 class OwnerBusinessProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    site_url: str | None = Field(default=None, max_length=2048)
     greeting: str | None = Field(default=None, max_length=500)
     notify_email: str | None = Field(default=None, max_length=254)
     timezone: str | None = Field(default=None, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def name_safe(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value or any(ord(char) < 32 for char in value):
+            raise ValueError("Enter your business name")
+        return value
+
+    @field_validator("site_url")
+    @classmethod
+    def website_safe(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if value == "":
+            return ""
+        try:
+            url = urlsplit(value)
+            if (url.scheme != "https" or not url.hostname or "." not in url.hostname
+                    or url.username or url.password or url.fragment
+                    or any(ch.isspace() or ord(ch) < 32 for ch in value)):
+                raise ValueError()
+            _ = url.port
+        except ValueError:
+            raise ValueError("Enter a public HTTPS website address") from None
+        # Saving a reference URL does not crawl it, allow an origin or activate chat.
+        return value
 
     @field_validator("greeting")
     @classmethod
@@ -100,6 +134,8 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
     if saved is None:
         raise ValueError("Tenant unavailable")
     return {
+        "name": saved["name"],
+        "site_url": saved.get("site_url") or "",
         "greeting": saved.get("greeting") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",

@@ -65,10 +65,17 @@
     <h1>Concierge</h1>
     <select id="tenant"></select>
     <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
+    <button class="sec" id="new-customer">Add customer</button>
     <button class="sec" id="refresh">Refresh</button>
     <button class="sec" id="logout">Sign out</button>
   </header>
   <main>
+    <section class="card" id="new-customer-panel" hidden><h2>Add a customer</h2><p>Create a separate business workspace and a private invitation for its owner. No messages are sent automatically and no channel is activated.</p>
+    <form id="new-customer-form"><div class="field"><label for="new-customer-name">Business name</label><input id="new-customer-name" required maxlength="160" autocomplete="organization"></div>
+    <div class="field"><label for="new-customer-email">Owner email</label><input id="new-customer-email" type="email" required maxlength="320" autocomplete="email"></div>
+    <div class="field"><label for="new-customer-site">Website (optional)</label><input id="new-customer-site" type="url" maxlength="2048" placeholder="https://example.com"></div>
+    <button id="create-customer" type="submit">Create workspace and invitation</button></form>
+    <p id="new-customer-status" role="status" aria-live="polite"></p><div id="new-customer-result"></div></section>
     <div class="tabs" id="tabs"></div>
     <div id="view"></div>
   </main>
@@ -83,6 +90,7 @@
   var todoFilter = { done: false };
   var emailFeature = false;
   var overdueTodos = 0;
+  var pendingCustomer = null, customerSaving = false;
   var flash = "";               // a confirmation that must survive the re-render that follows a save
   var $ = function (id) { return document.getElementById(id); };
 
@@ -604,7 +612,7 @@
 
   async function render() {
     var v = $("view"); v.textContent = "";
-    if (!current) { v.appendChild(card("", el("p", { text: "No clients yet. Create one with POST /admin/tenants or the CLI demo command." }))); return; }
+    if (!current) { v.appendChild(card("", el("p", { text: "No customers yet. Choose Add customer to create a separate workspace and invite its owner." }))); return; }
     var slug = current.slug, days = $("days").value;
     try {
       if (tab === "overview") await viewOverview(v, slug, days);
@@ -652,12 +660,43 @@
     renderTabs(); render(); refreshWaiting();
   }
 
-  function logout() { try { sessionStorage.removeItem("cc_admin"); } catch (e) {} token = ""; $("app").hidden = true; $("login").hidden = false; }
+  function logout() { try { sessionStorage.removeItem("cc_admin"); } catch (e) {} token = "";pendingCustomer=null;customerSaving=false; $("app").hidden = true; $("login").hidden = false;
+    $("new-customer-form").reset();$("new-customer-name").disabled=false;$("new-customer-site").disabled=false;$("create-customer").disabled=false;$("create-customer").textContent="Create workspace and invitation";$("new-customer-result").textContent="";$("new-customer-status").textContent="";$("new-customer-panel").hidden=true;
+  }
 
   async function start() {
     try { var caps = await api("/admin/capabilities"); emailFeature = !!caps.email_drafts; if (emailFeature && TABS.indexOf("email") < 0) TABS.splice(TABS.indexOf("outbox"), 0, "email"); await loadTenants(); $("login").hidden = true; $("app").hidden = false; try { sessionStorage.setItem("cc_admin", token); } catch (e) {} }
     catch (e) { $("loginErr").textContent = e.message === "auth" ? "Wrong token." : e.message; }
   }
+
+  $("new-customer").addEventListener("click",function(){ $("new-customer-panel").hidden=false;$("new-customer-name").focus(); });
+  $("new-customer-form").addEventListener("submit",async function(event){
+    event.preventDefault();if(customerSaving)return;customerSaving=true;
+    var button=$("create-customer"),status=$("new-customer-status");button.disabled=true;
+    try{
+      if(!pendingCustomer){
+        var name=$("new-customer-name").value.trim(),site=$("new-customer-site").value.trim();
+        if(!name)throw new Error("Enter the business name.");
+        if(site){var url=new URL(site);if(url.protocol!=="https:"||url.username||url.password)throw new Error("Use the customer's HTTPS website address.");}
+        pendingCustomer=await api("/admin/tenants",{method:"POST",body:{name:name,site_url:site||null}});
+      }
+      // If invitation delivery preparation fails, retry for this workspace;
+      // do not create duplicate businesses on the next click.
+      $("new-customer-name").disabled=true;$("new-customer-site").disabled=true;
+      status.textContent="Workspace created. Preparing the owner's private invitation…";
+      var result=await api("/admin/tenants/"+encodeURIComponent(pendingCustomer.slug)+"/owner-invitations",{
+        method:"POST",body:{email:$("new-customer-email").value.trim(),role:"owner"}});
+      var host=$("new-customer-result");host.textContent="";
+      host.appendChild(el("p",{text:pendingCustomer.name+": share this link privately with the owner. It expires in 24 hours."}));
+      var link=el("textarea",{"aria-label":"Private customer invitation link",rows:"3",readonly:""});link.value=result.invitation_url;host.appendChild(link);
+      status.textContent="Customer workspace and invitation are ready. The owner can set a password, add business information and connect their own social accounts.";
+      var slug=pendingCustomer.slug;pendingCustomer=null;$("new-customer-form").reset();
+      $("new-customer-name").disabled=false;$("new-customer-site").disabled=false;
+      button.textContent="Create workspace and invitation";await loadTenants(slug);
+    }catch(error){
+      status.textContent=error.message;button.textContent=pendingCustomer?"Retry invitation for this workspace":"Create workspace and invitation";
+    }finally{customerSaving=false;button.disabled=false;}
+  });
 
   $("go").addEventListener("click", function () { token = $("token").value.trim(); start(); });
   $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") $("go").click(); });

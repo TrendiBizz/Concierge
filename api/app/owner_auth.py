@@ -8,10 +8,16 @@ import secrets
 
 from fastapi import Header, HTTPException
 from . import db
+from .config import get_settings
 
 ROLES = {"viewer": 0, "editor": 1, "owner": 2}
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 ITERATIONS = 600_000
+
+
+def invitation_link(token: str) -> str:
+    # Fragment is never sent to the server or included in HTTP access logs.
+    return get_settings().owner_portal_url + "#invite=" + token
 
 
 def digest(token: str) -> str:
@@ -73,8 +79,10 @@ async def redeem(token: str, password: str) -> dict:
     async with db.pool().acquire() as conn:
         async with conn.transaction():
             invitation = await conn.fetchrow(
-                "SELECT * FROM tenant_invites WHERE token_hash=$1 AND used_at IS NULL "
-                "AND expires_at>now() FOR UPDATE", digest(token),
+                "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
+                "JOIN tenants t ON t.id=i.tenant_id "
+                "WHERE i.token_hash=$1 AND i.used_at IS NULL "
+                "AND i.expires_at>now() FOR UPDATE OF i", digest(token),
             )
             if not invitation:
                 raise ValueError("Invalid or expired invitation")
@@ -100,7 +108,8 @@ async def redeem(token: str, password: str) -> dict:
                     invitation["tenant_id"], invitation["email"], invitation["role"], pwd,
                 )
             await conn.execute("UPDATE tenant_invites SET used_at=now() WHERE id=$1", invitation["id"])
-    return {"email": invitation["email"], "role": invitation["role"]}
+    return {"email": invitation["email"], "role": invitation["role"],
+            "slug": invitation["tenant_slug"]}
 
 
 async def allow_login_attempt(ip: str, slug: str, email: str) -> bool:

@@ -1,6 +1,8 @@
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from urllib.parse import urlsplit
 
 
 class Settings(BaseSettings):
@@ -9,6 +11,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/concierge"
     admin_token: str = ""
     public_base_url: str = "http://localhost:8000"
+    owner_portal_url: str = "https://concierge.trendibizz.com/owner-ui"
+
+    @field_validator("owner_portal_url")
+    @classmethod
+    def valid_owner_portal(cls, value: str) -> str:
+        url = urlsplit(value)
+        if (url.scheme != "https" or not url.hostname or url.username or url.password
+                or url.query or url.fragment or url.path != "/owner-ui"):
+            raise ValueError("Owner portal must be an HTTPS /owner-ui URL without credentials or parameters")
+        return value
 
     # Optional internal Twenty bridge. One explicitly named tenant only; never
     # silently copy customer leads into Trendi's own CRM.

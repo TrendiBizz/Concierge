@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -1379,7 +1379,8 @@ async def admin_invite_owner(slug: str, body: OwnerInvite):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     # Do not auto-email credentials; operator delivers token over verified channel.
-    return {"invitation_token": token, "expires_in_hours": 24}
+    return {"invitation_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
 
 
 @app.post("/admin/tenants/{slug}/owner-recovery", dependencies=admin)
@@ -1389,7 +1390,8 @@ async def admin_owner_recovery(slug: str, body: OwnerRecovery):
         token = await owner_auth.make_invite(tenant["id"], body.email, "viewer", "recovery")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"recovery_token": token, "expires_in_hours": 24}
+    return {"recovery_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
 
 
 @app.get("/owner-ui")
@@ -1471,6 +1473,33 @@ async def owner_channel_authorizations(user: dict = Depends(owner_auth.current_u
     return await channel_authorization.authorizations(user["tenant_id"])
 
 
+@app.get("/owner/knowledge")
+async def owner_knowledge_list(user: dict = Depends(owner_auth.current_user)):
+    return await owner_knowledge.documents(user["tenant_id"])
+
+
+@app.post("/owner/knowledge", status_code=201)
+async def owner_knowledge_save(body: owner_knowledge.BusinessDocument,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        return await owner_knowledge.save(user["tenant_id"], body)
+    except ValueError:
+        raise HTTPException(400, "Business document could not be saved") from None
+    except Exception:
+        # Do not disclose document text, model/network diagnostics or DB errors.
+        raise HTTPException(503, "Document processing is unavailable; your saved information is unchanged") from None
+
+
+@app.delete("/owner/knowledge/{document_id}")
+async def owner_knowledge_delete(document_id: str,
+                                 user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    if not await owner_knowledge.remove(user["tenant_id"], document_id):
+        raise HTTPException(404, "Business document not found")
+    return {"ok": True}
+
+
 @app.post("/owner/onboarding/authorizations")
 async def owner_channel_authorization_update(
     body: channel_authorization.ChannelAuthorization,
@@ -1517,7 +1546,8 @@ async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.curren
         token = await owner_auth.make_invite(user["tenant_id"], body.email, body.role)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"invitation_token": token, "expires_in_hours": 24}
+    return {"invitation_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
 
 
 @app.get("/owner/email-drafts")

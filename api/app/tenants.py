@@ -59,7 +59,7 @@ def _load(row) -> dict:
 
 def slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "tenant"
+    return slug[:80].rstrip("-") or "tenant"
 
 
 def new_public_key() -> str:
@@ -127,31 +127,33 @@ async def ensure_report_tokens() -> None:
 
 async def create(name: str, site_url: str | None, slug: str | None = None, **fields) -> dict:
     slug = slugify(slug or name)
-    # Make the slug unique rather than failing on a name clash.
+    # Let the unique constraint arbitrate simultaneous customer creation.
     base, n = slug, 1
-    while await get_by_slug(slug):
+    while True:
+        row = await db.pool().fetchrow(
+            """
+            INSERT INTO tenants (slug, name, public_key, report_token, site_url, allowed_origins,
+                                 persona, greeting, booking_url, lead_webhook_url, incentive)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (slug) DO NOTHING
+            RETURNING *
+            """,
+            slug,
+            name,
+            new_public_key(),
+            new_report_token(),
+            site_url,
+            fields.get("allowed_origins") or [],
+            fields.get("persona") or "",
+            fields.get("greeting") or "",
+            fields.get("booking_url"),
+            fields.get("lead_webhook_url"),
+            fields.get("incentive") or "",
+        )
+        if row:
+            break
         n += 1
         slug = f"{base}-{n}"
-
-    row = await db.pool().fetchrow(
-        """
-        INSERT INTO tenants (slug, name, public_key, report_token, site_url, allowed_origins,
-                             persona, greeting, booking_url, lead_webhook_url, incentive)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING *
-        """,
-        slug,
-        name,
-        new_public_key(),
-        new_report_token(),
-        site_url,
-        fields.get("allowed_origins") or [],
-        fields.get("persona") or "",
-        fields.get("greeting") or "",
-        fields.get("booking_url"),
-        fields.get("lead_webhook_url"),
-        fields.get("incentive") or "",
-    )
     row = await db.pool().fetchrow(
         "UPDATE tenants SET calendar_token = $2 WHERE id = $1 RETURNING *", row["id"], new_report_token())
     return _load(row)
