@@ -128,9 +128,9 @@ impl Connector for Facebook {
                 "Invalid Page credentials".into(),
             ));
         }
-        if !request.media.is_empty() {
+        if request.media.len() > 1 || request.media.iter().any(|m| !safe_media(m)) {
             return Err(ConnectorError::Permanent(
-                "Facebook media posting is not enabled; use text-only draft".into(),
+                "Facebook requires a valid selected media file".into(),
             ));
         }
         if request.text.trim().is_empty() {
@@ -138,15 +138,39 @@ impl Connector for Facebook {
                 "Facebook post text is empty".into(),
             ));
         }
+        let is_video = request
+            .local_media
+            .as_ref()
+            .is_some_and(|a| a.kind == "video");
+        let suffix = if request.media.is_empty() {
+            "feed"
+        } else if is_video {
+            "videos"
+        } else {
+            "photos"
+        };
         let url = format!(
-            "https://graph.facebook.com/{}/{}/feed",
+            "https://graph.facebook.com/{}/{}/{suffix}",
             self.version, request.external_id
         );
+        let mut form = vec![(
+            if request.media.is_empty() {
+                "message"
+            } else if is_video {
+                "description"
+            } else {
+                "caption"
+            },
+            request.text.as_str(),
+        )];
+        if let Some(media) = request.media.first() {
+            form.push((if is_video { "file_url" } else { "url" }, media.as_str()));
+        }
         let response = self
             .http
             .post(url)
             .bearer_auth(&request.access_token)
-            .form(&[("message", request.text.as_str())])
+            .form(&form)
             .send()
             .await
             .map_err(|_| ConnectorError::Retryable("Facebook post outcome uncertain".into()))?;
@@ -163,7 +187,11 @@ impl Connector for Facebook {
             ));
         }
         Ok(Published {
-            external_id: result.id,
+            external_id: if is_video {
+                format!("pending:facebook:{}", result.id)
+            } else {
+                result.id
+            },
             url: None,
         })
     }
@@ -190,14 +218,28 @@ impl Connector for Instagram {
             ));
         }
         let endpoint = self.graph_endpoint(&request.external_id, "media");
+        let is_video = request
+            .local_media
+            .as_ref()
+            .is_some_and(|a| a.kind == "video");
+        let form = if is_video {
+            vec![
+                ("media_type", "REELS"),
+                ("video_url", request.media[0].as_str()),
+                ("caption", request.text.as_str()),
+                ("share_to_feed", "true"),
+            ]
+        } else {
+            vec![
+                ("image_url", request.media[0].as_str()),
+                ("caption", request.text.as_str()),
+            ]
+        };
         let response = self
             .http
             .post(endpoint)
             .bearer_auth(&request.access_token)
-            .form(&[
-                ("image_url", request.media[0].as_str()),
-                ("caption", request.text.as_str()),
-            ])
+            .form(&form)
             .send()
             .await
             .map_err(|_| ConnectorError::Retryable("Instagram media creation uncertain".into()))?;
@@ -215,7 +257,7 @@ impl Connector for Instagram {
         // Media processing may be asynchronous; query status before publishing.
         let status_endpoint = self.status_endpoint(&container.id);
         let mut ready = false;
-        for _ in 0..6 {
+        for _ in 0..45 {
             let result = self
                 .http
                 .get(&status_endpoint)
@@ -334,4 +376,31 @@ mod tests {
         assert!(!safe_id("../abc"));
         assert!(!safe_id("abc:123"));
     }
+}
+
+/// Poll an accepted video without submitting it again.
+pub async fn video_status(token: &str, id: &str) -> Result<Option<bool>, String> {
+    if !safe_id(id) {
+        return Err("Invalid Facebook receipt".into());
+    }
+    let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
+    let response = http()
+        .get(format!("https://graph.facebook.com/{version}/{id}"))
+        .bearer_auth(token)
+        .query(&[("fields", "status")])
+        .send()
+        .await
+        .map_err(|_| "Facebook status unavailable")?;
+    if !response.status().is_success() {
+        return Err("Facebook status unavailable".into());
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|_| "Facebook status invalid")?;
+    Ok(match body["status"]["video_status"].as_str() {
+        Some("ready") => Some(false),
+        Some("error") => Some(true),
+        _ => None,
+    })
 }

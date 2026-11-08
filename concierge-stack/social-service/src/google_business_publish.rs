@@ -47,10 +47,31 @@ impl Connector for GoogleBusiness {
                 "Google Business location authorization unavailable".into(),
             ));
         }
-        if !request.media.is_empty() {
+        if request.media.len() > 1
+            || request
+                .local_media
+                .as_ref()
+                .is_some_and(|a| a.kind != "image")
+        {
             return Err(ConnectorError::Permanent(
-                "Google Business media posting not enabled".into(),
+                "Google Business updates require a single still image".into(),
             ));
+        }
+        let mut body =
+            serde_json::json!({"topicType":"STANDARD","summary":request.text,"languageCode":"en"});
+        if let Some(url) = request.media.first() {
+            let parsed = reqwest::Url::parse(url).map_err(|_| {
+                ConnectorError::Permanent("Google Business media URL is invalid".into())
+            })?;
+            if parsed.scheme() != "https"
+                || !parsed.username().is_empty()
+                || parsed.password().is_some()
+            {
+                return Err(ConnectorError::Permanent(
+                    "Google Business media must use HTTPS".into(),
+                ));
+            }
+            body["media"] = serde_json::json!([{"mediaFormat":"PHOTO","sourceUrl":url}]);
         }
         if request.text.trim().is_empty() || request.text.chars().count() > 1500 {
             return Err(ConnectorError::Permanent(
@@ -65,9 +86,7 @@ impl Connector for GoogleBusiness {
             .http
             .post(url)
             .bearer_auth(&request.access_token)
-            .json(&serde_json::json!({
-                "topicType":"STANDARD","summary":request.text
-            }))
+            .json(&body)
             .send()
             .await
             .map_err(|_| ConnectorError::Retryable("Google post response uncertain".into()))?;

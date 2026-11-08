@@ -9,6 +9,7 @@ pub enum Status {
     Approved,
     Scheduled,
     Publishing,
+    Processing,
     Published,
     Failed,
     Rejected,
@@ -28,6 +29,9 @@ impl Status {
                 | (Scheduled, Publishing)
                 | (Scheduled, Draft)
                 | (Publishing, Published)
+                | (Publishing, Processing)
+                | (Processing, Published)
+                | (Processing, Failed)
                 | (Publishing, Failed)
                 | (Publishing, Scheduled)
                 | (Failed, Scheduled)
@@ -46,6 +50,8 @@ pub struct Post {
     pub hashtags: String,
     pub account_ids: Vec<String>,
     pub media: Vec<String>,
+    #[serde(default)]
+    pub options: serde_json::Value,
     pub status: Status,
     pub scheduled_at: Option<i64>,
     pub revision: u64,
@@ -65,7 +71,10 @@ impl Post {
     }
 
     pub fn edit(&mut self, content: String, now: i64) -> Result<(), &'static str> {
-        if matches!(self.status, Status::Publishing | Status::Published) {
+        if matches!(
+            self.status,
+            Status::Publishing | Status::Processing | Status::Published
+        ) {
             return Err("Cannot edit a publishing or published post");
         }
         self.content = content;
@@ -89,6 +98,8 @@ pub struct NewPost {
     pub account_ids: Vec<String>,
     #[serde(default)]
     pub media: Vec<String>,
+    #[serde(default)]
+    pub options: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -78,8 +78,20 @@ pub fn default_platforms() -> BTreeMap<String, PlatformRule> {
     let mut m = BTreeMap::new();
     m.insert("linkedin".to_string(), rule("LinkedIn", 3000, Some(9)));
     m.insert(
+        "linkedin_organization".to_string(),
+        rule("LinkedIn company Page", 3000, Some(9)),
+    );
+    m.insert(
+        "tiktok".to_string(),
+        PlatformRule {
+            requires_media: true,
+            max_hashtags: Some(5),
+            ..rule("TikTok", 2200, Some(1))
+        },
+    );
+    m.insert(
         "google_business".to_string(),
-        rule("Google Business Profile", 1500, Some(0)),
+        rule("Google Business Profile", 1500, Some(1)),
     );
     m.insert("facebook".to_string(), rule("Facebook", 63206, Some(10)));
     m.insert(

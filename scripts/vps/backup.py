@@ -30,6 +30,10 @@ for name, container, database in [
 source = Path(subprocess.check_output(
     ['docker', 'volume', 'inspect', '--format', '{{.Mountpoint}}', 'trendi_social'],
     text=True).strip()) / 'social.db'
+media = source.parent / 'media'
+(stage / 'social-media').mkdir(mode=0o700, exist_ok=True)
+if media.exists():
+    shutil.copytree(media, stage / 'social-media', dirs_exist_ok=True)
 with sqlite3.connect(str(source)) as src, sqlite3.connect(str(stage / 'social.db')) as dst:
     src.backup(dst)
     assert dst.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'

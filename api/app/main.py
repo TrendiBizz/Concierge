@@ -1653,6 +1653,49 @@ class OwnerSocialDraft(BaseModel):
     link: str = Field(default="", max_length=2000)
     hashtags: str = Field(default="", max_length=2000)
     media: list[str] = Field(default_factory=list, max_length=10)
+    options: dict = Field(default_factory=dict)
+
+
+class OwnerSocialCompose(OwnerSocialDraft):
+    video: str | None = Field(default=None, max_length=2048)
+
+
+@app.post("/owner/social/media")
+async def owner_social_media_upload(request: Request, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    base, key = social_bridge._configuration()
+    slug = await social_bridge.ensure_tenant(user)
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > 64 * 1024 * 1024:
+            raise HTTPException(413, "Upload a file smaller than 64 MB")
+    import httpx
+    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
+        result = await client.post(base+f"/v1/customers/{slug}/media", headers={"Authorization":"Bearer "+key,"Content-Type":"application/octet-stream"},content=bytes(content))
+    if result.status_code != 200:
+        raise HTTPException(400, "Media could not be processed; use a JPG/PNG image or MP4/MOV video under 64 MB")
+    return result.json()
+
+
+@app.get("/api/v1/social-media/{token}")
+async def social_media_download(token: str):
+    if len(token)>2048:
+        raise HTTPException(404,"Media unavailable")
+    base, _ = social_bridge._configuration()
+    import httpx
+    async with httpx.AsyncClient(timeout=60,follow_redirects=False) as client:
+        result = await client.get(base+"/public-media/"+token)
+    if result.status_code != 200:
+        raise HTTPException(404,"Media unavailable")
+    return Response(content=result.content,media_type=result.headers.get("content-type","application/octet-stream"),headers={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"})
+
+
+@app.post("/owner/social/compose")
+async def owner_social_compose(body: OwnerSocialCompose,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.compose(user, body.model_dump())
 
 
 class OwnerSocialSchedule(BaseModel):
@@ -1812,7 +1855,7 @@ async def owner_social_create(body: OwnerSocialDraft,
                               user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
     return await social_bridge.create_draft(user, body.content, body.account_ids,
-                                            body.link, body.hashtags, body.media)
+                                            body.link, body.hashtags, body.media, body.options)
 
 
 @app.post("/owner/social/posts/{post_id}/submit")

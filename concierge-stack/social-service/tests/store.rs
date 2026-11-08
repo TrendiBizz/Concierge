@@ -18,6 +18,7 @@ fn draft_rejects_accounts_owned_by_another_customer_before_storage() {
             .create_post(
                 "b",
                 NewPost {
+                    options: serde_json::Value::Null,
                     content: "Synthetic draft".into(),
                     link: "".into(),
                     hashtags: "".into(),
@@ -32,6 +33,7 @@ fn draft_rejects_accounts_owned_by_another_customer_before_storage() {
         .create_post(
             "b",
             NewPost {
+                options: serde_json::Value::Null,
                 content: "Own account".into(),
                 link: "".into(),
                 hashtags: "".into(),
@@ -49,6 +51,7 @@ fn draft(store: &Store, tenant: &str) -> (String, String) {
         .create_post(
             tenant,
             NewPost {
+                options: serde_json::Value::Null,
                 content: "Hello".into(),
                 link: "".into(),
                 hashtags: "".into(),

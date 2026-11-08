@@ -92,7 +92,14 @@ pub fn start(
     url.query_pairs_mut()
         .append_pair("client_key", &cfg.client_key)
         .append_pair("response_type", "code")
-        .append_pair("scope", SCOPE)
+        .append_pair(
+            "scope",
+            if std::env::var("SOCIAL_TIKTOK_ENABLE_VIDEO_SCOPE").as_deref() == Ok("true") {
+                "user.info.basic,video.publish"
+            } else {
+                SCOPE
+            },
+        )
         .append_pair("redirect_uri", &cfg.callback)
         .append_pair("state", &state);
     Ok(crate::oauth::Start {
@@ -180,7 +187,7 @@ pub async fn finish(
         token_enc: &encrypted,
         refresh_enc: Some(&refresh),
         expires_at: Some(crate::now_unix().saturating_add(token.expires_in)),
-        granted_scopes: SCOPE,
+        granted_scopes: &crate::linkedin::normalize_scopes(&token.scope),
     })
 }
 pub fn disconnect(store: &Store, customer: &str, id: &str) -> Result<(), String> {

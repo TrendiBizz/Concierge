@@ -2,13 +2,18 @@
 //! Built from official platform API specifications, not Postiz implementation.
 //! Live publishing is disabled by default.
 
+pub mod adaptation;
 pub mod api;
 pub mod bluesky;
+pub mod composer;
 pub mod connector;
 pub mod google_business;
 pub mod google_business_publish;
 pub mod guardrails;
 pub mod linkedin;
+pub mod linkedin_media;
+pub mod linkedin_pages;
+pub mod media;
 pub mod meta;
 pub mod meta_publish;
 pub mod model;
@@ -17,6 +22,7 @@ pub mod scheduler;
 pub mod social_publish;
 pub mod store;
 pub mod tiktok;
+pub mod tiktok_publish;
 pub mod token_refresh;
 pub mod vault;
 

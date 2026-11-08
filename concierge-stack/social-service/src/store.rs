@@ -465,7 +465,7 @@ impl Store {
         }
         if !matches!(
             outcome,
-            Status::Published | Status::Failed | Status::Scheduled
+            Status::Published | Status::Processing | Status::Failed | Status::Scheduled
         ) {
             return Err("Bad result".into());
         }
@@ -505,6 +505,61 @@ impl Store {
         Ok(())
     }
 
+    pub fn pending_receipts(&self) -> Result<Vec<(Post, String, String)>> {
+        let db = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        let mut query=db.prepare("SELECT p.body,r.account_id,r.external_post_id FROM posts p JOIN post_results r ON r.post_id=p.id WHERE r.ok=1 AND r.external_post_id LIKE 'pending:%' LIMIT 20").map_err(|e|e.to_string())?;
+        let records = query
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in records {
+            let (body, account, receipt) = row.map_err(|e| e.to_string())?;
+            out.push((
+                serde_json::from_str(&body).map_err(|e| e.to_string())?,
+                account,
+                receipt,
+            ));
+        }
+        Ok(out)
+    }
+    pub fn resolve_receipt(
+        &self,
+        customer: &str,
+        post_id: &str,
+        account: &str,
+        receipt: &str,
+        failed: bool,
+    ) -> Result<()> {
+        let mut post = self.get_post(customer, post_id)?;
+        {
+            let db = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+            db.execute("UPDATE post_results SET external_post_id=?1,error=?2 WHERE post_id=?3 AND account_id=?4 AND ok=1 AND external_post_id LIKE 'pending:%'",params![receipt,if failed {Some("Provider processing failed")}else{None},post_id,account]).map_err(|e|e.to_string())?;
+            let remaining:i64=db.query_row("SELECT count(*) FROM post_results WHERE post_id=?1 AND external_post_id LIKE 'pending:%'",[post_id],|r|r.get(0)).map_err(|e|e.to_string())?;
+            if remaining > 0 && !failed {
+                return Ok(());
+            }
+        }
+        if post.status == Status::Processing {
+            post.status = if failed {
+                Status::Failed
+            } else {
+                Status::Published
+            };
+            post.last_error = if failed {
+                Some("Provider could not finish processing this video".into())
+            } else {
+                None
+            };
+            self.move_post(customer, post, Status::Processing)?;
+        }
+        Ok(())
+    }
     pub fn mark_reauth(&self, customer: &str, id: &str) -> Result<()> {
         let conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
         let n = conn
@@ -575,6 +630,7 @@ impl Store {
         }
         let t = now();
         let post = Post {
+            options: new.options,
             id: random_id(),
             customer_id: customer.into(),
             content: new.content,

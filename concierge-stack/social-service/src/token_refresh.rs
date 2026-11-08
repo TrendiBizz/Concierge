@@ -85,7 +85,7 @@ pub async fn refresh(
                 .await
                 .map_err(|_| "TikTok renewal unavailable")?
         }
-        "linkedin" => {
+        "linkedin" | "linkedin_organization" => {
             let sealed = encrypted_refresh
                 .ok_or("LinkedIn account requires reconnection (refresh permission unavailable)")?;
             let old_refresh = vault.open(&sealed, &label)?;

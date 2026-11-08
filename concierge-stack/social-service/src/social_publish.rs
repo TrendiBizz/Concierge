@@ -75,7 +75,7 @@ impl Connector for Mastodon {
         }
         if request.text.trim().is_empty()
             || request.text.chars().count() > 500
-            || !request.media.is_empty()
+            || (!request.media.is_empty() && request.local_media.is_none())
         {
             return Err(ConnectorError::Permanent(
                 "Mastodon text-only post rejected by local limits".into(),
@@ -113,6 +113,7 @@ impl Connector for Mastodon {
 pub struct LinkedIn {
     http: reqwest::Client,
     version: String,
+    organization: bool,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,6 +147,11 @@ fn linkedin_body<'a>(external_id: &str, text: &'a str) -> LinkedInPost<'a> {
     }
 }
 impl LinkedIn {
+    pub fn organization(version: &str) -> Result<Self, String> {
+        let mut connector = Self::new(version)?;
+        connector.organization = true;
+        Ok(connector)
+    }
     pub fn new(version: &str) -> Result<Self, String> {
         if version.len() != 6 || !version.bytes().all(|b| b.is_ascii_digit()) {
             return Err("LinkedIn API version must be YYYYMM".into());
@@ -159,13 +165,18 @@ impl LinkedIn {
         Ok(Self {
             http: http_client(),
             version: version.into(),
+            organization: false,
         })
     }
 }
 #[async_trait]
 impl Connector for LinkedIn {
     fn network(&self) -> &'static str {
-        "linkedin"
+        if self.organization {
+            "linkedin_organization"
+        } else {
+            "linkedin"
+        }
     }
 
     async fn publish(&self, request: PublishRequest) -> Result<Published, ConnectorError> {
@@ -187,11 +198,27 @@ impl Connector for LinkedIn {
         }
         if request.text.trim().is_empty()
             || request.text.chars().count() > 3000
-            || !request.media.is_empty()
+            || (!request.media.is_empty() && request.local_media.is_none())
         {
             return Err(ConnectorError::Permanent(
                 "LinkedIn text-only post rejected by local limits".into(),
             ));
+        }
+        let mut body = serde_json::to_value(linkedin_body(&request.external_id, &request.text))
+            .map_err(|_| ConnectorError::Permanent("LinkedIn post could not be prepared".into()))?;
+        if self.organization {
+            body["author"] =
+                serde_json::json!(format!("urn:li:organization:{}", request.external_id));
+        }
+        if let Some(asset) = &request.local_media {
+            body["content"] = crate::linkedin_media::upload(
+                &self.http,
+                &self.version,
+                &request.access_token,
+                body["author"].as_str().unwrap_or(""),
+                asset,
+            )
+            .await?;
         }
         let response = self
             .http
@@ -199,7 +226,7 @@ impl Connector for LinkedIn {
             .bearer_auth(&request.access_token)
             .header("Linkedin-Version", &self.version)
             .header("X-Restli-Protocol-Version", "2.0.0")
-            .json(&linkedin_body(&request.external_id, &request.text))
+            .json(&body)
             .send()
             .await
             .map_err(|_| {

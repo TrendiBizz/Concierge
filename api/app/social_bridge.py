@@ -35,7 +35,7 @@ def _configuration() -> tuple[str, str]:
 async def _request(method: str, path: str, data: dict | None = None):
     base, key = _configuration()
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=150.0 if path.endswith("/media") else (75.0 if path.endswith("/compose") else 8.0), follow_redirects=False) as client:
             response = await client.request(method, base + path,
                 headers={"Authorization": "Bearer " + key,
                          "Accept": "application/json"},
@@ -197,8 +197,13 @@ async def posts(tenant: dict):
     return await _request("GET", f"/v1/customers/{slug}/posts")
 
 
+async def compose(tenant: dict, payload: dict):
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/compose", payload)
+
+
 async def create_draft(tenant: dict, content: str, account_ids: list[str],
-                       link: str = "", hashtags: str = "", media: list[str] | None = None):
+                       link: str = "", hashtags: str = "", media: list[str] | None = None, options: dict | None = None):
     slug = await ensure_tenant(tenant)
     if not content.strip() or len(content) > 10000 or not 1 <= len(account_ids) <= 10:
         raise HTTPException(400, "A valid post and one or more accounts are required")
@@ -206,11 +211,11 @@ async def create_draft(tenant: dict, content: str, account_ids: list[str],
         raise HTTPException(400, "Invalid account identifier")
     media = media or []
     if len(media) > 10 or any(not isinstance(m, str) or len(m) > 2048
-                              or not m.startswith("https://") for m in media):
+                              or not (m.startswith("https://") or re.fullmatch(r"upload:[A-Za-z0-9_-]{20,128}",m)) for m in media):
         raise HTTPException(400, "Only HTTPS media URLs are allowed")
     return await _request("POST", f"/v1/customers/{slug}/posts", {
         "content": content, "account_ids": account_ids,
-        "link": link, "hashtags": hashtags, "media": media,
+        "link": link, "hashtags": hashtags, "media": media, "options": options or {},
     })
 
 

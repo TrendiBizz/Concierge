@@ -7,7 +7,7 @@ COPY concierge-stack/social-service/src ./src
 RUN CARGO_BUILD_JOBS=1 cargo build --locked --release -j 1
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10002 social \
     && mkdir -p /data && chown social:social /data

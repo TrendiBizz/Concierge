@@ -23,6 +23,10 @@ try:
     stage = tmp / 'opt/trendi/backup-stage'
     assert (stage / 'concierge.dump').stat().st_size > 0
     assert (tmp / 'opt/trendi/shared/social.env').stat().st_size > 0
+    assert (stage / 'social-media').is_dir()
+    for metadata in (stage / 'social-media').glob('*/*.json'):
+        record = json.loads(metadata.read_text())
+        assert metadata.with_suffix('.bin').stat().st_size == record['bytes']
     with sqlite3.connect(str(stage / 'social.db')) as database:
         assert database.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
     run(['docker', 'run', '-d', '--rm', '--name', name, '--network', 'none',

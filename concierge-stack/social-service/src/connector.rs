@@ -13,6 +13,8 @@ pub struct PublishRequest {
     pub text: String,
     pub link: String,
     pub media: Vec<String>,
+    pub options: serde_json::Value,
+    pub local_media: Option<crate::media::Asset>,
 }
 
 #[derive(Clone, Debug)]

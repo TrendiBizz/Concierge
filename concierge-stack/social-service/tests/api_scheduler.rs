@@ -34,6 +34,7 @@ fn seed() -> (Store, Vault, String, String) {
         .create_post(
             "a",
             NewPost {
+                options: serde_json::Value::Null,
                 content: "Approved message".into(),
                 link: String::new(),
                 hashtags: String::new(),
@@ -152,6 +153,7 @@ async fn social_text_contains_approved_hashtags() {
         .create_post(
             "a",
             NewPost {
+                options: serde_json::Value::Null,
                 content: "Hello".into(),
                 link: "https://example.org".into(),
                 hashtags: "#approved".into(),
@@ -172,4 +174,38 @@ async fn social_text_contains_approved_hashtags() {
     assert_eq!(run_due(&store, &v, &registry, now).await.unwrap(), 1);
     let requests = mock.requests.lock().unwrap();
     assert_eq!(requests[0].text, "Hello\nhttps://example.org\n#approved");
+}
+
+#[tokio::test]
+async fn missing_owned_media_fails_one_job_and_preserves_other_due_work() {
+    let (store, v, good, account) = seed();
+    let bad = store
+        .create_post(
+            "a",
+            NewPost {
+                options: serde_json::Value::Null,
+                content: "Reviewed media post".into(),
+                link: String::new(),
+                hashtags: String::new(),
+                account_ids: vec![account],
+                media: vec!["upload:missing-release-test-asset".into()],
+            },
+        )
+        .unwrap();
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    for id in [&good, &bad.id] {
+        store.submit("a", id).unwrap();
+        let token = store.create_approval("a", id, now, now + 100).unwrap();
+        store.decide("a", &token, true, now).unwrap();
+    }
+    let mock = Arc::new(MockConnector::default());
+    let mut registry = Registry::new();
+    registry.register(mock.clone());
+    assert_eq!(run_due(&store, &v, &registry, now).await.unwrap(), 1);
+    assert_eq!(store.get_post("a", &bad.id).unwrap().status, Status::Failed);
+    assert_eq!(
+        store.get_post("a", &good).unwrap().status,
+        Status::Published
+    );
+    assert_eq!(mock.requests.lock().unwrap().len(), 1);
 }

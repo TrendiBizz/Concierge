@@ -1,5 +1,11 @@
 # Trendi Concierge Social Channel Activation — verified 2026-11-08
 
+## Open follow-up: Google consent support email
+
+- [ ] Replace the temporary Google OAuth consent support address `kiwi18@gmail.com` with **`support@trendibizz.com`**. Requested by Jo on 2026-11-08.
+- Jo approved the Gmail address temporarily so setup can proceed. The intended customer-facing address is `support@trendibizz.com`.
+- Configure the business support address as an eligible Google Group, select it in the Google Auth Platform branding settings for project `trendi-seo`, and verify the customer consent screen displays the new address before closing this item.
+
 ## Single customer experience
 
 All customer connections use **Concierge** under `https://concierge.trendibizz.com/owner-ui` and the same verified HTTPS callback path: `/owner/social/oauth/callback`. Each platform uses its own app client and official authorization service, but customers use a single owner portal and never supply passwords to Trendi.
@@ -47,3 +53,7 @@ Do NOT reuse Meta's SocialSync App Secret for LinkedIn, TikTok or Google. Each p
 - Do not run full Docker Rust builds on the 16 GB Mac.hub while production is live; use single-job native Rust incremental builds.
 - Unrelated `QA/verification/office-shots/` is preserved.
 - Instagram status cannot be marked connected until an actual encrypted account record exists; green sign-in alone is insufficient.
+
+## Superseding VPS release status — 9 November 2026
+
+See `SOCIAL_COMPOSER_RELEASE_2026-11-09.md` for deployed composer capabilities and acceptance evidence. Earlier staging-only statements above describe the prior rollout. Mastodon/Bluesky are no longer offered; historical records remain. TikTok video and LinkedIn company Page implementations now exist but provider activation is outstanding. LinkedIn's current portal blocks Community Management on the existing app because it already has other products; a dedicated app is required. Google OAuth/Business Profile entitlement and temporary support-address replacement remain open. Global live social publishing is still disabled.

@@ -22,6 +22,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #528200;outline-offset:3px}
 .portal-header{background:#fff;border-bottom:1px solid #e0e6f1}.portal-header .portal-wrap{max-width:1060px;margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.portal-brand{display:flex;align-items:center;gap:18px;text-decoration:none;font-weight:700}.portal-brand svg{display:block;width:125px;height:32px}.portal-header nav{display:flex;gap:20px;flex-wrap:wrap;font-size:.9rem}.portal-header nav a{text-decoration:none}.workspace-nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.workspace-nav a{padding:10px 14px;border:1px solid #c9d2e3;border-radius:8px;text-decoration:none;background:#fff}.workspace-nav a:hover{background:var(--lime)}section[id]{scroll-margin-top:20px}.portal-footer{max-width:1060px;margin:32px auto;padding:18px;border-top:1px solid #d9e2ed;font-size:.9rem}
 [hidden]{display:none!important}
+.social-destination{display:flex;gap:10px;align-items:center;margin:8px 0}.social-destination input{width:auto}#social-previews textarea{min-height:140px}
 </style>
 </head>
 <body>
@@ -94,23 +95,24 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="button" id="social-google_business-connect" hidden>Connect Google Business Profile</button>
 <button type="button" id="social-facebook-connect" hidden>Connect Facebook Pages</button>
 <button type="button" id="social-instagram-connect" hidden>Connect Instagram</button>
-<button type="button" id="social-mastodon-connect" hidden>Connect Mastodon</button>
+
 <button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn</button>
 <button type="button" id="social-tiktok-connect" hidden>Connect TikTok</button>
 <p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
 <div id="social-accounts" aria-live="polite"></div>
 <form id="social-form" hidden>
-<label for="social-text">Post text</label>
-<textarea id="social-text" maxlength="10000" required></textarea>
+<label for="composer-body">Post text</label>
+<textarea id="composer-body" maxlength="10000" required></textarea>
 <label for="social-account">Linked social account</label>
-<select id="social-account" required></select>
+<div id="social-destinations" role="group" aria-label="Choose post destinations"></div><select id="social-account" multiple hidden aria-describedby="social-compose-help"></select><p id="social-compose-help" class="muted">Choose the accounts for this post. Each destination gets its own editable preview before you save or approve it.</p>
 <div class="row">
-<div><label for="social-link">Link (optional)</label><input id="social-link" type="url" maxlength="2000"></div>
-<div><label for="social-media">Public HTTPS image URL (required for Instagram image posts)</label><input id="social-media" type="url" maxlength="2048" placeholder="https://your-cdn.example/photo.jpg"></div>
+<div><label for="composer-url">Link (optional)</label><input id="composer-url" type="url" maxlength="2000"></div>
+<div><label for="social-media">Public HTTPS image URL (or upload a photo)</label><input id="social-media" type="url" maxlength="2048" placeholder="https://your-cdn.example/photo.jpg"></div>
 <div><label for="social-hashtags">Hashtags (optional)</label><input id="social-hashtags" maxlength="2000"></div>
 </div>
-<button type="submit">Create draft</button>
+<div><label for="social-upload">Upload a photo or video (up to 64 MB)</label><input id="social-upload" type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime"><p id="social-upload-status" class="muted" aria-live="polite"></p></div><div><label for="social-video">External video URL (TikTok requires a file upload)</label><input id="social-video" type="url" maxlength="2048"></div><button type="submit">Prepare platform previews</button>
 </form>
+<section id="social-previews" aria-live="polite"></section>
 <button type="button" id="social-refresh" class="secondary">Refresh social drafts</button>
 <div id="social-posts" aria-live="polite"></div>
 </section>
@@ -165,10 +167,11 @@ function resetWorkspace(){
  pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;clearOAuthChannel();
  bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
  $("social-panel").hidden=true;$("invite-panel").hidden=true;
- for(const id of ["social-posts","social-accounts","social-account","drafts","numbers","calls",
+ socialUpload=null;
+ for(const id of ["social-destinations","social-previews","social-posts","social-accounts","social-account","drafts","numbers","calls",
    "onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
  for(const id of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone",
-   "social-text","social-link","social-hashtags","social-media","invite-email","knowledge-title","knowledge-text","knowledge-file",
+   "composer-body","composer-url","social-hashtags","social-media","social-video","social-upload","invite-email","knowledge-title","knowledge-text","knowledge-file",
    "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
  $("social-account").value="";$("invite-role").value="viewer";
  setupProgress={business:false,knowledge:0,accounts:0};
@@ -256,7 +259,7 @@ async function startSocialOAuth(provider){
  }
  pendingOAuthState="";pendingOAuthProvider="";clearOAuthChannel();
  const instructions={
-  linkedin:"Use your personal LinkedIn login. This connects your member profile; company-Page publishing requires separate permissions.",
+  linkedin:"Use your personal LinkedIn login. Choose your member profile and the company Pages you administer when the app has the required permissions.",
   facebook:"Use the Facebook login that manages your business Pages, then authorize only the Pages for this business.",
   instagram:"Use the login that manages your professional Instagram account and its connected business Page.",
   tiktok:"Use the TikTok account you want connected to this business."
@@ -287,7 +290,7 @@ async function startSocialOAuth(provider){
 $("social-google_business-connect").addEventListener("click",()=>startSocialOAuth("google_business"));
 $("social-facebook-connect").addEventListener("click",()=>startSocialOAuth("facebook"));
 $("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("instagram"));
-$("social-mastodon-connect").addEventListener("click",()=>startSocialOAuth("mastodon"));
+
 $("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
 $("social-tiktok-connect").addEventListener("click",()=>startSocialOAuth("tiktok"));
 async function finishSocialOAuth(data){
@@ -317,19 +320,86 @@ window.addEventListener("message",event=>{
  void finishSocialOAuth(event.data);
 });
 $("social-refresh").addEventListener("click",()=>refreshSocial().catch(err=>message(err.message,true)));
-$("social-form").addEventListener("submit",async event=>{
- event.preventDefault();
- if(currentRole==="viewer")return;
+let socialUpload=null;
+$("social-upload").addEventListener("change",async()=>{
+ const generation=sessionGeneration;socialUpload=null;const file=$("social-upload").files[0];if(!file)return;
+ if(file.size>64*1024*1024){message("Use a file smaller than 64 MB",true);return;}
+ $("social-upload-status").textContent="Uploading and checking media…";
  try{
-   const account=$("social-account").value;
-   if(!account)throw new Error("Select a linked account");
-   await request("/owner/social/posts","POST",{
-     content:$("social-text").value,account_ids:[account],
-     link:$("social-link").value.trim(),hashtags:$("social-hashtags").value.trim(),
-    media:$("social-media").value.trim()?[$("social-media").value.trim()]:[]
-   });
-   $("social-text").value="";$("social-link").value="";$("social-hashtags").value="";$("social-media").value="";
-   await refreshSocial();message("Social draft created. It has NOT been published.");
+  const result=await fetch("/owner/social/media",{method:"POST",headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/octet-stream"},body:file});
+  assertSession(generation);if(!result.ok)throw new Error("Upload failed. Use a JPG/PNG image or MP4/MOV video under 64 MB");
+  socialUpload=await result.json();$("social-upload-status").textContent="Ready: "+socialUpload.kind+", "+socialUpload.width+" × "+socialUpload.height+(socialUpload.duration_seconds?", "+Math.round(socialUpload.duration_seconds)+" seconds":"");
+ }catch(error){$("social-upload-status").textContent="";message(error.message,true);}
+});
+$("social-form").addEventListener("submit",async event=>{
+ event.preventDefault(); if(currentRole==="viewer")return;
+ const generation=sessionGeneration;
+ try{
+  const account_ids=Array.from($("social-account").selectedOptions).map(option=>option.value);
+  if(!account_ids.length)throw new Error("Select at least one linked account");
+  const variants=await request("/owner/social/compose","POST",{
+   content:$("composer-body").value,account_ids,link:$("composer-url").value.trim(),
+   hashtags:$("social-hashtags").value.trim(),media:socialUpload?.kind==="image"?["upload:"+socialUpload.id]:($("social-media").value.trim()?[$("social-media").value.trim()]:[]),
+   video:socialUpload?.kind==="video"?"upload:"+socialUpload.id:($("social-video").value.trim()||null)
+  });
+  assertSession(generation); const host=$("social-previews");clear(host);
+  host.appendChild(node("h3","Review your platform versions"));
+  const drafts=[];
+  for(const variant of variants){
+   const item=node("article","","item");item.appendChild(node("h4",variant.account_name+" — "+variant.network.replaceAll("_"," ")));
+   const edit=node("textarea",variant.content);edit.value=variant.content;edit.setAttribute("aria-label","Post preview for "+variant.account_name);item.appendChild(edit);
+   item.appendChild(node("p",[variant.link,variant.hashtags].filter(Boolean).join("\n"),"muted"));
+   item.appendChild(node("p",variant.length+" / "+variant.limit+" characters","muted"));
+   for(const warning of variant.warnings)item.appendChild(node("p",warning,"muted"));
+   for(const error of variant.errors)item.appendChild(node("p",error,"error"));
+   const options={};
+   if(variant.tiktok_creator){
+    const creator=variant.tiktok_creator;
+    item.appendChild(node("p","TikTok creator: "+creator.creator_nickname+" (@"+creator.creator_username+")"));
+    const privacy=document.createElement("select");privacy.setAttribute("aria-label","Who can view this TikTok video");
+    const empty=node("option","Choose video visibility");empty.value="";privacy.appendChild(empty);
+    for(const level of creator.privacy_level_options){const option=node("option",level.replaceAll("_"," "));option.value=level;privacy.appendChild(option);}
+    item.appendChild(privacy);privacy.addEventListener("change",()=>options.privacy_level=privacy.value);
+    const duration=document.createElement("input");duration.type="number";duration.min="0.1";duration.step="0.1";duration.max=String(creator.max_video_post_duration_sec);duration.placeholder="Video duration in seconds";duration.setAttribute("aria-label","Video duration in seconds");if(socialUpload?.kind==="video"){duration.value=String(socialUpload.duration_seconds);duration.readOnly=true;options.duration_seconds=socialUpload.duration_seconds;}item.appendChild(duration);duration.addEventListener("input",()=>options.duration_seconds=Number(duration.value));
+    for(const [key,label,disabled] of [["allow_comments","Allow comments",creator.comment_disabled],["allow_duet","Allow Duet",creator.duet_disabled],["allow_stitch","Allow Stitch",creator.stitch_disabled],["brand_organic_toggle","This promotes my own business",false],["brand_content_toggle","Paid partnership or branded content",false],["music_usage_consent","I agree to TikTok Music Usage Confirmation",false],["branded_content_consent","For paid partnerships, I agree to TikTok Branded Content Policy",false],["creator_consent","I consent to sending this video to TikTok with these settings",false]]){
+     const wrap=node("label",label);const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.disabled=disabled;checkbox.addEventListener("change",()=>options[key]=checkbox.checked);wrap.prepend(checkbox);item.appendChild(wrap);
+    }
+   }
+   host.appendChild(item);drafts.push({variant,edit,options});
+  }
+  const save=node("button","Save reviewed versions as drafts");save.disabled=variants.some(v=>v.errors.length);
+  save.addEventListener("click",async()=>{
+   save.disabled=true;
+   try{
+    for(const {variant,edit,options} of drafts){
+     assertSession(generation);
+     if(variant.saved)continue;
+     if(variant.network==="tiktok" && (!options.privacy_level||!options.creator_consent||!options.music_usage_consent||!options.duration_seconds))throw new Error("Choose TikTok visibility, duration and video consent before saving");
+     const saved=await request("/owner/social/posts","POST",{content:edit.value,account_ids:[variant.account_id],link:variant.link,hashtags:variant.hashtags,media:variant.media,options});variant.post_id=saved.id;
+     variant.saved=true;
+     for(const field of edit.parentElement.querySelectorAll("input,select,textarea"))field.disabled=true;
+    }
+    save.textContent="Versions saved";
+    if(currentRole==="owner"){
+     const when=document.createElement("input");when.type="datetime-local";when.setAttribute("aria-label","Schedule all reviewed versions (leave blank for now)");host.appendChild(when);
+     const approve=node("button","Approve and schedule all reviewed versions");
+     approve.addEventListener("click",async()=>{
+      approve.disabled=true;
+      try{
+       const scheduled=when.value?Math.floor(new Date(when.value).getTime()/1000):Math.floor(Date.now()/1000);if(!Number.isFinite(scheduled)||scheduled<Math.floor(Date.now()/1000)-60)throw new Error("Choose a valid future publishing time");
+       const approvals=[];
+       for(const {variant} of drafts){if(!variant.submitted){await request("/owner/social/posts/"+encodeURIComponent(variant.post_id)+"/submit","POST");variant.submitted=true;}
+        const approval=await request("/owner/social/posts/"+encodeURIComponent(variant.post_id)+"/approval-request","POST",{scheduled_at:scheduled});approvals.push({variant,approval});}
+       if(!confirm("Approve these EXACT platform versions and media for "+new Date(scheduled*1000).toLocaleString()+"?\n\n"+approvals.map(({variant,approval})=>variant.account_name+"\n"+approval.exact_text).join("\n\n—\n\n"))){approve.disabled=false;return;}
+       for(const {approval} of approvals)await request("/owner/social/approvals/"+encodeURIComponent(approval.token)+"/approve","POST");
+       clear(host);await refreshSocial();message("Reviewed versions scheduled. Each platform will report its delivery status; posting requires activation.");
+      }catch(error){approve.disabled=false;message(error.message,true);}
+     });host.appendChild(approve);
+    }
+    await refreshSocial();message("Platform versions saved. Review all versions before approving publication.");
+   }catch(error){save.disabled=false;message(error.message,true);}
+  });host.appendChild(save);
+  message("Platform previews are ready. Nothing has been published.");
  }catch(error){message(error.message,true);}
 });
 
@@ -486,16 +556,13 @@ async function refreshSocial(){
   $("social-instagram-connect").disabled=!status.providers?.instagram;
   $("social-facebook-connect").title=status.providers?.facebook?"Connect a Facebook Page":"Facebook developer app not configured";
   $("social-instagram-connect").title=status.providers?.instagram?"Connect a professional Instagram account":"Instagram developer app not configured";
-  $("social-mastodon-connect").hidden=!canLink;
   $("social-linkedin-connect").hidden=!canLink;
-  $("social-mastodon-connect").disabled=!status.providers?.mastodon;
   $("social-linkedin-connect").disabled=!status.providers?.linkedin;
-  $("social-mastodon-connect").title=status.providers?.mastodon?"Connect Mastodon":"Operator must configure and verify Mastodon OAuth first";
   $("social-linkedin-connect").title=status.providers?.linkedin?"Connect LinkedIn":"Operator must configure and verify LinkedIn OAuth first";
   $("social-tiktok-connect").hidden=!canLink;
   $("social-tiktok-connect").disabled=!status.providers?.tiktok;
   $("social-tiktok-connect").title=status.providers?.tiktok?"Connect an authorized TikTok account":"TikTok Login Kit developer app and scopes must be approved";
-  for(const provider of ["facebook","instagram","linkedin","tiktok","mastodon","google_business"]){
+  for(const provider of ["facebook","instagram","linkedin","tiktok","google_business"]){
     $("social-"+provider+"-connect").hidden=!canLink||!status.providers?.[provider];
   }
   $("social-oauth-readiness").textContent=!status.enabled?
@@ -507,13 +574,14 @@ async function refreshSocial(){
   ]);
   assertSession(generation);
   setupProgress.accounts=accounts.filter(account=>!account.needs_reauth).length;renderSetupProgress();
-  clear($("social-accounts"));clear($("social-account"));clear($("social-posts"));
+  clear($("social-accounts"));clear($("social-destinations"));clear($("social-account"));clear($("social-posts"));
   $("social-form").hidden=currentRole==="viewer"||!accounts.length;
   if(!accounts.length){
     $("social-accounts").appendChild(node("p",
       "No social accounts connected yet. Choose a network above to connect an account for this business.","muted"));
   }else{
     for(const account of accounts){
+      if(["mastodon","bluesky"].includes(account.network))continue;
       $("social-accounts").appendChild(node("p",
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
@@ -562,7 +630,7 @@ async function refreshSocial(){
         });
         $("social-accounts").appendChild(disconnect);
       }
-      if(account.network==="linkedin" && currentRole==="owner" && !account.needs_reauth){
+      if(["linkedin","linkedin_organization"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
         const unlink=node("button","Unlink "+account.display_name,"danger");
         unlink.addEventListener("click",async()=>{
           if(!confirm("Remove this LinkedIn account from Concierge?"+
@@ -576,9 +644,10 @@ async function refreshSocial(){
         });
         $("social-accounts").appendChild(unlink);
       }
-      if(!account.needs_reauth){
+      if(!account.needs_reauth && !["mastodon","bluesky"].includes(account.network)){
         const option=node("option",account.network+" — "+account.display_name);
         option.value=account.id;$("social-account").appendChild(option);
+        const label=node("label",account.network.replaceAll("_"," ")+" — "+account.display_name,"social-destination");const choose=document.createElement("input");choose.type="checkbox";choose.addEventListener("change",()=>option.selected=choose.checked);label.prepend(choose);$("social-destinations").appendChild(label);
       }
     }
   }

@@ -34,15 +34,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let store_for_scheduler = store.clone();
         let vault_for_scheduler = vault.clone();
         let mut registry = concierge_social::connector::Registry::new();
-        registry.register(Arc::new(concierge_social::bluesky::Bluesky::new()));
-        // Every new platform requires its own operator switch in addition
-        // to the global publishing switch, preventing accidental posting.
-        if std::env::var("SOCIAL_ENABLE_MASTODON_PUBLISH").as_deref() == Ok("true") {
-            let origin = std::env::var("SOCIAL_MASTODON_ORIGIN")?;
-            registry.register(Arc::new(concierge_social::social_publish::Mastodon::new(
-                &origin,
+        if std::env::var("SOCIAL_ENABLE_TIKTOK_PUBLISH").as_deref() == Ok("true") {
+            registry.register(Arc::new(concierge_social::tiktok_publish::TikTok::new(
+                &std::env::var("SOCIAL_TIKTOK_VERIFIED_MEDIA_ORIGINS").unwrap_or_default(),
             )?));
         }
+        // Every new platform requires its own operator switch in addition
+        // to the global publishing switch, preventing accidental posting.
         if std::env::var("SOCIAL_ENABLE_GOOGLE_BUSINESS_PUBLISH").as_deref() == Ok("true") {
             registry.register(Arc::new(
                 concierge_social::google_business_publish::GoogleBusiness::new(),
@@ -57,6 +55,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if std::env::var("SOCIAL_ENABLE_INSTAGRAM_PUBLISH").as_deref() == Ok("true") {
             registry.register(Arc::new(concierge_social::meta_publish::Instagram::new()));
+        }
+        if std::env::var("SOCIAL_ENABLE_LINKEDIN_ORGANIZATION_PUBLISH").as_deref() == Ok("true") {
+            let version =
+                std::env::var("SOCIAL_LINKEDIN_API_VERSION").unwrap_or_else(|_| "202605".into());
+            registry.register(Arc::new(
+                concierge_social::social_publish::LinkedIn::organization(&version)?,
+            ));
         }
         if std::env::var("SOCIAL_ENABLE_LINKEDIN_PUBLISH").as_deref() == Ok("true") {
             let version =

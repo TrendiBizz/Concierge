@@ -95,7 +95,18 @@ pub fn start(
         .append_pair("response_type", "code")
         .append_pair("client_id", &cfg.client_id)
         .append_pair("redirect_uri", &cfg.callback)
-        .append_pair("scope", SCOPE)
+        .append_pair(
+            "scope",
+            if std::env::var("SOCIAL_LINKEDIN_ORGANIZATIONS_ENABLED").as_deref() == Ok("true") {
+                "openid profile w_member_social w_organization_social r_organization_admin"
+            } else if std::env::var("SOCIAL_LINKEDIN_MEMBER_PUBLISH_ENABLED").as_deref()
+                == Ok("true")
+            {
+                "openid profile w_member_social"
+            } else {
+                SCOPE
+            },
+        )
         .append_pair("state", &state);
     Ok(crate::oauth::Start {
         authorization_url: url.to_string(),
@@ -222,7 +233,7 @@ async fn finish_at(
             eprintln!("linkedin_oauth_failure phase=refresh_encryption");
             "LinkedIn credential encryption failed".to_string()
         })?;
-    store
+    let member_id = store
         .upsert_verified_account(crate::store::VerifiedAccount {
             customer,
             network: "linkedin",
@@ -247,7 +258,23 @@ async fn finish_at(
             // Do not log SQLite details or any account, OAuth code, or token data.
             eprintln!("linkedin_oauth_failure phase=account_storage");
             "LinkedIn account storage failed".to_string()
-        })
+        })?;
+    if verified_scopes
+        .split_whitespace()
+        .any(|v| v == "w_organization_social")
+    {
+        crate::linkedin_pages::discover(
+            store,
+            vault,
+            customer,
+            &token.access_token,
+            token.refresh_token.as_deref(),
+            crate::now_unix() + token.expires_in,
+            verified_scopes,
+        )
+        .await?;
+    }
+    Ok(member_id)
 }
 #[cfg(test)]
 mod tests {

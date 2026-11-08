@@ -235,9 +235,7 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
     let linkedin = crate::linkedin::from_env().is_ok_and(|cfg| {
         reqwest::Url::parse(&cfg.callback).is_ok_and(|url| url.path() == callback_path)
     });
-    let mastodon = crate::oauth::from_env().is_ok_and(|cfg| {
-        reqwest::Url::parse(&cfg.callback).is_ok_and(|url| url.path() == callback_path)
-    });
+    let mastodon = false;
     Ok(Json(OAuthProviders {
         linkedin,
         mastodon,
@@ -310,6 +308,137 @@ pub struct PostInputJson {
     networks: Vec<String>,
     #[serde(default)]
     media_count: usize,
+}
+async fn upload_media(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    body: axum::body::Bytes,
+) -> ApiResult<crate::media::Asset> {
+    role(&h, &s, true, Some(&c))?;
+    s.store.rules(&c).map_err(server_err)?;
+    tokio::task::spawn_blocking(move || crate::media::save(&c, &body))
+        .await
+        .map_err(|_| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Media processor unavailable",
+            )
+        })?
+        .map(Json)
+        .map_err(|e| err(StatusCode::BAD_REQUEST, e))
+}
+async fn download_media(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<impl axum::response::IntoResponse, (StatusCode, Json<ErrorBody>)> {
+    let asset = crate::media::download(&s.vault, &token)
+        .map_err(|_| err(StatusCode::NOT_FOUND, "Media unavailable"))?;
+    let bytes = tokio::task::spawn_blocking(move || {
+        std::fs::read(&asset.path).map(|bytes| (asset.mime, bytes))
+    })
+    .await
+    .map_err(|_| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Media delivery unavailable",
+        )
+    })?
+    .map_err(|_| err(StatusCode::NOT_FOUND, "Media unavailable"))?;
+    Ok((
+        [
+            ("content-type", bytes.0),
+            ("cache-control", "private, no-store".into()),
+            ("x-content-type-options", "nosniff".into()),
+            ("x-robots-tag", "noindex, nofollow".into()),
+        ],
+        bytes.1,
+    ))
+}
+async fn compose_post(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<crate::composer::Brief>,
+) -> ApiResult<Vec<crate::composer::Variant>> {
+    role(&h, &s, true, Some(&c))?;
+    let accounts = s.store.list_accounts(&c).map_err(server_err)?;
+    let rules = s.store.rules(&c).map_err(server_err)?;
+    for id in input
+        .media
+        .iter()
+        .chain(input.video.iter())
+        .filter_map(|m| m.strip_prefix("upload:"))
+    {
+        crate::media::load(&c, id).map_err(|_| {
+            err(
+                StatusCode::BAD_REQUEST,
+                "Media is not available for this business",
+            )
+        })?;
+    }
+    let mut variants = crate::composer::compose(&input, &accounts, &rules)
+        .map_err(|message| err(StatusCode::BAD_REQUEST, message))?;
+    if input.media.is_empty() {
+        if let Some(id) = input.video.as_ref().and_then(|v| v.strip_prefix("upload:")) {
+            if variants.iter().any(|v| v.network == "google_business") {
+                let customer = c.clone();
+                let id = id.to_string();
+                let poster =
+                    tokio::task::spawn_blocking(move || crate::media::poster(&customer, &id))
+                        .await
+                        .map_err(|_| {
+                            err(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Video still could not be prepared",
+                            )
+                        })?
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+                for variant in &mut variants {
+                    if variant.network == "google_business" {
+                        variant.media = vec![format!("upload:{}", poster.id)];
+                    }
+                }
+            }
+        }
+    }
+    for variant in &mut variants {
+        if variant.network == "tiktok" {
+            if !s
+                .store
+                .account_has_scope(&c, &variant.account_id, "video.publish")
+                .map_err(server_err)?
+            {
+                variant
+                    .errors
+                    .push("Reconnect TikTok after Content Posting API access is approved".into());
+                continue;
+            }
+            let (network, external, sealed, _) = s
+                .store
+                .account(&c, &variant.account_id)
+                .map_err(server_err)?;
+            let token = s
+                .vault
+                .open(
+                    &sealed,
+                    &crate::vault::account_label(&c, &network, &external),
+                )
+                .map_err(server_err)?;
+            match crate::tiktok_publish::creator_info(&token).await {
+                Ok(creator) => variant.tiktok_creator = Some(creator),
+                Err(message) => variant.errors.push(message),
+            }
+        }
+    }
+    if std::env::var("SOCIAL_ADAPT_API_KEY").is_ok() {
+        if let Err(message) = crate::adaptation::adapt(&input, &mut variants, &rules).await {
+            for variant in &mut variants {
+                variant.warnings.push(message.clone());
+            }
+        }
+    }
+    Ok(Json(variants))
 }
 async fn new_post(
     State(s): State<AppState>,
@@ -430,12 +559,14 @@ async fn approval_request(
         post_id: id,
         revision: p.revision,
         exact_text: format!(
-            "{}{}{}{}{}",
+            "{}{}{}{}{}\nMedia: {}\nPublishing choices: {}",
             p.content,
             if p.link.is_empty() { "" } else { "\n" },
             p.link,
             if p.hashtags.is_empty() { "" } else { "\n" },
-            p.hashtags
+            p.hashtags,
+            p.media.join("\n"),
+            p.options
         ),
     }))
 }
@@ -581,7 +712,7 @@ async fn linkedin_disconnect(
 ) -> ApiResult<Health> {
     role(&h, &s, true, Some(&c))?;
     let (network, _, _, _) = s.store.account(&c, &id).map_err(server_err)?;
-    if network != "linkedin" {
+    if network != "linkedin" && network != "linkedin_organization" {
         return Err(err(StatusCode::BAD_REQUEST, "Account is not LinkedIn"));
     }
     // No documented general-purpose LinkedIn provider token revocation endpoint.
@@ -754,6 +885,12 @@ async fn oauth_renew(
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/public-media/:token", get(download_media))
+        .route(
+            "/v1/customers/:c/media",
+            post(upload_media).layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024)),
+        )
+        .route("/v1/customers/:c/compose", post(compose_post))
         .route("/v1/oauth/providers", get(oauth_providers))
         .route(
             "/v1/customers/:c/oauth/google/start",

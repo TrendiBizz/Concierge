@@ -42,13 +42,15 @@ services:
     env_file:
       - {path: /opt/trendi/shared/social.env, format: raw}
     environment:
+      SOCIAL_MEDIA_DIR: /data/media
+      SOCIAL_PUBLIC_MEDIA_BASE: https://concierge.trendibizz.com/api/v1/social-media
       SOCIAL_DB: /data/social.db
       SOCIAL_BIND: 127.0.0.1:4390
       SOCIAL_ENABLE_PUBLISH: "false"
     volumes: [social:/data]
     depends_on:
       api: {condition: service_healthy}
-    mem_limit: 192m
+    mem_limit: 512m
   website:
     image: node:22-alpine
     restart: unless-stopped

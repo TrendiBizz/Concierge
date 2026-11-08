@@ -2,6 +2,7 @@ use concierge_social::model::{Post, Status};
 
 fn post() -> Post {
     Post {
+        options: serde_json::Value::Null,
         id: "post-1".into(),
         customer_id: "customer-1".into(),
         content: "Original".into(),

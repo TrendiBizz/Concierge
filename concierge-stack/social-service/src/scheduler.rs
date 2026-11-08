@@ -12,6 +12,60 @@ pub async fn run_due(
     registry: &Registry,
     now: i64,
 ) -> Result<usize, String> {
+    // Reconcile existing TikTok submissions before considering new posts. A
+    // provider receipt is never treated as proof that the video is published.
+    for (post, account, receipt) in store.pending_receipts()? {
+        if let Ok((network, external, sealed, _)) = store.account(&post.customer_id, &account) {
+            if network == "facebook" {
+                if let Ok(token) = vault.open(
+                    &sealed,
+                    &account_label(&post.customer_id, &network, &external),
+                ) {
+                    let id = receipt.trim_start_matches("pending:facebook:");
+                    if let Ok(Some(failed)) = crate::meta_publish::video_status(&token, id).await {
+                        store.resolve_receipt(&post.customer_id, &post.id, &account, id, failed)?;
+                    }
+                }
+                continue;
+            }
+            if network != "tiktok" {
+                continue;
+            }
+            if let Ok(token) = vault.open(
+                &sealed,
+                &account_label(&post.customer_id, &network, &external),
+            ) {
+                if let Ok(status) = crate::tiktok_publish::post_status(
+                    &token,
+                    receipt.trim_start_matches("pending:tiktok:"),
+                )
+                .await
+                {
+                    match status["status"].as_str() {
+                        Some("PUBLISH_COMPLETE") => {
+                            store.resolve_receipt(
+                                &post.customer_id,
+                                &post.id,
+                                &account,
+                                receipt.trim_start_matches("pending:tiktok:"),
+                                false,
+                            )?;
+                        }
+                        Some("FAILED") => {
+                            store.resolve_receipt(
+                                &post.customer_id,
+                                &post.id,
+                                &account,
+                                receipt.trim_start_matches("pending:tiktok:"),
+                                true,
+                            )?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
     let due = store.claim_due(now)?;
     let mut done = 0;
     for post in due {
@@ -39,7 +93,11 @@ pub async fn run_due(
             {
                 if matches!(
                     network.as_str(),
-                    "instagram" | "linkedin" | "google_business"
+                    "instagram"
+                        | "linkedin"
+                        | "linkedin_organization"
+                        | "tiktok"
+                        | "google_business"
                 ) && expiry.is_some_and(|deadline| deadline <= now + 7 * 86400)
                     && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
                         .await
@@ -88,6 +146,7 @@ pub async fn run_due(
             continue;
         }
         let mut failed = None;
+        let mut processing = false;
         let mut retryable = false;
         for account_id in &post.account_ids {
             if store.result_exists(&post.id, account_id)? {
@@ -109,9 +168,30 @@ pub async fn run_due(
                 failed = Some("LinkedIn account has not authorized publishing".into());
                 break;
             }
+            let required_scope = match network.as_str() {
+                "linkedin_organization" => Some("w_organization_social"),
+                "tiktok" => Some("video.publish"),
+                _ => None,
+            };
+            if let Some(scope) = required_scope {
+                if !store.account_has_scope(&post.customer_id, account_id, scope)? {
+                    failed = Some(format!("Reconnect {network} with publishing permissions"));
+                    break;
+                }
+            }
             let label = account_label(&post.customer_id, &network, &external_id);
-            let access = vault.open(&sealed, &label)?;
-            let refresh = refresh.map(|v| vault.open(&v, &label)).transpose()?;
+            let (access, refresh) = match (|| -> Result<_, String> {
+                Ok((
+                    vault.open(&sealed, &label)?,
+                    refresh.map(|v| vault.open(&v, &label)).transpose()?,
+                ))
+            })() {
+                Ok(value) => value,
+                Err(error) => {
+                    failed = Some(error);
+                    break;
+                }
+            };
             let Some(connector) = registry.get(&network) else {
                 failed = Some(format!("No connector for {network}"));
                 break;
@@ -126,7 +206,36 @@ pub async fn run_due(
                     .as_bytes()
                 )
             );
+            let media_result = (|| -> Result<_, String> {
+                let local_media = post
+                    .media
+                    .first()
+                    .and_then(|v| v.strip_prefix("upload:"))
+                    .map(|id| crate::media::load(&post.customer_id, id))
+                    .transpose()?;
+                let resolved_media = post
+                    .media
+                    .iter()
+                    .map(|v| {
+                        if let Some(id) = v.strip_prefix("upload:") {
+                            crate::media::provider_url(vault, &post.customer_id, id)
+                        } else {
+                            Ok(v.clone())
+                        }
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                Ok((local_media, resolved_media))
+            })();
+            let (local_media, resolved_media) = match media_result {
+                Ok(value) => value,
+                Err(error) => {
+                    failed = Some(error);
+                    break;
+                }
+            };
             let request = PublishRequest {
+                local_media,
+                options: post.options.clone(),
                 external_id,
                 idempotency_key,
                 access_token: access,
@@ -141,10 +250,11 @@ pub async fn run_due(
                 .collect::<Vec<_>>()
                 .join("\n"),
                 link: post.link.clone(),
-                media: post.media.clone(),
+                media: resolved_media,
             };
             match connector.publish(request).await {
                 Ok(result) => {
+                    processing |= result.external_id.starts_with("pending:");
                     store.record_result(
                         &post.id,
                         account_id,
@@ -187,7 +297,17 @@ pub async fn run_due(
                 None,
             )?;
         } else {
-            store.finish(&post.customer_id, &post.id, Status::Published, None, None)?;
+            store.finish(
+                &post.customer_id,
+                &post.id,
+                if processing {
+                    Status::Processing
+                } else {
+                    Status::Published
+                },
+                None,
+                None,
+            )?;
             done += 1;
         }
     }
