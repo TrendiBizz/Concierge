@@ -114,6 +114,11 @@ verify capture permission disclosure and tap/aggregate behavior.
   exclusions, authentication-message exclusions and crash non-replay tests pass.
 - Swift compilation, owner JavaScript syntax and `git diff --check` pass.
 - Existing encrypted VPS backup succeeded before deployment.
+- Post-deployment encrypted backup succeeded at 10:35 NZDT. The subsequent
+  disposable restore succeeded at 10:36 NZDT: Concierge **26 tables**, CRM **121
+  tables**, social vault, media and private settings. Both systemd jobs ended
+  success/0; the disposable restore container was removed. Production volumes
+  were not replaced.
 - Private `/opt/trendi/shared/mac-phone-recovery.tar.gz` contains the scoped
   config, a consistent SQLite send-journal backup, signed app and LaunchAgent.
   It contains **no Messages database**. Keep it root-only and include it in the
@@ -144,3 +149,7 @@ Provider rows carry forward the prior verified state; this phone continuation
 did not re-submit applications, buy credits or publish social posts. Concurrent
 Meta work may have newer finite publishing/evidence updates in the main handoff;
 preserve those and never infer a new publishing authorization from this file.
+
+Phone source and evidence checkpoint: pushed commit `f4b4783` on
+`integration/concierge-v1`. The main handoff and unrelated office/TikTok assets
+were left outside that commit to preserve concurrent work.
