@@ -13,6 +13,7 @@ os.environ.update({
     "ADMIN_TOKEN": "phone-test-admin",
     "OUTBOX_ENABLED": "false",
     "PHONE_RECEPTIONIST_ENABLED": "true",
+    "PHONE_VOICE_PROVIDER": "legacy_twilio_tts",  # historical adapter only; production uses native Grok SIP
     "PUBLIC_BASE_URL": "https://chat.example.test",
     "TWILIO_AUTH_TOKEN": "not-a-real-token",
     "TWILIO_ACCOUNT_SID": "AC" + "a" * 32,

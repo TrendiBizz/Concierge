@@ -107,6 +107,16 @@ async def overview(tenant_id) -> dict:
         tenant_id,
     )
     settings = get_settings()
+    phone_device = await db.pool().fetchrow(
+        "SELECT last_seen,verified_at,inbound_verified_at FROM sms_devices WHERE tenant_id=$1 AND enabled", tenant_id)
+    from datetime import datetime, timezone
+    device_online = bool(phone_device and phone_device["last_seen"] and
+                         (datetime.now(timezone.utc)-phone_device["last_seen"]).total_seconds()<300)
+    device_sms = tenant.get("sms_transport") == "device"
+    from . import phone_relay,phone_sip
+    telephone_ready=bool(tenant.get("phone_enabled") and any(r["enabled"] for r in numbers) and
+                         (phone_relay.configured() or phone_sip.configured_for_tenant(tenant,numbers)))
+    phone_verified=tenant.get("slug") in {v.strip() for v in settings.phone_verified_tenants.split(',') if v.strip()}
     return {
         "business": {
             "name": tenant["name"],
@@ -118,13 +128,15 @@ async def overview(tenant_id) -> dict:
         "channels": {
             **website_channel_status(tenant, settings),
             "telephone": {
-                "configured": bool(tenant.get("phone_enabled") and any(r["enabled"] for r in numbers)),
-                "registered_numbers": len(numbers), "verified": False,
+                "configured": telephone_ready,
+                "registered_numbers": len(numbers), "verified": telephone_ready and phone_verified,
             },
             "email": {"configured": bool(tenant.get("notify_email") and settings.email_configured),
                       "verified": False},
-            "sms": {"configured": bool(tenant.get("sms_enabled") and settings.sms_configured),
-                    "verified": False},
+            "sms": {"configured": bool(tenant.get("sms_enabled") and
+                                        (device_online if device_sms else settings.sms_configured)),
+                    "verified": bool(device_sms and device_online and phone_device["verified_at"] and phone_device["inbound_verified_at"]),
+                    "connection": "paired phone" if device_sms else "carrier gateway"},
             "social": {"configured": bool(settings.social_service_enabled), "verified": False},
             "crm": {"configured": True, "verified": True, "built_in": True},
         },

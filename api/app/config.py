@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
@@ -43,6 +44,11 @@ class Settings(BaseSettings):
     # PSTN telephone receptionist: opt-in and off until a real provider is validated.
     phone_receptionist_enabled: bool = False
     phone_recording_enabled: bool = False  # separate paid-provider + legal approval
+    phone_voice_provider: Literal['grok','legacy_twilio_tts'] = 'grok'
+    # Operator-only JSON mapping connection UUID -> tenant, number, whsec secret.
+    # Any carrier/PBX can route SIP to Grok; blank keeps this path disabled.
+    xai_sip_connections: str = ""
+    phone_verified_tenants: str = ""  # populated only after a genuine carrier call test
 
     # Grok Voice Agent API
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"

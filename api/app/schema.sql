@@ -145,6 +145,44 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE UNIQUE INDEX IF NOT EXISTS outbox_dedupe_idx ON outbox (dedupe_key) WHERE dedupe_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS outbox_due_idx ON outbox (status, send_at);
 
+-- A customer's own phone can remain with its existing carrier. Devices poll out
+-- over HTTPS; no inbound port, owner password or global administration key.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sms_transport text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS sms_devices (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    token_hash text NOT NULL UNIQUE,
+    from_number text NOT NULL,
+    enabled boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    last_seen timestamptz,
+    verified_at timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sms_one_device_idx ON sms_devices(tenant_id) WHERE enabled;
+ALTER TABLE sms_devices ADD COLUMN IF NOT EXISTS inbound_verified_at timestamptz;
+CREATE TABLE IF NOT EXISTS device_sms_jobs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    device_id uuid NOT NULL REFERENCES sms_devices(id),
+    outbox_id bigint REFERENCES outbox(id),
+    request_key text NOT NULL,
+    recipient text NOT NULL,
+    body text NOT NULL,
+    status text NOT NULL DEFAULT 'queued',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    claimed_at timestamptz,
+    finished_at timestamptz,
+    receipt text NOT NULL DEFAULT '',
+    operational boolean NOT NULL DEFAULT false,
+    UNIQUE(tenant_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS device_sms_inbound (
+    device_id uuid NOT NULL REFERENCES sms_devices(id),
+    message_id text NOT NULL,
+    received_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(device_id,message_id)
+);
+
 CREATE TABLE IF NOT EXISTS opt_outs (
     tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     contact     text NOT NULL,

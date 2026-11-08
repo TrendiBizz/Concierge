@@ -38,7 +38,8 @@ class PhoneError(ValueError):
 def configured() -> bool:
     s = get_settings()
     return bool(
-        s.phone_receptionist_enabled and s.twilio_auth_token
+        s.phone_voice_provider == 'legacy_twilio_tts'
+        and s.phone_receptionist_enabled and s.twilio_auth_token
         and s.public_base_url.startswith("https://")
     )
 

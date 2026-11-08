@@ -83,6 +83,8 @@ A configured channel still needs Trendi's verification before it is activated.</
 <section class="panel"><h2>Telephone numbers</h2><p class="muted">Read-only. Enabling phone reception requires operator verification.</p><div id="numbers"></div></section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
 </div>
+<section class="panel"><h2>Text messages</h2><div id="sms-phone" aria-live="polite"></div>
+<button id="sms-phone-refresh" type="button" class="secondary">Refresh text messages</button></section>
 <section class="panel">
 <h2>Email drafts awaiting review</h2>
 <p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
@@ -701,15 +703,38 @@ async function refreshSocial(){
 
 async function refresh(){
  const generation=sessionGeneration;
- const [drafts,numbers,calls]=await Promise.all([
+ const [drafts,numbers,calls,phoneSms]=await Promise.all([
    request("/owner/email-drafts?status=draft").catch(error=>({error:error.message})),
-   request("/owner/phone-numbers"),request("/owner/phone-calls")
+   request("/owner/phone-numbers"),request("/owner/phone-calls"),
+   request("/owner/sms-phone").catch(error=>({error:error.message}))
  ]);
  assertSession(generation);
  clear($("numbers"));clear($("calls"));clear($("drafts"));
+ const smsHost=$("sms-phone");clear(smsHost);
+ if(phoneSms.error){smsHost.appendChild(node("p","Phone connection status unavailable."));}
+ else if(!phoneSms.paired){smsHost.appendChild(node("p","No phone paired for text messages. Your existing number and carrier can be retained when the connection is set up.","muted"));}
+ else{
+   smsHost.appendChild(node("p",phoneSms.number+" — "+(phoneSms.online?"Phone connected":"Phone offline")));
+   smsHost.appendChild(node("p","Sending: "+(phoneSms.send_verified?"tested":"test required")+" · Receiving: "+(phoneSms.receive_verified?"tested":"test required")));
+   if(currentRole==="owner"){
+     const test=node("button","Test linked phone");test.disabled=!phoneSms.online;
+     test.addEventListener("click",async()=>{
+       if(!confirm('Send this test SMS to your linked number '+phoneSms.number+'?\n\nTrendi Concierge SMS connection test. No reply needed.'))return;
+       test.disabled=true;
+       try{await request("/owner/sms-phone/test","POST",{acknowledgement:true,request_id:crypto.randomUUID()});message("Phone test queued. Approve the exact message on your Mac, then refresh to check the result.");await refresh();}
+       catch(error){message(error.message,true);test.disabled=false;}
+     });smsHost.appendChild(test);
+   }
+   const labels={queued:"Awaiting phone approval",claimed:"Awaiting phone result",sent:"Sent",failed:"Not sent",uncertain:"Result uncertain — check before trying again",cancelled:"Cancelled"};
+   for(const text of phoneSms.messages||[]){const item=node("article","","item");item.appendChild(node("strong",labels[text.status]||text.status));item.appendChild(node("p","To: "+text.recipient));item.appendChild(node("p",text.body));smsHost.appendChild(item);}
+ }
  if(Array.isArray(numbers)){for(const n of numbers){$("numbers").appendChild(node("p",n.e164+" — "+(n.enabled?"enabled":"disabled")));}if(!numbers.length)$("numbers").appendChild(node("p","No numbers registered.","muted"));}
- if(Array.isArray(calls)){for(const c of calls){$("calls").appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number+
-    " | Recording: "+(c.recording_status||"not started")));}if(!calls.length)$("calls").appendChild(node("p","No calls recorded.","muted"));}
+ if(Array.isArray(calls)){for(const c of calls){const call=node("article","","item");call.appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number+
+    " | Recording: "+(c.recording_status||"not started")));
+    const view=node("button","View call transcript");const transcript=node("div");
+    view.addEventListener("click",async()=>{view.disabled=true;try{const lines=await request("/owner/phone-calls/"+encodeURIComponent(c.call_sid)+"/transcript");clear(transcript);if(!lines.length)transcript.appendChild(node("p","No transcript available for this call."));for(const line of lines)transcript.appendChild(node("p",(line.role==="user"?"Caller: ":"Concierge: ")+line.content));}catch(error){message(error.message,true);}finally{view.disabled=false;}});
+    call.appendChild(view);call.appendChild(transcript);$("calls").appendChild(call);
+ }if(!calls.length)$("calls").appendChild(node("p","No calls yet.","muted"));}
  if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
  if(!drafts.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
  for(const draft of drafts){
@@ -748,6 +773,7 @@ async function refresh(){
    $("drafts").appendChild(item);
  }
 }
+$("sms-phone-refresh").addEventListener("click",()=>refresh().catch(error=>message(error.message,true)));
 $("invite-form").addEventListener("submit",async event=>{
  event.preventDefault();
  try{

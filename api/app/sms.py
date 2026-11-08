@@ -31,6 +31,8 @@ def provider() -> str:
 def sender_ready(tenant: dict | None = None) -> bool:
     """True when this provider has everything it needs to send for this tenant."""
     s = get_settings()
+    if (tenant or {}).get("sms_transport") == "device":
+        return bool(tenant.get("sms_enabled") and tenant.get("sms_from"))
     name = provider()
     if name == "twilio":
         has_sender = bool(s.twilio_messaging_service_sid or (tenant or {}).get("sms_from") or s.twilio_from_number)
@@ -40,8 +42,17 @@ def sender_ready(tenant: dict | None = None) -> bool:
     return False
 
 
-async def send_sms(to_e164: str, body: str, from_number: str | None = None) -> str:
+async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
+                   tenant: dict | None = None, request_key: str | None = None,
+                   outbox_id: int | None = None) -> str:
     """Send one text through the configured provider. Returns the provider's message id (may be empty)."""
+    if (tenant or {}).get("sms_transport") == "device":
+        from . import device_sms
+        if not request_key:
+            raise SmsNotConfigured("A stable request ID is required for phone SMS")
+        if from_number and from_number != tenant.get("sms_from"):
+            raise SmsNotConfigured("Phone sender does not belong to this business")
+        return await device_sms.enqueue(tenant, to_e164, body, request_key, outbox_id)
     name = provider()
     if name == "twilio":
         return await _send_twilio(to_e164, body, from_number)

@@ -25,7 +25,7 @@
     }
     @owner {
         host concierge.trendibizz.com
-        path /owner-ui /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /api/v1/social-media/*
+        path /owner-ui /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /api/v1/social-media/* /api/v1/device-sms/* /api/v1/phone/xai/*
     }
     handle @owner {
         reverse_proxy api:8000 {

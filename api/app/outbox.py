@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import channel_authorization, db, mailer, sms, tenants, unsub
+from . import channel_authorization, db, device_sms, mailer, sms, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -128,7 +128,18 @@ async def _deliver(row: dict) -> None:
                 row["id"], allowed,
             )
             return
-        await sms.send_sms(row["to_addr"], row["body"], tenant.get("sms_from"))
+        try:
+            await sms.send_sms(row["to_addr"], row["body"], tenant.get("sms_from"),
+                               tenant=tenant, request_key="outbox:"+str(row["id"]), outbox_id=row["id"])
+        except device_sms.AwaitingReceipt:
+            # The device may complete during this HTTP/DB turn. Preserve its
+            # terminal receipt instead of overwriting it with a queued state.
+            await db.pool().execute(
+                "UPDATE outbox SET status='awaiting_receipt' WHERE id=$1 AND status='sending'", row["id"])
+            return
+        except device_sms.ReconciliationRequired:
+            await _finish(row["id"], "held", "Phone SMS requires owner reconciliation")
+            return
     elif row["channel"] == "email":
         if not settings.email_configured:
             await _finish(row["id"], "skipped", "email_not_configured")

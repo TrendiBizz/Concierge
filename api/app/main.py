@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip,
 )
 from .booking import DAYS
 from .config import get_settings
@@ -68,6 +68,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
+app.include_router(device_sms.router)
+app.include_router(phone_sip.router)
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.
@@ -83,7 +85,7 @@ app.add_middleware(
 async def owner_boundary(request: Request, call_next):
     """Same-origin owner portal; no third-party browser access to owner APIs."""
     path = request.url.path
-    if path == "/owner-ui" or path.startswith("/owner/"):
+    if path == "/owner-ui" or path.startswith("/owner/") or path.startswith("/api/v1/device-sms/"):
         origin = request.headers.get("origin")
         if origin:
             allowed = {
@@ -1633,6 +1635,50 @@ async def owner_phone_numbers(user: dict = Depends(owner_auth.current_user)):
     return [dict(row) for row in rows]
 
 
+@app.get("/owner/sms-phone")
+async def owner_sms_phone(user: dict = Depends(owner_auth.current_user)):
+    device=await db.pool().fetchrow(
+        "SELECT from_number,last_seen,verified_at,inbound_verified_at FROM sms_devices "
+        "WHERE tenant_id=$1 AND enabled",user["tenant_id"])
+    jobs=await db.pool().fetch(
+        "SELECT recipient,body,status,created_at FROM device_sms_jobs "
+        "WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 20",user["tenant_id"])
+    online=bool(device and device["last_seen"] and
+                (datetime.now(timezone.utc)-device["last_seen"]).total_seconds()<300)
+    return {"paired":bool(device),"online":online,
+            "number":device["from_number"] if device else "",
+            "send_verified":bool(device and device["verified_at"]),
+            "receive_verified":bool(device and device["inbound_verified_at"]),
+            "messages":[dict(row) for row in jobs]}
+
+
+class PhoneSmsTest(BaseModel):
+    model_config = {"extra":"forbid"}
+    acknowledgement: Literal[True]
+    request_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+
+
+@app.post("/owner/sms-phone/test",status_code=202)
+async def owner_sms_phone_test(body: PhoneSmsTest,user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user,"owner")
+    tenant=await _require_tenant(user["slug"])
+    previous=await db.pool().fetchval(
+        "SELECT id FROM device_sms_jobs WHERE tenant_id=$1 AND request_key LIKE 'phone-test:%' "
+        "AND created_at>now()-interval '1 minute' LIMIT 1",user["tenant_id"])
+    if previous:
+        return {"status":"awaiting_phone_result"}
+    try:
+        await device_sms.enqueue(tenant,tenant.get("sms_from") or "",
+            "Trendi Concierge SMS connection test. No reply needed.","phone-test:"+body.request_id)
+    except device_sms.AwaitingReceipt:
+        return {"status":"awaiting_phone_result"}
+    except ValueError as error:
+        raise HTTPException(409,str(error)) from None
+    except device_sms.ReconciliationRequired:
+        raise HTTPException(409,"Previous phone result needs review before another test") from None
+    return {"status":"sent"}
+
+
 @app.get("/owner/phone-calls")
 async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
     rows = await db.pool().fetch(
@@ -1641,6 +1687,19 @@ async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
         "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
         user["tenant_id"],
     )
+    return [dict(row) for row in rows]
+
+
+@app.get("/owner/phone-calls/{call_id}/transcript")
+async def owner_phone_transcript(call_id: str,user: dict = Depends(owner_auth.current_user)):
+    found=await db.pool().fetchval('SELECT 1 FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2',user['tenant_id'],call_id)
+    if not found:
+        raise HTTPException(404,'Call not found')
+    rows=await db.pool().fetch(
+        "SELECT m.role,m.content,m.created_at FROM phone_calls p "
+        "JOIN conversations c ON c.tenant_id=p.tenant_id AND c.session_id=p.call_sid AND c.channel='phone' "
+        "JOIN messages m ON m.conversation_id=c.id WHERE p.tenant_id=$1 AND p.call_sid=$2 "
+        "AND m.role IN ('user','assistant') ORDER BY m.id LIMIT 200",user['tenant_id'],call_id)
     return [dict(row) for row in rows]
 
 # ------------------------------------------------------------------ owner social
