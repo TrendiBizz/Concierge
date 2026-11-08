@@ -275,6 +275,23 @@ impl Store {
         .map_err(|_| "Account not found or requires login".into())
     }
 
+    /// Require a tenant-owned, active provider grant before publishing.
+    pub fn account_has_scope(&self, customer: &str, id: &str, scope: &str) -> Result<bool> {
+        let conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        let granted: Option<String> = conn
+            .query_row(
+                "SELECT c.granted_scopes FROM accounts a
+                 JOIN account_consents c ON c.account_id=a.id
+                 WHERE a.id=?1 AND a.customer_id=?2 AND a.needs_reauth=0
+                   AND c.disconnected_at IS NULL",
+                params![id, customer],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        Ok(granted.is_some_and(|scopes| scopes.split_whitespace().any(|s| s == scope)))
+    }
+
     /// Read expiring credentials only for an authenticated customer's refresh operation.
     /// A revoked account is never returned, even when its encrypted token remains in backup.
     pub fn refresh_candidate(&self, customer: &str, id: &str) -> Result<RefreshCandidate> {

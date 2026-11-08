@@ -101,6 +101,14 @@ pub async fn run_due(
                         break;
                     }
                 };
+            // OIDC account linking does not authorize posting. Check the actual
+            // tenant-bound grant even if LinkedIn publishing is later enabled.
+            if network == "linkedin"
+                && !store.account_has_scope(&post.customer_id, account_id, "w_member_social")?
+            {
+                failed = Some("LinkedIn account has not authorized publishing".into());
+                break;
+            }
             let label = account_label(&post.customer_id, &network, &external_id);
             let access = vault.open(&sealed, &label)?;
             let refresh = refresh.map(|v| vault.open(&v, &label)).transpose()?;

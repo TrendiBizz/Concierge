@@ -11,7 +11,8 @@ use serde::Deserialize;
 const AUTHORIZE: &str = "https://www.linkedin.com/oauth/v2/authorization";
 const TOKEN: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const USERINFO: &str = "https://api.linkedin.com/v2/userinfo";
-const SCOPE: &str = "openid profile w_member_social";
+// Account linking only. Posting requires separately approved w_member_social.
+const SCOPE: &str = "openid profile";
 
 #[derive(Clone)]
 pub struct Config {
@@ -208,6 +209,12 @@ mod tests {
                 granted_scopes: SCOPE,
             })
             .unwrap();
+        // A login-only grant cannot be used to publish, including across tenants.
+        assert!(!store
+            .account_has_scope("a", &first, "w_member_social")
+            .unwrap());
+        assert!(store.account_has_scope("a", &first, "openid").unwrap());
+        assert!(!store.account_has_scope("b", &first, "openid").unwrap());
         assert_eq!(first, second);
         assert_eq!(store.list_accounts("a").unwrap().len(), 1);
         assert_eq!(store.account("a", &first).unwrap().2, "sealed-2");

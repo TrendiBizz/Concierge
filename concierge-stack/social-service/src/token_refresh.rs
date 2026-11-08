@@ -124,10 +124,10 @@ pub async fn refresh(
     {
         return Err("Google Business permission was not renewed".into());
     }
-    // LinkedIn must retain the posting scope; token renewal cannot silently narrow rights.
+    // Account linking requires OIDC scopes only; publishing is a separate grant.
     if network == "linkedin"
         && token.scope.as_deref().is_some_and(|scope| {
-            !["openid", "profile", "w_member_social"]
+            !["openid", "profile"]
                 .iter()
                 .all(|needed| scope.split_whitespace().any(|granted| granted == *needed))
         })

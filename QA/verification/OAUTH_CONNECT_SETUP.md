@@ -38,10 +38,11 @@ After approving the development permissions, test real Page enumeration, disconn
 4. Test a separately approved Standard local post via the Business Profile v4 API. This implementation currently supports text-only Standard updates; media, offers and events need separately verified adapters.
 
 **LinkedIn**
-1. In Trendi's LinkedIn app, activate Sign In with LinkedIn using OpenID Connect and Share on LinkedIn; authorize scopes `openid profile w_member_social`.
-2. Register exact callback and provide private client ID/secret.
-3. Verify profile, disconnect/relink and an approved test post.
-4. Programmatic refresh tokens require approved Marketing Developer Platform access; otherwise the user must reconnect at token expiry.
+1. In Trendi's LinkedIn Developer app, activate **Sign In with LinkedIn using OpenID Connect**. Basic customer connection requests only `openid profile`, without publishing access. Customer email is not requested.
+2. Register exact callback `https://concierge.trendibizz.com/owner/social/oauth/callback` and supply client ID/secret only in the private staging environment. Customers never register their own developer apps.
+3. Verify genuine LinkedIn consent, profile, encrypted account storage, tenant isolation, disconnect and relink. The configured flag alone is not evidence of working OAuth.
+4. **Share on LinkedIn** / `w_member_social` is a separate later product grant and explicit reauthorization step for customers choosing publishing. Do not enable LinkedIn publishing for login-only accounts.
+5. Programmatic refresh tokens require separate approved access where available; otherwise prompt for reconnection when the token expires.
 
 **Mastodon**
 1. Register app on the one configured HTTPS Mastodon instance with callback.
