@@ -259,6 +259,11 @@
     }
     launcher.addEventListener("click", openPanel);
     closeBtn.addEventListener("click", closePanel);
+    // The host website can open the assistant without submitting a message,
+    // starting voice, or reaching into the widget's shadow DOM.
+    window.addEventListener("concierge:open", openPanel);
+    window.__ccWidgetReady = true;
+    window.dispatchEvent(new Event("concierge:ready"));
 
     // -------------------------------------------------------------- chat
     var busy = false;

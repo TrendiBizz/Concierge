@@ -1,0 +1,7 @@
+# Apply canonical application sources to an existing, verified dependency image.
+# This avoids downloading the embedding model or rebuilding dependencies on Mac.hub.
+# Build only after confirming requirements and /srv/app parity with BASE_IMAGE.
+ARG BASE_IMAGE=concierge-api:oauth-staging-20261108
+FROM ${BASE_IMAGE}
+COPY --chown=app:app app /srv/app
+COPY --chown=app:app static /srv/static

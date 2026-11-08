@@ -153,3 +153,6 @@ jobs:
           node-version: '22'
       - name: Run isolated SocialSync tests
         run: node --test
+      - name: Verify website widget controls without browser or providers
+        working-directory: .
+        run: node --test QA/verification/widget_host_controls_test.cjs

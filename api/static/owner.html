@@ -3,33 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Concierge — Business Owner</title>
+<title>Your Concierge workspace | Trendi</title>
+<meta name="robots" content="noindex, nofollow">
 <style>
-:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif;color:#142235;background:#f4f7fb}
+:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif;color:#14213d;background:#f5f7fb;--navy:#14213d;--lime:#c6f432}
 *{box-sizing:border-box}body{margin:0}main{max-width:1060px;margin:24px auto;padding:0 18px}
 h1{font-size:1.7rem;margin:0 0 8px}h2{font-size:1.2rem}p{line-height:1.5}
 .panel{background:white;border:1px solid #d9e2ed;border-radius:12px;padding:20px;margin:16px 0}
 input,textarea,select{display:block;width:100%;font:inherit;padding:10px;border:1px solid #9eacc0;border-radius:7px;margin:6px 0 14px}
 textarea{min-height:130px;resize:vertical}
-label{font-weight:600}button{font:inherit;background:#1648a0;color:#fff;border:0;padding:10px 16px;border-radius:7px;cursor:pointer;margin:4px}
+label{font-weight:600}button{font:inherit;background:#14213d;color:#fff;border:0;padding:10px 16px;border-radius:7px;cursor:pointer;margin:4px}
 button.secondary{background:#53657b}button.danger{background:#9d2437}button:disabled{opacity:.5;cursor:not-allowed}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:650px){.row{grid-template-columns:1fr}}
 .muted{color:#586c82}.error{color:#aa2438;white-space:pre-wrap}.success{color:#12643f;white-space:pre-wrap}
 .item{border-top:1px solid #e4e9ef;padding:16px 0;overflow-wrap:anywhere}
 pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:6px;padding:10px;max-height:240px;overflow:auto}
+a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #528200;outline-offset:3px}
+.portal-header{background:#fff;border-bottom:1px solid #e0e6f1}.portal-header .portal-wrap{max-width:1060px;margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.portal-brand{display:flex;align-items:center;gap:18px;text-decoration:none;font-weight:700}.portal-brand svg{display:block;width:125px;height:32px}.portal-header nav{display:flex;gap:20px;flex-wrap:wrap;font-size:.9rem}.portal-header nav a{text-decoration:none}.workspace-nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.workspace-nav a{padding:10px 14px;border:1px solid #c9d2e3;border-radius:8px;text-decoration:none;background:#fff}.workspace-nav a:hover{background:var(--lime)}section[id]{scroll-margin-top:20px}.portal-footer{max-width:1060px;margin:32px auto;padding:18px;border-top:1px solid #d9e2ed;font-size:.9rem}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
+<header class="portal-header"><div class="portal-wrap"><a class="portal-brand" href="https://trendibizz.com/" aria-label="Trendi home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" role="img" aria-label="Trendi"><svg width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#14213d"/><path d="M29 13V40A7 7 0 0 0 36 47H46" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 31L46 22" fill="none" stroke="#c6f432" stroke-width="6.5" stroke-linecap="round"/></svg><g transform="translate(78 5)" stroke="#14213d"><g fill="none" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8V38A8 8 0 0 0 18 46H24M2 22H22"/><path d="M38 22V46M38 34C38 27 42 22 50 22"/><path d="M60 34H82A11 11 0 1 0 78.5 42"/><path d="M94 22V46M94 34A10 10 0 0 1 114 34V46"/><circle cx="139" cy="34" r="11"/><path d="M150 8V46"/><path d="M164 22V46"/></g><circle cx="164" cy="10" r="4.2" fill="#14213d" stroke="none"/></g></svg><span>Concierge</span></a><nav aria-label="Trendi services"><a href="https://trendibizz.com/concierge">Concierge</a><a href="https://trendibizz.com/seo">SEO and AI visibility</a><a href="https://trendibizz.com/penetration-testing">Penetration testing</a></nav></div></header>
 <main>
-<h1>Concierge Business Owner</h1>
-<p class="muted">Tenant-specific access. This page does not use the global administrator token.</p>
+<h1>Your Concierge workspace</h1>
+<p class="muted">Manage your business setup, connected accounts and approvals with Trendi.</p>
 <div id="notice" role="status" aria-live="polite"></div>
 <section id="login-panel" class="panel">
-<h2>Sign in</h2>
+<h2>Customer sign-in</h2><p class="muted">Use the business ID and email from your Trendi invitation. New to Concierge? <a href="https://trendibizz.com/concierge-start">Request setup</a>.</p>
 <form id="login-form">
-<div class="row"><div><label for="slug">Business slug</label><input id="slug" required autocomplete="organization"></div>
+<div class="row"><div><label for="slug">Business ID</label><input id="slug" required autocomplete="organization"></div>
 <div><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div></div>
 <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="12" required>
 <button type="submit">Sign in</button>
@@ -42,6 +46,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:
 </form></details>
 </section>
 <section id="app-panel" hidden>
+<nav class="workspace-nav" aria-label="Your workspace"><a href="#onboarding-panel">Business setup</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
 <section class="panel" id="onboarding-panel">
 <h2>Business setup</h2>
@@ -110,6 +115,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 </section>
 </section>
 </main>
+<footer class="portal-footer"><p>Concierge is a Trendi service. <a href="https://trendibizz.com/contact">Contact Trendi</a> · <a href="https://trendibizz.com/privacy">Privacy</a> · <a href="https://trendibizz.com/terms">Terms</a></p></footer>
 <script>
 "use strict";
 let bearer = "";
