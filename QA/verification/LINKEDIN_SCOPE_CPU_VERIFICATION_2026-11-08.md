@@ -40,3 +40,15 @@ Official references: [authorization code flow](https://learn.microsoft.com/en-us
 ## Preserved files
 
 Untracked QA/verification/office-shots/ and QA/verification/tiktok-review/ were untouched and excluded from commits. Private credentials and media were not printed, copied into chat or staged.
+
+## Real LinkedIn connection confirmed — 17:10:28 NZDT
+
+This result supersedes the earlier unverified-connection status above.
+
+- The user completed LinkedIn's member verification and OAuth flow; the owner portal displayed `linkedin account connected. Posting remains disabled until separately approved.`
+- Independent read-only SQLite verification found exactly one LinkedIn account, with encrypted credentials present, needs_reauth=false, one tenant, granted scopes `openid profile`, and no disconnected_at timestamp.
+- The staging log confirms `linkedin_oauth_success phase=account_storage at=1794111028`, matching consent authorization time in the DB.
+- Facebook, Instagram and TikTok each remain at one account. SQLite quick_check is ok.
+- Global and LinkedIn publication flags remain disabled. Rust staging, staging portal and production API health all returned HTTP 200.
+- Basic LinkedIn member account linking is now verified in staging. Company-Page authorization, publishing, production deployment and disconnect/reconnect certification were not performed. The working connection was preserved.
+- No raw token, code, identity payload or provider scope response was exposed. Successful completion does not retrospectively prove the exact raw formatting of earlier failed responses.
