@@ -1,6 +1,4 @@
 //! Wording of the owner's response-time alert (port of `sla._alert_text`).
-use std::fmt::Display;
-
 pub struct Tenant<'a> {
     pub name: &'a str,
     pub sla_minutes: i64,
@@ -21,7 +19,7 @@ pub struct Lead<'a> {
 fn py(v: Option<&str>) -> &str {
     v.unwrap_or("None")
 }
-fn truthy<'a>(v: Option<&'a str>) -> Option<&'a str> {
+fn truthy(v: Option<&str>) -> Option<&str> {
     v.filter(|s| !s.is_empty())
 }
 
@@ -42,6 +40,3 @@ pub fn alert_text(tenant: &Tenant, lead: &Lead) -> (String, String) {
     );
     (subject, body)
 }
-
-#[allow(dead_code)]
-fn _assert_display<T: Display>() {}

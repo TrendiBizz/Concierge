@@ -214,7 +214,7 @@ fn nonblank(o: &Option<String>) -> &str {
     py_strip(o.as_deref().unwrap_or(""))
 }
 
-fn add<'a>(points: &mut Vec<(i64, &'a str)>, w: &Weights, key: &str, applies: bool) {
+fn add(points: &mut Vec<(i64, &str)>, w: &Weights, key: &str, applies: bool) {
     let value = w[key];
     if applies && value != 0 {
         points.push((value, spec(key).unwrap().2));
