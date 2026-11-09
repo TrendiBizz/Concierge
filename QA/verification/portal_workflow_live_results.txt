@@ -1,0 +1,7 @@
+[0;93m2026-11-09 00:50:34.111272002 [W:onnxruntime:Default, telemetry_1ds.cc:600 operator()] Failed to persist telemetry device ID; using an in-memory identifier[m
+PASS actual public HTTPS fetch uses validated pinned destination
+PASS live Grok chat answers only business A knowledge
+PASS live Grok chat answers only business B knowledge
+PASS live website-protocol Grok ephemeral-token session returns audio and transcript; bytes=91680
+PASS synthetic live checks created zero outbound messages or calendar invitations
+REMOVED disposable live fixtures

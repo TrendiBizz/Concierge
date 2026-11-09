@@ -1,0 +1,19 @@
+PASS owner public deployed portal responds
+PASS owner real tenant CRM and profile load
+PASS owner booking and voice editing permissions
+PASS owner quotation editing permissions
+PASS owner deployed private Google app configured
+PASS real owner OAuth start is tenant/session bound with exact callback
+PASS owner saves actual website voice and booking settings
+PASS real quotation pricing saves 150.02 subtotal plus 22.50 tax
+PASS real reviewed quotation locks price editing
+PASS owner logout clears real quotation and business state
+PASS owner no browser JavaScript exceptions
+PASS viewer public deployed portal responds
+PASS viewer real tenant CRM and profile load
+PASS viewer booking and voice editing permissions
+PASS viewer quotation editing permissions
+PASS viewer deployed private Google app configured
+PASS viewer cannot start real Google authorization
+PASS viewer logout clears real quotation and business state
+PASS viewer no browser JavaScript exceptions
