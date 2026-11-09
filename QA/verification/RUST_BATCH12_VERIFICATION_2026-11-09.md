@@ -22,3 +22,11 @@ pbx: .clamp(-32768, 32767) -> .clamp(-32767, 32766): recording_matches_python FA
 `cargo test --locked --test parity12` passes after restoring every mutation. The complete `scripts/rust-gate.sh` covers fmt, clippy with warnings denied, and tests in core-rs, hermes-gateway and social-service.
 
 Limits: batch 12 ports decisions and framing/mixing only. Python retains database effects and running HTTP/media transports. Non-ASCII phone digits and noncanonical receipt UUID text are refused in Rust. Explicit route ports use integer JSON values.
+
+## Final result
+
+- Implementation commits: `833f8f7` (batch 12), `9d6de04` (CI port collision repair).
+- All 23 checks passed in [run 42561658895](https://github.com/TrendiBizz/Concierge/actions/runs/42561658895).
+- Full three-crate gate passed before both pushes. Regenerated golden vectors exactly match the committed JSON.
+- An additional mutation replacing checked packet-length conversion with truncating `as u16` made `oversized_packet_cannot_wrap_length` fail; restored code passes all eight batch tests.
+- The former runner failure was a fixed host-port collision, proven by job `128978593239`. The corrected booking job `128979295086` allocated host port 32768 and passed.
