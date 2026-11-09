@@ -68,6 +68,7 @@ fn rej<T>(code: &'static str, detail: impl Into<String>) -> Result<T, Reject> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedAction {
     pub op: Op,
+    pub params: Value,
     pub idempotency_key: String,
     pub dedupe_key: String,
     pub fingerprint: String,
@@ -227,6 +228,7 @@ pub fn validate_plan(
         }
         actions.push(ValidatedAction {
             op,
+            params: a.params.clone(),
             idempotency_key: a.idempotency_key.clone(),
             dedupe_key: format!(
                 "hermes:{}:{}:{}",

@@ -4,6 +4,7 @@ Never contacts providers, never queues an outbound message: replies become human
 """
 import json
 import os
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -177,6 +178,18 @@ with TestClient(app) as client:
     check("takeover cannot target another tenant's case", r.status_code == 404)
     client.put(f"/internal/hermes/cases/{lead}/automation", headers=KEY, json={"tenant_id": str(alpha), "paused": False})
     check("takeover can be released", context()["automation_paused"] is False)
+
+    # ---- wire contract with the Rust gateway ---------------------------------------------------------------------------
+    # The gateway's own tests pin this exact JSON; posting it here proves the two sides still agree. Only ids and the
+    # case version (which depend on this database) are substituted.
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "concierge-stack/hermes-gateway/tests/fixtures/execute_bundle.json").read_text())
+    fixture["tenant_id"] = str(alpha)
+    for a in fixture["actions"]:
+        a["case_version"] = context()["case_version"]
+    r = client.post(exec_url, headers=KEY, json=fixture)
+    check("the gateway's pinned bundle is accepted by the real endpoint", r.status_code == 200 and r.json()["delivery"]["state"] == "draft_created", )
+    check("its follow-up and draft really exist", r.json()["actions"][0]["state"] == "task_created" and r.json()["delivery"]["needs_human_approval"] is True)
+    check("the same pinned bundle again is a pure duplicate", client.post(exec_url, headers=KEY, json=fixture).json()["delivery"]["duplicate"] is True)
 
     # ---- the invariant that matters most ----------------------------------------------------------------------------------
     check("nothing was ever queued for sending", count("SELECT count(*) FROM outbox") == 0)

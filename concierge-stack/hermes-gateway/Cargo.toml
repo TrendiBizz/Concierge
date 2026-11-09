@@ -15,6 +15,14 @@ subtle = "2"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "signal"] }
+axum = { version = "0.7", default-features = false, features = ["http1", "json", "tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+async-trait = "0.1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 [profile.dev.package."*"]
 opt-level = 3
