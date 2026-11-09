@@ -103,18 +103,40 @@ def test_an_email_in_a_contact_column_is_left_alone():
     "Hana@Example.com",
     "stop@example.com",
     "a@b.co",
+    # Emails that CONTAIN DIGITS, and whose digits happen to match a valid national length. These
+    # are the ones that matter: without the explicit '@' guard the digit extraction sees a valid
+    # number and the address is rewritten as one. '21555123@example.com' became '+6421555123' --
+    # an entirely different person's phone number.
+    "hana2@example.com",
+    "user123@example.com",
+    "21555123@example.com",
+    "12345678@example.com",
+    "095551234@example.com",
+    "07700900123@example.com",
 ])
 def test_emails_are_never_converted_into_numbers(value):
     """An email must survive every repair path, and case must be preserved.
 
-    Recorded because a mutation test found this protection is REDUNDANT: an email contains no
-    digits, so even with the explicit '@' guards removed the function still returns it unchanged.
-    That redundancy is welcome, but it means no single-guard mutation can catch a regression here,
-    so the behaviour is pinned directly instead. Converting an address into a "number" would target
-    a completely different recipient.
+    The guard is LOAD-BEARING, not redundant. An email can carry digits, and those digits can form a
+    valid national number, at which point a repair without the '@' check converts an address into
+    somebody's phone number. The parametrisation deliberately includes such addresses so that
+    removing the guard fails this test; an earlier version used only digit-free addresses and was
+    passed by a broken build.
     """
     assert phone_repair.repair_phone(value, "64") == (value, "")
     assert phone_repair.repair_contact(value, "64") == (value, "")
+
+
+def test_the_email_guard_is_the_only_thing_preventing_a_conversion():
+    """Justifies the test above: these digits ARE a valid number on their own.
+
+    Stated explicitly so the previous reasoning error is not repeated -- the protection is not
+    incidental, and the same digit string in a phone column is repaired.
+    """
+    # The digits of one of those addresses, as a phone number, repair normally.
+    assert phone_repair.repair_phone("21555123", "64") == ("+6421555123", "country code applied to a bare national number")
+    # The same digits inside an address must not.
+    assert phone_repair.repair_contact("21555123@example.com", "64") == ("21555123@example.com", "")
 
 
 def test_an_unrecognised_value_is_left_exactly_as_stored():
@@ -190,3 +212,31 @@ def test_the_composite_key_table_is_present_and_marked_as_such():
     """
     composite = [t for t in phone_repair.PHONE_TARGETS if t[3] is None]
     assert [t[0] for t in composite] == ["opt_outs"], composite
+
+
+# ---------------------------------------------------------------- residue guard
+#
+# A mutation test earlier left a guard in the tree as `if False and "@" in value`, and the restore
+# step compared against a backup taken AFTER the mutation, so the broken version was committed. The
+# behaviour tests below did not catch it because their addresses were chosen badly. This check makes
+# the class of mistake impossible to commit silently: an always-false condition is a mutation
+# leftover, never intentional code.
+
+
+def test_no_mutation_residue_in_the_shipped_modules():
+    """No shipped module may contain an always-false guard.
+
+    `if False and ...` silently disables the condition while leaving the code looking correct, and
+    it is exactly what a mutation test leaves behind. It shipped once; this makes a repeat fail the
+    suite rather than the customer.
+    """
+    import pathlib
+    import re
+
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+    offenders = []
+    for path in sorted(app_dir.glob("*.py")):
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            if re.search(r"\bif\s+False\s+and\b|\band\s+False\b|\bMUTATION\b", line):
+                offenders.append(f"{path.name}:{number}: {line.strip()}")
+    assert not offenders, "always-false guard left in shipped code:\n" + "\n".join(offenders)

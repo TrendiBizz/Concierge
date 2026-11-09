@@ -56,8 +56,10 @@ def repair_phone(raw: str, cc: str) -> tuple[str, str]:
     if not value:
         return raw, ""
 
-    # An email is a legitimate value in some of these columns. Never touch it.
-    if False and "@" in value:
+    # An email is a legitimate value in some of these columns. Never touch it. This check is
+    # LOAD-BEARING: an address can carry digits that form a valid national number, in which case a
+    # repair without it rewrites the address as somebody's phone number.
+    if "@" in value:
         return raw, ""
 
     plan = DIAL_PLANS.get(cc)
