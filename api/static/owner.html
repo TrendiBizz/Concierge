@@ -703,6 +703,13 @@ async function refreshChannelAuthorizations(){
  ]);
  assertSession(generation);
  const host=$("channel-authorizations");clear(host);
+ // Render every AUTHORIZABLE channel. `channelLabels` is the list of permissions an owner can grant,
+ // but the readiness payload is what knows the provider state, and the two sets are not the same:
+ // call_recording/email_read/email_send/sms_read/sms_send are authorizable yet carry no readiness
+ // entry of their own. Reading `status.configured` unguarded threw on the first such key and aborted
+ // the loop, so only "telephone" was ever drawn and six permission checkboxes -- every email and SMS
+ // authorization -- were silently unreachable. A missing entry is now reported as unknown state
+ // rather than crashing the panel, and the reason, when the backend supplies one, is shown.
  for(const [key,label] of Object.entries(channelLabels)){
    const status=readiness.channels[key];
    const row=node("div","","item");
@@ -711,8 +718,12 @@ async function refreshChannelAuthorizations(){
    checkbox.checked=!!declarations[key]?.authorized;
    checkbox.disabled=currentRole!=="owner";
    title.prepend(checkbox);row.appendChild(title);
-   row.appendChild(node("p",status.configured?"Provider configured; live verification outstanding":"Provider not configured","muted"));
-   row.appendChild(node("p","Status: "+(status.active?"Active":"NOT ACTIVE"),"muted"));
+   const summary=!status?"Provider state unavailable":status.configured?"Provider configured; live verification outstanding":"Provider not configured";
+   row.appendChild(node("p",summary,"muted"));
+   row.appendChild(node("p","Status: "+(status?.active?"Active":status?"NOT ACTIVE":"Unknown"),"muted"));
+   if(status?.reason){
+     row.appendChild(node("p",status.reason,"muted"));
+   }
    checkbox.addEventListener("change",async()=>{
      if(checkbox.checked && !confirm("Do you control this channel and authorize Concierge to use it for your business? This does not enable the channel or replace provider/caller consent.")){
        checkbox.checked=false;return;

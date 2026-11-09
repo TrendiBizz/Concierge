@@ -481,3 +481,57 @@ def test_each_business_reports_its_own_booking_readiness():
         {**BUSINESS_B, "business_hours": {d: [] for d in ("mon", "tue", "wed", "thu", "fri")}})
     assert a["reason"] == "" and a["open_days"] == 5
     assert b["reason"] != "" and b["open_days"] == 0
+
+
+# ---------------------------------------------------------- owner UI renders every permission
+
+def test_owner_ui_guards_a_channel_with_no_readiness_entry():
+    """The authorizations panel must not assume every authorizable channel has a readiness entry.
+
+    This shipped broken: `channelLabels` lists call_recording/email_read/email_send/sms_read/
+    sms_send, but `overview`'s channels map has no entry for any of them. Reading
+    `status.configured` unguarded threw on the first missing key and aborted the render loop, so
+    only "telephone" was ever drawn and six permission checkboxes -- every email and SMS
+    authorization -- were unreachable. The failure was swallowed by Promise.allSettled, so the
+    owner saw a short list rather than an error.
+    """
+    from pathlib import Path
+    import re
+    html = (Path(__file__).resolve().parents[1] / "static" / "owner.html").read_text()
+    assert "readiness.channels[key]" in html
+    # Scope the check to the function that actually had the bug; other functions have their own
+    # unrelated `status` locals (e.g. a freshly created <p> element).
+    fn = re.search(r"async function refreshChannelAuthorizations\(\)\{.*?\n\}\n", html, re.S).group(0)
+    # Strip whole comment LINES rather than a `//...` regex: `status?.reason` contains `?.` and a
+    # naive `//` strip eats the `?`, turning safe optional chaining into what looks like a crash.
+    code = "\n".join(line for line in fn.splitlines() if not line.strip().startswith("//"))
+    # A missing entry must be handled, not dereferenced directly.
+    assert '!status?"Provider state unavailable"' in code
+    assert "status?.active" in code
+    assert "if(status?.reason)" in code
+    # Every bare `status.x` dereference must sit inside a guard that establishes `status` first.
+    # Two safe shapes are used: the `!status ? ... : status.configured ? ...` conditional, and a
+    # `status.reason` read inside `if(status?.reason){...}`. Anything else throws on a missing entry.
+    guards = ["!status", "if(status?."]
+    for match in re.finditer(r"(?<!\?\.)\bstatus\.(\w+)", code):
+        window = code[max(0, match.start() - 60):match.start()]
+        assert any(g in window for g in guards), (
+            f"unguarded status.{match.group(1)} would crash the panel: ...{window[-60:]}"
+        )
+
+
+def test_authorizable_channels_and_readiness_keys_are_known_to_differ():
+    """Pins the mismatch that caused the bug, so a future 'cleanup' cannot quietly reintroduce it."""
+    import re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "static" / "owner.html").read_text()
+    block = re.search(r"const channelLabels=\{(.*?)\};", html, re.S).group(1)
+    labels = set(re.findall(r"(\w+):\"", block))
+    # These are authorizable but have no readiness entry; the UI must tolerate that.
+    assert {"call_recording", "email_read", "email_send", "sms_read", "sms_send"} <= labels
+    # The backend readiness map deliberately does not contain them.
+    readiness = owner_onboarding.website_channel_status(
+        {"slug": "x", "site_url": "https://x.example", "voice_enabled": True},
+        SimpleNamespace(website_verified_tenants="", xai_api_key="k", effective_llm_key="k"))
+    assert "call_recording" not in readiness
+    assert "email_read" not in readiness

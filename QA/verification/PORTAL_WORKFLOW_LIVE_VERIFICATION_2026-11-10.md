@@ -186,6 +186,46 @@ channel keys : ['booking', 'crm', 'email', 'sms', 'social', 'telephone',
 'booking' in channels? True
 ```
 
+## Gap found and fixed in this run: the permissions panel silently lost 6 of 7 controls
+
+While checking that round 1's `channels.booking` addition could not break the owner UI, a
+**pre-existing** bug surfaced (present at `61cdc96`, before this work).
+
+`refreshChannelAuthorizations()` iterates `channelLabels` — the list of permissions an owner
+can grant — and dereferences `readiness.channels[key]` for each. But those two sets are not
+the same: `call_recording`, `email_read`, `email_send`, `sms_read` and `sms_send` are
+authorizable and have **no readiness entry**. The unguarded `status.configured` threw a
+`TypeError` on the first missing key, which aborted the whole render loop.
+
+Reproduced by extracting the real shipped function and running it in Node against the real
+readiness payload shape:
+
+```
+THREW: TypeError: Cannot read properties of undefined (reading 'configured')
+rows rendered: 1 of 7
+missing: ['call_recording','email_read','email_send','sms_read','sms_send','social']
+```
+
+Only **`telephone`** was ever drawn. Every email and SMS authorization checkbox was
+unreachable, so an owner could not grant or revoke those permissions at all. The failure was
+invisible because the call site uses `Promise.allSettled`, which swallows the rejection — the
+owner saw a short list, not an error.
+
+Fixed by treating a missing readiness entry as **unknown state** rather than crashing, and by
+surfacing the backend `reason` when one exists:
+
+```
+row 0 ["Answer calls","Provider configured; live verification outstanding","Status: Active"]
+row 1 ["Allow recording","Provider state unavailable","Status: Unknown"]
+...
+row 6 ["Social","Provider not configured","Status: NOT ACTIVE","Provider not connected yet"]
+```
+
+Verified against the **live served page** after deploying: the function extracted from
+`https://concierge.trendibizz.com/owner-ui` renders **7 of 7** rows and completes without
+throwing. Two regression tests pin it; one was confirmed to **fail against the old code**, so
+it is a real guard rather than a tautology.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -214,7 +254,7 @@ channel keys : ['booking', 'crm', 'email', 'sms', 'social', 'telephone',
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **407 passed** (356 pre-existing + 51 in the
+- `PYTHONPATH=api pytest api/tests -q` → **409 passed** (356 pre-existing + 53 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
@@ -227,12 +267,12 @@ channel keys : ['booking', 'crm', 'email', 'sms', 'social', 'telephone',
 
 | | |
 | --- | --- |
-| Commit | `37d0846` (the image was built from this working tree before it was committed; the revision label baked into the image reads `2fbda86`, its parent) |
-| Image | `trendi-concierge-api:vps` → `3c05e01c5220` |
-| Rollback image | `trendi-concierge-api:before-booking-readiness-20261110` → `7a16174bc7cc` |
+| Commit | `37d0846` for the readiness change; the permissions-panel fix followed. The image is built from the working tree, so the baked label lags the commit — currency is established by file hash, never by the label |
+| Image | `trendi-concierge-api:vps` → `ca80d870d1e1` (previous `3c05e01c5220`) |
+| Rollback images | `before-authz-panel-fix-20261110` → `3c05e01c5220`; `before-booking-readiness-20261110` → `7a16174bc7cc` |
 | Backup | `/opt/trendi/backups/booking-readiness-20261110` (source-before.tgz, api.env.before, image-before.txt) |
 | Recreate | `api` and `social` together, `--no-deps --force-recreate` |
-| Verified | deployed `owner_onboarding.py` SHA-256 `3aa7ca14…` and `owner.html` SHA-256 `938eff08…` are **byte-identical to HEAD**; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present |
+| Verified | deployed `owner_onboarding.py` SHA-256 `3aa7ca14…` and `owner.html` SHA-256 `5b08a0e1…` are **byte-identical to HEAD**; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present; the guard is present in the publicly served page |
 
 The revision label in the image is not the same string as HEAD because the change was
 still uncommitted at build time. Deployment currency was therefore established by
