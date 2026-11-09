@@ -89,3 +89,12 @@ It is not authorization to change live behaviour, deploy, send anything, or enab
 - **Rules that bit me again this session:** gate every push on `./scripts/rust-gate.sh && git ...` (never pipe the gate); run `cargo fmt` before the gate;
   prove each new protection can fail; refresh `hermes-gateway/Cargo.lock` when core's dependencies change.
 - **Usage:** the session approached the plan's 5-hour limit (reset shown as 5:40 PM). Resume in a fresh chat from this file.
+
+## Active continuation checkpoint — Rust completion
+
+- User reaffirmed completion and requested Rust wherever possible. Preserve no-deployment/no-sends/no-real-Docker/no-real-Hermes boundaries.
+- Workspace: `/Users/jo/.codex/worktrees/rust-port-completion/concierge`, based on `origin/rust/core-port` at `a1b5eef`. Main checkout is on another branch; preserve its untracked outputs.
+- CI at `a1b5eef`: all 23 checks passed, run `42560420955`, including real-binary Hermes e2e.
+- Batch 12 promoted from wip: device SMS decisions, PBX routes/framing and recording mixer. Eight tests cover 622 Python-generated cases. Ten temporary mutations were caught and restored; full three-crate gate passed (`GATE-ALL-OK`); committing/pushing this milestone. See `RUST_BATCH12_VERIFICATION_2026-11-09.md`.
+- Production remains unchanged. Full Python HTTP/database/worker replacement remains unfinished; this milestone does not claim it is ported.
+- Next action: monitor CI on the batch-12 commit, then continue remaining Rust HTTP/database/worker ports. Branch push target remains `rust/core-port`; PR #7 remains draft.
