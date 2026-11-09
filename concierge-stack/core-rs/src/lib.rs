@@ -13,6 +13,7 @@ pub mod guard;
 pub mod ical;
 pub mod owner_auth;
 pub mod owner_notifications;
+pub mod public_fetch;
 pub mod pyval;
 pub mod quotation;
 pub mod rate_limit;

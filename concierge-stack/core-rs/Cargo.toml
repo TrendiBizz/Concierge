@@ -16,10 +16,10 @@ serde_json = { version = "1", features = ["preserve_order"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
 url = "2"
+serde = { version = "1", features = ["derive"] }
 pbkdf2 = "0.12"
 
 [dev-dependencies]
-serde = { version = "1", features = ["derive"] }
 
 
 # Dependencies (PBKDF2, SHA-2, regex) run optimised even in dev/test builds; our own code stays debuggable.

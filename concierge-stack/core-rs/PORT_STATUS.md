@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs` and `parity7.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7), `parity/gen_vectors8.py` + `parity/gen_ip_tables.py` (batch 8) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs`, `parity7.rs` and `parity8.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -32,6 +32,7 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | tasks.py: `default_follow_up_due` (wall-clock 9am, DST-checked), `clean_title` | tasks | ported, 614 due-date + 10 title vectors |
 | convo.py: `clean_utm`, `clean_session` | convo | ported, 133 vectors |
 | owner_auth.py: `digest`, `password_hash`, `verify_password`, `clean_email` | owner_auth | ported; the real `password_hash` is run with a fixed salt, so hashes are byte-identical and Rust verifies Python-made hashes (PBKDF2-HMAC-SHA256, 600,000 rounds) |
+| public_fetch.py: public-address rule (`ipaddress.is_global`, incl. IPv4-mapped IPv6) and the same-site HTTPS URL rule | public_fetch (+ generated `ip_tables.json`) | ported, 1,353 address vectors (every special-purpose network boundary + random) and 159 URL vectors; redirect resolution (`urljoin`) and DNS lookup are not ported |
 | Twenty delivery outcome classification, calendar_connection OAuth/token handling, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
@@ -51,3 +52,5 @@ DST rule: a wall-clock time inside a spring-forward gap yields no slot; an ambig
 Python behaviours reproduced deliberately: `lead_view` raises on non-JSON `utm` text (so does the port); `_capture_lead` stores `""` for an invalid email. Arguments that are lists or floats are refused by the Rust normaliser rather than guessed. Datetimes passed to `twenty_bridge_payload` must already be Python `str()` text.
 
 `verify_password` differs from Python only for stored strings that use `_` in the rounds field or whitespace inside the hex fields (Python's `int()`/`bytes.fromhex` accept them; this port rejects them, so it can only refuse a hash Python would accept, never the reverse).
+
+**SSRF tables are Python-version specific.** `src/ip_tables.json` records the interpreter it came from and the test refuses to run if the vectors came from a different one. CPython adds ranges in patch releases (3.13.18 here includes `3fff::/20`), so regenerate both files with the interpreter that runs production before relying on this module. Scope-id IPv6 (`fe80::1%eth0`) and other forms Rust's parser rejects are treated as *not public*.
