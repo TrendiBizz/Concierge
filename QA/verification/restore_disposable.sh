@@ -12,7 +12,10 @@ trap cleanup EXIT
 docker run -d --rm --name "$container" -e POSTGRES_PASSWORD=test pgvector/pgvector:pg16 >/dev/null
 ready=0
 for i in {1..30}; do
-  if docker exec "$container" psql -U postgres -d postgres -At -c "SELECT 1" 2>/dev/null | grep -qx 1; then ready=1; break; fi
+  # The image first runs a temporary init server on the unix socket only, then restarts. TCP on 127.0.0.1 is
+  # only open on the final server, so require it (and a query) before using the database.
+  if docker exec "$container" pg_isready -q -h 127.0.0.1 -U postgres \
+     && docker exec "$container" psql -h 127.0.0.1 -U postgres -d postgres -At -c "SELECT 1" 2>/dev/null | grep -qx 1; then ready=1; break; fi
   sleep 1
 done
 [[ "$ready" == 1 ]] || { echo "Disposable postgres did not start"; exit 1; }
