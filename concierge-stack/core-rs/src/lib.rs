@@ -14,6 +14,7 @@ pub mod chunking;
 pub mod contact;
 pub mod convo;
 pub mod crawler;
+pub mod demo;
 pub mod drafts;
 pub mod edge;
 pub mod evals;

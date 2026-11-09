@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use concierge_core::edge::{self, Boundary};
-use concierge_core::{channel_auth, ical, pydantic, report, requests, tenants};
+use concierge_core::{channel_auth, demo, ical, pydantic, report, requests, tenants};
 use deadpool_postgres::{Manager, Pool};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -608,6 +608,62 @@ async fn calendar_feed(AxState(state): AxState<State>, Path(raw): Path<String>) 
         .into_response()
 }
 
+/// `GET /demo/{slug}`: the sandbox preview page. Public and read-only, so it sits outside the owner boundary like
+/// the report and the calendar feed. FastAPI validates `presenter: int = 0` before the handler runs, so a malformed
+/// value is a 422 even for a slug that does not exist; only then is the tenant looked up (404 `Unknown demo`), the
+/// first chunk by id read, and the page rendered. Anything Python could not render is its plain 500.
+async fn demo_page(
+    AxState(state): AxState<State>,
+    Path(slug): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
+    // Starlette routes on the DECODED path, where `%2F` is already `/` and `[^/]+` cannot match it: that is the
+    // router's "Not Found", decided before any parameter is validated. axum routes on the raw path, so say it here.
+    if slug.contains('/') {
+        return not_found().await;
+    }
+    let presenter = match q.get("presenter") {
+        None => 0,
+        Some(raw) => match pydantic::parse_int(&json!(raw)) {
+            Ok(n) => n,
+            Err(ty) => return unprocessable("presenter", ty, raw),
+        },
+    };
+    let tenant = match tenant_where(&state, "slug", &slug).await {
+        Ok(Some(t)) => t,
+        Ok(None) => return detail(404, "Unknown demo"),
+        Err(()) => return server_error(),
+    };
+    let Ok(tenant_id) = uuid::Uuid::parse_str(tenant["id"].as_str().unwrap_or("")) else {
+        return server_error();
+    };
+    let Some(pool) = state.0.pool.as_ref() else {
+        return server_error();
+    };
+    let Ok(client) = pool.get().await else {
+        return server_error();
+    };
+    let Ok(row) = client
+        .query_opt(
+            "SELECT content FROM chunks WHERE tenant_id = $1 ORDER BY id LIMIT 1",
+            &[&tenant_id],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let excerpt: Option<String> = row.and_then(|r| r.get::<_, Option<String>>(0));
+    match demo::demo_page(&tenant, excerpt.as_deref(), presenter) {
+        Ok(page) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            page,
+        )
+            .into_response(),
+        Err(_) => server_error(),
+    }
+}
+
 /// One appointment row as `ical::Appointment`. `id` is a UUID and the timestamps are `timestamptz`; the feed
 /// builder takes Unix seconds, so the conversion happens once here.
 fn appointment_from_row(row: &Row) -> ical::Appointment {
@@ -698,6 +754,7 @@ pub fn app(state: State) -> Router {
         .route("/admin/tenants/:slug", get(admin_get))
         .route("/report/:token", get(client_report))
         .route("/api/v1/calendar/:token", get(calendar_feed))
+        .route("/demo/:slug", get(demo_page))
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
         .fallback(not_found)

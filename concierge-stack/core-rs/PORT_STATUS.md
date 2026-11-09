@@ -278,3 +278,46 @@ into the `concierge-parity-pg` container's own client, so
 `PATH="$PWD/QA/verification/shims:$PATH" PYTHONPATH=QA/verification/shims:api python QA/verification/rust_server_parity.py`
 runs unchanged. Note the release binary must be rebuilt after editing `lib.rs`: a stale binary makes the harness
 compare against the previous build and can pass while proving nothing.
+
+## Batch 27 (9 November 2026): `GET /demo/{slug}`
+
+`concierge-server` now serves the sandbox preview page. The rendering is a new core module, `core-rs/src/demo.rs`
+(`demo_page(tenant, excerpt, presenter)`), and the route adds only the two SQL statements Python runs: the tenant by
+slug and `SELECT content FROM chunks WHERE tenant_id = $1 ORDER BY id LIMIT 1`. Like the report and the calendar feed it
+is public and outside the owner boundary (no hardening headers, no origin gate).
+
+**Vectors come from the live function.** `parity/gen_vectors27.py` calls the real `app.main.demo_page` coroutine with only
+its tenant lookup and chunk query stubbed, over 286 cases: every `demo_questions` shape against seven `presenter` values,
+twelve excerpts (700/701 characters, multi-byte, newlines, markup), ten `site_url` values, hostile names and accent
+colours, and every missing or non-text field. 189 produce a page (compared byte for byte), 91 make Python raise (a 500),
+6 are the declined shape below. `tests/parity27.rs` replays all of them, plus a code-point (not byte) cut check.
+
+Rules reproduced, each easy to get wrong:
+- `excerpt[:700]` counts code points; `.replace("\n", "<br>")` runs *after* `html.escape`; `\r` is left alone.
+- `site_url` is shown only when it starts with `http://` or `https://`, case-sensitively.
+- `demo_questions` is decoded a **second** time when it is still text after `tenants._load`, and that happens even when
+  `presenter` is 0, so an undecodable string is a 500 for every request. A non-empty text is iterated per character.
+- `presenter` is a FastAPI `int` query value: malformed is a 422 and is checked **before** the tenant lookup, so an unknown
+  slug with `?presenter=abc` is a 422, not a 404. A repeated parameter takes the last value.
+- Starlette routes on the *decoded* path, so `/demo/parity%2Fopen` is the router's `Not Found`, not `Unknown demo`. axum
+  routes on the raw path, so the handler answers that itself (the differential harness caught this; see the next section).
+
+**Declined (fails closed, Rust 500):** a non-empty JSON *object* in `demo_questions` with a non-zero `presenter`. Python
+renders its keys in PostgreSQL's `jsonb` key order (shorter keys first), which `serde_json`'s order does not reproduce.
+With `presenter=0` both servers render the page. Also not reproduced: `NaN`/`Infinity` and integers beyond 64 bits inside
+`demo_questions` text (Python's `json.loads` accepts them; here they are a 500 or a different number).
+
+The harness grew 43 comparisons (103 total). Mutations applied, each caught:
+- excerpt length 700 -> 699, `<br>` -> `<br/>`, `presenter != 0` -> `presenter > 0`, `http://`/`https://` -> `http`
+  (`parity27`, core);
+- removing the `/` rule, and a wrong 404 text (harness);
+- removing `ORDER BY id` — **this one first survived.** The seed rewrote the first chunk with an `UPDATE`, but
+  `chunks_tenant_idx` is a btree and an `UPDATE` that touches no indexed column keeps its index position, so an unordered
+  read still returned the right row. The seed now inserts `SECOND` first and `FIRST` later with an explicit lower id
+  (`-424242`), asserts an unordered read returns `SECOND`, and the mutant is killed.
+
+**Suspected, not yet verified:** the `%2F` problem above very likely affects the routes already shipped, because they
+also take one path segment with axum's raw matching: `/report/{token}`, `/api/v1/calendar/{token}.ics` and
+`/admin/tenants/{slug}`. Python would answer `Not Found` for an encoded slash where Rust looks the value up and answers
+`Unknown report` / `Unknown calendar` / `Unknown tenant`. Add the case to the harness first, see it fail, then apply the
+same one-line rule (a decoded segment containing `/` is `not_found()`).

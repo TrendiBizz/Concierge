@@ -196,3 +196,39 @@ async fn report_days_is_validated_before_the_database() {
         );
     }
 }
+
+#[tokio::test]
+async fn demo_presenter_is_validated_before_the_tenant_is_looked_up() {
+    // FastAPI rejects `presenter: int` before the handler runs, so this is a 422 and never reaches the database
+    // (this router has none): a lookup first would have produced a 500 instead.
+    for (query, ty) in [
+        ("abc", "int_parsing"),
+        ("", "int_parsing"),
+        ("1.5", "int_parsing"),
+    ] {
+        let (s, _, b) = call(
+            router("x"),
+            Request::get(format!("/demo/anything?presenter={query}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(s, 422, "presenter={query:?}");
+        let v: Value = serde_json::from_slice(&b).unwrap();
+        assert_eq!(v["detail"][0]["type"], ty);
+        assert_eq!(v["detail"][0]["loc"], json!(["query", "presenter"]));
+        assert_eq!(v["detail"][0]["input"], query);
+    }
+}
+
+#[tokio::test]
+async fn demo_without_a_slug_is_the_starlette_404() {
+    let (s, _, b) = call(
+        router("x"),
+        Request::get("/demo/").body(Body::empty()).unwrap(),
+    )
+    .await;
+    assert_eq!(s, 404);
+    let v: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(v, json!({"detail": "Not Found"}));
+}

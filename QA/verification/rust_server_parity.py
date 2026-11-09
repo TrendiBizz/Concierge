@@ -213,6 +213,58 @@ def main():
         assert c[2].get("cache-control") == "private, max-age=300", c[2]
         assert c[2].get("content-type") == "text/calendar; charset=utf-8", c[2]
 
+        # ---------------------------------------------------------------- the sandbox demo page
+        # `GET /demo/{slug}` reads the tenant by slug and the FIRST chunk by id. Seeds:
+        #  - parity-open: three chunks, demo questions with markup and an apostrophe;
+        #  - parity-closed: two chunks, SECOND inserted first and FIRST inserted later with an explicit lower id, so heap
+        #    position (which breaks ties inside chunks_tenant_idx) says SECOND while only `ORDER BY id` says FIRST. An
+        #    earlier version rewrote the row with an UPDATE instead; that keeps its index position, so a mutant without
+        #    ORDER BY survived it;
+        #  - parity-trailing: a long non-ASCII excerpt with newlines and markup, hostile accent colour and site url, and
+        #    demo_questions stored as a JSON *string* (so demo_page decodes it a second time);
+        #  - parity-nocal: no chunks, a non-http site url, and demo_questions that is not JSON (a 500 even for presenter=0);
+        #  - parity-dict: a JSON object, the one shape the port declines.
+        psql("""UPDATE tenants SET demo_questions='["What are your hours?","Q & <b>x</b>","it''s"]'::jsonb WHERE slug='parity-open'""")
+        psql("DELETE FROM chunks WHERE tenant_id IN (SELECT id FROM tenants WHERE slug IN ('parity-closed','parity-trailing'))")
+        vec = "array_fill(0.1::real, ARRAY[384])::vector"
+        psql(f"INSERT INTO chunks(tenant_id,url,title,content,embedding) SELECT id,'manual:second','t','SECOND chunk',{vec} FROM tenants WHERE slug='parity-closed'")
+        psql(f"INSERT INTO chunks(id,tenant_id,url,title,content,embedding) SELECT -424242,id,'manual:first','t','FIRST chunk',{vec} FROM tenants WHERE slug='parity-closed'")
+        assert psql("SELECT content FROM chunks WHERE tenant_id=(SELECT id FROM tenants WHERE slug='parity-closed') LIMIT 1") == "SECOND chunk", \
+            "the seed must make an unordered read return SECOND, or the ORDER BY id mutant cannot be told apart"
+        psql(f"INSERT INTO chunks(tenant_id,url,title,content,embedding) SELECT id,'manual:long','t','line1'||chr(10)||'<b>&</b> \"q\" it''s'||chr(13)||chr(10)||repeat('é',800),{vec} FROM tenants WHERE slug='parity-trailing'")
+        psql(f"INSERT INTO chunks(tenant_id,url,title,content,embedding) SELECT id,'manual:later','t','later chunk',{vec} FROM tenants WHERE slug='parity-trailing'")
+        psql("""UPDATE tenants SET demo_questions='"[\\"a\\",\\"b & <c>\\"]"'::jsonb, accent_color='"><x>&', site_url='https://<b>&"x' WHERE slug='parity-trailing'""")
+        psql("""UPDATE tenants SET demo_questions='"not json"'::jsonb, site_url='ftp://nope.example' WHERE slug='parity-nocal'""")
+        psql("""INSERT INTO tenants(slug,name,public_key,report_token,demo_questions) VALUES('parity-dict','Dict Co','pk_parity_dict','rt_parity-dict','{"k": 1, "b": 2}'::jsonb)""")
+        for slug in ("parity-open", "parity-closed", "parity-trailing"):
+            for presenter in ("", "?presenter=0", "?presenter=1", "?presenter=2", "?presenter=-1"):
+                same(f"demo {slug}{presenter}", f"/demo/{slug}{presenter}")
+        same("demo no chunks and non-http site", "/demo/parity-nocal?presenter=0&x=1")
+        same("demo undecodable questions (500 even for presenter=0)", "/demo/parity-nocal")
+        same("demo undecodable questions with presenter", "/demo/parity-nocal?presenter=1")
+        assert get(PY, "/demo/parity-nocal")[0] == get(RS, "/demo/parity-nocal")[0] == 500
+        same("demo dict questions, presenter=0", "/demo/parity-dict")
+        py_dict, rs_dict = get(PY, "/demo/parity-dict?presenter=1"), get(RS, "/demo/parity-dict?presenter=1")
+        assert py_dict[0] == 200 and "<li>k</li>" in py_dict[1], py_dict
+        assert rs_dict[0] == 500, "the declined shape must fail closed, not guess jsonb key order"
+        print("ANSWER: a JSON-object demo_questions is declined (Rust 500, Python renders the keys), as documented")
+        for raw in ("1", " 1 ", "+1", "01", "1_0", "true", "abc", "1.5", "1e2", "0x10", "", "٣", "1000000000000000000000000"):
+            same(f"demo presenter={raw!r}", f"/demo/parity-open?presenter={quote(raw, safe='')}")
+        same("demo repeated presenter (last wins)", "/demo/parity-open?presenter=0&presenter=1")
+        same("demo unknown slug", "/demo/missing")
+        same("demo unknown slug, bad presenter (422 beats 404)", "/demo/missing?presenter=abc")
+        same("demo empty slug", "/demo/")
+        same("demo nested path", "/demo/parity-open/extra")
+        same("demo slug is case-sensitive", "/demo/PARITY-OPEN")
+        same("demo percent-encoded slug", "/demo/parity%2Dopen?presenter=1")
+        same("demo encoded slash in slug", "/demo/parity%2Fopen")
+        same("demo slug with a space", "/demo/parity%20open")
+        for origin in ("https://evil.example", ""):
+            same(f"demo foreign origin {origin!r}", "/demo/parity-open?presenter=1", {"Origin": origin})
+        d = get(RS, "/demo/parity-open?presenter=1", {"Origin": "https://evil.example"})
+        assert d[0] == 200 and d[2].get("cache-control") is None, d[2]
+        assert d[2].get("content-type") == "text/html; charset=utf-8", d[2]
+
         print(f"{n} comparisons passed")
     finally:
         for p in procs:
