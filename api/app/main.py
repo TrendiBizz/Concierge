@@ -1689,6 +1689,34 @@ async def owner_channel_authorization_update(
         raise HTTPException(400, str(exc)) from None
 
 
+class EmailAutoReplyRequest(BaseModel):
+    enabled: bool
+    acknowledgement: bool = False
+
+
+@app.post("/owner/onboarding/email-auto-reply")
+async def owner_set_email_auto_reply(
+    body: EmailAutoReplyRequest,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Turn automatic email replies on or off for this business, as one auditable action.
+
+    Enabling requires acknowledgement and sets the flag plus BOTH channel authorizations, because a
+    reply is only delivered when all three agree. The response reports whether the channel is
+    actually ready rather than implying success from the flag alone.
+    """
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    try:
+        return await owner_onboarding.set_email_auto_reply(
+            tenant, enabled=body.enabled, actor_id=user["id"], acknowledgement=body.acknowledgement,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
 @app.get("/owner/onboarding/readiness")
 async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user)):
     status = await owner_onboarding.overview(user["tenant_id"])

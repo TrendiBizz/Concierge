@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import db, tenants
+from . import channel_authorization, db, tenants
 from .config import get_settings
 
 
@@ -200,4 +200,62 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
         "notify_phone": saved.get("notify_phone") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",
+    }
+
+
+async def set_email_auto_reply(
+    tenant: dict, *, enabled: bool, actor_id: str, acknowledgement: bool,
+) -> dict:
+    """Turn automatic email replies on or off for one business, as one auditable action.
+
+    A reply is only delivered when THREE things agree, each checked at a different stage:
+
+      1. tenants.email_auto_reply                     -- queues the job at ingress, gates the worker
+      2. tenant_channel_authorizations('email_read')  -- gates the worker and delivery
+      3. tenant_channel_authorizations('email_send')  -- gates delivery
+
+    Setting only the flag leaves the worker writing jobs it then marks 'held', which reads as a
+    broken feature rather than a missing authorization. Setting only the authorizations queues
+    nothing. So this writes all three, and reports whether the result is actually READY.
+
+    `acknowledgement` is required to ENABLE, because an owner is affirming they control the mailbox
+    and have authority to let the assistant answer it. It is deliberately NOT required to DISABLE:
+    someone switching this off may be reacting to a live problem, and making an emergency stop
+    harder than the start would be backwards.
+
+    Returns a truthful readiness report. A partial enable is reported as partial -- never as working.
+    """
+    if enabled and not acknowledgement:
+        raise ValueError(
+            "Enabling automatic email replies requires acknowledgement that the business controls "
+            "this mailbox and authorizes the assistant to answer it"
+        )
+
+    saved = await tenants.update(tenant["slug"], {"email_auto_reply": bool(enabled)})
+    if saved is None:
+        raise ValueError("Tenant unavailable")
+
+    failures: list[str] = []
+    for channel in ("email_read", "email_send"):
+        try:
+            await channel_authorization.record_authorization(
+                tenant["id"], actor_id,
+                channel_authorization.ChannelAuthorization(
+                    channel=channel, authorized=bool(enabled), acknowledgement=True,
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - report, never claim success we did not achieve
+            failures.append(f"{channel}: {exc}")
+
+    ready = enabled and not failures
+    return {
+        "email_auto_reply": bool(enabled),
+        "enabled": bool(enabled),
+        # Only true when every gate is satisfied, so a caller cannot mistake a half-enable for a
+        # working channel.
+        "ready": ready,
+        "authorizations_set": [c for c in ("email_read", "email_send")
+                               if not any(f.startswith(c) for f in failures)],
+        "reason": "" if ready or not enabled else "; ".join(failures)
+                  or "Automatic replies are switched off",
     }
