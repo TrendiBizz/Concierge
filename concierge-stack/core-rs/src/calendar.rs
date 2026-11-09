@@ -30,7 +30,11 @@ pub struct Resp {
     pub body: Option<Value>,
 }
 
-/// One call to the provider. `Err` is an `httpx.HTTPError` (timeout, connection failure).
+/// An `httpx.HTTPError`: timeout, connection failure.
+#[derive(Debug)]
+pub struct HttpError;
+
+/// One call to the provider.
 pub trait Api {
     fn request(
         &mut self,
@@ -38,7 +42,7 @@ pub trait Api {
         path: &str,
         params: Option<Value>,
         json: Option<Value>,
-    ) -> Result<Resp, ()>;
+    ) -> Result<Resp, HttpError>;
 }
 
 pub struct Appt<'a> {

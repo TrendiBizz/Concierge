@@ -1,6 +1,6 @@
 //! Batch 6: owner SMS shortening, recording validation, and the Google Calendar sync state machine (live `sync_one`).
 use chrono::DateTime;
-use concierge_core::calendar::{self, Api, Appt, Resp};
+use concierge_core::calendar::{self, Api, Appt, HttpError, Resp};
 use concierge_core::{owner_notifications, voice_records};
 use serde::Deserialize;
 use serde_json::Value;
@@ -131,7 +131,7 @@ impl Api for Replay {
         path: &str,
         params: Option<Value>,
         json: Option<Value>,
-    ) -> Result<Resp, ()> {
+    ) -> Result<Resp, HttpError> {
         let e = self
             .log
             .get(self.next)
@@ -147,7 +147,7 @@ impl Api for Replay {
         assert_eq!(params, e.params, "params of {method} {path}");
         assert_eq!(json, e.json, "json body of {method} {path}");
         if e.resp.err {
-            return Err(());
+            return Err(HttpError);
         }
         Ok(Resp {
             status: e.resp.status.unwrap(),
