@@ -68,7 +68,15 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ matrix.suite }}" == "unit" ]]; then
-            python -m pytest api/tests/test_units.py -q
+            # The whole directory, not just test_units.py. Running one file meant 16 of 17 files
+            # (including the case timeline, takeover, channel-enable, booking-enable and inbound
+            # SMS route suites) never executed in CI at all.
+            #
+            # One test is deselected by marker: it opens real TCP servers and spawns bridge tasks,
+            # and on CPython 3.12 it wedges the interpreter with no output at all (verified: it
+            # passes in 0.17s on 3.13, three runs). Excluding it is a documented concession, not a
+            # silent skip -- it still runs locally on 3.13 and should be fixed, not forgotten.
+            python -m pytest api/tests -q -m "not hangs_on_py312"
           else
             python "QA/verification/${{ matrix.suite }}.py"
           fi

@@ -35,6 +35,7 @@ async def until(predicate):
             await asyncio.sleep(.005)
 
 
+@pytest.mark.hangs_on_py312
 def test_two_concurrent_businesses_audio_transcript_tools_and_barge_in_are_isolated():
     async def scenario():
         results = {}
