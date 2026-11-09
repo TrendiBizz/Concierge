@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs` and `parity5.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs` and `parity6.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -25,7 +25,10 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | events.py: Twenty payload, bridge-URL rule, delivery id, `lead_view`, `appointment_view` | events | ported, 300 payload + 21 URL + 80 view vectors. The delivery-id vectors mirror the inline expression in `process_twenty_once` (it is not a callable function), so that one pins the algorithm rather than calling live code |
 | automation.py: owner alert wording, booking confirmation/reminder plan, review request, cancel rule | automation | ported; vectors come from running the real async `on_appointment_booked`, `on_appointment_status` and `on_lead_created` with a fixed clock and a fake queue (220 + 880 + 150 cases) |
 | campaigns.py: template validation (CPython formatter grammar), render, email footer, mask, send_times, clean_filters, readiness | campaigns | ported, 50 templates (128 renders match; 40 conversion/format-spec forms are `Unsupported`, which makes no claim and is counted), 65 send_times, 62 filter, 64 readiness cases |
-| Twenty delivery outcome classification, calendar_connection, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
+| owner_notifications.py `sms_body` | owner_notifications | ported, 160 vectors |
+| voice_records.py `digest`, `audio_type` (container checks and WAV header rules as read by Python's `wave`) | voice_records | ported, 33 vectors incl. 14 WAV variants |
+| calendar_connection.py `sync_one` control flow, `busy`, `event_id`, path quoting | calendar | ported as a state machine over an `Api` trait; 900 scenarios run the real `sync_one` against a scripted provider and the Rust version must make the identical request sequence (method, path, params, JSON body) and reach the identical stored state |
+| Twenty delivery outcome classification, calendar_connection OAuth/token handling, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
 chunker's regex-free splitter only where Python agrees (the vectors include U+2003, U+3000, U+00A0); phone digit

@@ -3,12 +3,14 @@
 
 pub mod automation;
 pub mod booking_text;
+pub mod calendar;
 pub mod campaigns;
 pub mod chunking;
 pub mod contact;
 pub mod events;
 pub mod guard;
 pub mod ical;
+pub mod owner_notifications;
 pub mod pyval;
 pub mod quotation;
 pub mod rate_limit;
@@ -17,6 +19,7 @@ pub mod scoring;
 pub mod sla;
 pub mod tools;
 pub mod unsub;
+pub mod voice_records;
 
 /// Python `str` whitespace (`str.isspace`), which is slightly wider than `char::is_whitespace`.
 pub(crate) fn is_py_space(c: char) -> bool {
