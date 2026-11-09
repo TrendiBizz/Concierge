@@ -18,6 +18,8 @@ use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 use tower_http::cors::{Any, CorsLayer};
 
+mod public;
+
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -48,6 +50,8 @@ impl Config {
 pub struct Inner {
     pub config: Config,
     pub pool: Option<Pool>,
+    /// Settings only the batch-40 routes read, taken from the same environment names as the Python API.
+    pub extra: public::Extra,
 }
 
 #[derive(Clone)]
@@ -65,16 +69,21 @@ impl State {
         Ok(State(Arc::new(Inner {
             config,
             pool: Some(pool),
+            extra: public::Extra::from_env(),
         })))
     }
 
     /// A state with no database (for tests of routes that never reach it).
     pub fn without_database(config: Config) -> State {
-        State(Arc::new(Inner { config, pool: None }))
+        State(Arc::new(Inner {
+            config,
+            pool: None,
+            extra: public::Extra::from_env(),
+        }))
     }
 }
 
-fn detail(status: u16, message: &str) -> Response {
+pub(crate) fn detail(status: u16, message: &str) -> Response {
     (
         StatusCode::from_u16(status).unwrap(),
         Json(json!({"detail": message})),
@@ -82,7 +91,7 @@ fn detail(status: u16, message: &str) -> Response {
         .into_response()
 }
 
-fn server_error() -> Response {
+pub(crate) fn server_error() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
 }
 
@@ -94,7 +103,7 @@ async fn not_found() -> Response {
 /// Starlette routes on the DECODED path, where `%2F` is already `/` and `[^/]+` cannot match it: that is the router's
 /// "Not Found", decided before the admin gate or any parameter is validated. axum routes on the raw path and hands the
 /// handler the decoded segment, so every single-segment route must ask this first.
-fn unroutable(segment: &str) -> Option<Response> {
+pub(crate) fn unroutable(segment: &str) -> Option<Response> {
     segment.contains('/').then(|| detail(404, "Not Found"))
 }
 
@@ -769,6 +778,7 @@ pub fn app(state: State) -> Router {
         .route("/report/:token", get(client_report))
         .route("/api/v1/calendar/:token", get(calendar_feed))
         .route("/demo/:slug", get(demo_page))
+        .merge(public::routes())
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
         .fallback(not_found)

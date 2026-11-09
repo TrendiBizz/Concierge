@@ -232,3 +232,47 @@ async fn demo_without_a_slug_is_the_starlette_404() {
     let v: Value = serde_json::from_slice(&b).unwrap();
     assert_eq!(v, json!({"detail": "Not Found"}));
 }
+
+#[tokio::test]
+async fn token_routes_that_never_reach_the_database() {
+    // an unsigned token is the 404 confirm page, and an encoded slash is the router's plain 404
+    let (s, _, b) = call(
+        router("x"),
+        Request::get("/api/v1/unsubscribe/nope")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(s, 404);
+    assert!(String::from_utf8(b)
+        .unwrap()
+        .contains("This link is not valid"));
+    let (s, _, b) = call(
+        router("x"),
+        Request::get("/api/v1/unsubscribe/a%2Fb")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        (s.as_u16(), b),
+        (404, br#"{"detail":"Not Found"}"#.to_vec())
+    );
+    // a recording token outside 32..=100 characters is refused before any lookup
+    for len in [31usize, 101] {
+        let uri = format!("/api/v1/voice/recordings/shared/{}", "a".repeat(len));
+        let (s, _, b) = call(router("x"), Request::get(uri).body(Body::empty()).unwrap()).await;
+        assert_eq!(s, 404);
+        assert_eq!(
+            b,
+            br#"{"detail":"Recording link expired or unavailable"}"#.to_vec()
+        );
+    }
+    // the social media token limit is 2048 characters, decided before the service configuration
+    let uri = format!("/api/v1/social-media/{}", "a".repeat(2049));
+    let (s, _, b) = call(router("x"), Request::get(uri).body(Body::empty()).unwrap()).await;
+    assert_eq!(
+        (s.as_u16(), b),
+        (404, br#"{"detail":"Media unavailable"}"#.to_vec())
+    );
+}

@@ -7,6 +7,7 @@ Local run (needs Postgres at 127.0.0.1:55432 with the API schema applied by the 
 
 Starts two loopback servers, sends nothing anywhere, and removes the rows it creates. Compares status, JSON body, content type and the security headers.
 """
+import base64
 import json
 import os
 import re
@@ -24,7 +25,8 @@ PORT = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
 # Parallel runs (several worktrees on one PostgreSQL) must not share a database or ports: the harness deletes every `parity-%` tenant.
 DB = f"postgresql://postgres:test@127.0.0.1:{PORT}/{os.environ.get('CONCIERGE_TEST_DB', 'postgres')}"
 PY, RS = int(os.environ.get("CONCIERGE_TEST_PY_PORT", "8098")), int(os.environ.get("CONCIERGE_TEST_RS_PORT", "8097"))
-ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false"}
+ALT_PY, ALT_RS = PY + 2, RS + 2  # a second pair of servers with different settings (see `start_alt_pair`)
+ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false", "UNSUBSCRIBE_SECRET": "parity-unsub-secret"}
 n = 0
 KEEP = ("content-type", "cache-control", "x-content-type-options", "referrer-policy", "access-control-allow-origin")
 
@@ -47,6 +49,39 @@ def get(port, path, headers=None):
     except ValueError:
         parsed = body.decode()
     return status, parsed, {k: hdrs[k] for k in KEEP if hdrs.get(k) is not None}
+
+
+def get_raw(port, path, headers=None):
+    """Like `get` but binary-safe and with every response header, for audio and cookie-free token routes."""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, r.read(), {k.lower(): v for k, v in r.headers.items()}
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(), {k.lower(): v for k, v in e.headers.items()}
+
+
+RAW_KEYS = ("content-type", "cache-control", "x-content-type-options", "referrer-policy", "x-robots-tag", "content-disposition", "content-length",
+            "access-control-allow-origin")
+
+
+def same_raw(label, path, headers=None, ports=None):
+    """Byte-exact body and the full set of response headers that matter, for binary and HTML routes. `ports` selects
+    the alternate server pair (different settings) instead of the main one."""
+    global n
+    py, rs = ports or (PY, RS)
+    a, b = get_raw(py, path, headers), get_raw(rs, path, headers)
+    assert a[0] == b[0], f"{label}: status python={a[0]} rust={b[0]} body={a[1][:200]!r} / {b[1][:200]!r}"
+    assert a[1] == b[1], f"{label}: body differs\npython={a[1][:600]!r}\nrust  ={b[1][:600]!r}"
+    for k in RAW_KEYS:
+        # Rust's CorsLayer answers `access-control-allow-origin: *` even without an Origin header, Python's middleware only with one
+        # (a pre-existing difference of the shared CORS layer, recorded in PORT_STATUS): compare it only when the request sent an Origin.
+        if k == "access-control-allow-origin" and not (headers or {}).get("Origin"):
+            continue
+        assert a[2].get(k) == b[2].get(k), f"{label}: header {k} python={a[2].get(k)} rust={b[2].get(k)}"
+    n += 1
+    print("PASS", label, a[0])
+    return a
 
 
 def wait(port):
@@ -72,6 +107,19 @@ def same(label, path, headers=None, normalise=None):
     n += 1
     print("PASS", label, a[0])
     return a
+
+
+def start_alt_pair(procs, env_over, drop=()):
+    """A second Python + Rust pair on the same database whose settings differ from the main pair's, for rules that depend on
+    configuration (a disabled feature, an unset secret)."""
+    env = {**os.environ, **ENV, **env_over}
+    for k in drop:
+        env.pop(k, None)
+    procs.append(subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(ALT_PY)], cwd=ROOT / "api", env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    wait(ALT_PY)
+    procs.append(subprocess.Popen([str(BIN)], env={**env, "BIND": f"127.0.0.1:{ALT_RS}"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    wait(ALT_RS)
 
 
 def main():
@@ -277,6 +325,99 @@ def main():
         same("admin encoded slash", "/admin/tenants/parity%2Fopen", admin)
         same("admin encoded slash without token (404 beats 401)", "/admin/tenants/parity%2Fopen")
         same("report encoded dash still routes", "/report/rt_parity%2Dopen")
+
+
+        # ---------------------------------------------------------------- batch 40, family 1: public token-in-path reads
+        import hashlib
+        from app import unsub as py_unsub
+
+        py_unsub._secret = lambda: b"parity-unsub-secret"  # both servers run with UNSUBSCRIBE_SECRET set, which wins over ADMIN_TOKEN
+
+        def unsub_token(payload):
+            return payload + "." + py_unsub._sign(payload)
+
+        good_unsub = py_unsub.make_token("11111111-1111-1111-1111-111111111111", "a@b.co")
+        gp, gsig = good_unsub.split(".")
+        for label, tok in [
+            ("valid", good_unsub), ("unknown", "nope"), ("bad signature", gp + ".0" * 1), ("signature one char off", gp + "." + gsig[:-1] + ("0" if gsig[-1] != "0" else "1")),
+            ("no signature", gp), ("empty signature", gp + "."), ("empty payload", "." + gsig), ("only a dot", "."), ("trailing junk", good_unsub + "x"),
+            ("padded payload", unsub_token(base64.urlsafe_b64encode(b"t|c").decode())), ("unpadded payload", unsub_token("dHxj")),
+            ("payload with stray bang", unsub_token("dHxj!")), ("payload with space", unsub_token("dH xj")),
+            ("payload not utf-8", unsub_token(base64.urlsafe_b64encode(b"\xff\xfe|x").decode())),
+            ("payload without pipe", unsub_token(base64.urlsafe_b64encode(b"tenantonly").decode())),
+            ("payload with empty contact", unsub_token(base64.urlsafe_b64encode(b"t|").decode())),
+            ("payload non-ascii", unsub_token("é")), ("non-ascii signature (Python raises, 500)", gp + ".é"),
+            ("percent-encoded dot", gp + "%2E" + gsig), ("html in token", "<b>&"),
+        ]:
+            same_raw(f"unsubscribe {label}", f"/api/v1/unsubscribe/{quote(tok, safe='.-_=')}")
+        # A token signed with the ADMIN_TOKEN fallback must NOT verify while UNSUBSCRIBE_SECRET is set.
+        py_unsub._secret = lambda: b"parity-admin"
+        admin_signed = py_unsub.make_token("11111111-1111-1111-1111-111111111111", "a@b.co")
+        py_unsub._secret = lambda: b"parity-unsub-secret"
+        same_raw("unsubscribe token signed with the fallback secret is refused", f"/api/v1/unsubscribe/{admin_signed}")
+        assert get_raw(PY, f"/api/v1/unsubscribe/{admin_signed}")[0] == 404 and get_raw(PY, f"/api/v1/unsubscribe/{good_unsub}")[0] == 200
+        # The alternate pair has no UNSUBSCRIBE_SECRET: the signing secret falls back to ADMIN_TOKEN ("parity-admin").
+        start_alt_pair(procs, {"UNSUBSCRIBE_SECRET": ""})
+        alt = (ALT_PY, ALT_RS)
+        same_raw("unsubscribe (fallback secret) token signed with ADMIN_TOKEN", f"/api/v1/unsubscribe/{admin_signed}", ports=alt)
+        same_raw("unsubscribe (fallback secret) token signed with UNSUBSCRIBE_SECRET is refused", f"/api/v1/unsubscribe/{good_unsub}", ports=alt)
+        assert get_raw(ALT_PY, f"/api/v1/unsubscribe/{admin_signed}")[0] == 200 and get_raw(ALT_PY, f"/api/v1/unsubscribe/{good_unsub}")[0] == 404
+        same_raw("unsubscribe empty token", "/api/v1/unsubscribe/")
+        same_raw("unsubscribe nested path", f"/api/v1/unsubscribe/{good_unsub}/x")
+        same_raw("unsubscribe encoded slash", f"/api/v1/unsubscribe/{gp}%2F{gsig}")
+        same_raw("unsubscribe invalid utf-8 percent escape", "/api/v1/unsubscribe/%ff")
+        same_raw("unsubscribe foreign origin is not gated", f"/api/v1/unsubscribe/{good_unsub}", {"Origin": "https://evil.example"})
+        same_raw("unsubscribe query string ignored", f"/api/v1/unsubscribe/{good_unsub}?x=1")
+        assert get_raw(PY, f"/api/v1/unsubscribe/{good_unsub}")[0] == 200 and get_raw(PY, f"/api/v1/unsubscribe/{gp}.%C3%A9")[0] == 500
+
+        # Shared voice recordings: the link is its own credential. Seeds cover every mime type, an expired share, a recording
+        # older than 30 days, a share whose tenant does not match its recording, and the length limits (32..=100 characters).
+        psql("DELETE FROM conversations WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        every_byte = bytes(range(256)).hex()
+        sha = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+        shares = {}  # label -> token
+        for label, mime, token, share_age, rec_age in [
+            ("webm", "audio/webm", "w" * 43, "+ interval '1 hour'", "now()"), ("ogg", "audio/ogg", "o" * 32, "+ interval '1 hour'", "now()"), ("mp4", "audio/mp4", "m" * 100, "+ interval '1 hour'", "now()"),
+            ("wav", "audio/wav", "v" * 50, "+ interval '1 hour'", "now()"), ("expired", "audio/webm", "e" * 43, "- interval '1 minute'", "now()"),
+            ("stale", "audio/webm", "s" * 43, "+ interval '1 hour'", "now() - interval '31 days'"), ("fresh29", "audio/webm", "f" * 43, "+ interval '1 hour'", "now() - interval '29 days'"),
+            # Stored shares at the length limits: only the length rule can refuse these (an unknown token of the same length answers the same 404).
+            ("len31", "audio/webm", "t" * 31, "+ interval '1 hour'", "now()"), ("len101", "audio/webm", "l" * 101, "+ interval '1 hour'", "now()"),
+            ("chars20-bytes40", "audio/ogg", "é" * 20, "+ interval '1 hour'", "now()"), ("chars51-bytes102", "audio/ogg", "é" * 51, "+ interval '1 hour'", "now()"),
+        ]:
+            shares[label] = token
+            psql(f"INSERT INTO conversations(tenant_id,session_id,channel) SELECT id,'rec-{label}','voice' FROM tenants WHERE slug='parity-open'")
+            psql(f"INSERT INTO voice_sessions(id,tenant_id,conversation_id,token_hash) SELECT ('00000000-0000-4000-8000-0000000000'||lpad('{len(shares)}',2,'0'))::uuid,t.id,c.id,'vs-{label}' "
+                 f"FROM tenants t JOIN conversations c ON c.tenant_id=t.id AND c.session_id='rec-{label}' WHERE t.slug='parity-open'")
+            psql(f"INSERT INTO voice_recordings(session_id,tenant_id,conversation_id,mime_type,audio,sha256,created_at) "
+                 f"SELECT s.id,s.tenant_id,s.conversation_id,'{mime}',decode('{every_byte}','hex'),'x',{rec_age} FROM voice_sessions s WHERE s.token_hash='vs-{label}'")
+            psql(f"INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id,expires_at) SELECT '{sha(token)}',s.id,s.tenant_id,now() {share_age} "
+                 f"FROM voice_sessions s WHERE s.token_hash='vs-{label}'")
+        # A share that points at the right session but names ANOTHER tenant must not play: the join requires both ids to match.
+        psql("INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) SELECT '" + sha("x" * 43) + "',s.id,(SELECT id FROM tenants WHERE slug='parity-closed') FROM voice_sessions s WHERE s.token_hash='vs-webm'")
+        for label, token in shares.items():
+            same_raw(f"shared recording {label}", "/api/v1/voice/recordings/shared/" + quote(token))
+        same_raw("shared recording share names another tenant", "/api/v1/voice/recordings/shared/" + "x" * 43)
+        same_raw("shared recording unknown token", "/api/v1/voice/recordings/shared/" + "u" * 43)
+        for length in (0, 1, 31, 101, 500):
+            same_raw(f"shared recording token length {length}", "/api/v1/voice/recordings/shared/" + "w" * length)
+        same_raw("shared recording token of 32 non-ascii characters", "/api/v1/voice/recordings/shared/" + quote("é" * 32))
+        same_raw("shared recording 31 non-ascii characters (byte length would pass)", "/api/v1/voice/recordings/shared/" + quote("é" * 31))
+        same_raw("shared recording token with a space", "/api/v1/voice/recordings/shared/" + quote("w" * 20 + " " + "w" * 20))
+        same_raw("shared recording encoded slash", "/api/v1/voice/recordings/shared/" + "w" * 20 + "%2F" + "w" * 20)
+        same_raw("shared recording nested path", "/api/v1/voice/recordings/shared/" + "w" * 43 + "/x")
+        same_raw("shared recording foreign origin is not gated", "/api/v1/voice/recordings/shared/" + "w" * 43, {"Origin": "https://evil.example"})
+        a = get_raw(RS, "/api/v1/voice/recordings/shared/" + "w" * 43)
+        assert a[0] == 200 and a[1] == bytes(range(256)) and a[2]["cache-control"] == "private, no-store", a[2]
+        assert a[2]["content-disposition"] == 'inline; filename="concierge-recording.webm"', a[2]
+
+        # Social media proxy. The harness runs with the social service OFF, so both servers answer from `_configuration()`;
+        # the proxying itself (an outbound request) is not ported, see PORT_STATUS.
+        for label, tok in [("token", "abc"), ("2048 chars", "a" * 2048), ("2049 chars (404 before the 503)", "a" * 2049), ("2049 non-ascii chars", "é" * 2049),
+                           ("2048 non-ascii chars", "é" * 2048)]:
+            same_raw(f"social-media {label}", "/api/v1/social-media/" + quote(tok))
+        same_raw("social-media empty token", "/api/v1/social-media/")
+        same_raw("social-media encoded slash", "/api/v1/social-media/a%2Fb")
+        same_raw("social-media nested", "/api/v1/social-media/a/b")
 
         print(f"{n} comparisons passed")
     finally:

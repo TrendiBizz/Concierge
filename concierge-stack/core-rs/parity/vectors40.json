@@ -1,0 +1,584 @@
+{
+"cases": [
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": ".",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": ".f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080x",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "xdGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "!!!.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.F4DCD21C37EFBA46D2CF593FDF00D080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d08",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080.",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.é",
+"out": {
+"error": true
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d08é",
+"out": {
+"error": true
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.日.日",
+"out": {
+"error": true
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "é.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.éééééééééééééééééééééééééééééééééééééééé",
+"out": {
+"error": true
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": " dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080 ",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50LTF8YUBiLmNv%2Ef4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj.665c4946eec139e0a7a6802d4aa3abb0",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj.665c4946eec139e0a7a6802d4aa3abb0",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50fGFAYi5jbw.58a04b5f724a7a31a66af54cc0ed6775",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dGVuYW50fGFAYi5jbw==.faa3d9f65cceb002c80702e733cde7f9",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "fGM.f1f7a917928e82d835067bebd8089cfe",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "fGM=.0c0428f67aa0c4b97d7b8e93ff555153",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHw.d53982470eeba07be11cb89839923363",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHw=.cb4a6dda233c230b0638d27a997b8a04",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dA.ee5ebd941b044bd54e92721e5428d60b",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dA==.c0afbab0b5fb7b96796471a95fbcd2d4",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": ".9a0f4dc993f3dc7eae4b7a23d65f1b4e",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": ".9a0f4dc993f3dc7eae4b7a23d65f1b4e",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "YXxifGM.c9afd169c249dde7bf63a9916b400157",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "YXxifGM=.b9a9480a6fd35d5366b19f976f318b1c",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "w6l85pel5pys.4e913ceb09991bf93d6315b9f874ed64",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "w6l85pel5pys.4e913ceb09991bf93d6315b9f874ed64",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "__58eA.d5c4ea5fb0d7927c27b410a61c046ca7",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "__58eA==.ff7144483aea471ced75e014c87579c6",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "AHwA.353acbbc58e570a01fe7cb4a87c3ab8b",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "AHwA.353acbbc58e570a01fe7cb4a87c3ab8b",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxjCg.379b0c91f491a93b2cb5c336b1782d62",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxjCg==.3c65272dfd50f525d8843f710390753c",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "+//+fGE=.79164d38c4f19ea81c14c157af06c747",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "+//+fGE.5703fbf7024dd191db6d76e2e986b214",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj=.1c375ff02fc499d331fbde20bb5afde5",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj==.9c10e128757a30c99c10240adab93219",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj===.7d9e3bea5ca628d07b38dde191f2c06d",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "d=Hxj.e28af693dc93a70204fb6bed370b76ef",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dH xj.72692ca2087486ac550fddb57f5c241c",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dH\nxj.ec836c8130022980661b097757113c66",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHx.dfaf17aaf8f1bf7e1bd793e6e2cb81d8",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxjA.ed9344b4e0ba0f9e65c5024def31fa61",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "A.ba111ecbf4c3bbe2f3c9cd70fefa7a7b",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "AAAAA.4d1fc26735e4a45a0ac872cf86d8e4fb",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxj!.cc11e5290d9ab90315078d1cf7be8973",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "!dHxj.c1773b176bca4ffe98588362801afc9c",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "d-Hxj.cd0699287693f168401ce41b19994d0c",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dH_xj.adf175b68d73c643e44364b9d0f9fb6a",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxjAAA=.06a082d7c8df4a312b54ef8c96169648",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHx=jA.7c1312e0f2c7d31ad64b0b5053842a10",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "====.709ba7997df3f4ab3f93468c233cd52b",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dA==.c0afbab0b5fb7b96796471a95fbcd2d4",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dA=.03f15a7f4d85c2ca0b7018dfccb67d06",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dA.ee5ebd941b044bd54e92721e5428d60b",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "dHxjdA==dA==.4e77429f317fd68dec2bdf5c1a6e94c3",
+"out": {
+"status": 200,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Unsubscribe</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>Unsubscribe</h1><p>Stop receiving promotional messages from this business?</p><form method=\"post\"><button>Unsubscribe</button></form></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "déHxj.c429480f796e5d5c834fe08e28868c34",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "é.1a9ee802fbf0be764fb4db94b323cf72",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "parity-unsub-secret",
+"token": "日本.18041e0e311d78d1ce56ee5d227b7899",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "",
+"token": "dGVuYW50LTF8YUBiLmNv.f4dcd21c37efba46d2cf593fdf00d080",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "",
+"token": "",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "",
+"token": "x.y",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+},
+{
+"secret": "s",
+"token": "a.b",
+"out": {
+"status": 404,
+"body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>This link is not valid</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style></head><body><h1>This link is not valid</h1><p>It may be incomplete. Reply to the email and we will remove you.</p></body></html>"
+}
+}
+]
+}

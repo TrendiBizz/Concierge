@@ -323,3 +323,54 @@ router's `Not Found` for `%2F`, where Rust looked the value up and answered `Unk
 routes, before the admin gate and before query validation (so `/admin/tenants/a%2Fb` without a token is a 404, not a 401,
 and `/report/x%2Fy?days=abc` is a 404, not a 422). The harness grew 7 comparisons (110 total); the cases were added first
 and seen to fail on `/report`, and disabling each call site in turn fails the harness.
+
+## Batch 40, family 1 (9 November 2026): public token-in-path reads
+
+`concierge-server` now serves `GET /api/v1/unsubscribe/{token}`, `GET /api/v1/voice/recordings/shared/{token}` and
+`GET /api/v1/social-media/{token}` (in `server-rs/src/public.rs`). None is under the owner boundary: no session, no origin
+gate, no hardening headers (the harness sends a foreign `Origin` to the first two).
+
+**Unsubscribe.** `core-rs/unsub.rs` gained `read_token_checked`, `plain_page` and `unsubscribe_confirm_page`.
+Vectors come from the live `app.main.unsubscribe_page` (`parity/gen_vectors40.py` -> `vectors40.json`, 73 cases,
+`tests/parity40.rs`); payloads Python accepts are *signed with the real `unsub._sign`* so odd base64 can be exercised.
+Rules that were easy to get wrong:
+- `urlsafe_b64decode` is lenient: it adds the missing padding itself, **skips** characters outside the alphabet (spaces,
+  `!`, newlines), accepts `+` and `/` as well as `-` and `_`, and stops at the first `=` that completes a quad. The old
+  `URL_SAFE_NO_PAD` decode rejected all of those, so a signed `dHxj!` was a 404 in Rust and a 200 in Python.
+  `lenient_b64decode` reproduces CPython's non-strict `a2b_base64` loop.
+- A **non-ASCII signature makes Python raise**: `hmac.compare_digest(str, str)` refuses non-ASCII text (`TypeError`), so the
+  request is a plain 500, not the 404 page. The check happens after the empty-payload test and before the comparison.
+- A non-ASCII *payload* with a valid signature is a 404 (`str.encode("ascii")` raises a `ValueError` that `read_token` catches).
+- The secret is `UNSUBSCRIBE_SECRET`, else `ADMIN_TOKEN`; the harness runs the main pair with the first set and an alternate
+  pair (`start_alt_pair`) with it empty, so both branches and the precedence are compared.
+
+**Shared recording.** One query (join of `voice_recording_shares` and `voice_recordings` on session *and* tenant, share not
+expired, recording newer than 30 days). The token length rule (32..=100) counts characters, not bytes. The response headers of
+`private_audio_response` are compared byte for byte (`same_raw` is binary safe and checks the full header set).
+
+**Path decoding (new shared extractor `Seg`/`SegAt`).** axum percent-decodes a path parameter eagerly and answers a 400 when the
+result is not UTF-8, whereas Starlette's `unquote(..., errors="replace")` turns `%ff` into U+FFFD and routes on. The new routes
+read the raw path and decode it themselves (`unquote_replace`). The routes added in earlier batches still use axum's `Path` and
+still answer 400 for such a segment (`/demo/%ff`, `/report/%ff`): not changed here, noted for the coordinator.
+
+**Declined: social-media proxying.** Ported: the 2048-character token limit (404 `Media unavailable`, decided before the
+configuration) and `social_bridge._configuration()` through the existing `social::configuration` (503 when the service is off, the
+key is shorter than 32 characters or the address is not an approved loopback endpoint). NOT ported: the outbound request to the
+social service, because the server has no HTTP client and sends nothing anywhere. With a valid configuration the route fails
+closed with a plain 500. The harness runs with the service off, so only the configuration branches are compared.
+
+**Known differences left alone.** Rust's `CorsLayer` sends `access-control-allow-origin: *` even when the request has no
+`Origin`; Python's middleware only does with one. `same_raw` compares that header only when an Origin was sent.
+
+Harness: +61 comparisons (171 in total at the end of family 1).
+
+Mutations (each rebuilt as a release binary and run against the harness; a stale or wrongly restored binary invalidated the
+first batch, which was discarded and repeated):
+- caught: dropping `s.expires_at>now()`, dropping the 30-day recording window, dropping `r.tenant_id=s.tenant_id`, the 2048 limit
+  as `>=` and as bytes, `Seg` decoding replaced by the raw segment, `UNSUBSCRIBE_SECRET` precedence removed, and (in `parity40`)
+  the non-ASCII signature check, the skip-invalid-character rule, the padding rule and the `-` alias;
+- **survived first, fixed by seeding:** the token length bounds (31 and 101) and bytes-versus-characters. An unknown token of
+  the right length answers the same 404 as a too-short one, so only a *stored* share at length 31, 101, 20 characters (40 bytes)
+  and 51 characters (102 bytes) can tell the rule from its mutants. Those four shares are now seeded.
+- **survived first, fixed by a second server pair:** the `ADMIN_TOKEN` fallback for the unsubscribe secret, because the main
+  pair always had `UNSUBSCRIBE_SECRET` set.
