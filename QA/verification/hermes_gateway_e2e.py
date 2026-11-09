@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BIN = ROOT / "concierge-stack/hermes-gateway/target/release/hermes-gateway"
-DB = "postgresql://postgres:test@127.0.0.1:55432/postgres"
+DB = f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres"
 API_PORT, GW_PORT, HERMES_PORT = 8099, 4421, 8651
 KEYS = {"HERMES_CAPABILITY_SECRET": "a" * 40, "HERMES_MINT_KEY": "b" * 40, "HERMES_CONCIERGE_KEY": "c" * 40}
 n = 0

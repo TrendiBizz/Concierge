@@ -98,3 +98,7 @@ It is not authorization to change live behaviour, deploy, send anything, or enab
 - Batch 12 promoted from wip: device SMS decisions, PBX routes/framing and recording mixer. Eight tests cover 622 Python-generated cases. Ten temporary mutations were caught and restored; full three-crate gate passed (`GATE-ALL-OK`); committing/pushing this milestone. See `RUST_BATCH12_VERIFICATION_2026-11-09.md`.
 - Production remains unchanged. Full Python HTTP/database/worker replacement remains unfinished; this milestone does not claim it is ported.
 - Next action: monitor CI on the batch-12 commit, then continue remaining Rust HTTP/database/worker ports. Branch push target remains `rust/core-port`; PR #7 remains draft.
+
+### CI collision repair
+
+Batch 12 pushed at `833f8f7`. Run `42561465115` exposed the exact failure in job `128978593239`: Docker `failed to bind host port 0.0.0.0:55432/tcp: address already in use` on Ubuntu 26.04. The workflow now requests dynamic Postgres host ports and passes `job.services.postgres.ports[5432]` as `CONCIERGE_TEST_POSTGRES_PORT` to isolated suites, customer onboarding and gateway e2e. Verification scripts retain local default 55432 and always use loopback/test credentials. This removes the known fixed-port collision rather than retrying it. Python syntax and all 17 URL expressions checked for allocated/default ports; full gate/push and new CI pending. No local Docker was used.

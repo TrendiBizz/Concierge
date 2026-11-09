@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timezone
 
 os.environ.update({
-    "DATABASE_URL": "postgresql://postgres:test@127.0.0.1:55432/postgres",
+    "DATABASE_URL": f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres",
     "OUTBOX_ENABLED": "false",
     "UNSUBSCRIBE_SECRET": "integration-secret",
     "PUBLIC_BASE_URL": "https://chat.example.test",

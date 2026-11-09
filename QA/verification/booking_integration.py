@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-os.environ.update(DATABASE_URL="postgresql://postgres:test@127.0.0.1:55432/postgres",
+os.environ.update(DATABASE_URL=f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres",
                   OUTBOX_ENABLED="false", ADMIN_TOKEN="isolated-booking-test")
 from fastapi.testclient import TestClient
 from app import booking, convo, db, tenants

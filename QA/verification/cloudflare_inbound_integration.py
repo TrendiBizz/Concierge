@@ -4,7 +4,7 @@ import json
 import time
 
 os.environ.update({
-    "DATABASE_URL": "postgresql://postgres:test@127.0.0.1:55432/postgres",
+    "DATABASE_URL": f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres",
     "ADMIN_TOKEN": "isolated-email-admin",
     "EMAIL_DRAFTS_ENABLED": "false",
     "OUTBOX_ENABLED": "false",

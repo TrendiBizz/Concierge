@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-URL = "postgresql://postgres:test@127.0.0.1:55432/postgres"
+URL = f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres"
 os.environ["DATABASE_URL"] = URL
 os.environ["OUTBOX_ENABLED"] = "false"
 sys.path.insert(0, os.path.expanduser("~/work-staging/shims"))

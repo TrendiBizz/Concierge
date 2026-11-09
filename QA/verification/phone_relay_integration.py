@@ -9,7 +9,7 @@ import os
 from unittest.mock import patch
 
 os.environ.update({
-    "DATABASE_URL": "postgresql://postgres:test@127.0.0.1:55432/postgres",
+    "DATABASE_URL": f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres",
     "ADMIN_TOKEN": "phone-test-admin",
     "OUTBOX_ENABLED": "false",
     "PHONE_RECEPTIONIST_ENABLED": "true",

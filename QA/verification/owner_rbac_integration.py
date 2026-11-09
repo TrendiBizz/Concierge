@@ -1,7 +1,7 @@
 """Owner RBAC isolation tests. Run only against disposable PostgreSQL at 55432."""
 import os
 os.environ.update({
-    "DATABASE_URL": "postgresql://postgres:test@127.0.0.1:55432/postgres",
+    "DATABASE_URL": f"postgresql://postgres:test@127.0.0.1:{os.environ.get('CONCIERGE_TEST_POSTGRES_PORT', '55432')}/postgres",
     "ADMIN_TOKEN": "isolated-operator",
     "EMAIL_DRAFTS_ENABLED": "true",
     "OUTBOX_ENABLED": "false",
