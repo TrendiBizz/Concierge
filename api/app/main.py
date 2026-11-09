@@ -1717,6 +1717,34 @@ async def owner_set_email_auto_reply(
         raise HTTPException(400, str(exc)) from None
 
 
+class NativeBookingRequest(BaseModel):
+    enabled: bool
+    acknowledgement: bool = False
+
+
+@app.post("/owner/onboarding/native-booking")
+async def owner_set_native_booking(
+    body: NativeBookingRequest,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Turn customer booking on or off, refusing an enable that could never book anything.
+
+    Enabling requires acknowledgement and usable opening hours. Without that check an owner could
+    switch booking on with every day closed, and the assistant would answer "no free times" for
+    every date the customer asked about -- silent breakage, because nothing raises.
+    """
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    try:
+        return await owner_onboarding.set_native_booking(
+            tenant, enabled=body.enabled, acknowledgement=body.acknowledgement,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
 @app.get("/owner/onboarding/readiness")
 async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user)):
     status = await owner_onboarding.overview(user["tenant_id"])

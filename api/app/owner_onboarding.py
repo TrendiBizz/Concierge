@@ -259,3 +259,88 @@ async def set_email_auto_reply(
         "reason": "" if ready or not enabled else "; ".join(failures)
                   or "Automatic replies are switched off",
     }
+
+
+# ---------------------------------------------------------------- booking enablement
+
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def open_day_count(hours: dict | None) -> int:
+    """How many weekdays have at least one opening window."""
+    if not isinstance(hours, dict):
+        return 0
+    return sum(1 for day in DAYS if hours.get(day))
+
+
+def _minutes(hhmm: str) -> int:
+    hh, mm = hhmm.split(":")
+    return int(hh) * 60 + int(mm)
+
+
+def booking_hours_problem(hours: dict | None, slot_minutes: int) -> str:
+    """Explain why these hours cannot produce a booking, or '' when they can.
+
+    Checked BEFORE enabling, because the failure it prevents is silent: with every day closed, or
+    with a window shorter than one slot, availability returns "no free times" for every date and the
+    customer simply concludes the business is fully booked. Nothing raises, so nothing gets fixed.
+
+    The boundary is deliberate: a window exactly one slot long (09:00-09:30 with 30-minute slots)
+    yields exactly one bookable time and must be accepted, not rejected as too short.
+    """
+    if not isinstance(hours, dict) or not open_day_count(hours):
+        return (
+            "No opening hours are set, so booking would offer no times on any day. "
+            "Set at least one opening window before enabling booking."
+        )
+    slot = max(int(slot_minutes or 0), 1)
+    usable = 0
+    for day in DAYS:
+        for window in hours.get(day) or []:
+            try:
+                if _minutes(window[1]) - _minutes(window[0]) >= slot:
+                    usable += 1
+            except (TypeError, ValueError, IndexError):
+                continue  # malformed entries are the validator's job; ignore them here
+    if not usable:
+        return (
+            f"No opening window is long enough for a {slot}-minute appointment, so booking could "
+            "never offer a time. Widen an opening window or shorten the appointment length."
+        )
+    return ""
+
+
+async def set_native_booking(tenant: dict, *, enabled: bool, acknowledgement: bool) -> dict:
+    """Turn customer booking on or off for one business, and say whether it can really book.
+
+    Enabling requires acknowledgement AND usable hours. Refusing a broken enable is the whole point:
+    the alternative is a tool that advertises availability and then answers "no free times" forever.
+
+    Disabling needs no acknowledgement and is never blocked by bad hours. An owner whose hours are
+    misconfigured must still be able to stop taking bookings -- making the stop harder than the start
+    would be backwards, exactly as with email replies.
+    """
+    if enabled and not acknowledgement:
+        raise ValueError(
+            "Enabling customer booking requires acknowledgement that the business hours and rules "
+            "are correct and that the assistant may book appointments"
+        )
+
+    problem = booking_hours_problem(tenant.get("business_hours"), tenant.get("slot_minutes") or 30)
+    if enabled and problem:
+        raise ValueError(problem)
+
+    saved = await tenants.update(tenant["slug"], {"native_booking": bool(enabled)})
+    if saved is None:
+        raise ValueError("Tenant unavailable")
+
+    ready = bool(enabled) and not problem
+    return {
+        "native_booking": bool(enabled),
+        "enabled": bool(enabled),
+        "ready": ready,
+        "open_days": open_day_count(tenant.get("business_hours")),
+        "slot_minutes": int(tenant.get("slot_minutes") or 30),
+        # Reported even when switching OFF, so a broken configuration stays visible.
+        "reason": problem if (problem or not enabled) else "",
+    }
