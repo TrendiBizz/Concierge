@@ -25,7 +25,19 @@ LIST_MAX_AGE_DAYS = 7       # the dashboard list looks back further
 
 
 async def overdue(tenant: dict, only_unalerted: bool = False, max_age_days: int = LIST_MAX_AGE_DAYS) -> list[dict]:
-    """Leads currently waiting longer than the client's target. Empty when the feature is off."""
+    """Enquiries from any channel that have waited longer than the client's target.
+
+    Every channel is covered, not only high-scoring leads. The previous version required
+    `score >= sla_min_score`, which silently excluded whole channels: an inbound email or text that
+    did not clear the threshold was never chased at all. Score still sets the ORDER, so a hot lead
+    is surfaced first, but it no longer decides whether a customer is chased.
+
+    Two exclusions are deliberate and must not be removed:
+      - anyone on the opt-out list, because chasing them is a compliance failure;
+      - any customer whose case the owner has taken over, because the owner is already handling it.
+
+    Empty when the feature is off (sla_minutes = 0).
+    """
     minutes = int(tenant.get("sla_minutes") or 0)
     if minutes <= 0:
         return []
@@ -35,17 +47,23 @@ async def overdue(tenant: dict, only_unalerted: bool = False, max_age_days: int 
                created_at, sla_alerted_at,
                floor(EXTRACT(EPOCH FROM (now() - created_at)) / 60)::int AS minutes_waiting
         FROM leads
-        WHERE tenant_id = $1 AND status = 'new' AND score >= $2
-          AND created_at < now() - make_interval(mins => $3)
-          AND created_at > now() - make_interval(days => $4)
+        WHERE tenant_id = $1 AND status = 'new'
+          AND created_at < now() - make_interval(mins => $2)
+          AND created_at > now() - make_interval(days => $3)
           AND NOT EXISTS (SELECT 1 FROM appointments a
                           WHERE a.lead_id = leads.id AND a.status IN ('booked', 'completed'))
+          AND NOT EXISTS (SELECT 1 FROM customer_cases c
+                          WHERE c.id = leads.case_id AND c.automation_paused)
+          AND NOT EXISTS (SELECT 1 FROM opt_outs o
+                          WHERE o.tenant_id = leads.tenant_id
+                            AND o.contact = ANY (ARRAY[
+                                  CASE WHEN leads.email <> '' THEN lower(leads.email) END,
+                                  CASE WHEN leads.phone <> '' THEN leads.phone END]))
           {"AND sla_alerted_at IS NULL" if only_unalerted else ""}
         ORDER BY score DESC, created_at
         LIMIT 100
         """,
-        tenant["id"], int(tenant.get("sla_min_score") if tenant.get("sla_min_score") is not None else 70),
-        minutes, max_age_days,
+        tenant["id"], minutes, max_age_days,
     )
     return [dict(r) for r in rows]
 

@@ -46,25 +46,47 @@ def clean_title(title: str) -> str:
 async def create(
     tenant_id, title: str, notes: str = "", due_at: datetime | None = None,
     source: str = "manual", kind: str = "manual", lead_id=None,
+    case_id=None, message_key: str | None = None,
 ) -> dict:
     row = await db.pool().fetchrow(
-        "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source, case_id, message_key) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
         tenant_id, lead_id, clean_title(title), (notes or "")[:2000], due_at, kind, source,
+        case_id, message_key,
     )
     return dict(row)
 
 
-async def create_follow_up(tenant: dict, lead: dict) -> dict | None:
-    """The automatic follow-up for a new lead. Returns None if the lead already has one."""
+async def create_follow_up(tenant: dict, lead: dict, message_key: str | None = None) -> dict | None:
+    """The automatic follow-up for a new lead, or for one new inbound message.
+
+    Two uniqueness rules, and the difference matters:
+      - with message_key: one follow-up per (case, message), so a customer who writes again gets
+        fresh work instead of being silently ignored after the first contact;
+      - without it: the original one-per-lead rule, so existing callers that carry no message
+        identity -- and any replayed call -- cannot create duplicates.
+
+    Returns None when a matching follow-up already exists.
+    """
     who = lead.get("name") or lead.get("phone") or lead.get("email") or "new lead"
     notes = (lead.get("message") or "")[:300]
-    row = await db.pool().fetchrow(
-        "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source) "
-        "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'system') "
-        "ON CONFLICT (lead_id) WHERE kind = 'follow_up' DO NOTHING RETURNING *",
-        tenant["id"], lead["id"], f"Follow up: {who}"[:200], notes, default_follow_up_due(tenant, lead),
-    )
+    due = default_follow_up_due(tenant, lead)
+    if message_key:
+        row = await db.pool().fetchrow(
+            "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source, case_id, message_key) "
+            "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'system', $6, $7) "
+            "ON CONFLICT (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL "
+            "DO NOTHING RETURNING *",
+            tenant["id"], lead["id"], f"Follow up: {who}"[:200], notes, due,
+            lead.get("case_id"), message_key[:200],
+        )
+    else:
+        row = await db.pool().fetchrow(
+            "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source, case_id) "
+            "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'system', $6) "
+            "ON CONFLICT (lead_id) WHERE kind = 'follow_up' DO NOTHING RETURNING *",
+            tenant["id"], lead["id"], f"Follow up: {who}"[:200], notes, due, lead.get("case_id"),
+        )
     return dict(row) if row else None
 
 
