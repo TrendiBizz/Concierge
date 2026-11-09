@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7), `parity/gen_vectors8.py` + `parity/gen_ip_tables.py` (batch 8), `parity/gen_vectors9.py` (batch 9) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs`, `parity7.rs`, `parity8.rs` and `parity9.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7), `parity/gen_vectors8.py` + `parity/gen_ip_tables.py` (batch 8), `parity/gen_vectors9.py` (batch 9), `parity/gen_vectors10.py` (batch 10) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs`, `parity7.rs`, `parity8.rs`, `parity9.rs` and `parity10.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -35,6 +35,7 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | public_fetch.py: public-address rule (`ipaddress.is_global`, incl. IPv4-mapped IPv6) and the same-site HTTPS URL rule | public_fetch (+ generated `ip_tables.json`) | ported, 1,353 address vectors (every special-purpose network boundary + random) and 159 URL vectors; redirect resolution (`urljoin`) and DNS lookup are not ported |
 | sms.py: Twilio and Android-gateway webhook signatures, gateway payload, `sender_ready` | sms | ported, 73 + 193 + 48 + 228 vectors (incl. the exact 300-second tolerance boundary) |
 | rag.py: `tag_url` (UTM tagging via urlsplit/parse_qsl/urlencode semantics) and `build_system_prompt` for chat, SMS and voice | rag | ported, 100 URL + 160 prompt vectors; the prompt is compared character for character with a fixed clock |
+| cloudflare_inbound.py webhook authentication (HMAC, replay window, size, payload shape), inbound_email.py ingestion rules and keys, enquiries.py keys and owner notice, email_drafts `_address`/`_subject` | inbound | ported; 61 scenarios run the real `handle()` with a fake database and clock (503/401/413/400/404/403 and 14 accepted cases with every stored value compared) |
 | Twenty delivery outcome classification, calendar_connection OAuth/token handling, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
@@ -58,3 +59,5 @@ Python behaviours reproduced deliberately: `lead_view` raises on non-JSON `utm` 
 **SSRF tables are Python-version specific.** `src/ip_tables.json` records the interpreter it came from and the test refuses to run if the vectors came from a different one. CPython adds ranges in patch releases (3.13.18 here includes `3fff::/20`), so regenerate both files with the interpreter that runs production before relying on this module. Scope-id IPv6 (`fe80::1%eth0`) and other forms Rust's parser rejects are treated as *not public*.
 
 Signature checks: a signature containing non-ASCII text makes Python's `compare_digest` raise; here it simply fails verification. A gateway timestamp using `_` separators (accepted by Python's `int()`) is refused.
+
+Webhook timestamps with non-ASCII decimal digits: Python accepts them as decimals and answers 'Expired signature'; this port refuses them as 'Invalid signature'. Same status (401), fail closed.

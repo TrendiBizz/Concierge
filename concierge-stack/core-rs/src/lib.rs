@@ -11,6 +11,7 @@ pub mod convo;
 pub mod events;
 pub mod guard;
 pub mod ical;
+pub mod inbound;
 pub mod owner_auth;
 pub mod owner_notifications;
 pub mod public_fetch;
