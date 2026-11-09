@@ -1,6 +1,6 @@
 # Concierge portal workflow checkpoint
 
-Objective: seven business secretary requirements implemented and deployed; final evidence push next. Same pinned chat01a1bdaf-8d2b-71a1-b239-704f0d630bf9. Workspace /Users/jo/work-staging/concierge-integration; branch integration/concierge-v1. No agents or purchases authorized.
+Objective: seven business secretary requirements implemented and deployed; final evidence pushed and verified. Same pinned chat01a1bdaf-8d2b-71a1-b239-704f0d630bf9. Workspace /Users/jo/work-staging/concierge-integration; branch integration/concierge-v1. No agents or purchases authorized.
 
 Source b7b3b04,13dc1ac,6e53fc4 pushed/deployed. Current image sha256:e106c65dcd8b973e2158845261a3f723650c9386629ce0d13044547c886b2ac9.62/62 app/static file hashes match; privatehealth200. Public actualChrome portal/callback200; unauthenticated owner APIs401. Backup /opt/trendi/backups/portal-workflow-20261109. Rollback trendi-concierge-api:before-portal-workflow-20261109. Recreate API/social together. Secrets /opt/trendi/shared/calendar; never print/stage. VPS152.42.239.240, release /opt/trendi/releases/20261108-vps/product.
 
@@ -14,4 +14,4 @@ DO NOT RECREATE: userapproved admin testuser, both Calendar scopes, and Calendar
 
 All completed Concierge task tabs closed, personal tabs preserved. CUAcompletion_summary sent. No UIworkpending. Remaining ordinary setup boundaries: eachcustomer ownhours/knowledge/accountpermission; ownerpublicbookingOFF; GoogleappTesting; outside-customer incomingSMS not physicallytested; separate guestinboxreceipt notproved; nativeSMSrequiresSend confirmation.
 
-Next runnable action: stage only report/checkpoint and named portal_workflow evidence/browser script, commit/push, verify local/remote HEAD. Source alreadydeployed; evidence-onlycommit needs no runtime redeploy. Then final userreport with liveSMS/email/calendar results and exact setup boundaries.
+Completion: final evidence commit8b52ab3 pushed; local and remote integration/concierge-v1 matched. Runtime source6e53fc4 alreadydeployed and verified62/62hashes/health200. Only unrelated untracked office-shots/tiktok-review remain. No further tests/messages/events queued. Report exposes remaining customer setup and external receipt boundaries. This checkpoint-only follow-up does not change runtime.
