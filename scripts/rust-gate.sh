@@ -3,7 +3,7 @@
 # (an earlier `cargo clippy | grep | head` hid lint failures and shipped red CI twice).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-for crate in core-rs hermes-gateway social-service; do
+for crate in core-rs hermes-gateway social-service server-rs; do
   cd "$ROOT/concierge-stack/$crate"
   echo "== $crate"
   cargo fmt --check

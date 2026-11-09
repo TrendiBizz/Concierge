@@ -198,3 +198,13 @@ The route handlers in `main.py` (about 150 endpoints) are thin: they parse a req
 traits), and shape the response. What remains is the glue that cannot be proven without the real services: an HTTP server, a PostgreSQL driver implementing each
 `Env` trait with the same SQL, the async worker scheduling, and the SQL itself. That has to be verified against the throwaway Postgres 16 + pgvector the CI jobs
 start, and against the real providers for the six acceptance tests; it is not attempted without that evidence.
+
+## Batch 24 (9 November 2026): the first Rust server routes (`concierge-stack/server-rs`)
+
+A new crate `concierge-server` (axum + tokio-postgres) serves `GET /healthz`, `GET /api/v1/widget-config`, `GET /admin/tenants` and `GET /admin/tenants/{slug}`
+with the owner-portal boundary and CORS, using only ported `concierge-core` logic. Verified against the real thing, not fakes:
+`QA/verification/rust_server_parity.py` starts the Python API and the Rust binary on one real PostgreSQL 16 + pgvector database (schema applied by the Python
+API) and requires identical status, body and security headers for 25 requests (all four tenants, unknown/empty/missing keys, allowed and refused origins, the
+admin gate, wildcard CORS, a tenant whose calendar token is minted on first read). Six deliberate server mutations (recording authorization skipped, JSON spacing,
+origin gate bypassed, truncated public view, wrong list order, chunk count) were each caught; the chunk-count gap was found by this check and closed with
+seeded chunks. The crate is part of `scripts/rust-gate.sh` and CI job `rust-server-parity`.
