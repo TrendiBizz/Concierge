@@ -7,6 +7,7 @@ description = "Rust ports of Concierge's pure business logic, held to byte-for-b
 
 [dependencies]
 regex = "1"
+sha1 = "0.10"
 sha2 = "0.10"
 hmac = "0.12"
 base64 = "0.22"
