@@ -1,10 +1,12 @@
 //! Concierge core logic in Rust. Each module is a port of the Python module of the same name in
 //! `api/app` and is verified against golden vectors produced by that Python code (see `parity/`).
 
+pub mod booking_text;
 pub mod chunking;
 pub mod contact;
 pub mod guard;
 pub mod ical;
+pub mod quotation;
 pub mod rate_limit;
 pub mod schedule;
 pub mod scoring;

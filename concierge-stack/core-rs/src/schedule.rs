@@ -8,7 +8,7 @@ use chrono::{
 use chrono_tz::Tz;
 use std::collections::BTreeMap;
 
-fn local_to_utc(tz: Tz, naive: NaiveDateTime) -> Option<DateTime<Utc>> {
+pub fn local_to_utc(tz: Tz, naive: NaiveDateTime) -> Option<DateTime<Utc>> {
     match tz.from_local_datetime(&naive) {
         LocalResult::Single(d) => Some(d.with_timezone(&Utc)),
         LocalResult::Ambiguous(first, _) => Some(first.with_timezone(&Utc)),
@@ -103,4 +103,30 @@ pub fn day_slots(
         }
     }
     Ok(slots)
+}
+
+/// Resolve a business-local wall time (no offset) to UTC, as `booking.book` does: a time that falls in a
+/// DST gap does not exist and is refused; an ambiguous time uses its first occurrence.
+pub fn resolve_local(tz: Tz, naive: NaiveDateTime) -> Result<DateTime<Utc>, &'static str> {
+    local_to_utc(tz, naive).ok_or("That local time does not exist because of daylight saving")
+}
+
+/// `automation.fmt_local`: e.g. "Tuesday, November 10 at 10:00 AM NZDT".
+pub fn fmt_local(tz: Tz, moment: DateTime<Utc>) -> String {
+    let local = moment.with_timezone(&tz);
+    let hour12 = if local.hour().is_multiple_of(12) {
+        12
+    } else {
+        local.hour() % 12
+    };
+    let suffix = if local.hour() < 12 { "AM" } else { "PM" };
+    format!(
+        "{} {} at {}:{:02} {} {}",
+        local.format("%A,"),
+        format_args!("{} {}", local.format("%B"), local.day()),
+        hour12,
+        local.minute(),
+        suffix,
+        local.format("%Z")
+    )
 }
