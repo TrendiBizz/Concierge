@@ -61,3 +61,31 @@ Test fixtures repaired (campaign kill-switch, email-draft retrieval, owner-UI DO
 The user has now asked for: (a) the Hermes gateway wired in, (b) the parity port finished, (c) "whatever else is needed". That is clear
 instruction to add *new, additive, feature-flagged* code paths to the Python API for Hermes, keeping everything off by default.
 It is not authorization to change live behaviour, deploy, send anything, or enable Hermes for a customer.
+
+---
+## Update at end of session (supersedes the "What exists" counts above)
+
+**Branch `rust/core-port`, PR #7 (draft).** Everything below is committed and pushed. Nothing is deployed.
+
+- **core-rs: batches 1-11 done** (adds, since the list above: SMS signatures, UTM/system prompt, email ingress incl. webhook HMAC,
+  telephony webhooks/TwiML/forwarding, Grok session builder, evals). `PORT_STATUS.md` is authoritative. **Batch 12 (`wip/`) is unverified:**
+  Asterisk routes/framing, the recording mixer and device-SMS decisions; see `wip/README.md` for the steps to finish it.
+- **Hermes is wired in, additively and dark by default.**
+  - Python: `api/app/hermes_ops.py` (`/internal/hermes`: policy-context, brief, execute, automation pause). 404 unless
+    `HERMES_GATEWAY_ENABLED` + `HERMES_GATEWAY_KEY`. Re-verifies everything; only creates human-reviewed drafts or to-dos; **nothing sends**.
+    Additive schema (`hermes_tenant_settings`, `hermes_case_state`, `hermes_actions`). Default autonomy is `shadow`.
+  - Rust: `hermes-gateway` is now a loopback HTTP service (`/v1/capabilities`, `/v1/plans`, `/v1/runs`) that mints and holds the capability
+    (Hermes only sees text), neutralises customer text, requires exactly one JSON plan, overwrites `task_id`, drops approval claims.
+  - Tests: 17 acceptance + 14 server (incl. prompt injection) + 53 Python integration checks + a shared wire-format fixture + a
+    real-binary end-to-end test (`QA/verification/hermes_gateway_e2e.py`, 14 checks; **passes in CI** as job `hermes-gateway-e2e`).
+  - Deployment artifacts: `scripts/vps/Dockerfile.gateway`, `compose.hermes-gateway.yml`, `hermes.sh gateway-start|stop|status|connect|run`
+    (tested against a stub docker). **Never run against real Docker or a real Hermes.**
+- **CI:** `static-checks` now passes (agent and Asterisk images run as non-root; both are optional drafts, untested images). The one failure seen on
+  the last full run (`isolated-email_drafts_integration`) was a runner Docker networking flake, not code; the next run re-executes it.
+- **Still open / not done:** nothing triggers a Hermes run automatically (by design; use `hermes.sh gateway-run`); Hermes tool restriction
+  (customer mode refuses to start without an operator-verified toolset file); no owner-portal UI for takeover/autonomy; booking and quote requests become
+  to-dos; the six real-world acceptance tests from the verified handoff; remaining Python modules to port (see `PORT_STATUS.md` and `wip/`), the
+  `main.py` HTTP layer, and the DB/async halves.
+- **Rules that bit me again this session:** gate every push on `./scripts/rust-gate.sh && git ...` (never pipe the gate); run `cargo fmt` before the gate;
+  prove each new protection can fail; refresh `hermes-gateway/Cargo.lock` when core's dependencies change.
+- **Usage:** the session approached the plan's 5-hour limit (reset shown as 5:40 PM). Resume in a fresh chat from this file.
