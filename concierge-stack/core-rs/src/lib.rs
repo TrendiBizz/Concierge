@@ -6,6 +6,9 @@ pub mod contact;
 pub mod guard;
 pub mod ical;
 pub mod rate_limit;
+pub mod schedule;
+pub mod scoring;
+pub mod sla;
 pub mod unsub;
 
 /// Python `str` whitespace (`str.isspace`), which is slightly wider than `char::is_whitespace`.
