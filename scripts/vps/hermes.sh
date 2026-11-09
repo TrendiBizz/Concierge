@@ -8,6 +8,7 @@
 #   hermes.sh gateway-start   [--tenant SLUG]   build and start the Hermes gateway (loopback :4420)
 #   hermes.sh gateway-stop | gateway-status
 #   hermes.sh gateway-connect --yes             append the Concierge-side switch to api.env (does NOT restart anything)
+#   hermes.sh gateway-run TENANT_UUID CASE_UUID   one explicit run on one case (shadow mode only validates; nothing sends)
 #
 # The Mac script (concierge-stack/hermes/start-hermes.sh) is the proven recipe; this follows it, with these changes:
 #   * secrets come from /opt/trendi/shared (root-only) and are never printed or put on a command line;
@@ -25,13 +26,13 @@ MODEL="${HERMES_MODEL:-grok-4.20-0309-non-reasoning}"
 
 cmd="${1:-}"; [[ -n "$cmd" ]] || { sed -n 2,9p "$0" >&2; exit 1; }
 shift || true
-tenant=pilot; mode=internal; question=""; yes=0
+tenant=pilot; mode=internal; question=""; extra=""; yes=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tenant) tenant="${2:?--tenant needs a value}"; shift 2 ;;
     --mode)   mode="${2:?--mode needs a value}"; shift 2 ;;
     --yes)    yes=1; shift ;;
-    *)        question="$1"; shift ;;
+    *)        if [[ -z "$question" ]]; then question="$1"; else extra="$1"; fi; shift ;;
   esac
 done
 
@@ -150,5 +151,12 @@ case "$cmd" in
     if grep -q '^HERMES_GATEWAY_KEY=' "$API_ENV"; then echo "$API_ENV already has HERMES_GATEWAY_KEY; nothing changed."; exit 0; fi
     { printf '\nHERMES_GATEWAY_ENABLED=true\n'; printf 'HERMES_GATEWAY_KEY=%s\n' "$(gateway_value HERMES_CONCIERGE_KEY)"; } >> "$API_ENV"
     echo "Appended to $API_ENV. Recreate api and social together to apply; autonomy stays 'shadow' until set per business." ;;
+  gateway-run)
+    [[ -s "$GWFILE" ]] || { echo "Run gateway-start first." >&2; exit 1; }
+    uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    [[ "$question" =~ $uuid && "$extra" =~ $uuid ]] || { echo "Usage: hermes.sh gateway-run TENANT_UUID CASE_UUID" >&2; exit 1; }
+    RUN_ID="manual-$(date +%Y%m%d%H%M%S)-$$"
+    BODY="$(python3 -c 'import json,sys;print(json.dumps({"tenant_id":sys.argv[1],"case_id":sys.argv[2],"run_id":sys.argv[3]}))' "$question" "$extra" "$RUN_ID")"
+    curl -sS -m 150 http://127.0.0.1:4420/v1/runs -H "Authorization: Bearer $(gateway_value HERMES_MINT_KEY)" -H 'Content-Type: application/json' -d "$BODY" | python3 -m json.tool ;;
   *) echo "Unknown command: $cmd" >&2; exit 1 ;;
 esac
