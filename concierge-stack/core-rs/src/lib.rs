@@ -33,6 +33,7 @@ pub mod pyval;
 pub mod quotation;
 pub mod rag;
 pub mod rate_limit;
+pub mod requests;
 pub mod robots;
 pub mod sales;
 pub mod schedule;

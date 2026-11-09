@@ -1,7 +1,7 @@
 //! Port of `owner_onboarding.py`: validation of the owner's business profile (a pydantic model that forbids unknown
 //! keys) and the website channel status. Saving, phone/SMS device state and activation stay in Python; nothing here
 //! enables a channel.
-use crate::pydantic::{err, extras, parse_bool, FieldErr};
+use crate::pydantic::{err, extras, parse_bool, parse_int, FieldErr};
 use crate::pyurl::{hostname, port, urlsplit, userinfo, Fail};
 use crate::{is_py_space, py_strip};
 use regex::Regex;
@@ -22,55 +22,6 @@ fn hhmm() -> &'static Regex {
 fn phone() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| Regex::new(r"^\+[1-9][0-9]{7,14}$").unwrap())
-}
-
-/// pydantic lax `int`: ints, integral floats, bools, and strings of digits (surrounding space and single underscores
-/// between digits allowed).
-fn parse_int(v: &Value) -> Result<i128, &'static str> {
-    match v {
-        Value::Bool(b) => Ok(*b as i128),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Ok(i as i128)
-            } else if let Some(u) = n.as_u64() {
-                Ok(u as i128)
-            } else {
-                let f = n.as_f64().unwrap();
-                if f.is_finite() && f.fract() == 0.0 {
-                    Ok(if f > 1e30 {
-                        i128::MAX
-                    } else if f < -1e30 {
-                        i128::MIN
-                    } else {
-                        f as i128
-                    })
-                } else {
-                    Err("int_from_float")
-                }
-            }
-        }
-        Value::String(s) => {
-            let t = py_strip(s);
-            let (neg, digits) = match t.strip_prefix('-') {
-                Some(r) => (true, r),
-                None => (false, t.strip_prefix('+').unwrap_or(t)),
-            };
-            let ok = !digits.is_empty()
-                && !digits.starts_with('_')
-                && !digits.ends_with('_')
-                && !digits.contains("__")
-                && digits.bytes().all(|b| b.is_ascii_digit() || b == b'_');
-            if !ok {
-                return Err("int_parsing");
-            }
-            let clean: String = digits.chars().filter(|c| *c != '_').collect();
-            match clean.parse::<i128>() {
-                Ok(n) => Ok(if neg { -n } else { n }),
-                Err(_) => Err("int_parsing_size"),
-            }
-        }
-        _ => Err("int_type"),
-    }
 }
 
 fn hours(map: &Map<String, Value>, errors: &mut Vec<FieldErr>) -> Option<Value> {
@@ -168,6 +119,10 @@ fn text<'a>(
             None
         }
     }
+}
+
+pub fn timezone_ok(name: &str) -> bool {
+    valid_timezone(name)
 }
 
 fn valid_timezone(name: &str) -> bool {

@@ -134,3 +134,15 @@ storage and the queued owner notice (never sent here, never queued on dry runs).
 `run_turn` with a scripted model and scripted tools; the Rust version must produce the same result and the same ordered list of effects (every model request,
 tool call with its context, storage write and notice). Twelve mutations were caught; two survivors are equivalent (empty replies never contain amounts; an empty
 tool-argument string is invalid JSON and becomes `{}` either way).
+
+## Batch 17 (9 November 2026): the HTTP request models of `main.py`
+
+`requests.rs` ports the 31 request bodies of `main.py` (chat, voice token and log, tool call, tenant create/update/clone, lead and appointment updates,
+crawl, knowledge text, campaigns, marketing consent, tasks, email drafts, phone numbers, inbound mailbox, owner invite/recovery/redeem/login, voice copy,
+phone SMS test, social draft/compose/schedule, OAuth callback) as a small table-driven pydantic-compatible engine (string limits and patterns, integer
+ranges with pydantic's string forms, bools, literals, lists, dictionaries, UUIDs, datetimes made timezone-aware, weekday hours, scoring overrides, timezone and
+SMS-template validators), plus the pure helpers in the same file: allowed-origin decision, rate-limit ordering and messages, origin of a URL, money text, TwiML
+text, admin snippet URLs, campaign view and private-audio headers. About 5,000 generated bodies are compared with the real Python classes (exact error type and
+location, or the exact dumped model). Declined (`Unsupported`, counted and bounded): datetime text outside plain ISO forms, numeric timestamps, integers beyond 64
+bits. The parity run caught two fields I had mis-read when copying the models (`voice_session_token`, `session_id`), which is the reason vectors come from the live classes.
+The route handlers themselves (database access, background tasks, auth dependencies) are not ported.
