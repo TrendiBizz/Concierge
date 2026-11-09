@@ -91,6 +91,13 @@ async fn not_found() -> Response {
     detail(404, "Not Found")
 }
 
+/// Starlette routes on the DECODED path, where `%2F` is already `/` and `[^/]+` cannot match it: that is the router's
+/// "Not Found", decided before the admin gate or any parameter is validated. axum routes on the raw path and hands the
+/// handler the decoded segment, so every single-segment route must ask this first.
+fn unroutable(segment: &str) -> Option<Response> {
+    segment.contains('/').then(|| detail(404, "Not Found"))
+}
+
 /// `datetime.isoformat()` for an aware UTC timestamp, as FastAPI serialises it.
 fn iso(ts: chrono::DateTime<chrono::Utc>) -> String {
     let micros = ts.timestamp_subsec_micros();
@@ -330,6 +337,9 @@ async fn admin_get(
     Path(slug): Path<String>,
     headers: HeaderMap,
 ) -> Response {
+    if let Some(r) = unroutable(&slug) {
+        return r;
+    }
     if let Err(r) = admin_gate(&state, &headers) {
         return *r;
     }
@@ -374,6 +384,9 @@ async fn client_report(
     Path(token): Path<String>,
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
+    if let Some(r) = unroutable(&token) {
+        return r;
+    }
     let days = match q.get("days") {
         None => 30,
         Some(raw) => match pydantic::parse_int(&json!(raw)) {
@@ -556,6 +569,9 @@ async fn client_report(
 /// Starlette's 404. Keeping the route a single `:token` also avoids registering a second pattern for the same
 /// path, which would shadow this one.
 async fn calendar_feed(AxState(state): AxState<State>, Path(raw): Path<String>) -> Response {
+    if let Some(r) = unroutable(&raw) {
+        return r;
+    }
     let Some(token) = raw.strip_suffix(".ics").filter(|t| !t.is_empty()) else {
         return not_found().await;
     };
@@ -617,10 +633,8 @@ async fn demo_page(
     Path(slug): Path<String>,
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
-    // Starlette routes on the DECODED path, where `%2F` is already `/` and `[^/]+` cannot match it: that is the
-    // router's "Not Found", decided before any parameter is validated. axum routes on the raw path, so say it here.
-    if slug.contains('/') {
-        return not_found().await;
+    if let Some(r) = unroutable(&slug) {
+        return r;
     }
     let presenter = match q.get("presenter") {
         None => 0,

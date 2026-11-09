@@ -316,8 +316,10 @@ The harness grew 43 comparisons (103 total). Mutations applied, each caught:
   read still returned the right row. The seed now inserts `SECOND` first and `FIRST` later with an explicit lower id
   (`-424242`), asserts an unordered read returns `SECOND`, and the mutant is killed.
 
-**Suspected, not yet verified:** the `%2F` problem above very likely affects the routes already shipped, because they
-also take one path segment with axum's raw matching: `/report/{token}`, `/api/v1/calendar/{token}.ics` and
-`/admin/tenants/{slug}`. Python would answer `Not Found` for an encoded slash where Rust looks the value up and answers
-`Unknown report` / `Unknown calendar` / `Unknown tenant`. Add the case to the harness first, see it fail, then apply the
-same one-line rule (a decoded segment containing `/` is `not_found()`).
+**Fixed in the follow-up (the same encoded-slash rule on the earlier routes):** `/report/{token}`,
+`/api/v1/calendar/{token}.ics` and `/admin/tenants/{slug}` had the same problem as `/demo/{slug}`: Python answers the
+router's `Not Found` for `%2F`, where Rust looked the value up and answered `Unknown report` / `Unknown calendar` /
+`Unknown tenant`. One shared `unroutable()` helper in `server-rs` now answers it first on all four single-segment
+routes, before the admin gate and before query validation (so `/admin/tenants/a%2Fb` without a token is a 404, not a 401,
+and `/report/x%2Fy?days=abc` is a 404, not a 422). The harness grew 7 comparisons (110 total); the cases were added first
+and seen to fail on `/report`, and disabling each call site in turn fails the harness.

@@ -265,6 +265,18 @@ def main():
         assert d[0] == 200 and d[2].get("cache-control") is None, d[2]
         assert d[2].get("content-type") == "text/html; charset=utf-8", d[2]
 
+        # ---------------------------------------------------------------- encoded slash in a path segment
+        # Starlette routes on the DECODED path, so `%2F` is a `/` that `[^/]+` cannot match: the router's plain
+        # "Not Found", decided before the admin gate or any query validation. axum routes on the raw path.
+        admin = {"X-Admin-Token": "parity-admin"}
+        same("report encoded slash", "/report/rt_parity-open%2Fx")
+        same("report encoded slash, bad days (404 beats 422)", "/report/rt_parity-open%2Fx?days=abc")
+        same("calendar encoded slash", "/api/v1/calendar/ct%2Fx.ics")
+        same("calendar encoded slash before suffix", "/api/v1/calendar/ct_parity-open%2F.ics")
+        same("admin encoded slash", "/admin/tenants/parity%2Fopen", admin)
+        same("admin encoded slash without token (404 beats 401)", "/admin/tenants/parity%2Fopen")
+        same("report encoded dash still routes", "/report/rt_parity%2Dopen")
+
         print(f"{n} comparisons passed")
     finally:
         for p in procs:
