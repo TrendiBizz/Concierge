@@ -7,6 +7,7 @@ pub mod booking_text;
 pub mod calendar;
 pub mod campaigns;
 pub mod channel_auth;
+pub mod chat;
 pub mod chunking;
 pub mod contact;
 pub mod convo;

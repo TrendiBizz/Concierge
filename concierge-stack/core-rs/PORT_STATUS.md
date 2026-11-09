@@ -125,3 +125,12 @@ Vectors from `parity/gen_vectors15.py` (live `config`, `owner_onboarding`, `emai
 Documented differences: timezone check uses chrono-tz plus tzdata's `Factory`; host-specific files Python accepts as zones (`localtime`, `posixrules`) are
 refused. Integer text beyond 128 bits and non-JSON-repr floats return `Unsupported`. Equivalent mutants (cannot be killed because the code is redundant in
 Python too): the 7-weekday-key count (more than 7 keys always contains an invalid day name) and the CR/LF check in `_address` (the e-mail pattern already refuses them).
+
+## Batch 16 (9 November 2026): one conversation turn
+
+`chat.rs` ports `chat.run_turn` (web chat, SMS and email): history, system prompt assembly (with the already-ported prompt builder), the tool-call loop
+(four rounds maximum, bad JSON arguments become `{}`), the quote guard with its single corrected retry and fallback, the generic failure text, conversation
+storage and the queued owner notice (never sent here, never queued on dry runs). All effects go through an `Env` trait. 260 scenarios run the real
+`run_turn` with a scripted model and scripted tools; the Rust version must produce the same result and the same ordered list of effects (every model request,
+tool call with its context, storage write and notice). Twelve mutations were caught; two survivors are equivalent (empty replies never contain amounts; an empty
+tool-argument string is invalid JSON and becomes `{}` either way).
