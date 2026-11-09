@@ -67,3 +67,16 @@ def test_queued_owner_sms_respects_revoked_sms_permission(monkeypatch):
     finish=AsyncMock();monkeypatch.setattr(outbox,'_finish',finish)
     asyncio.run(outbox._deliver({'id':1,'tenant_id':'a','kind':'owner_alert','channel':'sms'}))
     finish.assert_awaited_once_with(1,'skipped','channel_authorization_missing')
+
+
+def test_website_import_does_not_decode_compressed_pages_twice(monkeypatch):
+    import gzip
+    monkeypatch.setattr(public_fetch, 'public_addresses', AsyncMock(return_value=['1.1.1.1']))
+    def transport(request):
+        return httpx.Response(200, headers={'content-encoding':'gzip','content-type':'text/html'}, content=gzip.compress(b'<html>Readable public website</html>'))
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            response=await public_fetch.PublicClient(client,'example.com').get('https://example.com/')
+            assert response.text=='<html>Readable public website</html>'
+            assert 'content-encoding' not in response.headers
+    asyncio.run(run())

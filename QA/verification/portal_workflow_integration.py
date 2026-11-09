@@ -76,6 +76,10 @@ async def main():
         await inbound_email.ingest_verified(a['id'], 'cloudflare', 'fixture@example.invalid', 'sender@example.invalid', 'inbox@example.invalid', 'Fixture email', long_email)
         check('email webhook replay keeps one draft and full original email', await db.pool().fetchval('SELECT count(*) FROM email_drafts WHERE tenant_id=$1', a['id']) == 1 and await db.pool().fetchval("SELECT max(length(original_text)) FROM enquiry_sources WHERE tenant_id=$1 AND channel='email'", a['id']) > 4000)
         check('manual email mode never queues an automatic reply', not await db.pool().fetchval('SELECT 1 FROM email_secretary_jobs WHERE tenant_id=$1', a['id']))
+        complete_mail = 'Subject: ' + 'S'*250 + '\n\n' + 'x'*19980 + 'END OF ORIGINAL EMAIL'
+        await convo.save_message(ca, 'user', complete_mail)
+        saved = await db.pool().fetchval('SELECT content FROM messages WHERE conversation_id=$1 ORDER BY id DESC LIMIT 1',ca)
+        check('maximum-length email with subject retains its complete final content', saved == complete_mail)
         # Consent-gated real WAV bytes, owner recording link, and retry safety.
         state = await voice_records.start(a, 'fixture-voice-123', record=True)
         session = await voice_records.authenticate(uuid.UUID(state['id']), state['token'])

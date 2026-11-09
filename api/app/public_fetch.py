@@ -43,5 +43,5 @@ class PublicClient:
                     content.extend(chunk)
                     if len(content) > MAX_BYTES:
                         raise ValueError('Website response exceeds import size limit')
-                return httpx.Response(response.status_code, headers=response.headers, content=bytes(content), request=httpx.Request('GET', url))
+                return httpx.Response(response.status_code, headers={k: v for k, v in response.headers.items() if k.lower() not in ('content-encoding', 'content-length', 'transfer-encoding')}, content=bytes(content), request=httpx.Request('GET', url))
         raise ValueError('Too many website redirects')
