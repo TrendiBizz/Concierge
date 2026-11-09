@@ -60,24 +60,37 @@ async def cancel_for_appointment(appointment_id) -> int:
     return int(result.split()[-1])
 
 
+async def _optout_cc(tenant_id) -> str:
+    """The dialling country to canonicalise an opt-out key with.
+
+    This MUST be the tenant's own country, not the global default. Using the global setting (which
+    defaults to '1', US) meant a number outside +1 failed to parse, so the RAW string was stored as
+    the opt-out key. The same person's other spellings then did not match it, and we kept texting
+    someone who had unsubscribed. That is a compliance failure, not a cosmetic one.
+    """
+    from . import casetimeline, tenants
+    tenant = await tenants.get_by_id(tenant_id) if tenant_id else None
+    return casetimeline.tenant_country_code(tenant)
+
+
 async def opt_out(tenant_id, contact: str) -> None:
     await db.pool().execute(
         "INSERT INTO opt_outs (tenant_id, contact) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
 
 
 async def opt_in(tenant_id, contact: str) -> None:
     await db.pool().execute(
         "DELETE FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
 
 
 async def is_opted_out(tenant_id, contact: str) -> bool:
     found = await db.pool().fetchval(
         "SELECT 1 FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
     return bool(found)
 

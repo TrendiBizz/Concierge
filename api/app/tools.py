@@ -8,7 +8,7 @@ booking tools only appear when the client has turned native booking on.
 import json
 import logging
 
-from . import automation, booking, db
+from . import automation, booking, casetimeline, db
 from .config import get_settings
 from .contact import is_email, normalize_phone
 from .rag import retrieve, tag_url
@@ -168,7 +168,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
     marketing = bool(args.get("consent_to_marketing"))  # explicit only; texting us first is not marketing consent
 
-    phone = normalize_phone(phone_raw, settings.default_country_code) or ""
+    phone = normalize_phone(phone_raw, casetimeline.tenant_country_code(tenant)) or ""
     email_ok = is_email(email)
     if not (email_ok or phone):
         return {"ok": False, "error": "Need a valid phone number or email address. Ask the visitor for one."}

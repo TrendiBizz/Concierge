@@ -92,19 +92,18 @@ def test_international_form_is_stable_across_tenants(monkeypatch):
     assert nz == us == "phone:+6421555123"
 
 
-@pytest.mark.xfail(
-    reason="Shared normalize_phone() cannot parse local formats: it treats any 8-15 digit string as "
-           "already-E.164 and only prefixes '+', so '6421555123' becomes '+646421555123' and "
-           "'021555123' becomes '+021555123'. Fixing it changes booking, SMS, outbox, campaigns and "
-           "tools together, so it is reported rather than half-fixed here.",
-    strict=True,
-)
 def test_local_form_unifies_with_international_form(monkeypatch):
-    """KNOWN BUG: a NZ customer writing 6421555123 and +6421555123 should be ONE case."""
+    """A NZ customer writing any of these spellings is ONE case.
+
+    This was previously an xfail documenting a real bug: normalize_phone treated any 8-15 digit
+    string as already-E.164 and only prefixed '+', so '6421555123' became '+646421555123' and
+    '021555123' became '+021555123'. Both are now correct, so the marker was removed rather than
+    left to report XPASS.
+    """
     monkeypatch.setattr(casetimeline, "get_settings", lambda: SimpleNamespace(default_country_code="1"))
     tenant = {"default_country_code": "64"}
-    assert (casetimeline.case_key_for_tenant(tenant, phone="6421555123")
-            == casetimeline.case_key_for_tenant(tenant, phone="+6421555123"))
+    for raw in ("6421555123", "+6421555123", "021555123", "21555123", "021 555 123"):
+        assert (casetimeline.case_key_for_tenant(tenant, phone=raw) == "phone:+6421555123"), raw
 
 
 def test_different_customers_never_share_a_case():

@@ -23,6 +23,7 @@ from . import (
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import casetimeline
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -235,7 +236,7 @@ async def sms_inbound(public_key: str, request: Request):
 
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
-    sender = normalize_phone(params.get("From", ""), settings.default_country_code)
+    sender = normalize_phone(params.get("From", ""), casetimeline.tenant_country_code(tenant))
     body = (params.get("Body") or "").strip()
     if not sender or not body:
         return _twiml("")
@@ -269,7 +270,7 @@ async def smsgate_inbound(public_key: str, request: Request):
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     payload = envelope.get("payload") or {}
-    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", settings.default_country_code)
+    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", casetimeline.tenant_country_code(tenant))
     body = (payload.get("message") or "").strip()
     if not sender or not body:
         return {"ok": True}

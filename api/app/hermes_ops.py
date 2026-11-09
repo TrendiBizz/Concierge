@@ -21,7 +21,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import channel_authorization, db, tenants
+from . import casetimeline, channel_authorization, db, tenants
 from .config import get_settings
 from .contact import contact_key
 
@@ -71,8 +71,14 @@ async def _settings(conn, tenant_id) -> tuple[str, float]:
     return (row["autonomy"], float(row["min_confidence"])) if row else ("shadow", 0.8)
 
 
-def _contacts(lead: dict) -> list[str]:
-    cc = get_settings().default_country_code
+def _contacts(lead: dict, tenant: dict | None = None) -> list[str]:
+    """Every key that can identify this customer, for opt-out and suppression checks.
+
+    Uses the tenant's own dialling country: with the global default a local number outside +1 was
+    canonicalised differently here than in the outbox, so a suppression check could miss an opt-out
+    that the outbox had recorded.
+    """
+    cc = casetimeline.tenant_country_code(tenant)
     return sorted({k for k in (contact_key(lead.get("email") or "", cc), contact_key(lead.get("phone") or "", cc)) if k})
 
 
@@ -84,7 +90,7 @@ async def policy_context(lead_id: UUID, tenant_id: UUID):
         raise HTTPException(404, "Case not found")
     pool = db.pool()
     lead = await _lead(pool, tenant_id, lead_id)
-    contacts = _contacts(lead)
+    contacts = _contacts(lead, tenant)
     suppressed = [r["contact"] for r in await pool.fetch("SELECT contact FROM opt_outs WHERE tenant_id=$1 AND contact = ANY($2::text[])", tenant_id, contacts)]
     chunks = await pool.fetch("SELECT content FROM chunks WHERE tenant_id=$1 AND content LIKE '%$%' ORDER BY id LIMIT 300", tenant_id)
     evidence = "\n".join([tenant.get("persona") or "", tenant.get("incentive") or "", *[c["content"] for c in chunks]])[:EVIDENCE_CAP]
@@ -92,7 +98,7 @@ async def policy_context(lead_id: UUID, tenant_id: UUID):
     return {
         "tenant_id": str(tenant_id), "case_id": str(lead_id), "case_version": await _version(pool, tenant_id, lead_id),
         "automation_paused": await _paused(pool, tenant_id, lead_id), "timezone": tenant.get("timezone") or "UTC",
-        "default_country_code": get_settings().default_country_code,
+        "default_country_code": casetimeline.tenant_country_code(tenant),
         "email_send_authorized": await channel_authorization.is_authorized(tenant_id, "email_send"),
         "sms_send_authorized": await channel_authorization.is_authorized(tenant_id, "sms_send"),
         "case_contacts": contacts, "suppressed": suppressed, "knowledge_evidence": evidence,
@@ -209,7 +215,8 @@ def _due(params: dict) -> datetime | None:
 async def execute(lead_id: UUID, bundle: Bundle):
     """Execute a bundle the gateway validated. Re-verifies everything; all effects commit together or not at all."""
     tenant_id = bundle.tenant_id
-    if not await tenants.get_by_id(tenant_id):
+    tenant = await tenants.get_by_id(tenant_id)
+    if not tenant:
         raise HTTPException(404, "Case not found")
     async with db.pool().acquire() as conn:
         async with conn.transaction():
@@ -236,8 +243,8 @@ async def execute(lead_id: UUID, bundle: Bundle):
                     raise _conflict("automation_paused", "a person has taken over this case")
                 if not await channel_authorization.is_authorized(tenant_id, "email_send" if d.channel == "email" else "sms_send"):
                     raise _conflict("channel_not_authorized")
-                key = contact_key(d.recipient, get_settings().default_country_code)
-                if key not in _contacts(lead):
+                key = contact_key(d.recipient, casetimeline.tenant_country_code(tenant))
+                if key not in _contacts(lead, tenant):
                     raise _conflict("recipient_not_on_case")
                 if await conn.fetchval("SELECT 1 FROM opt_outs WHERE tenant_id=$1 AND contact=$2", tenant_id, key):
                     raise _conflict("recipient_opted_out")

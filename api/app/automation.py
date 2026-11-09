@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import events, outbox, sales, scoring, tasks
+from . import casetimeline, events, outbox, sales, scoring, tasks
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -38,7 +38,7 @@ def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
     """A phone number we may text: SMS enabled for the client, visitor consented, number valid."""
     if not (tenant.get("sms_enabled") and consent and phone):
         return None
-    return normalize_phone(phone, get_settings().default_country_code)
+    return normalize_phone(phone, casetimeline.tenant_country_code(tenant))
 
 
 async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> None:

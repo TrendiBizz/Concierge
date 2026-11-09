@@ -9,8 +9,14 @@ os.environ.update({
     "ADMIN_TOKEN": "admin-test-token",
     "PUBLIC_BASE_URL": "https://chat.example.test",
 })
-sys.path.insert(0, os.path.expanduser("~/work-staging/shims"))
-sys.path.insert(0, os.path.expanduser("~/work-staging/concierge-core/api"))
+
+# Resolve paths relative to THIS repository, not a developer's ~/work-staging scratch copies.
+# Those stale copies used to be prepended ahead of the checkout, so a suite could silently test
+# code from another branch or another day. CI never noticed because the paths did not exist there;
+# locally they did. The repository the suite lives in is always the right one to test.
+_REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(_REPO, "QA", "verification", "shims"))
+sys.path.insert(0, os.path.join(_REPO, "api"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
