@@ -97,9 +97,13 @@ async def _deliver(row: dict) -> None:
         await _finish(row["id"], "skipped", "tenant_deleted")
         return
 
+    if row['kind'] == 'email_secretary_reply' and (not tenant.get('email_auto_reply') or not await channel_authorization.is_authorized(tenant['id'], 'email_read')):
+        await _finish(row['id'], 'skipped', 'email_secretary_authorization_revoked')
+        return
+
     # Recheck authorization at actual delivery time. Queued work must not bypass
     # a customer's revocation; operational owner alerts remain separate.
-    if row["kind"] not in OWNER_KINDS and row["channel"] in ("email", "sms"):
+    if (row["kind"] not in OWNER_KINDS or row["channel"] == "sms") and row["channel"] in ("email", "sms"):
         permission = "email_send" if row["channel"] == "email" else "sms_send"
         if not await channel_authorization.is_authorized(row["tenant_id"], permission):
             await _finish(row["id"], "skipped", "channel_authorization_missing")

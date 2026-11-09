@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     social_service_url: str = "http://127.0.0.1:4390"
     social_concierge_key: str = ""
 
+    calendar_credentials_dir: str = ""  # mounted private secret directory, not source control
+
     # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).
     xai_api_key: str = ""
     llm_base_url: str = "https://api.x.ai/v1"

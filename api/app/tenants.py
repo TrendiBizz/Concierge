@@ -28,6 +28,7 @@ UPDATABLE_FIELDS = {
     "native_booking": bool,
     "notify_email": str,
     "notify_phone": str,
+    "email_auto_reply": bool,
     "sms_enabled": bool,
     "sms_from": str,
     "lead_sms_template": str,

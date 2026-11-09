@@ -5,6 +5,7 @@ connect accounts, send messages, modify phone routing or enable a channel.
 """
 from __future__ import annotations
 
+import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import urlsplit
 
@@ -16,6 +17,28 @@ from .config import get_settings
 
 class OwnerBusinessProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    email_auto_reply: bool | None = None
+    voice_enabled: bool | None = None
+    native_booking: bool | None = None
+    slot_minutes: int | None = Field(default=None, ge=5, le=240)
+    business_hours: dict[str, list[list[str]]] | None = None
+
+    @field_validator('business_hours')
+    @classmethod
+    def hours_safe(cls, value):
+        if value is None:
+            return value
+        if len(value) > 7:
+            raise ValueError('Use the seven weekday names')
+        for day, windows in value.items():
+            if day not in ('mon','tue','wed','thu','fri','sat','sun') or len(windows)>4:
+                raise ValueError('Use weekday names and at most four opening windows per day')
+            last = ''
+            for window in sorted(windows):
+                if len(window)!=2 or not all(re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', x) for x in window) or window[0]>=window[1] or window[0]<last:
+                    raise ValueError('Use non-overlapping opening windows HH:MM-HH:MM')
+                last=window[1]
+        return value
     name: str | None = Field(default=None, min_length=1, max_length=160)
     site_url: str | None = Field(default=None, max_length=2048)
     greeting: str | None = Field(default=None, max_length=500)
@@ -134,6 +157,11 @@ async def overview(tenant_id) -> dict:
             "name": tenant["name"],
             "site_url": tenant.get("site_url") or "",
             "greeting": tenant.get("greeting") or "",
+            "voice_enabled": bool(tenant.get("voice_enabled")),
+            "native_booking": bool(tenant.get("native_booking")),
+            "slot_minutes": tenant.get("slot_minutes",30),
+            "business_hours": tenant.get("business_hours",{}),
+            "email_auto_reply": bool(tenant.get("email_auto_reply")),
             "notify_phone": tenant.get("notify_phone") or "",
             "notify_email": tenant.get("notify_email") or "",
             "timezone": tenant.get("timezone") or "Pacific/Auckland",
@@ -168,6 +196,7 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
         "name": saved["name"],
         "site_url": saved.get("site_url") or "",
         "greeting": saved.get("greeting") or "",
+        "email_auto_reply": bool(saved.get("email_auto_reply")),
         "notify_phone": saved.get("notify_phone") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",

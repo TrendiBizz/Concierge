@@ -42,20 +42,8 @@ def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
 
 
 async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> None:
-    if tenant.get("notify_email") and is_email(tenant["notify_email"]):
-        await outbox.enqueue(
-            tenant["id"], "owner_alert", "email", tenant["notify_email"], body,
-            subject=subject, dedupe_key=dedupe,
-        )
-
-    if tenant.get("notify_phone") and tenant.get("sms_enabled"):
-        from . import channel_authorization
-        phone = normalize_phone(tenant["notify_phone"])
-        if phone and await channel_authorization.is_authorized(tenant["id"], "sms_send"):
-            await outbox.enqueue(
-                tenant["id"], "owner_alert", "sms", phone, subject + "\n" + body,
-                dedupe_key=dedupe + ":sms",
-            )
+    from . import owner_notifications
+    await owner_notifications.queue(tenant, subject, body, dedupe)
 
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
@@ -75,30 +63,22 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
         log.exception("Could not persist Twenty CRM delivery for lead %s",lead["id"])
 
     contact = lead["phone"] or lead["email"] or "-"
-    await _owner_alert(
-        tenant,
-        f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",
-        f"{_score_lines(lead)}Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
-        f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
-        f"lead:{lead['id']}:owner",
-    )
+    if not lead.get("_owner_notice_queued"):
+        await _owner_alert(
+            tenant,
+            f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",
+            f"{_score_lines(lead)}Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
+            f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
+            f"lead:{lead['id']}:owner",
+        )
 
     await lead_followup(tenant, lead)
 
 
 async def lead_followup(tenant: dict, lead: dict) -> None:
-    # Speed-to-lead text. If they texted us first, the conversation already is the reply.
-    to = _sms_target(tenant, lead["phone"], lead["consent_contact"])
-    if to and lead["channel"] != "sms":
-        template = tenant.get("lead_sms_template") or (
-            "Hi {first}, thanks for reaching out to {business}! A team member will follow up shortly. "
-            "Reply STOP to opt out."
-        )
-        text = template.format(first=_first_name(lead["name"]), name=lead["name"], business=tenant["name"])
-        await outbox.enqueue(
-            tenant["id"], "speed_to_lead", "sms", to, text,
-            dedupe_key=f"lead:{lead['id']}:sms", lead_id=lead["id"],
-        )
+    # Contact consent permits follow-up, but is not a request for an acknowledgement.
+    # The explicit request_enquiry_acknowledgement tool queues the visitor's copy.
+    return
 
 
 async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> None:
@@ -135,7 +115,7 @@ async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> 
 
     now = datetime.now(timezone.utc)
     sms_to = _sms_target(tenant, appt["phone"], appt["consent_contact"])
-    email_to = appt["email"] if is_email(appt["email"]) else None
+    email_to = appt["email"] if appt["consent_contact"] and is_email(appt["email"]) else None
     first = _first_name(appt["name"])
 
     # Confirmation + two reminders, on whichever channels we are allowed to use.

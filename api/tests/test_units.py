@@ -109,13 +109,13 @@ def test_prompts():
 
 def test_tools_depend_on_tenant():
     plain = {t["function"]["name"] for t in chat_tools(TENANT)}
-    assert plain == {"capture_lead"}
+    assert plain == {"request_enquiry_acknowledgement", "capture_lead"}
     link = {t["function"]["name"] for t in chat_tools({**TENANT, "booking_url": "https://cal.example/x"})}
-    assert link == {"capture_lead", "get_booking_link"}
+    assert link == {"request_enquiry_acknowledgement", "capture_lead", "get_booking_link"}
     native = {t["function"]["name"] for t in chat_tools(NATIVE)}
-    assert native == {"capture_lead", "check_availability", "book_appointment"}
+    assert native == {"request_enquiry_acknowledgement", "capture_lead", "check_availability", "book_appointment"}
     voice = {t["name"] for t in voice_tools(NATIVE)}
-    assert voice == {"capture_lead", "check_availability", "book_appointment", "search_knowledge"}
+    assert voice == {"request_enquiry_acknowledgement", "capture_lead", "check_availability", "book_appointment", "search_knowledge"}
     json.dumps(chat_tools(NATIVE) + voice_tools(NATIVE))
 
 

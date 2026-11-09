@@ -1,7 +1,7 @@
 """Provider-neutral verified-email ingestion boundary.
 
 Only an authenticated upstream adapter may call ingest_verified(). This service
-does not accept public mail, send email, or invoke AI automatically. A real
+does not accept public mail or send email directly. Automatic replies require opt-in. A real
 provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
@@ -42,9 +42,13 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             "REVIEW REQUIRED — write a verified response before approval.", key,
         )
         tenant = await tenants.get_by_id(tenant_id)
-        conversation_id = await convo.get_or_create(tenant, "email" + key.split(":", 1)[1][:50], "email", None, None)
+        conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
                                 conversation_id=conversation_id, email=draft["sender"])
+        if tenant.get('email_auto_reply'):
+            await db.pool().execute(
+                'INSERT INTO email_secretary_jobs(tenant_id,source_key,sender,subject,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
+                tenant_id, key, draft['sender'], subject[:250], text_body)
         return draft
     except email_drafts.DraftError as exc:
         raise InboundError(str(exc)) from exc

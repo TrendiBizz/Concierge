@@ -22,7 +22,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
-from . import mobile_connections
+from . import mobile_connections, quotations, calendar_connection, email_secretary
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -67,8 +67,12 @@ async def lifespan(_: FastAPI):
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
     twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
         settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
+    email_worker = asyncio.create_task(email_secretary.run_forever(stop))
+    calendar_worker = asyncio.create_task(calendar_connection.run_forever(stop))
     yield
     stop.set()
+    await calendar_worker
+    await email_worker
     await voice_retention_worker
     if worker:
         await worker
@@ -86,6 +90,9 @@ app.include_router(device_sms.router)
 app.include_router(phone_sip.router)
 app.include_router(managed_phone.router)
 app.include_router(mobile_connections.router)
+app.include_router(quotations.router)
+app.include_router(calendar_connection.router)
+app.include_router(email_secretary.router)
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.
@@ -1150,6 +1157,8 @@ async def admin_update_appointment(appointment_id: str, body: AppointmentUpdate)
     appt = dict(row)
     tenant = await tenants.get_by_id(appt["tenant_id"])
     await automation.on_appointment_status(tenant, appt, body.status)
+    if body.status in ("cancelled", "no_show"):
+        await calendar_connection.sync_one(appt["id"])
     return appt
 
 
@@ -1540,7 +1549,9 @@ async def owner_crm_transcript(lead_id: uuid.UUID, user: dict = Depends(owner_au
         "JOIN messages m ON m.conversation_id=c.id "
         "WHERE l.tenant_id=$1 AND l.id=$2 AND m.role IN ('user','assistant') "
         "ORDER BY m.id LIMIT 1000", user["tenant_id"], lead_id)
-    return [dict(row) for row in rows]
+    return [dict(row) for row in rows] if rows else [
+        {'role': 'user', 'content': row['original_text'], 'created_at': row['created_at']}
+        for row in await db.pool().fetch('SELECT original_text,created_at FROM enquiry_sources WHERE tenant_id=$1 AND lead_id=$2 ORDER BY created_at', user['tenant_id'], lead_id)]
 
 
 @app.get("/owner/crm/leads/{lead_id}/recordings")
@@ -1618,6 +1629,22 @@ async def owner_onboarding_update(
 @app.get("/owner/onboarding/authorizations")
 async def owner_channel_authorizations(user: dict = Depends(owner_auth.current_user)):
     return await channel_authorization.authorizations(user["tenant_id"])
+
+
+@app.post("/owner/knowledge/import-website")
+async def owner_import_website(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user['tenant_id'])
+    try:
+        async with asyncio.timeout(55):
+            result = await ingest.ingest_site(tenant, max_pages=15)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception:
+        raise HTTPException(503, "Website import could not finish. Existing knowledge is retained; retry or upload business information.") from None
+    if not result['chunks']:
+        raise HTTPException(422, "No readable pages were imported. Check robots.txt or upload business information.")
+    return result
 
 
 @app.get("/owner/knowledge")

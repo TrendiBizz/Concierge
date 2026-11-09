@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     env_file:
       - {path: /opt/trendi/shared/api.env, format: raw}
-    volumes: [api-model-cache:/opt/fastembed]
+    volumes: [api-model-cache:/opt/fastembed, /opt/trendi/shared/calendar:/run/concierge-calendar]
     ports: [127.0.0.1:8000:8000]
     depends_on:
       postgres: {condition: service_healthy}

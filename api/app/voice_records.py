@@ -114,7 +114,7 @@ async def complete_delivery(session, tenant, request, result):
 
 async def _finish_enquiry(c, session, tenant):
     """Run under the session row lock, in the caller's transaction."""
-    turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id LIMIT 300", session['conversation_id'])
+    turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id", session['conversation_id'])
     caller = '\n'.join(r['content'] for r in turns if r['role'] == 'user').strip()
     if not caller:
         return {'ok': True, 'empty': True}
@@ -124,15 +124,20 @@ async def _finish_enquiry(c, session, tenant):
         lead = await c.fetchrow(
             "INSERT INTO leads(tenant_id,conversation_id,channel,source_key,message) VALUES($1,$2,'voice',$3,$4) RETURNING *",
             tenant['id'], session['conversation_id'], 'voice:'+str(session['id']), caller[:1000])
-    transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)[:24000]
-    if tenant.get('notify_email'):
-        # Write the notice in this same transaction; no external send here.
-        await c.execute(
-            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key,lead_id) "
-            "VALUES($1,'owner_alert','email',$2,$3,$4,$5,$6) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-            tenant['id'], tenant['notify_email'], 'Voice enquiry for '+tenant['name'],
-            transcript+'\n\nOpen the enquiry in your Concierge CRM for its saved transcript and any recording.',
-            'voice-finished:'+str(session['id']), lead['id'])
+    transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)
+    from . import owner_notifications
+    recording = await c.fetchval(
+        'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
+        tenant['id'], session['id'], session['conversation_id'])
+    body = transcript
+    if recording and session['recording_consent']:
+        token = secrets.token_urlsafe(32)
+        await c.execute('INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) VALUES($1,$2,$3)',
+                        digest(token), session['id'], tenant['id'])
+        body += '\n\nRecording (private link expires in 24 hours): ' + get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
+    body += '\n\nThe complete enquiry is saved in your Concierge CRM.'
+    await owner_notifications.queue(tenant, 'Voice enquiry for ' + tenant['name'], body,
+                                    'voice-finished:' + str(session['id']), lead_id=lead['id'], connection=c)
     await events.queue_twenty(tenant, 'voice.completed', str(session['id']), {'lead': {**dict(lead), 'message': transcript[:1400]}}, connection=c)
     await c.execute('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1', session['id'])
     return {'ok': True, 'lead_id': str(lead['id'])}
@@ -196,7 +201,7 @@ async def deliver(tenant, lead_id, *, recipient, channel, content, request_id, s
     lead = await db.pool().fetchrow('SELECT * FROM leads WHERE tenant_id=$1 AND id=$2', tenant['id'], lead_id)
     if not lead:
         raise HTTPException(404, 'Enquiry not found')
-    owner_recipient = channel == 'email' and recipient == tenant.get('notify_email')
+    owner_recipient = recipient == tenant.get('notify_email' if channel == 'email' else 'notify_phone')
     caller_recipient = recipient == lead['phone' if channel == 'sms' else 'email'] and bool(lead['consent_contact'])
     if not recipient or not (owner_recipient or caller_recipient):
         raise HTTPException(403, 'Use the business notification email or the consenting customer contact on this enquiry')
@@ -220,7 +225,7 @@ async def deliver(tenant, lead_id, *, recipient, channel, content, request_id, s
         if channel == 'sms':
             body = 'Your enquiry with '+tenant['name']+':\n'+'\n'.join(r['content'] for r in turns if r['role']=='user')[:700]
         else:
-            body = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)[:24000]
+            body = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)
         if not turns:
             raise HTTPException(409, 'No saved transcript for this enquiry')
     await outbox.enqueue(tenant['id'],kind,channel,recipient,body,

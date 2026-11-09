@@ -467,3 +467,52 @@ ALTER TABLE voice_recordings ADD CONSTRAINT voice_recordings_mime_type_check
  CHECK(mime_type IN ('audio/webm','audio/ogg','audio/mp4','audio/wav'));
 
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS notify_phone text;
+
+CREATE TABLE IF NOT EXISTS quotations (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+ title text NOT NULL, currency text NOT NULL,
+ status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','reviewed','accepted','declined','void')),
+ lines jsonb NOT NULL, contact jsonb NOT NULL,
+ tax_basis_points integer NOT NULL CHECK(tax_basis_points BETWEEN 0 AND 10000),
+ subtotal_cents bigint NOT NULL CHECK(subtotal_cents>=0),
+ tax_cents bigint NOT NULL CHECK(tax_cents>=0), total_cents bigint NOT NULL CHECK(total_cents>=0),
+ notes text NOT NULL DEFAULT '', version integer NOT NULL DEFAULT 1,
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS quotations_tenant_idx ON quotations(tenant_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS enquiry_sources (
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ channel text NOT NULL, source_key text NOT NULL,
+ lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+ original_text text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(tenant_id,channel,source_key)
+);
+CREATE TABLE IF NOT EXISTS calendar_connections (
+ tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+ calendar_id text NOT NULL DEFAULT 'primary', enabled boolean NOT NULL DEFAULT true,
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS calendar_oauth_states (
+ token_hash text PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ user_id uuid NOT NULL, expires_at timestamptz NOT NULL DEFAULT now()+interval '10 minutes'
+);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_sync_requested boolean NOT NULL DEFAULT false;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_notice_done boolean NOT NULL DEFAULT false;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_state text NOT NULL DEFAULT 'unconnected';
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_event_id text;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_error text NOT NULL DEFAULT '';
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_synced_at timestamptz;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS invitation_state text NOT NULL DEFAULT 'pending';
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_retry_at timestamptz NOT NULL DEFAULT now();
+CREATE UNIQUE INDEX IF NOT EXISTS appointment_conversation_slot_idx ON appointments(tenant_id,conversation_id,starts_at) WHERE conversation_id IS NOT NULL;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_ack jsonb;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email_auto_reply boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS email_secretary_jobs (
+ id bigserial PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ source_key text NOT NULL, sender text NOT NULL, subject text NOT NULL, body text NOT NULL,
+ status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0,
+ claimed_at timestamptz, error text NOT NULL DEFAULT '', UNIQUE(tenant_id,source_key)
+);

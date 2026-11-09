@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from app import tools, automation
 
 
-def test_phone_contact_capture_queues_followup_for_existing_crm_enquiry(monkeypatch):
+def test_contact_consent_does_not_send_unrequested_acknowledgement(monkeypatch):
     tenant={'id':'business-a','name':'Test Business','sms_enabled':True}
     lead={'id':7,'tenant_id':'business-a','conversation_id':'conversation-a','name':'Jo',
           'phone':'+64278817368','email':'','channel':'phone','message':'Please send details',
@@ -23,8 +23,7 @@ def test_phone_contact_capture_queues_followup_for_existing_crm_enquiry(monkeypa
         'phone':'+64278817368','name':'Jo','message':'Please send details',
         'consent_to_contact':True}, {'conversation_id':'conversation-a','channel':'phone'}))
     assert result['ok']
-    assert queue.await_count==1, 'Existing voice enquiry must receive its consented SMS follow-up'
-    assert queue.await_args.kwargs['dedupe_key']=='lead:7:sms'
+    assert queue.await_count==0, 'Contact consent is separate from requesting an acknowledgement'
 
 
 def test_followup_requires_consent_and_does_not_text_inbound_sms_again(monkeypatch):

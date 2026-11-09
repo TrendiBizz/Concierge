@@ -50,6 +50,12 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 <nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
 <section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
+<section class="panel" id="quotations-panel"><h2>Quotations</h2><p>Prepare a draft linked to an enquiry. Review prices and tax before marking it reviewed. Quotes are never sent automatically.</p>
+<form id="quote-form"><label for="quote-lead">Contact and enquiry</label><select id="quote-lead" required></select><label for="quote-title">Quotation title</label><input id="quote-title" required maxlength="160">
+<div class="row"><div><label for="quote-currency">Currency</label><input id="quote-currency" value="NZD" required pattern="[A-Z]{3}" maxlength="3"></div><div><label for="quote-tax">Tax (%) — set for this quotation</label><input id="quote-tax" value="0" inputmode="decimal" required></div></div>
+<div id="quote-lines"></div><button id="quote-add-line" type="button" class="secondary">Add line</button>
+<label for="quote-notes">Notes</label><textarea id="quote-notes" maxlength="4000"></textarea><button type="submit">Save draft quotation</button><button id="quote-reset" class="secondary" type="button">New draft</button></form><div id="quote-list"></div></section>
+<section class="panel" id="calendar-panel"><h2>Owner calendar</h2><p>Connect this business's Google Calendar so Concierge can check availability, create events and request invitations for confirmed bookings.</p><p id="calendar-status" aria-live="polite"></p><button id="calendar-connect" type="button">Connect Google Calendar</button><button id="calendar-disconnect" type="button" class="secondary" hidden>Disconnect calendar</button></section>
 <section class="panel"><h2>Your setup</h2><p class="muted">Save your business details, add the information Concierge should use, and connect the accounts you choose. Each channel is tested before activation.</p><div id="setup-summary" aria-live="polite"></div></section>
 <section class="panel" id="onboarding-panel">
 <h2>Business setup</h2>
@@ -57,7 +63,7 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 A configured channel still needs Trendi's verification before it is activated.</p>
 <div id="onboarding-channels" aria-live="polite"></div>
 <form id="onboarding-form">
-<div class="row"><div><label for="onboarding-name">Business name</label><input id="onboarding-name" required maxlength="160" autocomplete="organization"></div><div><label for="onboarding-website">Business website</label><input id="onboarding-website" type="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></div></div><p class="muted">Saving your website does not automatically import pages or activate a widget. Add your business information below while Trendi verifies your website setup.</p><label for="onboarding-greeting">Business greeting</label>
+<div class="row"><div><label for="onboarding-name">Business name</label><input id="onboarding-name" required maxlength="160" autocomplete="organization"></div><div><label for="onboarding-website">Business website</label><input id="onboarding-website" type="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></div></div><p class="muted">Save your website, then import its public pages into this business’s knowledge. Import only a website you own or have permission to index. Website voice uses the visitor’s microphone and internet connection.</p><label for="onboarding-greeting">Business greeting</label>
 <textarea id="onboarding-greeting" maxlength="500"></textarea>
 <div class="row">
 <div><label for="onboarding-phone">Owner notification phone</label><input id="onboarding-phone" type="tel" maxlength="16" placeholder="+64211234567"><small>Notification destination. SMS requires a connected, authorized transport.</small></div>
@@ -66,7 +72,9 @@ A configured channel still needs Trendi's verification before it is activated.</
 <div><label for="onboarding-timezone">Timezone (IANA name)</label>
 <input id="onboarding-timezone" maxlength="100" placeholder="Pacific/Auckland"></div>
 </div>
-<button type="submit">Save business setup</button>
+<label><input type="checkbox" id="onboarding-voice"> Enable website voice receptionist</label><label><input type="checkbox" id="onboarding-booking"> Allow Concierge to book agreed appointments</label><label for="onboarding-slot">Appointment length (minutes)</label><input id="onboarding-slot" type="number" min="5" max="240" value="30"><fieldset><legend>Booking hours in your business timezone</legend><p>Enter times such as 09:00-17:00. Separate split hours with a comma. Leave closed days empty.</p><div id="onboarding-hours"></div></fieldset>
+<label><input type="checkbox" id="onboarding-email-auto"> Allow Concierge to answer incoming email automatically using my business information</label><p class="muted">Requires a connected inbox and permission to read and send email. Leave off to review email replies before sending.</p>
+<button type="submit">Save business setup</button><button id="website-import" type="button" class="secondary">Import website knowledge</button><p id="website-import-status" aria-live="polite"></p>
 </form>
 </section>
 <section class="panel" id="knowledge-panel">
@@ -80,8 +88,9 @@ A configured channel still needs Trendi's verification before it is activated.</
 <p class="muted">The business owner must explicitly authorize each capability. Authorization does not connect accounts, activate messages or start call recording. Caller consent and live provider verification are separate requirements.</p>
 <div id="channel-authorizations" aria-live="polite"></div>
 </section>
+<details><summary>Optional existing phone service and call forwarding</summary><p class="muted">Website voice works independently of these optional carrier connections.</p>
 <div class="row">
-<section class="panel" id="phone-setup-panel"><h2>Grok phone receptionist</h2>
+<section class="panel" id="phone-setup-panel"><h2>Optional cellular phone receptionist</h2>
 <p>Choose the business number your customers call. Connect your existing phone service and let Grok answer using your business information.</p>
 <p id="phone-setup-status" aria-live="polite"></p>
 <form id="phone-setup-form">
@@ -93,13 +102,14 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="submit">Save phone setup</button></form><div id="mobile-connection" aria-live="polite"></div><div id="numbers"></div></section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
 </div>
+</details>
 <section class="panel"><h2>Text messages</h2><div id="sms-phone" aria-live="polite"></div>
 <button id="sms-phone-refresh" type="button" class="secondary">Refresh text messages</button></section>
 <section class="panel">
 <h2>Email drafts awaiting review</h2>
 <p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
 <button type="button" id="refresh">Refresh</button>
-<div id="drafts"></div>
+<div id="drafts"></div><h3>Automatic email replies</h3><p>Queued means awaiting delivery, not received. Held or failed work requires owner review before retrying.</p><div id="email-jobs"></div><button id="email-jobs-refresh" class="secondary" type="button">Refresh email reply status</button>
 </section>
 <section id="social-panel" class="panel" hidden>
 <h2>Social accounts and drafts</h2>
@@ -186,12 +196,13 @@ function resetWorkspace(){
  $("social-panel").hidden=true;$("invite-panel").hidden=true;
  socialUpload=null;
  for(const id of ["social-destinations","social-previews","social-posts","social-accounts","social-account","drafts","numbers","calls",
-   "mobile-connection","phone-setup-status","onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
+   "mobile-connection","phone-setup-status","onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks","quote-list","quote-lead","calendar-status","website-import-status","email-jobs"]){clear($(id));$(id).textContent="";}
  for(const id of ["phone-designated","phone-owner","onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-phone","onboarding-timezone",
    "composer-body","composer-url","social-hashtags","social-media","social-video","social-upload","invite-email","knowledge-title","knowledge-text","knowledge-file",
    "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
  $("social-account").value="";$("invite-role").value="viewer";$("phone-connection").value="mobile_forwarding";$("phone-answer").value="unanswered";
- setupProgress={business:false,knowledge:0,accounts:0};
+ for(const day of ["mon","tue","wed","thu","fri","sat","sun"])$("hours-"+day).value="";$("onboarding-voice").checked=false;$("onboarding-booking").checked=false;$("onboarding-slot").value="30";
+ setupProgress={business:false,knowledge:0,accounts:0};resetQuote();$("onboarding-email-auto").checked=false;
 }
 async function signIn(slug,email,password){
  const data=await request("/owner/auth/login","POST",{slug,email,password});
@@ -202,7 +213,7 @@ async function signIn(slug,email,password){
  $("login-panel").hidden=true;$("app-panel").hidden=false;
  $("invite-panel").hidden=user.role!=="owner";
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial()]);
+ const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message("Your business workspace is ready. Choose what to set up below.");
@@ -283,11 +294,61 @@ async function refreshCRM(){
   }
   $("crm-leads").appendChild(item);
  }
- for(const appointment of data.appointments)$("crm-appointments").appendChild(node("p",new Date(appointment.starts_at).toLocaleString()+" · "+appointment.name+" · "+appointment.status));
+ for(const appointment of data.appointments)$("crm-appointments").appendChild(node("p",new Date(appointment.starts_at).toLocaleString()+" · "+appointment.name+" · "+appointment.status+" · Calendar: "+(appointment.calendar_state||"unconnected")+" · Invitation: "+(appointment.invitation_state||"pending")+(appointment.calendar_error?" · "+appointment.calendar_error:"")));
  if(!data.appointments.length)$("crm-appointments").appendChild(node("p","No appointments yet."));
  for(const task of data.tasks)$("crm-tasks").appendChild(node("p",task.title+" · "+task.status));
  if(!data.tasks.length)$("crm-tasks").appendChild(node("p","No follow-up tasks yet."));
 }
+
+let editingQuote=null;
+function cents(value){const text=String(value).trim();if(!/^\d+(\.\d{1,2})?$/.test(text))throw new Error("Enter a positive amount with up to two decimal places");const [whole,fraction=""]=text.split(".");const amount=Number(whole)*100+Number(fraction.padEnd(2,"0"));if(!Number.isSafeInteger(amount))throw new Error("Amount is too large");return amount;}
+function addQuoteLine(line={}){
+ const row=node("div","","row");
+ for(const [key,label,value] of [["description","Description",line.description||""],["quantity","Quantity",line.quantity||"1"],["price","Unit price",line.unit_price_cents!==undefined?(line.unit_price_cents/100).toFixed(2):""]]){
+  const box=node("label",label),input=document.createElement("input");input.dataset.key=key;input.value=value;input.required=true;input.setAttribute("aria-label",label);if(key!=="description")input.inputMode="decimal";box.appendChild(input);row.appendChild(box);
+ }
+ const remove=node("button","Remove line","secondary");remove.type="button";remove.addEventListener("click",()=>row.remove());row.appendChild(remove);$("quote-lines").appendChild(row);
+}
+function resetQuote(){editingQuote=null;$("quote-form").reset();clear($("quote-lines"));addQuoteLine();}
+$("quote-add-line").addEventListener("click",()=>addQuoteLine());$("quote-reset").addEventListener("click",resetQuote);
+$("quote-form").addEventListener("submit",async event=>{
+ event.preventDefault();if(currentRole==="viewer")return;
+ try{
+  const lines=Array.from($("quote-lines").children).map(row=>({description:row.querySelector('[data-key="description"]').value,quantity:row.querySelector('[data-key="quantity"]').value,unit_price_cents:cents(row.querySelector('[data-key="price"]').value)}));
+  const body={lead_id:$("quote-lead").value,title:$("quote-title").value,currency:$("quote-currency").value,tax_basis_points:cents($("quote-tax").value),lines,notes:$("quote-notes").value,version:editingQuote?.version||1};
+  await request("/owner/crm/quotations"+(editingQuote?"/"+encodeURIComponent(editingQuote.id):""),editingQuote?"PUT":"POST",body);resetQuote();await refreshQuotes();message("Draft quotation saved. Review prices and tax before approval.");
+ }catch(error){message(error.message,true);}
+});
+async function refreshQuotes(){
+ const generation=sessionGeneration;const [quotes,crm]=await Promise.all([request("/owner/crm/quotations"),request("/owner/crm")]);assertSession(generation);
+ clear($("quote-list"));const selected=$("quote-lead").value;clear($("quote-lead"));
+ for(const lead of crm.leads){const option=node("option",(lead.name||lead.email||lead.phone||"Enquiry")+" — "+lead.message.slice(0,70));option.value=lead.id;$("quote-lead").appendChild(option);}if(selected)$("quote-lead").value=selected;
+ $("quote-form").hidden=currentRole==="viewer";
+ for(const quote of quotes){
+  const item=node("article","","item");const money=value=>quote.currency+" "+(value/100).toFixed(2);
+  item.appendChild(node("h3",quote.title+" · "+quote.status));item.appendChild(node("p",[quote.contact.name,quote.contact.email,quote.contact.phone].filter(Boolean).join(" · ")));
+  for(const line of quote.lines)item.appendChild(node("p",line.description+" · "+line.quantity+" × "+money(line.unit_price_cents)+" = "+money(line.amount_cents)));
+  item.appendChild(node("p","Subtotal "+money(quote.subtotal_cents)+" · Tax "+money(quote.tax_cents)+" · Total "+money(quote.total_cents)));if(quote.notes)item.appendChild(node("p",quote.notes));
+  if(quote.status==="draft"&&currentRole!=="viewer"){
+   const edit=node("button","Edit draft");edit.type="button";edit.addEventListener("click",()=>{editingQuote=quote;$("quote-lead").value=quote.lead_id;$("quote-title").value=quote.title;$("quote-currency").value=quote.currency;$("quote-tax").value=(quote.tax_basis_points/100).toFixed(2);$("quote-notes").value=quote.notes;clear($("quote-lines"));quote.lines.forEach(addQuoteLine);$("quote-form").scrollIntoView();});item.appendChild(edit);
+  }
+  if(currentRole==="owner")for(const status of (quote.status==="draft"?["reviewed","void"]:quote.status==="reviewed"?["accepted","declined","void"]:["accepted","declined"].includes(quote.status)?["void"]:[])){
+   const button=node("button","Mark "+status,"secondary");button.type="button";button.addEventListener("click",async()=>{button.disabled=true;try{await request("/owner/crm/quotations/"+encodeURIComponent(quote.id)+"/status","POST",{status,version:quote.version});await refreshQuotes();message("Quotation marked "+status+". No quotation was sent.");}catch(error){message(error.message,true);button.disabled=false;}});item.appendChild(button);
+  }$("quote-list").appendChild(item);
+ }if(!quotes.length)$("quote-list").appendChild(node("p","No quotations yet. Choose an enquiry to prepare a draft."));
+}
+async function refreshEmailJobs(){
+ const generation=sessionGeneration;const jobs=await request("/owner/email-secretary/jobs");assertSession(generation);clear($("email-jobs"));
+ for(const job of jobs){const item=node("article","","item");item.appendChild(node("p",job.sender+" · "+job.subject+" · "+job.status+(job.error?" · "+job.error:"")));
+ if(currentRole==="owner"&&["held","failed"].includes(job.status)){const retry=node("button","Retry email reply");retry.type="button";retry.addEventListener("click",async()=>{if(!confirm("Retry this email reply? It will be queued only if automatic replies and email permissions are enabled."))return;try{await request("/owner/email-secretary/jobs/"+job.id+"/retry","POST");await refreshEmailJobs();message("Email reply scheduled for retry.");}catch(error){message(error.message,true);}});item.appendChild(retry);}$("email-jobs").appendChild(item);}
+ if(!jobs.length)$("email-jobs").appendChild(node("p","No automatic email replies."));
+}
+$("email-jobs-refresh").addEventListener("click",()=>refreshEmailJobs().catch(error=>message(error.message,true)));
+async function refreshCalendar(){const generation=sessionGeneration;const data=await request("/owner/calendar");assertSession(generation);$("calendar-status").textContent=data.connected?"Google Calendar connected for this business.":data.configured?"Ready to connect this business’s Google Calendar.":"Calendar connection setup is pending.";$("calendar-connect").hidden=currentRole!=="owner"||data.connected;$("calendar-connect").disabled=!data.configured;$("calendar-disconnect").hidden=currentRole!=="owner"||!data.connected;}
+$("calendar-connect").addEventListener("click",()=>startSocialOAuth("calendar"));
+$("calendar-disconnect").addEventListener("click",async()=>{try{await request("/owner/calendar","DELETE");await refreshCalendar();message("Calendar disconnected.");}catch(error){message(error.message,true);}});
+$("website-import").addEventListener("click",async()=>{const generation=sessionGeneration;const button=$("website-import");button.disabled=true;$("website-import-status").textContent="Importing your saved website…";try{const result=await request("/owner/knowledge/import-website","POST");assertSession(generation);$("website-import-status").textContent=result.pages+" pages imported ("+result.chunks+" knowledge passages).";await refreshKnowledge();}catch(error){if(generation===sessionGeneration)$("website-import-status").textContent=error.message;}finally{if(generation===sessionGeneration)button.disabled=false;}});
+resetQuote();
 $("crm-refresh").addEventListener("click",()=>refreshCRM().catch(error=>message(error.message,true)));
 $("login-form").addEventListener("submit",async event=>{
  event.preventDefault();
@@ -324,7 +385,7 @@ $("logout").addEventListener("click",()=>{
  resetWorkspace();message("Signed out.");void ending;
 });
 $("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
-function socialOAuthPath(provider){return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+(provider==="google_business"?"google":provider);}
+function socialOAuthPath(provider){if(provider==="calendar")return "/owner/calendar";return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+(provider==="google_business"?"google":provider);}
 async function startSocialOAuth(provider){
  if(currentRole!=="owner")return;
  if(oauthWindow && !oauthWindow.closed && pendingOAuthState){
@@ -387,6 +448,7 @@ async function finishSocialOAuth(data){
  try{
    await request(socialOAuthPath(provider)+"/finish","POST",
      {state:data.state,code:data.code});
+   if(provider==="calendar"){await refreshCalendar();message("Business calendar connected. New bookings will check availability and request invitations.");return;}
    await refreshSocial();
    message(provider+" account connected. Posting remains disabled until separately approved.");
  }catch(error){message("Account connection failed: "+error.message,true);}
@@ -513,9 +575,11 @@ $("phone-setup-form").addEventListener("submit",async event=>{
  try{await request("/owner/phone-setup","PUT",{designated_number:$("phone-designated").value.trim(),connection:$("phone-connection").value,answer_mode:$("phone-answer").value,owner_number:$("phone-owner").value.trim()});await refreshPhoneSetup();message("Phone setup requested. Trendi will confirm the connection and test it before activation.");}catch(error){message(error.message,true);}
 });
 
+const bookingDays=["mon","tue","wed","thu","fri","sat","sun"];
+for(const day of bookingDays){const label=node("label",day.toUpperCase()),input=document.createElement("input");input.id="hours-"+day;input.maxLength=100;label.appendChild(input);$("onboarding-hours").appendChild(label);}
 async function refreshOnboarding(){
  const generation=sessionGeneration;
-  await refreshPhoneSetup();assertSession(generation);
+  await refreshPhoneSetup().catch(()=>{});assertSession(generation);
   const data=await request("/owner/onboarding");assertSession(generation);
   const channels=$("onboarding-channels");clear(channels);
   channels.appendChild(node("h3",data.business.name));
@@ -531,6 +595,12 @@ async function refreshOnboarding(){
   $("onboarding-website").value=data.business.site_url||"";
   setupProgress.business=!!(data.business.name&&data.business.site_url);renderSetupProgress();
   $("onboarding-greeting").value=data.business.greeting||"";
+  $("onboarding-voice").checked=!!data.business.voice_enabled;$("onboarding-booking").checked=!!data.business.native_booking;$("onboarding-slot").value=data.business.slot_minutes||30;
+  for(const day of bookingDays){$("hours-"+day).value=(data.business.business_hours?.[day]||[]).map(window=>window.join("-")).join(", ");$("hours-"+day).disabled=currentRole!=="owner";}
+  for(const id of ["onboarding-voice","onboarding-booking","onboarding-slot"])$(id).disabled=currentRole!=="owner";
+  $("onboarding-email-auto").checked=!!data.business.email_auto_reply;
+  $("onboarding-email-auto").disabled=currentRole!=="owner";
+  $("website-import").disabled=currentRole!=="owner";
   $("onboarding-phone").value=data.business.notify_phone||"";
   $("onboarding-email").value=data.business.notify_email||"";
   $("onboarding-timezone").value=data.business.timezone||"Pacific/Auckland";
@@ -546,6 +616,9 @@ $("onboarding-form").addEventListener("submit",async event=>{
     await request("/owner/onboarding/profile","PATCH",{
       name:$("onboarding-name").value.trim(),site_url:$("onboarding-website").value.trim(),
       greeting:$("onboarding-greeting").value,
+      email_auto_reply:$("onboarding-email-auto").checked,
+      voice_enabled:$("onboarding-voice").checked,native_booking:$("onboarding-booking").checked,slot_minutes:Number($("onboarding-slot").value),
+      business_hours:Object.fromEntries(bookingDays.map(day=>[day,$("hours-"+day).value.trim()?$("hours-"+day).value.split(",").map(window=>window.trim().split("-").map(time=>time.trim())):[]])),
       notify_phone:$("onboarding-phone").value.trim(),
       notify_email:$("onboarding-email").value.trim(),
       timezone:$("onboarding-timezone").value.trim()
@@ -559,7 +632,8 @@ function renderSetupProgress(){
  for(const [target,label,value] of [
   ["onboarding-panel","1. Business details",setupProgress.business?"Saved":"Add your website and business details"],
   ["knowledge-panel","2. Business information",setupProgress.knowledge?setupProgress.knowledge+" document(s) saved":"Add FAQs, hours or service information"],
-  ["social-panel","3. Social accounts",setupProgress.accounts?setupProgress.accounts+" account(s) connected":"Connect the networks you want to use"]
+  ["calendar-panel","3. Calendar and invitations","Connect this business’s calendar"],
+  ["social-panel","4. Social accounts",setupProgress.accounts?setupProgress.accounts+" account(s) connected":"Connect the networks you want to use"]
  ]){
   const line=node("p");const link=node("a",label);link.setAttribute("href","#"+target);
   line.appendChild(link);line.appendChild(node("span"," — "+value));host.appendChild(line);

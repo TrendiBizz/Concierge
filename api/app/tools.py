@@ -17,6 +17,14 @@ log = logging.getLogger("concierge.tools")
 
 TOOL_SPECS: list[dict] = [
     {
+        "name": "request_enquiry_acknowledgement",
+        "description": "Ask whether the enquirer wants a separate acknowledgement. If declined use requested=false. Otherwise ask for channel and recipient, call with confirmed=false, read back the result, wait for yes, then call with the same recipient/channel and confirmed=true. This is separate from notifying the business owner. Never claim a queued message was received.",
+        "parameters": {"type": "object", "properties": {
+            "requested": {"type": "boolean"}, "channel": {"type": "string", "enum": ["email", "sms"]},
+            "recipient": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["requested"]},
+        "voice": True, "chat": True, "available": lambda t: True,
+    },
+    {
         "name": "request_conversation_copy",
         "description": "Request a copy after this voice conversation is saved. First capture_lead with the caller's contact and permission. Read back that recipient, whether they want saved text or the recording link, and SMS or email. Call with confirmed=true only after their clear yes. A requested or queued response never means sent.",
         "parameters": {
@@ -178,7 +186,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
             "consent_marketing_basis=CASE WHEN $8 THEN 'visitor agreed to promotions in conversation' ELSE consent_marketing_basis END, "
             "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
             "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
-            "AND (source_key IS NOT NULL OR channel='voice') ORDER BY created_at LIMIT 1) RETURNING *",
+            "ORDER BY created_at LIMIT 1) RETURNING *",
             tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
         if existing:
             await automation.lead_followup(tenant, dict(existing))
@@ -257,7 +265,13 @@ async def _request_conversation_copy(tenant: dict, args: dict, ctx: dict) -> dic
         return {"ok": False, "error": exc.detail}
 
 
+async def _request_ack(tenant, args, ctx):
+    from . import acknowledgements
+    return await acknowledgements.request(tenant, args, ctx)
+
+
 _HANDLERS = {
+    "request_enquiry_acknowledgement": _request_ack,
     "request_conversation_copy": _request_conversation_copy,
     "capture_lead": _capture_lead,
     "get_booking_link": _get_booking_link,

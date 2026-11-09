@@ -7,7 +7,8 @@ const http=require("node:http");
 const fs=require("node:fs");
 const path=require("node:path");
 const html=fs.readFileSync(path.join(__dirname,"../../api/static/owner.html"),"utf8");
-let role="owner",saved=null;
+let role="owner",saved=null,quote=null;
+const lead={id:"00000000-0000-4000-8000-000000000001",name:"Fixture Contact",email:"contact@example.invalid",phone:"",message:"Please quote",channel:"chat",status:"new",created_at:new Date().toISOString()};
 const permissions={};
 const profile={
  business:{name:"Synthetic Business",site_url:"https://synthetic.example",
@@ -55,6 +56,15 @@ const server=http.createServer((request,res)=>{
         authorized:!!permissions[k]?.authorized,configured:false,provider_verified:false,active:false
       }]))});
   }
+  if(url.pathname==="/owner/crm")return json(res,200,{leads:[lead],appointments:[],tasks:[]});
+  if(url.pathname==="/owner/email-secretary/jobs")return json(res,200,[]);
+  if(url.pathname==="/owner/calendar")return json(res,200,{configured:true,connected:false});
+  if(url.pathname==="/owner/crm/quotations"){
+   if(request.method==="GET")return json(res,200,quote?[quote]:[]);
+   quote={...body,id:"fixture-quote",status:"draft",contact:lead,subtotal_cents:15002,tax_cents:2250,total_cents:17252,lines:body.lines.map(line=>({...line,amount_cents:15002}))};return json(res,201,quote);
+  }
+  if(url.pathname==="/owner/crm/quotations/fixture-quote/status"){quote.status=body.status;quote.version++;return json(res,200,quote);}
+  if(url.pathname==="/owner/phone-setup")return json(res,200,{status:"not_requested"});
   if(url.pathname==="/owner/email-drafts") return json(res,200,[]);
   if(url.pathname==="/owner/phone-numbers") return json(res,200,[]);
   if(url.pathname==="/owner/phone-calls") return json(res,200,[]);
@@ -90,10 +100,10 @@ async function run(){
    check(currentRole+" consent role protection",authDisabled===(currentRole!=="owner"));
    if(currentRole==="owner"){
      page.on("dialog",async dialog=>dialog.accept());
-     await page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click());
+     await Promise.all([page.waitForResponse(response=>response.url().endsWith("/owner/onboarding/authorizations")&&response.request().method()!=="GET"),page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click())]);
      await page.waitForFunction(()=>document.querySelector("#channel-authorizations input[type=checkbox]").checked);
      check("owner explicitly authorized one channel",permissions.telephone?.authorized===true);
-     await page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click());
+     await Promise.all([page.waitForResponse(response=>response.url().endsWith("/owner/onboarding/authorizations")&&response.request().method()!=="GET"),page.$eval("#channel-authorizations input[type=checkbox]",e=>e.click())]);
      await page.waitForFunction(()=>!document.querySelector("#channel-authorizations input[type=checkbox]").checked);
      check("owner revoked same channel without activation",permissions.telephone?.authorized===false);
    }
@@ -104,6 +114,21 @@ async function run(){
     await page.click('#onboarding-form button[type="submit"]');
     await page.waitForFunction(()=>document.querySelector("#notice").textContent.includes("Business setup saved"));
     check("owner saved through existing portal",saved?.greeting==="Hello from test");
+   }
+   await page.waitForFunction(()=>document.querySelector("#calendar-status").textContent.includes("Ready to connect"));
+   check(currentRole+" calendar connection role protection",await page.$eval("#calendar-connect",e=>e.hidden)===(currentRole!=="owner"));
+   check(currentRole+" website voice and booking role protection",await page.$eval("#onboarding-voice",e=>e.disabled)===(currentRole!=="owner"));
+   await page.waitForFunction(()=>document.querySelector("#quote-lead").options.length===1);
+   check(currentRole+" quotation form role protection",await page.$eval("#quote-form",e=>e.hidden)===(currentRole==="viewer"));
+   if(currentRole==="owner"){
+    await page.type("#quote-title","Fixture proposal");await page.type('#quote-lines [data-key="description"]',"Service");
+    await page.$eval('#quote-lines [data-key="quantity"]',e=>e.value="1.5");await page.type('#quote-lines [data-key="price"]',"100.01");
+    await page.$eval("#quote-tax",e=>e.value="15");await page.click('#quote-form button[type="submit"]');
+    await page.waitForFunction(()=>document.querySelector("#quote-list").textContent.includes("172.52"));
+    check("quotation form submits integer cents and explicit tax",quote.lines[0].unit_price_cents===10001&&quote.tax_basis_points===1500);
+    const review=await page.$$("#quote-list button");for(const button of review)if(await button.evaluate(e=>e.textContent)==="Mark reviewed")await button.click();
+    await page.waitForFunction(()=>document.querySelector("#quote-list").textContent.includes("· reviewed"));
+    check("reviewed quotation removes price edit control",!(await page.$eval("#quote-list",e=>e.textContent)).includes("Edit draft"));
    }
    await page.click("#logout");
    await page.waitForSelector("#login-panel:not([hidden])");
