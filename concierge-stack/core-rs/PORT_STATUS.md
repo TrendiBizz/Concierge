@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs` and `parity6.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs` and `parity7.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -28,6 +28,10 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | owner_notifications.py `sms_body` | owner_notifications | ported, 160 vectors |
 | voice_records.py `digest`, `audio_type` (container checks and WAV header rules as read by Python's `wave`) | voice_records | ported, 33 vectors incl. 14 WAV variants |
 | calendar_connection.py `sync_one` control flow, `busy`, `event_id`, path quoting | calendar | ported as a state machine over an `Api` trait; 900 scenarios run the real `sync_one` against a scripted provider and the Rust version must make the identical request sequence (method, path, params, JSON body) and reach the identical stored state |
+| sales.py: `effective_value`, `forecast` (banker's rounding on the weighted total), `_money`, `digest_text`, `digest_is_due` | sales | ported, 200 forecast + 27 money + 40 digest + 168 schedule vectors |
+| tasks.py: `default_follow_up_due` (wall-clock 9am, DST-checked), `clean_title` | tasks | ported, 614 due-date + 10 title vectors |
+| convo.py: `clean_utm`, `clean_session` | convo | ported, 133 vectors |
+| owner_auth.py: `digest`, `password_hash`, `verify_password`, `clean_email` | owner_auth | ported; the real `password_hash` is run with a fixed salt, so hashes are byte-identical and Rust verifies Python-made hashes (PBKDF2-HMAC-SHA256, 600,000 rounds) |
 | Twenty delivery outcome classification, calendar_connection OAuth/token handling, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
@@ -45,3 +49,5 @@ filtering uses ASCII digits only (Python `\D` also treats non-ASCII decimal digi
 DST rule: a wall-clock time inside a spring-forward gap yields no slot; an ambiguous (fall-back) time uses its first occurrence, matching Python `zoneinfo` `fold=0`. `weights_for` ignores non-integer or unknown stored entries, where Python would carry them through.
 
 Python behaviours reproduced deliberately: `lead_view` raises on non-JSON `utm` text (so does the port); `_capture_lead` stores `""` for an invalid email. Arguments that are lists or floats are refused by the Rust normaliser rather than guessed. Datetimes passed to `twenty_bridge_payload` must already be Python `str()` text.
+
+`verify_password` differs from Python only for stored strings that use `_` in the rounds field or whitespace inside the hex fields (Python's `int()`/`bytes.fromhex` accept them; this port rejects them, so it can only refuse a hash Python would accept, never the reverse).
