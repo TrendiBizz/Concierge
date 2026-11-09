@@ -256,13 +256,14 @@ async def record_message(
     )
 
 
-async def mark_answered(tenant_id, *, channel: str = "", source_key: str = "") -> int:
+async def mark_answered(tenant_id, *, channel: str = "", source_key: str = "",
+                        phone: str = "", email: str = "", default_cc: str = "1") -> int:
     """Stamp inbound messages as answered. Called when the owner or the assistant replies.
 
     Matches on the exact source_key when one is supplied (precise: answers one message), and
-    otherwise clears every still-unanswered inbound message on the channel. The channel-wide form is
-    what the reply path can actually use, because a reply knows the customer it is answering, not
-    which provider message id prompted it.
+    otherwise clears still-unanswered messages on that channel for the identified customer only.
+    A reply can identify its customer by either the case key or a stored phone/email alias. With
+    neither a source key nor a usable customer identity, nothing is marked answered.
     """
     if source_key:
         result = await db.pool().execute(
@@ -274,13 +275,26 @@ async def mark_answered(tenant_id, *, channel: str = "", source_key: str = "") -
             tenant_id, channel, source_key[:200],
         )
     elif channel:
+        phone_norm = normalize_phone(phone, default_cc) or ""
+        email_norm = (email or "").strip().lower()
+        email_norm = email_norm if is_email(email_norm) else ""
+        keys = [key for key in (case_key(phone, "", default_cc),
+                                case_key("", email_norm, default_cc)) if key]
+        if not keys:
+            return 0
         result = await db.pool().execute(
             """
             UPDATE case_events SET answered_at = now()
             WHERE tenant_id = $1 AND channel = $2
               AND direction = 'inbound' AND answered_at IS NULL
+              AND case_id IN (
+                  SELECT id FROM customer_cases WHERE tenant_id = $1
+                    AND (case_key = ANY($3::text[])
+                         OR ($4 <> '' AND primary_phone = $4)
+                         OR ($5 <> '' AND primary_email = $5))
+              )
             """,
-            tenant_id, channel,
+            tenant_id, channel, keys, phone_norm, email_norm,
         )
     else:
         return 0
@@ -355,7 +369,8 @@ async def mark_replied(tenant_id, *, phone: str = "", email: str = "", channel: 
     """
     try:
         if channel:
-            await mark_answered(tenant_id, channel=channel, source_key=source_key)
+            await mark_answered(tenant_id, channel=channel, source_key=source_key,
+                                phone=phone, email=email, default_cc=default_cc)
         key = case_key(phone, email, default_cc)
         if key:
             await db.pool().execute(

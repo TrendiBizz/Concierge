@@ -39,6 +39,8 @@ PHONE_TARGETS = (
     ("opt_outs", "contact", "tenant_id", None),   # composite key; repaired separately
 )
 
+_PHONE_CHARACTERS = re.compile(r"\+?[0-9() .\-]+")
+
 _LONE_TRUNK_CC = re.compile(r"^\+(\d{1,3})(0)(\d+)$")
 
 
@@ -59,7 +61,7 @@ def repair_phone(raw: str, cc: str) -> tuple[str, str]:
     # An email is a legitimate value in some of these columns. Never touch it. This check is
     # LOAD-BEARING: an address can carry digits that form a valid national number, in which case a
     # repair without it rewrites the address as somebody's phone number.
-    if "@" in value:
+    if "@" in value or not _PHONE_CHARACTERS.fullmatch(value):
         return raw, ""
 
     plan = DIAL_PLANS.get(cc)
@@ -123,7 +125,7 @@ def repair_contact(raw: str, cc: str) -> tuple[str, str]:
     have stored, and changing it would orphan the opt-out.
     """
     value = (raw or "").strip()
-    if not value or "@" in value:
+    if not value or "@" in value or not _PHONE_CHARACTERS.fullmatch(value):
         return raw, ""
     repaired, reason = repair_phone(value, cc)
     if reason:
@@ -146,6 +148,8 @@ def is_usable(value: str, cc: str) -> bool:
     """
     if not value or "@" in value:
         return True  # not a phone, so not a phone problem
+    if not _PHONE_CHARACTERS.fullmatch(value) or value.startswith("+0"):
+        return False
     if not value.startswith("+"):
         return False  # not international form, so not dialable as stored
     digits = _digits(value)
@@ -216,15 +220,22 @@ async def migrate(pool, *, dry_run: bool = True) -> dict:
     tenant's own. Emails and unrepairable values are left untouched. Returns per-column counts and
     the values that could not be repaired, which are reported rather than guessed at.
     """
+    async with pool.acquire() as conn:
+        # All target columns, including opt-out merges, commit or roll back together.
+        async with conn.transaction(readonly=dry_run):
+            return await _migrate_connection(conn, dry_run=dry_run)
+
+
+async def _migrate_connection(conn, *, dry_run: bool) -> dict:
     from .casetimeline import tenant_country_code
 
-    tenants = {r["id"]: dict(r) for r in await pool.fetch("SELECT * FROM tenants")}
+    tenants = {r["id"]: dict(r) for r in await conn.fetch("SELECT * FROM tenants")}
     result: dict = {"dry_run": dry_run, "changed": {}, "needs_human": {}}
 
     for table, column, link, key in PHONE_TARGETS:
         if key is None:
             continue  # composite-key table, handled by _merge_opt_out_repairs below
-        rows = await pool.fetch(f"SELECT {key} AS row_key, {link} AS tid, {column} AS value FROM {table} "
+        rows = await conn.fetch(f"SELECT {key} AS row_key, {link} AS tid, {column} AS value FROM {table} "
                                f"WHERE {column} IS NOT NULL AND {column} <> ''")
         changed = 0
         unrepaired: list[str] = []
@@ -240,7 +251,7 @@ async def migrate(pool, *, dry_run: bool = True) -> dict:
                 continue
             if not dry_run:
                 # Scoped by id, which is unique within the table.
-                await pool.execute(
+                await conn.execute(
                     f"UPDATE {table} SET {column} = $1 WHERE {key} = $2 AND {column} = $3",
                     repaired, row["row_key"], value)
             changed += 1
@@ -250,12 +261,12 @@ async def migrate(pool, *, dry_run: bool = True) -> dict:
     # opt_outs has a composite key (tenant_id, contact) rather than an id, and a changed key can
     # collide with an existing row for the same person. Handle it explicitly so a repair merges
     # rather than failing.
-    merged = await _merge_opt_out_repairs(pool, tenants, dry_run=dry_run)
+    merged = await _merge_opt_out_repairs(conn, tenants, dry_run=dry_run)
     result["changed"]["opt_outs.contact"] = merged
     return result
 
 
-async def _merge_opt_out_repairs(pool, tenants, *, dry_run: bool = False) -> int:
+async def _merge_opt_out_repairs(conn, tenants, *, dry_run: bool = False) -> int:
     """Repair opt-out keys, merging duplicates so an opt-out is never lost.
 
     `opt_outs` has no `id`: its key IS (tenant_id, contact). A repaired key can therefore collide
@@ -268,7 +279,7 @@ async def _merge_opt_out_repairs(pool, tenants, *, dry_run: bool = False) -> int
     from .casetimeline import tenant_country_code
 
     changed = 0
-    rows = await pool.fetch("SELECT tenant_id, contact FROM opt_outs")
+    rows = await conn.fetch("SELECT tenant_id, contact FROM opt_outs")
     for row in rows:
         value = row["contact"] or ""
         if "@" in value or not value:
@@ -280,13 +291,11 @@ async def _merge_opt_out_repairs(pool, tenants, *, dry_run: bool = False) -> int
         if dry_run:
             changed += 1
             continue
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "INSERT INTO opt_outs (tenant_id, contact) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-                    row["tenant_id"], repaired)
-                await conn.execute(
-                    "DELETE FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
-                    row["tenant_id"], value)
+        await conn.execute(
+            "INSERT INTO opt_outs (tenant_id, contact) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            row["tenant_id"], repaired)
+        await conn.execute(
+            "DELETE FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
+            row["tenant_id"], value)
         changed += 1
     return changed

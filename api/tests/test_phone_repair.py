@@ -240,3 +240,97 @@ def test_no_mutation_residue_in_the_shipped_modules():
             if re.search(r"\bif\s+False\s+and\b|\band\s+False\b|\bMUTATION\b", line):
                 offenders.append(f"{path.name}:{number}: {line.strip()}")
     assert not offenders, "always-false guard left in shipped code:\n" + "\n".join(offenders)
+
+
+@pytest.mark.parametrize("value", [
+    "customer 21555123", "call 021555123", "+64CALL21555123",
+    "++021555123", "021+555123", "21555123/99", "+00000000",
+])
+def test_digit_bearing_non_phone_values_are_not_rewritten(value):
+    assert phone_repair.repair_phone(value, "64") == (value, "")
+    assert phone_repair.repair_contact(value, "64") == (value, "")
+    assert not phone_repair.is_usable(value, "64")
+
+
+def test_cli_dry_run_connects_without_applying_schema(monkeypatch, capsys):
+    import asyncio
+    import importlib.util
+    from pathlib import Path
+    from unittest.mock import AsyncMock
+    import asyncpg
+    from app import db
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "repair-phone-numbers.py"
+    spec = importlib.util.spec_from_file_location("repair_phone_cli", path)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    pool = type("Pool", (), {"close": AsyncMock()})()
+    create = AsyncMock(return_value=pool)
+    monkeypatch.setattr(asyncpg, "create_pool", create)
+    monkeypatch.setattr(db, "init", AsyncMock(side_effect=AssertionError("schema must not run")))
+    survey = AsyncMock(return_value={"columns": {}, "tenants": 0})
+    monkeypatch.setattr(phone_repair, "survey", survey)
+    monkeypatch.setattr("sys.argv", [str(path)])
+    assert asyncio.run(cli.main()) == 0
+    assert create.await_count == 1
+    survey.assert_awaited_once_with(pool)
+    pool.close.assert_awaited_once()
+    assert "Nothing was changed" in capsys.readouterr().out
+
+
+def test_database_repairs_are_atomic_and_preserve_opt_outs():
+    """A later column failing must roll back earlier repairs, including customer destinations."""
+    import asyncio
+    import os
+    import uuid
+    import asyncpg
+
+    async def check():
+        port = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
+        dsn = f"postgresql://postgres:test@127.0.0.1:{port}/postgres"
+        try:
+            admin = await asyncpg.connect(dsn, timeout=3)
+        except (OSError, asyncpg.PostgresError) as exc:
+            pytest.skip(f"No disposable PostgreSQL: {exc}")
+        schema = "phone_repair_test_" + uuid.uuid4().hex
+        pool = None
+        try:
+            await admin.execute(f'CREATE SCHEMA "{schema}"')
+            pool = await asyncpg.create_pool(
+                dsn, min_size=1, max_size=1, server_settings={"search_path": schema})
+            await pool.execute("""
+                CREATE TABLE tenants (id integer PRIMARY KEY, default_country_code text);
+                CREATE TABLE leads (id integer PRIMARY KEY, tenant_id integer, phone text);
+                CREATE TABLE appointments (id integer PRIMARY KEY, tenant_id integer, phone text);
+                CREATE TABLE outbox (id integer PRIMARY KEY, tenant_id integer, to_addr text,
+                    CONSTRAINT prevent_repair CHECK (to_addr <> '+6421555123'));
+                CREATE TABLE opt_outs (tenant_id integer, contact text,
+                    PRIMARY KEY (tenant_id, contact));
+                INSERT INTO tenants VALUES (1, '64');
+                INSERT INTO leads VALUES (1, 1, '021555123');
+                INSERT INTO appointments VALUES (1, 1, '+021555123');
+                INSERT INTO outbox VALUES (1, 1, '021555123');
+                INSERT INTO opt_outs VALUES (1, '021555123'), (1, '+6421555123');
+            """)
+            preview = await phone_repair.migrate(pool)
+            assert sum(preview["changed"].values()) == 4
+            assert await pool.fetchval("SELECT phone FROM leads") == "021555123"
+            with pytest.raises(asyncpg.CheckViolationError):
+                await phone_repair.migrate(pool, dry_run=False)
+            assert await pool.fetchval("SELECT phone FROM leads") == "021555123"
+            assert await pool.fetchval("SELECT phone FROM appointments") == "+021555123"
+            assert await pool.fetchval("SELECT count(*) FROM opt_outs") == 2
+            await pool.execute("ALTER TABLE outbox DROP CONSTRAINT prevent_repair")
+            applied = await phone_repair.migrate(pool, dry_run=False)
+            assert sum(applied["changed"].values()) == 4
+            assert await pool.fetchval("SELECT phone FROM leads") == "+6421555123"
+            assert await pool.fetchval("SELECT count(*) FROM opt_outs") == 1
+            assert await pool.fetchval("SELECT contact FROM opt_outs") == "+6421555123"
+            assert sum((await phone_repair.migrate(pool))["changed"].values()) == 0
+        finally:
+            if pool is not None:
+                await pool.close()
+            await admin.execute(f'DROP SCHEMA "{schema}" CASCADE')
+            await admin.close()
+
+    asyncio.run(check())

@@ -1,7 +1,7 @@
 """Durable CRM capture at authenticated channel ingress, independent of AI replies."""
 import hashlib
 
-from . import automation, casetimeline, db, owner_notifications
+from . import automation, casetimeline, db, owner_notifications, tasks
 
 
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
@@ -57,10 +57,15 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
     if case_id:
         await casetimeline.record(
             tenant["id"], case_key=case["case_key"], channel=channel, direction="inbound",
-            source_key=key, body=message,
+            source_key=original_key, body=message,
         )
 
     lead = dict(row)
+    message_key = f"{channel}:{original_key}"
     if created:
-        await automation.on_lead_created(tenant, {**lead, "_owner_notice_queued": True})
+        await automation.on_lead_created(
+            tenant, {**lead, "_owner_notice_queued": True}, message_key=message_key)
+    else:
+        # A second message on the same conversation is fresh work, while a replay is not.
+        await tasks.create_follow_up(tenant, lead, message_key=message_key)
     return lead

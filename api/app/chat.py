@@ -135,9 +135,9 @@ async def run_turn(
         reply = GENERIC_FAILURE
 
     await convo.save_message(conversation_id, "assistant", reply, flag)
-    # The reply answers the customer, so the unified timeline must stop counting the message as
-    # unanswered. Best effort: bookkeeping must never break a delivery that already succeeded.
-    if not dry_run:
+    # Email is only a generated draft here; outbox marks it answered after a successful send.
+    # Direct chat/SMS responses are returned to their channel caller in this turn.
+    if not dry_run and channel != "email":
         await casetimeline.mark_replied(
             tenant["id"], phone=sender_phone or "", email=sender_email or "", channel=channel,
             default_cc=casetimeline.tenant_country_code(tenant),

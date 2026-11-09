@@ -2,7 +2,7 @@
 
 Two kinds of to-do share one list:
   - manual: added by the owner in the dashboard.
-  - follow_up: created automatically for every new lead ("Follow up: Hana"), one per lead. It is due in an
+  - follow_up: created automatically for every new lead ("Follow up: Hana"), one per message (or per lead for callers without a message identity). It is due in an
     hour for a hot lead (or the client's response target if one is set) and at 9am the next morning for
     everyone else. It completes itself the moment the lead moves out of 'new', so the list only ever shows
     work that is still undone.
@@ -75,8 +75,7 @@ async def create_follow_up(tenant: dict, lead: dict, message_key: str | None = N
         row = await db.pool().fetchrow(
             "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source, case_id, message_key) "
             "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'system', $6, $7) "
-            "ON CONFLICT (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL "
-            "DO NOTHING RETURNING *",
+            "ON CONFLICT DO NOTHING RETURNING *",
             tenant["id"], lead["id"], f"Follow up: {who}"[:200], notes, due,
             lead.get("case_id"), message_key[:200],
         )
@@ -84,7 +83,7 @@ async def create_follow_up(tenant: dict, lead: dict, message_key: str | None = N
         row = await db.pool().fetchrow(
             "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source, case_id) "
             "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'system', $6) "
-            "ON CONFLICT (lead_id) WHERE kind = 'follow_up' DO NOTHING RETURNING *",
+            "ON CONFLICT (lead_id) WHERE kind = 'follow_up' AND message_key IS NULL DO NOTHING RETURNING *",
             tenant["id"], lead["id"], f"Follow up: {who}"[:200], notes, due, lead.get("case_id"),
         )
     return dict(row) if row else None
@@ -96,7 +95,7 @@ async def set_follow_up_due(lead: dict, due_at: datetime) -> dict:
     row = await db.pool().fetchrow(
         "INSERT INTO tasks (tenant_id, lead_id, title, notes, due_at, kind, source) "
         "VALUES ($1, $2, $3, $4, $5, 'follow_up', 'manual') "
-        "ON CONFLICT (lead_id) WHERE kind = 'follow_up' "
+        "ON CONFLICT (lead_id) WHERE kind = 'follow_up' AND message_key IS NULL "
         "DO UPDATE SET due_at = EXCLUDED.due_at, status = 'open', completed_at = NULL RETURNING *",
         lead["tenant_id"], lead["id"], f"Follow up: {who}"[:200], (lead.get("message") or "")[:300], due_at,
     )

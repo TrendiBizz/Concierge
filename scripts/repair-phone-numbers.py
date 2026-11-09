@@ -30,7 +30,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "api"))
 
-from app import db, phone_repair  # noqa: E402
+import asyncpg  # noqa: E402
+
+from app import phone_repair  # noqa: E402
+from app.config import get_settings  # noqa: E402
 
 
 async def main() -> int:
@@ -39,10 +42,11 @@ async def main() -> int:
                         help="actually write the repairs (default: count only)")
     args = parser.parse_args()
 
-    await db.init()
+    # Do not call app.db.init(): even a dry run must not apply schema migrations.
+    pool = await asyncpg.create_pool(get_settings().database_url, min_size=1, max_size=1)
     try:
         if not args.apply:
-            report = await phone_repair.survey(db.pool())
+            report = await phone_repair.survey(pool)
             print(json.dumps(report, indent=2, default=str))
             total = sum(c["broken"] for c in report["columns"].values())
             human = sum(len(c["needs_human"]) for c in report["columns"].values())
@@ -52,7 +56,7 @@ async def main() -> int:
             print("Re-run with --apply to perform the repair.")
             return 0
 
-        result = await phone_repair.migrate(db.pool(), dry_run=False)
+        result = await phone_repair.migrate(pool, dry_run=False)
         print(json.dumps(result, indent=2, default=str))
         total = sum(result["changed"].values())
         print(f"\nAPPLIED: {total} value(s) repaired.")
@@ -61,7 +65,7 @@ async def main() -> int:
                 print(f"  still needs a human: {column} -> {values}")
         return 0
     finally:
-        await db.close()
+        await pool.close()
 
 
 if __name__ == "__main__":

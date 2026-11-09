@@ -13,7 +13,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app import provider_readiness
+from app import provider_readiness, phone_sip
+
+
+@pytest.fixture(autouse=True)
+def same_settings_for_sip(monkeypatch):
+    monkeypatch.setattr(phone_sip, "get_settings", lambda: provider_readiness.get_settings())
 
 
 def _settings(**over):
@@ -42,7 +47,7 @@ def test_every_step_has_a_status_and_an_explanation():
     for name, area in rep["areas"].items():
         assert area["steps"], name
         for step in area["steps"]:
-            assert step["status"] in ("ready", "action_needed", "unconfigured"), step
+            assert step["status"] in ("ready", "action_needed", "unconfigured", "code_needed"), step
             assert step["what"], step
             assert step["detail"], step
 
@@ -84,7 +89,7 @@ def test_the_telephony_sip_step_reflects_the_real_configuration():
     assert step["status"] == "unconfigured"
 
     with patch.object(provider_readiness, "get_settings",
-                      lambda: _settings(xai_sip_connections='{"abc": "tenant-1"}')):
+                      lambda: _settings(xai_sip_connections='{"11111111-1111-1111-1111-111111111111": {"enabled": true, "tenant": "nz", "number": "+6421555123", "signing_secret": "secret"}}')):
         step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
     assert step["status"] == "ready"
 
@@ -108,7 +113,7 @@ def test_steps_name_the_setting_involved():
     payments = rep["areas"]["payments"]["steps"][2]
     assert social.get("setting"), social
     assert telephony.get("setting"), telephony
-    assert payments.get("setting") or payments["status"] == "unconfigured", payments
+    assert payments["status"] == "code_needed", payments
 
 
 def test_blocking_work_is_listed_with_its_area():
@@ -132,9 +137,37 @@ def test_a_fully_configured_environment_still_lists_human_steps():
     assert rep["needs_human_count"] > 0
 
 
-def test_payments_is_reported_as_a_decision_not_a_defect():
+def test_payments_distinguishes_existing_checkout_from_unimplemented_reconciliation():
     """The absence of a gateway is deliberate, and the report must not imply a bug."""
     with patch.object(provider_readiness, "get_settings", lambda: _settings()):
         area = provider_readiness.report()["areas"]["payments"]
-    assert "deliberate" in area["steps"][0]["detail"].lower()
-    assert "nothing broken" in area["summary"].lower()
+    assert "existing Stripe" in area["steps"][0]["detail"]
+    assert area["steps"][2]["status"] == "code_needed"
+
+
+def test_mastodon_is_not_a_required_provider():
+    assert "mastodon" not in provider_readiness.SOCIAL_PLATFORMS
+
+
+def test_code_work_is_not_misreported_as_a_dashboard_approval():
+    with patch.object(provider_readiness, "get_settings", lambda: _settings()):
+        rep = provider_readiness.report()
+    assert rep["needs_code"], "unfinished payment integration must remain visible"
+    assert all(x not in rep["needs_human"] for x in rep["needs_code"])
+    assert rep["needs_code_count"] == len(rep["needs_code"])
+
+
+def test_existing_stripe_is_not_reported_as_an_account_to_open():
+    with patch.object(provider_readiness, "get_settings", lambda: _settings()):
+        area = provider_readiness.report()["areas"]["payments"]
+    text = " ".join(x["what"] + " " + x["detail"] for x in area["steps"]).lower()
+    assert "existing stripe" in text
+    assert "open a payment provider account" not in text
+    assert "stripe" in area["summary"].lower()
+
+
+@pytest.mark.parametrize("value", ["[]", "null", "false", "invalid", '{"x": null}'])
+def test_invalid_sip_mapping_does_not_read_as_ready(value):
+    with patch.object(provider_readiness, "get_settings", lambda: _settings(xai_sip_connections=value)):
+        step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
+    assert step["status"] == "unconfigured"

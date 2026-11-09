@@ -241,7 +241,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at  timestamptz
 );
 CREATE INDEX IF NOT EXISTS tasks_tenant_idx ON tasks (tenant_id, status, due_at);
-CREATE UNIQUE INDEX IF NOT EXISTS tasks_follow_up_idx ON tasks (lead_id) WHERE kind = 'follow_up';
 
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS won_at timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_at timestamptz;
@@ -569,6 +568,13 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS case_id uuid REFERENCES customer_case
 -- second customer message produced no new work. This adds a message-scoped unique index.
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS case_id uuid REFERENCES customer_cases(id) ON DELETE CASCADE;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS message_key text;
+-- Replace the original one-per-lead index: it otherwise rejects every second message task.
+DROP INDEX IF EXISTS tasks_follow_up_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_legacy_follow_up_idx
+    ON tasks (lead_id) WHERE kind = 'follow_up' AND message_key IS NULL;
+-- Unknown contacts have no case_id yet, but their replay must still not create duplicate work.
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_lead_message_follow_up_idx
+    ON tasks (lead_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS tasks_message_follow_up_idx
     ON tasks (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
 

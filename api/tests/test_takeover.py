@@ -178,11 +178,11 @@ def test_owner_alerts_are_never_suppressed_by_takeover(monkeypatch):
 # ---------------------------------------------------------------- cross-channel bookkeeping
 
 
-def test_mark_answered_without_source_key_clears_the_channel():
+def test_mark_answered_without_source_key_scopes_to_the_customer():
     """A reply knows the customer it answers, not the provider message id that prompted it.
 
-    Regression: mark_replied only stamped an answer when it had a source_key, which the reply path
-    never has, so the unified timeline kept reporting the customer's message as unanswered forever.
+    A missing provider message id must not cause the reply to clear unrelated customers' work.
+    The customer identity remains required even when all its messages on a channel are answered.
     """
     executed = []
 
@@ -194,13 +194,15 @@ def test_mark_answered_without_source_key_clears_the_channel():
     original = _db._pool
     _db._pool = SimpleNamespace(execute=fake_execute)
     try:
-        n = asyncio.run(casetimeline.mark_answered(TENANT["id"], channel="sms"))
+        n = asyncio.run(casetimeline.mark_answered(
+            TENANT["id"], channel="sms", phone="+6421555123"))
     finally:
         _db._pool = original
     assert n == 1
     sql, args = executed[0]
-    assert "source_key = $3" not in sql, "channel-wide answer must not require a source_key"
-    assert args == (TENANT["id"], "sms")
+    assert "source_key = $3" not in sql, "a customer-scoped answer need not require a source_key"
+    assert args == (TENANT["id"], "sms", ["phone:+6421555123"], "+6421555123", "")
+    assert "case_id IN" in sql
 
 
 def test_mark_answered_with_a_source_key_stays_precise():

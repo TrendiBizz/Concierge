@@ -343,10 +343,10 @@ def real_db():
 
 def _capture(tenant, channel, source, message, **kw):
     from app import enquiries, owner_notifications, automation
-    from unittest.mock import AsyncMock
-    owner_notifications.queue = AsyncMock()
-    automation.on_lead_created = AsyncMock()
-    return _run(enquiries.capture(tenant, channel, source, message, **kw))
+    from unittest.mock import AsyncMock, patch
+    with patch.object(owner_notifications, "queue", AsyncMock()), \
+            patch.object(automation, "on_lead_created", AsyncMock()):
+        return _run(enquiries.capture(tenant, channel, source, message, **kw))
 
 
 def test_one_customer_across_three_channels_is_one_case(real_db):

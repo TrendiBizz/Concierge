@@ -185,6 +185,11 @@ async def _deliver(row: dict) -> None:
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"], headers,
         )
+        if row["kind"] == "email_secretary_reply":
+            await casetimeline.mark_replied(
+                row["tenant_id"], email=row["to_addr"], channel="email",
+                default_cc=casetimeline.tenant_country_code(tenant),
+            )
     else:
         await _finish(row["id"], "failed", f"unknown channel {row['channel']}")
         return
