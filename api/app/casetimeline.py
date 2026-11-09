@@ -256,16 +256,34 @@ async def record_message(
     )
 
 
-async def mark_answered(tenant_id, *, channel: str, source_key: str) -> int:
-    """Stamp an inbound message as answered. Called when the owner or the assistant replies."""
-    result = await db.pool().execute(
-        """
-        UPDATE case_events SET answered_at = now()
-        WHERE tenant_id = $1 AND channel = $2 AND source_key = $3
-          AND direction = 'inbound' AND answered_at IS NULL
-        """,
-        tenant_id, channel, source_key[:200],
-    )
+async def mark_answered(tenant_id, *, channel: str = "", source_key: str = "") -> int:
+    """Stamp inbound messages as answered. Called when the owner or the assistant replies.
+
+    Matches on the exact source_key when one is supplied (precise: answers one message), and
+    otherwise clears every still-unanswered inbound message on the channel. The channel-wide form is
+    what the reply path can actually use, because a reply knows the customer it is answering, not
+    which provider message id prompted it.
+    """
+    if source_key:
+        result = await db.pool().execute(
+            """
+            UPDATE case_events SET answered_at = now()
+            WHERE tenant_id = $1 AND channel = $2 AND source_key = $3
+              AND direction = 'inbound' AND answered_at IS NULL
+            """,
+            tenant_id, channel, source_key[:200],
+        )
+    elif channel:
+        result = await db.pool().execute(
+            """
+            UPDATE case_events SET answered_at = now()
+            WHERE tenant_id = $1 AND channel = $2
+              AND direction = 'inbound' AND answered_at IS NULL
+            """,
+            tenant_id, channel,
+        )
+    else:
+        return 0
     return int(result.split()[-1] or 0)
 
 
@@ -296,6 +314,56 @@ async def is_paused(tenant_id, case_key: str) -> bool:
     return bool(await db.pool().fetchval(
         "SELECT automation_paused FROM customer_cases WHERE tenant_id = $1 AND case_key = $2",
         tenant_id, case_key))
+
+
+async def is_paused_for(tenant_id, *, phone: str = "", email: str = "", default_cc: str = "1") -> bool:
+    """True when automation must stay silent for this customer, given any identifier we hold.
+
+    This is the check every reply path uses. It looks the case up by whichever identifier the
+    channel actually has -- an SMS gives a phone, an email gives an address -- and also matches the
+    identifiers stored on an already-merged case, so takeover holds across channels.
+
+    Returns False when no identity is usable, and that direction is deliberate: an unknown contact
+    is unprotected, not suppressed. Defaulting to True would silently stop the assistant answering
+    anyone whose details did not parse.
+    """
+    if not phone and not email:
+        return False
+    phone_norm = normalize_phone(phone, default_cc) or "" if phone else ""
+    email_norm = (email or "").strip().lower()
+    keys = [k for k in (case_key(phone, "", default_cc) if phone else None,
+                        case_key("", email, default_cc) if email else None) if k]
+    if not keys and not phone_norm and not email_norm:
+        return False
+    return bool(await db.pool().fetchval(
+        """
+        SELECT automation_paused FROM customer_cases
+        WHERE tenant_id = $1
+          AND ( case_key = ANY($2::text[])
+                OR ($3 <> '' AND primary_phone = $3)
+                OR ($4 <> '' AND primary_email = $4) )
+        LIMIT 1
+        """,
+        tenant_id, keys, phone_norm, email_norm))
+
+
+async def mark_replied(tenant_id, *, phone: str = "", email: str = "", channel: str = "",
+                       source_key: str = "", default_cc: str = "1") -> None:
+    """Record that a reply went out, so unanswered-message tracking stays honest.
+
+    Best effort by design: a bookkeeping failure must never stop a customer being answered.
+    """
+    try:
+        if channel:
+            await mark_answered(tenant_id, channel=channel, source_key=source_key)
+        key = case_key(phone, email, default_cc)
+        if key:
+            await db.pool().execute(
+                "UPDATE customer_cases SET updated_at = now() WHERE tenant_id = $1 AND case_key = $2",
+                tenant_id, key)
+    except Exception:  # noqa: BLE001 - reply bookkeeping must not break delivery
+        import logging
+        logging.getLogger(__name__).warning("could not record reply for tenant %s", tenant_id)
 
 
 async def timeline(tenant_id, case_key: str, limit: int = 200) -> list[dict]:

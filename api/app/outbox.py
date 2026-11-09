@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import channel_authorization, db, device_sms, mailer, sms, tenants, unsub
+from . import casetimeline, channel_authorization, db, device_sms, mailer, sms, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -112,6 +112,23 @@ async def _deliver(row: dict) -> None:
     if row["kind"] not in OWNER_KINDS and await is_opted_out(row["tenant_id"], row["to_addr"]):
         await _finish(row["id"], "skipped", "opted_out")
         return
+
+    # Human takeover, rechecked at delivery time. A reply queued BEFORE the owner took over would
+    # otherwise still arrive afterwards, which is the window that checking only at queue time leaves
+    # open. Owner alerts are exempt: takeover silences replies to the CUSTOMER, never the owner's own
+    # notification, which is the very message they need in order to act.
+    if row["kind"] not in OWNER_KINDS and row["channel"] in ("email", "sms"):
+        try:
+            if await casetimeline.is_paused_for(
+                row["tenant_id"],
+                phone=row["to_addr"] if row["channel"] == "sms" else "",
+                email=row["to_addr"] if row["channel"] == "email" else "",
+                default_cc=casetimeline.tenant_country_code(tenant),
+            ):
+                await _finish(row["id"], "skipped", "human_takeover")
+                return
+        except Exception:  # noqa: BLE001 - a lookup failure must not block a legitimate reply
+            log.exception("takeover check failed for outbox row %s", row["id"])
 
     if row.get("campaign_id") and not tenant.get("campaigns_enabled"):
         await _finish(row["id"], "skipped", "campaigns_disabled")  # kill switch, checked at send time

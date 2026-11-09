@@ -22,6 +22,19 @@ async def process_once():
                 continue
             session = 'email' + hashlib.sha256(job['sender'].lower().encode()).hexdigest()[:50]
             result = await chat.run_turn(tenant, session, 'email', 'Subject: ' + job['subject'] + '\n\n' + job['body'], sender_email=job['sender'])
+
+            # Human takeover: the owner has taken this customer over, so no automatic reply is sent.
+            # The job is marked 'held' rather than 'failed' -- it is not an error, and the owner may
+            # resume it. Without this check a suppressed turn queued an EMPTY-BODY email to the
+            # customer, because a suppressed turn correctly returns an empty reply.
+            if result.get('suppressed') or not (result.get('reply') or '').strip():
+                await db.pool().execute(
+                    "UPDATE email_secretary_jobs SET status='held',error=$2 WHERE id=$1",
+                    job['id'],
+                    'Human takeover: the owner is handling this customer' if result.get('suppressed')
+                    else 'No reply produced; not queued')
+                continue
+
             async with db.pool().acquire() as conn:
                 async with conn.transaction():
                     draft = await conn.fetchrow('SELECT * FROM email_drafts WHERE tenant_id=$1 AND source_id=$2 FOR UPDATE', tenant['id'], job['source_key'])
