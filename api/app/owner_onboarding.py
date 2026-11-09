@@ -168,6 +168,7 @@ async def overview(tenant_id) -> dict:
         },
         "channels": {
             **website_channel_status(tenant, settings),
+            "booking": booking_readiness(tenant),
             "telephone": {
                 "configured": telephone_ready,
                 "registered_numbers": len(numbers), "verified": telephone_ready and phone_verified,
@@ -308,6 +309,31 @@ def booking_hours_problem(hours: dict | None, slot_minutes: int) -> str:
             "never offer a time. Widen an opening window or shorten the appointment length."
         )
     return ""
+
+
+def booking_readiness(tenant: dict) -> dict:
+    """Whether this business can really take a booking, and why not when it cannot.
+
+    Reported through `overview` so the owner portal can show the reason BEFORE the owner tries to
+    switch booking on. Without this the only feedback was a 400 on submit, which is exactly the
+    silent-breakage shape `booking_hours_problem` exists to prevent: an owner who never presses the
+    button is never told their hours cannot produce a single appointment.
+
+    `enabled` and `ready` are deliberately separate. A business may have booking switched on from an
+    earlier configuration and then have its hours emptied; that state must be visible as
+    enabled-but-not-ready rather than silently reported as fine.
+    """
+    slots = max(int(tenant.get("slot_minutes") or 30), 1)
+    problem = booking_hours_problem(tenant.get("business_hours"), slots)
+    enabled = bool(tenant.get("native_booking"))
+    return {
+        "configured": enabled and not problem,
+        "enabled": enabled,
+        "ready": enabled and not problem,
+        "open_days": open_day_count(tenant.get("business_hours")),
+        "slot_minutes": slots,
+        "reason": problem,
+    }
 
 
 async def set_native_booking(tenant: dict, *, enabled: bool, acknowledgement: bool) -> dict:

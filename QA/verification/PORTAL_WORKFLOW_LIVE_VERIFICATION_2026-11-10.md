@@ -157,6 +157,35 @@ Persisted with integer minor units, a contact snapshot, and the
 `draft→reviewed→accepted` control; a stale-version replay is refused. A **Quotations
 panel already exists in the owner UI**, so requirement 7 is not merely a backend.
 
+## Gap found and fixed in this run: booking readiness was invisible
+
+`booking_hours_problem` already refused to enable booking with unusable hours, and it
+does so with a clear reason. But that reason only appeared as a **400 after the owner
+pressed the button**. `overview` — the payload the onboarding panel renders — carried
+`business_hours` and a `channels` map with no booking entry at all, so an owner whose
+hours could never produce a single appointment was never told. That is precisely the
+silent-breakage shape the validator's own docstring warns about.
+
+Fixed using the existing onboarding path:
+
+- `owner_onboarding.booking_readiness(tenant)` reports `enabled`, `ready`,
+  `configured`, `open_days`, `slot_minutes` and the human `reason`.
+- It is exposed as `channels.booking` in `overview`.
+- `owner.html` already renders any channel carrying a `reason`, so the explanation now
+  appears in the onboarding panel without new UI machinery.
+
+`enabled` and `ready` are deliberately separate: a business whose booking was switched
+on earlier and whose hours were emptied since must show as **enabled but not ready**,
+not as fine.
+
+Verified live after deploying `2fbda86`:
+
+```
+channel keys : ['booking', 'crm', 'email', 'sms', 'social', 'telephone',
+                'website_chat', 'website_voice']
+'booking' in channels? True
+```
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -171,21 +200,42 @@ panel already exists in the owner UI**, so requirement 7 is not merely a backend
    day. The system **refuses** to enable booking in this state with the message
    "No opening hours are set, so booking would offer no times on any day", and
    `native_booking` stayed `false` after the attempt. This is a data-entry gap for
-   the owner, not a defect; the guard is doing its job.
+   the owner, not a defect; the guard is doing its job. The readiness entry added
+   above now makes that reason visible *before* the owner tries.
 3. **Inbound SMS end to end.** No SMS provider is configured; the routes return 503
-   by design.
+   by design. The paired device is currently online (`last_seen` seconds old) but has
+   `inbound_verified_at = NULL`, so inbound SMS has never been proven. Outbound owner
+   SMS rows are honestly left `awaiting_receipt` or `failed` with
+   "Phone did not confirm send; reconcile before retry" rather than being marked sent.
+   Owner **email** delivery is reliable and reached `sent` on every attempt.
 4. **Real carrier telephone calls.** Unchanged and still optional. `phone_numbers = 0`,
    no SIP mapping, no number purchased. Website voice is unaffected by this.
 5. **Enquirer acknowledgement actually sent**, for consent reasons above.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **401 passed** (356 pre-existing + 45 new).
+- `PYTHONPATH=api pytest api/tests -q` → **407 passed** (356 pre-existing + 51 in the
+  new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
-  distinct businesses and pins the two behaviours most likely to cause real harm:
-  refusing a foreign-format number instead of fabricating one, and reporting
-  "pending" rather than "confirmed" when no calendar is connected.
+  distinct businesses and pins the behaviours most likely to cause real harm:
+  refusing a foreign-format number instead of fabricating one, reporting "pending"
+  rather than "confirmed" when no calendar is connected, and reporting booking
+  readiness separately from "enabled".
+
+## Deployment record
+
+| | |
+| --- | --- |
+| Commit deployed | `2fbda86` (application code: `owner_onboarding.py`, `owner.html`) |
+| Image | `trendi-concierge-api:vps` → `3c05e01c5220`, revision label `2fbda86` |
+| Rollback image | `trendi-concierge-api:before-booking-readiness-20261110` → `7a16174bc7cc` |
+| Backup | `/opt/trendi/backups/booking-readiness-20261110` (source-before.tgz, api.env.before, image-before.txt) |
+| Recreate | `api` and `social` together, `--no-deps --force-recreate` |
+| Verified | deployed `owner_onboarding.py` and `owner.html` SHA-256 match local exactly; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present |
+
+No application behaviour was changed beyond exposing readiness; every previously
+verified path was re-checked after the redeploy and none regressed.
 
 Historical unit counts were not treated as proof of the service; every claim above
 names the artefact it came from.

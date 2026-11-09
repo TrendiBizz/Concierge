@@ -34,7 +34,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app import acknowledgements, booking, casetimeline, owner_notifications, quotations
+from app import acknowledgements, booking, casetimeline, owner_notifications, owner_onboarding, quotations
 
 BUSINESS_A = {
     "id": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
@@ -420,3 +420,64 @@ def test_quotation_listing_scoped_to_caller(monkeypatch):
     pool = capture_pool(monkeypatch, quotations, RecordingPool())
     asyncio.run(quotations.listing(user={"tenant_id": BUSINESS_B["id"], "role": "owner"}))
     assert BUSINESS_B["id"] in [s for s in pool.statements if s[0] == "fetch"][0][2]
+
+
+# ---------------------------------------------------------- booking readiness is visible
+
+def test_booking_readiness_explains_closed_hours_before_the_owner_tries():
+    """The owner must be told their hours cannot produce a booking, not left to discover it on submit.
+
+    This is the gap the readiness entry closes: `booking_hours_problem` already refused a broken
+    enable, but nothing surfaced the reason until the owner pressed the button. An owner who never
+    presses it was never told, which is the silent breakage the validator exists to prevent.
+    """
+    closed = {**BUSINESS_A, "business_hours": {d: [] for d in ("mon", "tue", "wed", "thu", "fri")}}
+    state = owner_onboarding.booking_readiness(closed)
+    assert state["enabled"] is False
+    assert state["ready"] is False
+    assert state["open_days"] == 0
+    assert "opening hours" in state["reason"]
+
+
+def test_booking_readiness_is_clean_for_usable_hours():
+    state = owner_onboarding.booking_readiness(BUSINESS_A)
+    assert state["open_days"] == 5
+    assert state["reason"] == ""
+    assert state["slot_minutes"] == 30
+
+
+def test_booking_readiness_separates_enabled_from_ready():
+    """Booking switched on earlier, hours emptied since: enabled but NOT ready must stay visible."""
+    stale = {**BUSINESS_A, "native_booking": True,
+             "business_hours": {d: [] for d in ("mon", "tue", "wed", "thu", "fri")}}
+    state = owner_onboarding.booking_readiness(stale)
+    assert state["enabled"] is True
+    assert state["ready"] is False
+    assert state["configured"] is False
+    assert state["reason"]
+
+
+def test_booking_readiness_flags_a_window_shorter_than_one_slot():
+    tiny = {**BUSINESS_A, "slot_minutes": 60,
+            "business_hours": {"mon": [["09:00", "09:30"]], "tue": [], "wed": [], "thu": [], "fri": []}}
+    state = owner_onboarding.booking_readiness(tiny)
+    assert state["ready"] is False
+    assert "60-minute" in state["reason"]
+
+
+def test_booking_readiness_accepts_a_window_exactly_one_slot_long():
+    """The boundary is deliberate: 09:00-09:30 with 30-minute slots is one bookable time, not zero."""
+    exact = {**BUSINESS_A, "slot_minutes": 30,
+             "business_hours": {"mon": [["09:00", "09:30"]], "tue": [], "wed": [], "thu": [], "fri": []}}
+    state = owner_onboarding.booking_readiness(exact)
+    assert state["open_days"] == 1
+    assert state["reason"] == ""
+
+
+def test_each_business_reports_its_own_booking_readiness():
+    """Two businesses, two answers: readiness must never be shared or inferred from the other."""
+    a = owner_onboarding.booking_readiness(BUSINESS_A)
+    b = owner_onboarding.booking_readiness(
+        {**BUSINESS_B, "business_hours": {d: [] for d in ("mon", "tue", "wed", "thu", "fri")}})
+    assert a["reason"] == "" and a["open_days"] == 5
+    assert b["reason"] != "" and b["open_days"] == 0

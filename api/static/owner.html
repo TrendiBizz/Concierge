@@ -590,6 +590,9 @@ async function refreshOnboarding(){
     const display=name.replaceAll("_"," ");
     const label=state.built_in?"Ready — built-in CRM":state.verified?"Configured — live test passed":state.configured?"Configured — provider test required":"Not configured";
     channels.appendChild(node("p",display+": "+label,"muted"));
+    if(state.reason){
+      channels.appendChild(node("p",state.reason,"muted"));
+    }
   }
   $("onboarding-name").value=data.business.name||"";
   $("onboarding-website").value=data.business.site_url||"";
