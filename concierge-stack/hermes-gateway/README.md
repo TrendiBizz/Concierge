@@ -16,7 +16,7 @@ plan. Concierge stays the record, the permission boundary and the executor. Noth
 | `policy` | Fails closed; one rejected part rejects the whole plan. Recipient must already belong to the case; consent and opt-out re-checked at execution; channel must be authorized; quoted prices must appear in business evidence (`concierge-core` quote guard); mutations need an idempotency key and the current case version; a human takeover blocks customer effects but never escalation; approvals bind the *exact* tenant/case/channel/recipient/subject/body; autonomy levels (Shadow / DraftReview / AutoRoutine) with routine automation still stopping for sensitive, uncertain, priced or escalated cases; quiet hours via `concierge-core`. |
 | `ledger` | Action and case state machines and an idempotent, tenant-scoped ledger. A duplicate request creates nothing, a reused key with different content is a conflict, and an *uncertain* send can only be reconciled, never blindly retried. |
 
-`tests/acceptance.rs` (17 tests) and `tests/server.rs` (8 tests) maps to the framework's table: #1 duplicates, #3 malformed output, #11 capability
+`tests/acceptance.rs` (17 tests) and `tests/server.rs` (14 tests, including a prompt-injection scenario) maps to the framework's table: #1 duplicates, #3 malformed output, #11 capability
 escalation, #12 uncertain sends, #14 takeover, #15 revoked consent, #24 cross-tenant, #25 approval of a different
 revision, #26 quiet hours, #30 stale case. Each security rule was checked by deliberately removing it and confirming a test fails.
 
@@ -29,6 +29,7 @@ Loopback-only HTTP service. It refuses to start without three **distinct** 32+ c
 |---|---|---|
 | `POST /v1/capabilities` | mint key | Issue a tenant/case-scoped capability (TTL clamped to 15 minutes; unknown operations refused). |
 | `DELETE /v1/capabilities/{nonce}` | mint key | Revoke one. |
+| `POST /v1/runs` | mint key | Run Hermes on one case: the gateway mints the capability **itself and never shows it to Hermes**, builds a prompt (customer text wrapped in `<customer_data>`, tags neutralised), asks Hermes (`HERMES_BASE_URL`, `HERMES_API_KEY`), requires the reply to be exactly one JSON object, overwrites `task_id`, drops any `approval_ref`, then applies the same validation as `/v1/plans`. 502 Hermes down, 422 unusable reply. |
 | `POST /v1/plans` | capability | Parse, validate and (unless the business is in shadow mode) forward a plan. 400 unreadable, 401 bad capability, 404 unknown case, 409 Concierge refused, 422 policy rejected, 503 Concierge down. |
 
 It talks to Concierge only through `backend::Backend`; `HttpBackend` calls `/internal/hermes/...` in `api/app/hermes_ops.py`,
@@ -38,7 +39,8 @@ both this crate's tests and `QA/verification/hermes_ops_integration.py` use it, 
 
 ## Not built yet (do not assume)
 
-- **Hermes itself is not connected.** Something must mint a capability per run and hand Hermes the token; no such orchestrator exists.
+- **Nothing triggers a run yet.** `POST /v1/runs` exists, but no component calls it (no inbound-message hook, no scheduler, no owner-portal button).
+- **Never run against a real Hermes.** The planner is tested with a fake; the Hermes request/response shape follows `ask-hermes.sh`'s OpenAI-compatible call and is unverified here.
 - **The gateway's ledger is in memory** (advisory). Concierge's `hermes_actions` table is the durable, authoritative idempotency record.
 - **No owner-portal UI** for takeover, autonomy level or approving Hermes drafts beyond the existing email-draft screen.
 - **No booking or quote executor**: those requests become to-dos for a person.

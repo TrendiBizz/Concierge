@@ -32,6 +32,8 @@ pub trait Backend: Send + Sync {
         case_id: &str,
         bundle: &Value,
     ) -> Result<Value, BackendError>;
+    /// Bounded case text for the planner (`GET .../brief`).
+    async fn brief(&self, tenant_id: &str, case_id: &str) -> Result<Value, BackendError>;
 }
 
 /// The JSON `GET /internal/hermes/cases/{id}/policy-context` returns.
@@ -151,6 +153,19 @@ impl Backend for HttpBackend {
         let wire: ContextWire = serde_json::from_value(Self::finish(resp).await?)
             .map_err(|e| BackendError::Unavailable(format!("unreadable policy context: {e}")))?;
         wire.into_context()
+    }
+
+    async fn brief(&self, tenant_id: &str, case_id: &str) -> Result<Value, BackendError> {
+        let url = format!("{}/internal/hermes/cases/{case_id}/brief", self.base);
+        let resp = self
+            .client
+            .get(url)
+            .query(&[("tenant_id", tenant_id)])
+            .header("x-hermes-gateway-key", &self.key)
+            .send()
+            .await
+            .map_err(|e| BackendError::Unavailable(e.to_string()))?;
+        Self::finish(resp).await
     }
 
     async fn execute(

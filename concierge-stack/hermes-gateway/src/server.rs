@@ -7,6 +7,7 @@ use crate::backend::{Backend, BackendError};
 use crate::capability::{mint, verify, CapError, Capability, MAX_TTL_SECS};
 use crate::ledger::{ActionLedger, LedgerError, MemoryLedger, NewAction};
 use crate::ops::Op;
+use crate::orchestrator::{build_prompts, extract_plan_json, normalise_plan, Planner};
 use crate::plan::{parse_plan, Channel};
 use crate::policy::{validate_plan, DeliveryMode, Validated};
 use axum::{
@@ -25,6 +26,7 @@ pub struct AppState {
     pub secret: Vec<u8>,
     pub mint_key: String,
     pub backend: Arc<dyn Backend>,
+    pub planner: Arc<dyn Planner>,
     pub revoked: Mutex<HashSet<String>>,
     pub ledger: Mutex<MemoryLedger>,
     pub clock: Box<dyn Fn() -> i64 + Send + Sync>,
@@ -63,6 +65,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/v1/capabilities", post(mint_capability))
         .route("/v1/capabilities/:nonce", delete(revoke_capability))
         .route("/v1/plans", post(submit_plan))
+        .route("/v1/runs", post(run_case))
         .layer(DefaultBodyLimit::max(128 * 1024))
         .with_state(state)
 }
@@ -196,7 +199,13 @@ async fn submit_plan(
         let revoked = state.revoked.lock().expect("revocation list");
         verify(&state.secret, token, now, &|nonce| revoked.contains(nonce)).map_err(cap_error)?
     };
-    let plan = parse_plan(&body).map_err(|e| {
+    process_plan(&state, &cap, &body).await
+}
+
+/// Parse, validate and (unless the business is in shadow mode) forward a plan. Shared by `/v1/plans` and `/v1/runs`.
+async fn process_plan(state: &AppState, cap: &Capability, body: &str) -> Result<Reply, Reply> {
+    let now = (state.clock)();
+    let plan = parse_plan(body).map_err(|e| {
         reply(
             StatusCode::BAD_REQUEST,
             json!({"error": "invalid_plan", "detail": format!("{e:?}")}),
@@ -208,13 +217,13 @@ async fn submit_plan(
         .policy_context(&cap.tenant_id, &cap.case_id)
         .await
         .map_err(backend_error)?;
-    let validated = validate_plan(&cap, &plan, &ctx, now).map_err(|r| {
+    let validated = validate_plan(cap, &plan, &ctx, now).map_err(|r| {
         reply(
             StatusCode::UNPROCESSABLE_ENTITY,
             json!({"error": "policy_rejected", "rejected": {"code": r.code, "detail": r.detail}}),
         )
     })?;
-    let bundle = bundle_json(&cap, &plan.task_id, &validated);
+    let bundle = bundle_json(cap, &plan.task_id, &validated);
     if validated.shadow {
         return Ok(reply(
             StatusCode::OK,
@@ -251,4 +260,92 @@ async fn submit_plan(
         StatusCode::OK,
         json!({"mode": "executed", "executed": true, "result": result}),
     ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RunRequest {
+    tenant_id: String,
+    case_id: String,
+    run_id: String,
+    ops: Option<Vec<String>>,
+}
+
+/// Run Hermes on one case. The capability is minted and used here; Hermes only ever sees text.
+async fn run_case(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<RunRequest>,
+) -> Result<Reply, Reply> {
+    check_mint_key(&state, &headers)?;
+    if req.run_id.is_empty()
+        || req.run_id.len() > 128
+        || !req
+            .run_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_:.".contains(&b))
+    {
+        return Err(reply(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!({"error": "bad_run_id"}),
+        ));
+    }
+    let default = ["prepare_reply", "schedule_followup", "escalate_case"];
+    let mut ops = Vec::new();
+    for name in req
+        .ops
+        .as_ref()
+        .map(|v| v.iter().map(String::as_str).collect::<Vec<_>>())
+        .unwrap_or_else(|| default.to_vec())
+    {
+        ops.push(Op::parse(name).ok_or_else(|| {
+            reply(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                json!({"error": "unknown_operation", "op": name}),
+            )
+        })?);
+    }
+    let now = (state.clock)();
+    let cap = Capability {
+        tenant_id: req.tenant_id.clone(),
+        case_id: req.case_id.clone(),
+        run_id: req.run_id.clone(),
+        ops: ops.clone(),
+        issued_at: now,
+        expires_at: now + 300,
+        nonce: format!("{now:x}-{}", rand_suffix()),
+    };
+    let ctx = state
+        .backend
+        .policy_context(&cap.tenant_id, &cap.case_id)
+        .await
+        .map_err(backend_error)?;
+    let brief = state
+        .backend
+        .brief(&cap.tenant_id, &cap.case_id)
+        .await
+        .map_err(backend_error)?;
+    let (system, user) = build_prompts(&brief, &ctx, &ops, &req.run_id);
+    let reply_text = state.planner.plan(&system, &user).await.map_err(|e| {
+        reply(
+            StatusCode::BAD_GATEWAY,
+            json!({"error": "planner_unavailable", "detail": e}),
+        )
+    })?;
+    let unusable = |e| {
+        reply(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!({"error": "unusable_plan_reply", "detail": format!("{e:?}")}),
+        )
+    };
+    let plan_text = normalise_plan(
+        &extract_plan_json(&reply_text).map_err(unusable)?,
+        &req.run_id,
+    )
+    .map_err(unusable)?;
+    let (status, Json(mut body)) = process_plan(&state, &cap, &plan_text)
+        .await
+        .unwrap_or_else(|e| e);
+    body["run_id"] = json!(req.run_id);
+    Ok((status, Json(body)))
 }

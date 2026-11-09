@@ -93,6 +93,11 @@ with TestClient(app) as client:
     r = client.get(ctx_url, params={"tenant_id": str(beta)}, headers=KEY)
     check("a case is not visible through another tenant", r.status_code == 404)
 
+    r = client.get(f"/internal/hermes/cases/{lead}/brief", params={"tenant_id": str(alpha)}, headers=KEY)
+    check("the brief carries the case text and conversation, bounded", r.status_code == 200 and r.json()["lead"]["message"] == "Can you quote me?" and r.json()["messages"][0]["role"] == "user")
+    check("the brief names the business, not its credentials", r.json()["business"]["name"] == "Alpha" and "key" not in json.dumps(r.json()).lower())
+    check("another tenant's case has no brief", client.get(f"/internal/hermes/cases/{blead}/brief", params={"tenant_id": str(alpha)}, headers=KEY).status_code == 404)
+
     # ---- shadow mode executes nothing ---------------------------------------------------------------------------------
     v = c["case_version"]
     r = post({"actions": [action("schedule_followup", "k-shadow", v)], "delivery": delivery()})

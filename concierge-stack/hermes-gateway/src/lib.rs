@@ -10,6 +10,7 @@ pub mod backend;
 pub mod capability;
 pub mod ledger;
 pub mod ops;
+pub mod orchestrator;
 pub mod plan;
 pub mod policy;
 pub mod server;

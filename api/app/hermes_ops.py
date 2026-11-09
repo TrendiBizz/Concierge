@@ -100,6 +100,26 @@ async def policy_context(lead_id: UUID, tenant_id: UUID):
     }
 
 
+@router.get("/cases/{lead_id}/brief")
+async def brief(lead_id: UUID, tenant_id: UUID):
+    """Bounded, read-only text for the planner. Everything customer-written is data, never instructions."""
+    tenant = await tenants.get_by_id(tenant_id)
+    if not tenant:
+        raise HTTPException(404, "Case not found")
+    pool = db.pool()
+    lead = await _lead(pool, tenant_id, lead_id)
+    messages = []
+    if lead.get("conversation_id"):
+        rows = await pool.fetch("SELECT role, content FROM messages WHERE conversation_id=$1 ORDER BY id DESC LIMIT 20", lead["conversation_id"])
+        messages = [{"role": r["role"], "content": r["content"][:1000]} for r in reversed(rows)]
+    return {
+        "business": {"name": tenant["name"], "guidance": (tenant.get("persona") or "")[:1000]},
+        "lead": {"name": (lead.get("name") or "")[:120], "email": lead.get("email") or "", "phone": lead.get("phone") or "",
+                 "channel": lead.get("channel") or "", "status": lead.get("status") or "", "message": (lead.get("message") or "")[:2000]},
+        "messages": messages,
+    }
+
+
 class AutomationBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tenant_id: UUID

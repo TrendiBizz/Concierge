@@ -1,6 +1,7 @@
 //! Local-only server: loopback bind, long distinct keys, nothing enabled by default.
 use hermes_gateway::backend::HttpBackend;
 use hermes_gateway::ledger::MemoryLedger;
+use hermes_gateway::orchestrator::HermesHttp;
 use hermes_gateway::server::{router, system_clock, AppState};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -18,6 +19,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if secret.len() < 32 || mint_key.len() < 32 || concierge_key.len() < 32 || !distinct {
         return Err("Three distinct keys of 32+ characters are required (capability secret, mint key, Concierge key)".into());
     }
+    let hermes_key = need("HERMES_API_KEY")?;
+    let hermes_base =
+        std::env::var("HERMES_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8642".into());
     let base =
         std::env::var("CONCIERGE_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8000".into());
     let bind = std::env::var("HERMES_GATEWAY_BIND").unwrap_or_else(|_| "127.0.0.1:4420".into());
@@ -29,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         secret: secret.into_bytes(),
         mint_key,
         backend: Arc::new(HttpBackend::new(&base, &concierge_key)?),
+        planner: Arc::new(HermesHttp::new(&hermes_base, &hermes_key)?),
         revoked: Mutex::new(HashSet::new()),
         ledger: Mutex::new(MemoryLedger::default()),
         clock: system_clock(),
