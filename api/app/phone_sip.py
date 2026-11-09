@@ -18,7 +18,7 @@ import websockets
 from websockets.exceptions import ConnectionClosedOK
 from fastapi import APIRouter, HTTPException, Request
 
-from . import channel_authorization, convo, db, enquiries, events, tenants, voice
+from . import channel_authorization, convo, db, enquiries, events, tenants, voice, voice_records
 from .config import get_settings
 from .rag import build_system_prompt
 from .tools import run_tool
@@ -92,13 +92,20 @@ async def call_control(call_id,action):
 
 async def serve_call(call_id,tenant,caller):
     session_id="sip:"+call_id
-    status="completed";caller_turns=[];conversation=None
+    status="completed";caller_turns=[];conversation=None;record_session=None
     try:
         conversation=await convo.get_or_create(tenant,session_id,"phone",None,None)
         context={"conversation_id":conversation,"session_id":session_id,"channel":"phone","sender_phone":caller}
         await enquiries.capture(tenant,"phone",session_id,"Inbound telephone enquiry",
                                 conversation_id=conversation,phone=caller)
-        session=voice.build_session(tenant)
+        # A telephone call serves a voice session exactly as the website widget does, so the caller
+        # can be sent a copy of the conversation afterwards. Without this the copy tool has no
+        # session to attach the request to and refuses, which is why phone callers could never be
+        # sent a summary. `record=False`: Concierge does not record calls unless asked.
+        capability=await voice_records.start(tenant,session_id,channel="phone")
+        record_session=await voice_records.authenticate(capability["id"],capability["token"])
+        context["voice_session"]=record_session
+        session=voice.build_session(tenant,copy_delivery=True)
         session["instructions"]=build_system_prompt(tenant,None,channel="phone")+(
             "\nYou are the business's automated phone receptionist using Grok voice. "
             "Greet the caller and disclose that this call is transcribed to handle the enquiry. "
@@ -191,6 +198,21 @@ async def serve_call(call_id,tenant,caller):
             await db.pool().execute(
                 "UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 "
                 "AND message='Inbound telephone enquiry'",tenant['id'],conversation,'\n'.join(caller_turns)[-1000:])
+        # Deliver the copy the caller asked for. The request was recorded on the voice session while
+        # the call was live; this is the only moment it can be flushed, because a session that is
+        # never finalized also never sends, and the request would be silently dropped. Finalizing
+        # and reading the request in ONE statement keeps the same guarantee Asterisk relies on: a
+        # request arriving after this point cannot be half-honoured. Failures are logged, never
+        # raised -- a failed courtesy copy must not change the recorded outcome of the call.
+        if record_session:
+            try:
+                request=await db.pool().fetchval(
+                    "UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 AND finalized_at IS NULL "
+                    "RETURNING delivery_request",record_session["id"])
+                if request:
+                    await voice_records.complete_delivery(record_session,tenant,request,{"ok":True})
+            except Exception:
+                log.warning("Telephone copy delivery needs reconciliation")
 
 
 @router.post("/{connection_id}")
