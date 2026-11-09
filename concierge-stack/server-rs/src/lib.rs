@@ -18,6 +18,8 @@ use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 use tower_http::cors::{Any, CorsLayer};
 
+mod admin;
+
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -143,8 +145,8 @@ pub fn row_json(row: &Row) -> Value {
                 .get::<_, Option<chrono::DateTime<chrono::Utc>>>(i)
                 .map_or(Value::Null, |d| json!(iso(d))),
             Type::JSONB | Type::JSON => row
-                .get::<_, Option<Value>>(i)
-                .map_or(Value::Null, |j| json!(j.to_string_python())),
+                .get::<_, Option<JsonText>>(i)
+                .map_or(Value::Null, |j| json!(j.0)),
             Type::TEXT_ARRAY | Type::VARCHAR_ARRAY => row
                 .get::<_, Option<Vec<String>>>(i)
                 .map_or(Value::Null, |a| json!(a)),
@@ -155,43 +157,29 @@ pub fn row_json(row: &Row) -> Value {
     Value::Object(m)
 }
 
-/// PostgreSQL normalises `jsonb` text (`{"a": 1, "b": [1, 2]}`); serde writes it compactly, so re-render with Postgres' spacing.
-trait PgJson {
-    fn to_string_python(&self) -> String;
-}
+/// The text of a `json`/`jsonb` value exactly as PostgreSQL prints it, which is what asyncpg hands Python (it has no
+/// codec for either type unless one is registered). Going through `serde_json::Value` instead would re-format numbers:
+/// `1.50` becomes `1.5` and an integer beyond 64 bits becomes a float.
+struct JsonText(String);
 
-impl PgJson for Value {
-    fn to_string_python(&self) -> String {
-        fn w(v: &Value, out: &mut String) {
-            match v {
-                Value::Object(m) => {
-                    out.push('{');
-                    for (i, (k, x)) in m.iter().enumerate() {
-                        if i > 0 {
-                            out.push_str(", ");
-                        }
-                        out.push_str(&Value::String(k.clone()).to_string());
-                        out.push_str(": ");
-                        w(x, out);
-                    }
-                    out.push('}');
-                }
-                Value::Array(a) => {
-                    out.push('[');
-                    for (i, x) in a.iter().enumerate() {
-                        if i > 0 {
-                            out.push_str(", ");
-                        }
-                        w(x, out);
-                    }
-                    out.push(']');
-                }
-                other => out.push_str(&other.to_string()),
+impl<'a> tokio_postgres::types::FromSql<'a> for JsonText {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let body = if *ty == Type::JSONB {
+            match raw.split_first() {
+                Some((1, rest)) => rest,
+                _ => return Err("unsupported jsonb version".into()),
             }
-        }
-        let mut s = String::new();
-        w(self, &mut s);
-        s
+        } else {
+            raw
+        };
+        Ok(JsonText(String::from_utf8(body.to_vec())?))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::JSONB || *ty == Type::JSON
     }
 }
 
@@ -224,16 +212,22 @@ fn missing_query(name: &str) -> Response {
     (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({"detail": [{"type": "missing", "loc": ["query", name], "msg": "Field required", "input": null}]}))).into_response()
 }
 
-/// FastAPI's 422 for a query parameter pydantic could not coerce. The message text is pydantic v2's own.
-fn unprocessable(name: &str, ty: &str, input: &str) -> Response {
+/// One FastAPI validation error for a `kind` ("query" or "path") parameter pydantic could not coerce to an integer.
+/// The message text is pydantic v2's own.
+fn unprocessable_entry(kind: &str, name: &str, ty: &str, input: &str) -> Value {
     let msg = match ty {
         "int_parsing" => "Input should be a valid integer, unable to parse string as an integer",
         "int_parsing_size" => "Unable to parse input string as an integer, exceeded maximum size",
         _ => "Input should be a valid integer",
     };
+    json!({"type": ty, "loc": [kind, name], "msg": msg, "input": input})
+}
+
+/// FastAPI's 422 for a query parameter pydantic could not coerce.
+fn unprocessable(name: &str, ty: &str, input: &str) -> Response {
     (
         StatusCode::UNPROCESSABLE_ENTITY,
-        Json(json!({"detail": [{"type": ty, "loc": ["query", name], "msg": msg, "input": input}]})),
+        Json(json!({"detail": [unprocessable_entry("query", name, ty, input)]})),
     )
         .into_response()
 }
@@ -769,9 +763,10 @@ pub fn app(state: State) -> Router {
         .route("/report/:token", get(client_report))
         .route("/api/v1/calendar/:token", get(calendar_feed))
         .route("/demo/:slug", get(demo_page))
+        .merge(admin::routes())
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
-        .fallback(not_found)
+        .fallback(admin::fallback)
         .layer(middleware::from_fn_with_state(state.clone(), boundary))
         .layer(cors)
         .with_state(state)

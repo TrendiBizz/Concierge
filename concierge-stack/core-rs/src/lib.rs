@@ -2,6 +2,7 @@
 //! `api/app` and is verified against golden vectors produced by that Python code (see `parity/`).
 
 pub mod acknowledgements;
+pub mod admin_views;
 pub mod automation;
 pub mod booking;
 pub mod booking_text;
