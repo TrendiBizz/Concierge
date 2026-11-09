@@ -516,3 +516,29 @@ CREATE TABLE IF NOT EXISTS email_secretary_jobs (
  status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0,
  claimed_at timestamptz, error text NOT NULL DEFAULT '', UNIQUE(tenant_id,source_key)
 );
+
+-- Hermes gateway support (see app/hermes_ops.py). All additive; everything stays off until HERMES_GATEWAY_ENABLED.
+CREATE TABLE IF NOT EXISTS hermes_tenant_settings (
+    tenant_id      uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    autonomy       text NOT NULL DEFAULT 'shadow' CHECK (autonomy IN ('shadow', 'draft_review', 'auto_routine')),
+    min_confidence real NOT NULL DEFAULT 0.8 CHECK (min_confidence BETWEEN 0 AND 1),
+    updated_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS hermes_case_state (
+    tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    lead_id           uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    automation_paused boolean NOT NULL DEFAULT false,
+    updated_at        timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, lead_id)
+);
+CREATE TABLE IF NOT EXISTS hermes_actions (
+    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    idempotency_key text NOT NULL,
+    lead_id         uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    op              text NOT NULL,
+    fingerprint     text NOT NULL,
+    state           text NOT NULL,
+    result          jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, idempotency_key)
+);

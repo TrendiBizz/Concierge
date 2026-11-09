@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     social_service_url: str = "http://127.0.0.1:4390"
     social_concierge_key: str = ""
 
+    # Hermes gateway operations (app/hermes_ops.py). Dark by default: the routes answer 404 unless both are set.
+    hermes_gateway_enabled: bool = False
+    hermes_gateway_key: str = ""
+
     calendar_credentials_dir: str = ""  # mounted private secret directory, not source control
 
     # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).

@@ -22,7 +22,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
-from . import mobile_connections, quotations, calendar_connection, email_secretary
+from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -93,6 +93,7 @@ app.include_router(mobile_connections.router)
 app.include_router(quotations.router)
 app.include_router(calendar_connection.router)
 app.include_router(email_secretary.router)
+app.include_router(hermes_ops.router)  # answers 404 unless HERMES_GATEWAY_ENABLED and HERMES_GATEWAY_KEY are set
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.

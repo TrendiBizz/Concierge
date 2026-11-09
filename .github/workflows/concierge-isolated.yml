@@ -35,6 +35,7 @@ jobs:
           - cloudflare_inbound_integration
           - channel_authorization_db_integration
           - customer_authorization_test
+          - hermes_ops_integration
     services:
       postgres:
         image: pgvector/pgvector:pg16
