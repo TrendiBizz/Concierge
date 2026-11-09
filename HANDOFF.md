@@ -1,3 +1,5 @@
+> Current deployment and continuation (10 November 2026): [HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md](QA/verification/HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md). Read this first for runtime state; it points to the complete product mandate.
+
 > Latest engineering handoff (Rust port, Hermes gateway, CI repair): [QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md](QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md).
 > Current authoritative scope (9 November 2026): [Concierge portal secretary handoff](QA/verification/HANDOFF_CONCIERGE_PORTAL_WORKFLOW_2026-11-09.md). Read that first; the historical state below is superseded.
 
