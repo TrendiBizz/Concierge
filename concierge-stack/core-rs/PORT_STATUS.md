@@ -91,3 +91,22 @@ dict returns `Unsupported` (Python would use its `repr`); `json.dumps` of floats
 not treated as digits. `casefold_table.json` is specific to the recorded CPython and Unicode versions; regenerate it with the production interpreter.
 Fourteen temporary mutations (inverted guard, wrong case folding, wrong operation order, wrong limits, wrong rounding and others) were each caught by
 a failing test and then restored.
+
+## Batch 14 (9 November 2026): the crawler
+
+Vectors from `parity/gen_vectors14.py`, which runs the live `app.crawler` plus CPython's `urllib.parse`, `html.parser` and `urllib.robotparser` with a fake
+network (no sockets) and a deterministic stand-in for trafilatura.
+
+| Python | Rust | Evidence |
+|---|---|---|
+| urllib.parse `urlsplit`/`urlparse`/`urlunsplit`/`urljoin`/`urldefrag`/`hostname` as used by the crawler | pyurl | about 13,000 URL cases: normalize (5,200), urljoin (2,600), urldefrag, host_of |
+| crawler `normalize`, `host_of`, `extract_links` | crawler | link extraction on about 2,000 HTML snippets (comments, doctype, CDATA, PI, script/style/title/textarea modes, broken tags, entity decoding in attributes); the raw start-tag stream is compared too |
+| html.parser tokenizer rules for CPython 3.13.18 (incl. the data it deliberately never reaches without `close()`) | crawler (`start_tags`) | patterns are transliterated verbatim with `fancy-regex` (lookbehind/lookahead) |
+| urllib.robotparser (RFC 9309 version): grouping, longest match, Allow wins ties, `*`/`$`, percent-normalisation | robots | 500 generated robots.txt files, about 9,600 decisions (645+ denials), plus a normalisation table |
+| crawler `_sitemap_urls`, `_load_robots`, `_fetch`, `crawl` loop | crawler | 150 sitemap scenarios, 169 fetch cases, 166 whole crawls incl. exact request sequence and the `max_pages*10` frontier guard |
+
+Not ported (declared, never guessed): trafilatura text/metadata extraction (`extract_page`), the real HTTP transport and DNS, and the async
+scheduling. Declined cases (`Fail::Unsupported`): netlocs with non-ASCII characters (CPython applies NFKC) and IPv6 zone ids; both are counted in the test
+(about 2% of the corpus, which over-samples them). `html_tables.json` (entity table) is specific to the recorded CPython; regenerate with the production
+interpreter. Fifteen mutations were caught; one more (atomic lazy groups in robots patterns) is a proven equivalent mutant (the leftmost match is always the best
+choice for the remainder), and three mutants first survived and exposed real test gaps, which now have dedicated vectors.

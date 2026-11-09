@@ -19,6 +19,7 @@ chrono-tz = "0.10"
 url = "2"
 serde = { version = "1", features = ["derive"] }
 pbkdf2 = "0.12"
+fancy-regex = "0.14"
 
 [dev-dependencies]
 
