@@ -1,0 +1,190 @@
+[
+ {
+  "name": "request_enquiry_acknowledgement",
+  "description": "Ask whether the enquirer wants a separate acknowledgement. If declined use requested=false. Otherwise ask for channel and recipient, call with confirmed=false, read back the result, wait for yes, then call with the same recipient/channel and confirmed=true. This is separate from notifying the business owner. Never claim a queued message was received.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "requested": {
+     "type": "boolean"
+    },
+    "channel": {
+     "type": "string",
+     "enum": [
+      "email",
+      "sms"
+     ]
+    },
+    "recipient": {
+     "type": "string"
+    },
+    "confirmed": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "requested"
+   ]
+  },
+  "voice": true,
+  "chat": true
+ },
+ {
+  "name": "request_conversation_copy",
+  "description": "Request a copy after this voice conversation is saved. First capture_lead with the caller's contact and permission. Read back that recipient, whether they want saved text or the recording link, and SMS or email. Call with confirmed=true only after their clear yes. A requested or queued response never means sent.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "channel": {
+     "type": "string",
+     "enum": [
+      "sms",
+      "email"
+     ]
+    },
+    "content": {
+     "type": "string",
+     "enum": [
+      "text",
+      "recording"
+     ]
+    },
+    "confirmed": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "channel",
+    "content",
+    "confirmed"
+   ]
+  },
+  "voice": true,
+  "chat": false,
+  "website_only": true
+ },
+ {
+  "name": "capture_lead",
+  "description": "Save a visitor's contact details and what they want so the business can follow up. Only call this after the visitor has given a phone number or email.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Visitor's name"
+    },
+    "email": {
+     "type": "string",
+     "description": "Visitor's email, if given"
+    },
+    "phone": {
+     "type": "string",
+     "description": "Visitor's phone number, if given"
+    },
+    "message": {
+     "type": "string",
+     "description": "What they want: product, quantity, question, or follow-up action"
+    },
+    "consent_to_contact": {
+     "type": "boolean",
+     "description": "True only if the visitor agreed to be texted or emailed by the business"
+    },
+    "consent_to_marketing": {
+     "type": "boolean",
+     "description": "True only if the visitor explicitly said yes when asked whether they also want offers and promotions. Never assume it, and never set it just because they gave contact details."
+    }
+   },
+   "required": [
+    "message"
+   ]
+  },
+  "voice": true,
+  "chat": true
+ },
+ {
+  "name": "get_booking_link",
+  "description": "Get the link where the visitor can book an appointment.",
+  "parameters": {
+   "type": "object",
+   "properties": {}
+  },
+  "voice": true,
+  "chat": true
+ },
+ {
+  "name": "check_availability",
+  "description": "List free appointment times for one date (business local time). Never offer a time that this tool did not return.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "date": {
+     "type": "string",
+     "description": "YYYY-MM-DD"
+    }
+   },
+   "required": [
+    "date"
+   ]
+  },
+  "voice": true,
+  "chat": true
+ },
+ {
+  "name": "book_appointment",
+  "description": "Book an appointment. The first call returns a read-back sentence: read it to the visitor and wait for a clear yes, then call again with the same start and name and confirmed=true.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "start": {
+     "type": "string",
+     "description": "Local start time, e.g. 2026-11-05 14:30"
+    },
+    "name": {
+     "type": "string"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string"
+    },
+    "notes": {
+     "type": "string",
+     "description": "What the visit is for"
+    },
+    "consent_to_contact": {
+     "type": "boolean",
+     "description": "True only if the visitor agreed to reminders by text or email"
+    },
+    "confirmed": {
+     "type": "boolean",
+     "description": "True only after the visitor said yes to the read-back"
+    }
+   },
+   "required": [
+    "start",
+    "name"
+   ]
+  },
+  "voice": true,
+  "chat": true
+ },
+ {
+  "name": "search_knowledge",
+  "description": "Search the business's website content. Call this before answering any question about the business, its products, services, prices, hours or policies.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "What to look up"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  },
+  "voice": true,
+  "chat": false
+ }
+]

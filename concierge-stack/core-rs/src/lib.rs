@@ -4,13 +4,16 @@
 pub mod booking_text;
 pub mod chunking;
 pub mod contact;
+pub mod events;
 pub mod guard;
 pub mod ical;
+pub mod pyval;
 pub mod quotation;
 pub mod rate_limit;
 pub mod schedule;
 pub mod scoring;
 pub mod sla;
+pub mod tools;
 pub mod unsub;
 
 /// Python `str` whitespace (`str.isspace`), which is slightly wider than `char::is_whitespace`.

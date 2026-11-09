@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3) run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs` and `parity3.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs` and `parity4.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -21,7 +21,9 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | quotations.py `calculate` + validation + status transitions | quotation | ported, 631 vectors match (81 exotic decimal forms such as `1e2`/`1_0` deliberately unsupported and counted, never silently passed) |
 | automation.py `fmt_local` | schedule | ported, 747 vectors across 9 zones |
 | booking.py local-time check, read-back, `booking_result` | schedule, booking_text | ported, 261 vectors |
-| events, tools, calendar_connection, DB/I-O parts of booking/outbox/quotations, main (HTTP) | not started | next batches |
+| tools.py: tool specs, chat/voice lists, `_capture_lead` input rules, knowledge query clamp | tools (+ generated `tool_specs.json`) | ported, 400 capture vectors captured from the live function via a fake DB pool; specs generated from Python, not retyped |
+| events.py: Twenty payload, bridge-URL rule, delivery id, `lead_view`, `appointment_view` | events | ported, 300 payload + 21 URL + 80 view vectors. The delivery-id vectors mirror the inline expression in `process_twenty_once` (it is not a callable function), so that one pins the algorithm rather than calling live code |
+| Twenty delivery outcome classification, calendar_connection, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
 chunker's regex-free splitter only where Python agrees (the vectors include U+2003, U+3000, U+00A0); phone digit
@@ -36,3 +38,5 @@ filtering uses ASCII digits only (Python `\D` also treats non-ASCII decimal digi
 6. Unattended SMS: the Mac requires a Send confirmation; a hosted SMS provider would be a purchase.
 
 DST rule: a wall-clock time inside a spring-forward gap yields no slot; an ambiguous (fall-back) time uses its first occurrence, matching Python `zoneinfo` `fold=0`. `weights_for` ignores non-integer or unknown stored entries, where Python would carry them through.
+
+Python behaviours reproduced deliberately: `lead_view` raises on non-JSON `utm` text (so does the port); `_capture_lead` stores `""` for an invalid email. Arguments that are lists or floats are refused by the Rust normaliser rather than guessed. Datetimes passed to `twenty_bridge_payload` must already be Python `str()` text.

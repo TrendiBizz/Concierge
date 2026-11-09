@@ -15,6 +15,7 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
+url = "2"
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
