@@ -323,3 +323,40 @@ router's `Not Found` for `%2F`, where Rust looked the value up and answered `Unk
 routes, before the admin gate and before query validation (so `/admin/tenants/a%2Fb` without a token is a 404, not a 401,
 and `/report/x%2Fy?days=abc` is a 404, not a 422). The harness grew 7 comparisons (110 total); the cases were added first
 and seen to fail on `/report`, and disabling each call site in turn fails the harness.
+
+## Batch 28 (9 November 2026): the static pages, HTTP methods and CORS
+
+`GET /widget.js`, `/admin-ui`, `/owner-ui` and `/owner/social/oauth/callback` are served by `concierge-server` from
+`STATIC_DIR` (default `static`), and two behaviours that touch EVERY route were found and fixed on the way.
+
+**Starlette `FileResponse`** (`core-rs/src/static_file.rs`, vectors from the live Starlette in `gen_vectors28.py`): the
+`ETag` is `md5("{st_mtime}-{st_size}")` where `st_mtime` is the *float* CPython builds (`sec + nsec*1e-9`), printed with
+Python's repr; `Last-Modified` floors that same float, so a file stamped `...000.999999999` is dated one second later (a
+test caught the integer-seconds version). Also `Accept-Ranges`, `Content-Length`, and the full `Range` machinery: single and
+multiple ranges (overlaps merged and sorted), `416` with `Content-Range: bytes */size`, the three `400` texts, more than 100
+ranges ignored, `If-Range` against the ETag or the date. Python's `int()` is stricter than the pydantic parser already in
+core (`1_0` and `+3` yes, `5.0` no, `5--3` has a negative end), so the range parser has its own. A new dependency, `md-5`.
+
+**Every route** (the harness found both):
+- FastAPI registers `@app.get` for GET only, so `HEAD`, `POST`, `PUT`... are a JSON `405 {"detail":"Method Not Allowed"}` with
+  `Allow`. axum served HEAD as GET and answered other methods with an empty 405. `Allow` names the **first route declared for
+  the path**: `/admin/tenants` has `POST` (create) before `GET`, so its 405 says `Allow: POST`.
+- CORS is now Starlette's `CORSMiddleware` ported (the tower-http layer always added `Access-Control-Allow-Origin` and a
+  different `Vary`): `Vary: Origin` on every response, `Access-Control-Allow-Origin: *` only when the request had an `Origin`, the
+  preflight with its `400 Disallowed CORS method, headers, private-network` texts, and no CORS headers on a 500 (Starlette's
+  outermost error handler bypasses it). Python adds `owner_boundary` after CORS, so the boundary is the OUTER middleware: a
+  refused cross-origin request to the owner portal carries no CORS headers. Both layers now wrap the whole router as one service;
+  `Router::layer` would wrap each method handler *inside* axum's `MethodRouter`, which then appends its own `Allow: GET,HEAD`
+  to a preflight.
+
+The harness grew 90 comparisons (200 total) and compares **every header** (minus `Date` and `Server`) for these routes, byte for
+byte on bodies; multipart boundaries are random, so only those 26 hex characters are masked. Mutations applied, all caught:
+max ranges 100->101, off-by-one in range merging, double underscores accepted, `Last-Modified` from integer seconds, CORS on
+500s, CORS outside the boundary, `Allow: GET` on `/admin/tenants`, `If-Range` ignored, `206` with the full `Content-Length`,
+`416` answered as 400. **One survivor, equivalent:** allowing weak `W/` validators in `If-Range` changes nothing, because no
+`W/...` string can equal a strong ETag or an HTTP date (the vectors still pin the behaviour). Two mutation attempts were
+discarded because they did not apply or compile (a reflowed line, a typo); each was redone against the real source.
+
+Declined (fail closed): non-ASCII, non-whitespace text inside a `Range` part where Python's `int()` would parse Unicode digits
+(Rust gives Python's answer when no digit is parsed, otherwise a 500). Not covered: the owner boundary's hardening headers on a
+500 from an owner route (Starlette's error handler also bypasses `owner_boundary`; no owner route that can fail is ported yet).

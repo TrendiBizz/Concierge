@@ -12,6 +12,7 @@ fn router(admin: &str) -> axum::Router {
         admin_token: admin.into(),
         public_base_url: "http://localhost:8000".into(),
         voice_recording_enabled: false,
+        static_dir: "static".into(),
     }))
 }
 
@@ -231,4 +232,75 @@ async fn demo_without_a_slug_is_the_starlette_404() {
     assert_eq!(s, 404);
     let v: Value = serde_json::from_slice(&b).unwrap();
     assert_eq!(v, json!({"detail": "Not Found"}));
+}
+
+#[tokio::test]
+async fn methods_other_than_get_are_starlettes_json_405() {
+    // FastAPI registers `@app.get` for GET only: HEAD is a 405 too, with `Allow` naming the first route declared for the path.
+    for (method, path, allow) in [
+        ("HEAD", "/healthz", "GET"),
+        ("POST", "/widget.js", "GET"),
+        ("PUT", "/demo/x", "GET"),
+        ("HEAD", "/admin/tenants", "POST"),
+        ("DELETE", "/admin/tenants", "POST"),
+    ] {
+        let (s, h, b) = call(
+            router("x"),
+            Request::builder()
+                .method(method)
+                .uri(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(s, 405, "{method} {path}");
+        assert_eq!(h["allow"], allow, "{method} {path}");
+        assert_eq!(h["vary"], "Origin", "{method} {path}");
+        if method != "HEAD" {
+            let v: Value = serde_json::from_slice(&b).unwrap();
+            assert_eq!(v, json!({"detail": "Method Not Allowed"}));
+        } else {
+            assert!(b.is_empty(), "a HEAD response has no body");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_cors_preflight_is_answered_before_routing() {
+    let (s, h, b) = call(
+        router("x"),
+        Request::builder()
+            .method("OPTIONS")
+            .uri("/anything")
+            .header("origin", "https://shop.example")
+            .header("access-control-request-method", "DELETE")
+            .header(
+                "access-control-request-headers",
+                "X-Admin-Token, content-type",
+            )
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!((s.as_u16(), b.as_slice()), (200, b"OK".as_slice()));
+    assert_eq!(h["access-control-allow-origin"], "*");
+    assert!(
+        h.get("allow").is_none(),
+        "axum's own Allow must not leak into a preflight"
+    );
+    let (s, _, b) = call(
+        router("x"),
+        Request::builder()
+            .method("OPTIONS")
+            .uri("/anything")
+            .header("origin", "https://shop.example")
+            .header("access-control-request-method", "PUT")
+            .header("access-control-request-headers", "x-evil")
+            .header("access-control-request-private-network", "true")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(s, 400);
+    assert_eq!(b, b"Disallowed CORS method, headers, private-network");
 }

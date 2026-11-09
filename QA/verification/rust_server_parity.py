@@ -24,7 +24,7 @@ PORT = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
 # Parallel runs (several worktrees on one PostgreSQL) must not share a database or ports: the harness deletes every `parity-%` tenant.
 DB = f"postgresql://postgres:test@127.0.0.1:{PORT}/{os.environ.get('CONCIERGE_TEST_DB', 'postgres')}"
 PY, RS = int(os.environ.get("CONCIERGE_TEST_PY_PORT", "8098")), int(os.environ.get("CONCIERGE_TEST_RS_PORT", "8097"))
-ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false"}
+ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false", "STATIC_DIR": str(ROOT / "api/static")}
 n = 0
 KEEP = ("content-type", "cache-control", "x-content-type-options", "referrer-policy", "access-control-allow-origin")
 
@@ -47,6 +47,30 @@ def get(port, path, headers=None):
     except ValueError:
         parsed = body.decode()
     return status, parsed, {k: hdrs[k] for k in KEEP if hdrs.get(k) is not None}
+
+
+def http_raw(port, method, path, headers=None):
+    """Any method; returns status, the exact body bytes and EVERY header (lower-cased), minus the two that legitimately differ."""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method=method, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            status, body, hdrs = r.status, r.read(), r.headers
+    except urllib.error.HTTPError as e:
+        status, body, hdrs = e.code, e.read(), e.headers
+    return status, body, {k.lower(): v for k, v in hdrs.items() if k.lower() not in ("date", "server")}
+
+
+def same_raw(label, method, path, headers=None):
+    """Byte-exact comparison of status, body and all headers. Multipart boundaries are random per response: mask them."""
+    global n
+    mask = lambda r: (r[0], re.sub(rb"(?<=--)[0-9a-f]{26}", b"<boundary>", r[1]), {k: re.sub(r"(?<=boundary=)[0-9a-f]{26}", "<boundary>", v) for k, v in r[2].items()})
+    a, b = mask(http_raw(PY, method, path, headers)), mask(http_raw(RS, method, path, headers))
+    assert a[0] == b[0], f"{label}: status python={a[0]} rust={b[0]} body={a[1][:200]!r} / {b[1][:200]!r}"
+    assert a[1] == b[1], f"{label}: body differs\npython={a[1][:600]!r}\nrust  ={b[1][:600]!r}"
+    assert a[2] == b[2], f"{label}: headers differ\npython={sorted(a[2].items())}\nrust  ={sorted(b[2].items())}"
+    n += 1
+    print("PASS", label, a[0])
+    return a
 
 
 def wait(port):
@@ -277,6 +301,44 @@ def main():
         same("admin encoded slash", "/admin/tenants/parity%2Fopen", admin)
         same("admin encoded slash without token (404 beats 401)", "/admin/tenants/parity%2Fopen")
         same("report encoded dash still routes", "/report/rt_parity%2Dopen")
+
+        # ---------------------------------------------------------------- static pages (Starlette FileResponse)
+        for path in ("/widget.js", "/admin-ui", "/owner-ui", "/owner/social/oauth/callback"):
+            same_raw(f"static {path}", "GET", path)
+        same_raw("static widget.js with a foreign origin (public)", "GET", "/widget.js", {"Origin": "https://evil.example"})
+        for path in ("/owner-ui", "/owner/social/oauth/callback"):
+            same_raw(f"static {path} foreign origin refused", "GET", path, {"Origin": "https://evil.example"})
+            same_raw(f"static {path} own origin", "GET", path, {"Origin": "http://localhost:8000"})
+        js = http_raw(PY, "GET", "/widget.js")
+        etag, last_modified = js[2]["etag"], js[2]["last-modified"]
+        assert js[2]["accept-ranges"] == "bytes" and int(js[2]["content-length"]) == len(js[1]) > 1000
+        size = len(js[1])
+        for header in ("bytes=0-99", "bytes=0-", "bytes=-100", f"bytes={size - 1}-", f"bytes={size}-", f"bytes=0-{size - 1}", f"bytes=0-{size + 500}",
+                       "bytes=0-99,200-299", "bytes=0-99,50-149", "bytes=200-299,0-99", "bytes=0-0,2-2,4-4", "bytes=-1,-2",
+                       "bytes=abc", "bytes=", "bytes=5-2", "items=1-2", "bytes", "BYTES=1-2", "bytes=1_0-2_0", "bytes=+1-+3", "bytes=1-2,x",
+                       "bytes=" + ",".join(["0-0"] * 100), "bytes=" + ",".join(["0-0"] * 101)):
+            same_raw(f"range {header[:40]!r}", "GET", "/widget.js", {"Range": header})
+        for label, value in (("etag", etag), ("last-modified", last_modified), ("weak etag", "W/" + etag), ("stale date", "Mon, 01 Jan 2001 00:00:00 GMT"), ("junk", "zzz")):
+            same_raw(f"if-range {label}", "GET", "/widget.js", {"Range": "bytes=0-9", "If-Range": value})
+        same_raw("if-range without range is ignored", "GET", "/widget.js", {"If-Range": etag})
+        same_raw("range on an html page (multipart content type)", "GET", "/admin-ui", {"Range": "bytes=0-9,20-29"})
+        same_raw("range on the 403 owner page is still the boundary's 403", "GET", "/owner-ui", {"Range": "bytes=0-9", "Origin": "https://evil.example"})
+
+        # An unhandled error is answered by Starlette's outermost handler, outside CORS: no Vary, no Access-Control-Allow-Origin.
+        for origin in ("", "https://shop.example"):
+            r = same_raw(f"500 bypasses CORS (origin {origin!r})", "GET", "/demo/parity-nocal", {"Origin": origin} if origin else None)
+            assert r[0] == 500 and "vary" not in r[2] and "access-control-allow-origin" not in r[2], r[2]
+
+        # ---------------------------------------------------------------- methods: FastAPI registers GET only
+        for path in ("/healthz", "/widget.js", "/demo/parity-open", "/report/rt_parity-open", "/api/v1/calendar/ct_parity-open.ics", "/api/v1/widget-config?key=pk_parity_open", "/owner-ui"):
+            for method in ("HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"):
+                same_raw(f"{method} {path}", method, path)
+        same_raw("HEAD admin list with token", "HEAD", "/admin/tenants", {"X-Admin-Token": "parity-admin"})
+        same_raw("PUT admin list without token (405 beats 401, Allow names the first route)", "PUT", "/admin/tenants")
+        same_raw("HEAD unknown path", "HEAD", "/no/such/path")
+        same_raw("POST unknown path", "POST", "/no/such/path")
+        same_raw("CORS preflight", "OPTIONS", "/widget.js", {"Origin": "https://shop.example", "Access-Control-Request-Method": "GET"})
+        same_raw("CORS preflight with headers", "OPTIONS", "/api/v1/widget-config", {"Origin": "https://shop.example", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "content-type,x-admin-token"})
 
         print(f"{n} comparisons passed")
     finally:

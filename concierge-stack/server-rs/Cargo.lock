@@ -222,6 +222,7 @@ dependencies = [
  "chrono-tz",
  "fancy-regex",
  "hmac 0.12.1",
+ "md-5 0.10.6",
  "pbkdf2",
  "regex",
  "serde",
@@ -248,7 +249,6 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tower",
- "tower-http",
  "uuid",
 ]
 
@@ -824,6 +824,16 @@ checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
 name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest 0.10.7",
+]
+
+[[package]]
+name = "md-5"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
@@ -987,7 +997,7 @@ dependencies = [
  "bytes",
  "fallible-iterator",
  "hmac 0.13.0",
- "md-5",
+ "md-5 0.11.0",
  "memchr",
  "rand 0.10.3",
  "sha2 0.11.1",
@@ -1491,20 +1501,6 @@ dependencies = [
  "pin-project-lite",
  "sync_wrapper",
  "tokio",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "tower-http"
-version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
-dependencies = [
- "bitflags",
- "bytes",
- "http",
- "pin-project-lite",
  "tower-layer",
  "tower-service",
 ]

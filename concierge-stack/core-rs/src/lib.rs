@@ -48,6 +48,7 @@ pub mod settings;
 pub mod sla;
 pub mod sms;
 pub mod social;
+pub mod static_file;
 pub mod tasks;
 pub mod telephony;
 pub mod tenants;

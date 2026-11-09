@@ -6,9 +6,10 @@ use axum::extract::{Path, Query, Request, State as AxState};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, MethodRouter};
 use axum::{Json, Router};
 use concierge_core::edge::{self, Boundary};
+use concierge_core::static_file::{self, RangeError, Stat};
 use concierge_core::{channel_auth, demo, ical, pydantic, report, requests, tenants};
 use deadpool_postgres::{Manager, Pool};
 use serde_json::{json, Map, Value};
@@ -16,7 +17,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres::Row;
-use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Clone)]
 pub struct Config {
@@ -24,6 +24,8 @@ pub struct Config {
     pub admin_token: String,
     pub public_base_url: String,
     pub voice_recording_enabled: bool,
+    /// Directory holding `widget.js`, `admin.html`, `owner.html` and `social-oauth-callback.html` (Python's `STATIC_DIR`).
+    pub static_dir: String,
 }
 
 impl Config {
@@ -41,6 +43,7 @@ impl Config {
                 "false"
             )))
             .unwrap_or(false),
+            static_dir: get("STATIC_DIR", "static"),
         }
     }
 }
@@ -96,6 +99,244 @@ async fn not_found() -> Response {
 /// handler the decoded segment, so every single-segment route must ask this first.
 fn unroutable(segment: &str) -> Option<Response> {
     segment.contains('/').then(|| detail(404, "Not Found"))
+}
+
+/// Starlette's answer to a method a route does not serve. FastAPI registers `@app.get` for GET only (no automatic
+/// HEAD), so `HEAD`, `POST`, `PUT`... are all this JSON 405 with `Allow: GET`; axum would serve HEAD as GET and send
+/// an empty-bodied 405 for the rest.
+///
+/// `allow` is the method of the FIRST route registered for the path, because that is the one Starlette reports: `/admin/tenants`
+/// has `POST` (create) declared before `GET` (list), so its 405 says `Allow: POST`.
+fn method_not_allowed(allow: &'static str) -> Response {
+    let mut r = detail(405, "Method Not Allowed");
+    r.headers_mut()
+        .insert(header::ALLOW, HeaderValue::from_static(allow));
+    r
+}
+
+/// A route that answers GET with `handler` and every other method (HEAD included) with Starlette's 405.
+fn get_only<H, T>(handler: H) -> MethodRouter<State>
+where
+    H: axum::handler::Handler<T, State>,
+    T: 'static,
+{
+    get_allow(handler, "GET")
+}
+
+/// `get_only` with the `Allow` value Starlette would report (see `method_not_allowed`).
+fn get_allow<H, T>(handler: H, allow: &'static str) -> MethodRouter<State>
+where
+    H: axum::handler::Handler<T, State>,
+    T: 'static,
+{
+    get(handler)
+        .head(move || async move { method_not_allowed(allow) })
+        .fallback(move || async move { method_not_allowed(allow) })
+}
+
+fn latin1(value: &HeaderValue) -> String {
+    value.as_bytes().iter().map(|&b| b as char).collect()
+}
+
+fn built(status: u16, headers: &[(String, String)], body: Vec<u8>) -> Response {
+    let mut r = Response::new(axum::body::Body::from(body));
+    *r.status_mut() = StatusCode::from_u16(status).unwrap();
+    for (k, v) in headers {
+        if let (Ok(name), Ok(value)) = (
+            axum::http::HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(v),
+        ) {
+            r.headers_mut().insert(name, value);
+        }
+    }
+    r
+}
+
+/// Starlette's `PlainTextResponse` (used for the Range errors).
+fn plain_text(status: u16, extra: &[(String, String)], body: &str) -> Response {
+    let mut headers = vec![
+        (
+            "content-type".to_string(),
+            "text/plain; charset=utf-8".to_string(),
+        ),
+        ("content-length".to_string(), body.len().to_string()),
+    ];
+    headers.extend_from_slice(extra);
+    built(status, &headers, body.as_bytes().to_vec())
+}
+
+fn set_header(headers: &mut Vec<(String, String)>, name: &str, value: String) {
+    match headers.iter_mut().find(|(k, _)| k == name) {
+        Some(h) => h.1 = value,
+        None => headers.push((name.to_string(), value)),
+    }
+}
+
+/// Starlette's `FileResponse` for a GET: `ETag`, `Last-Modified`, `Content-Length`, `Accept-Ranges`, and `Range` /
+/// `If-Range` handling. The file is read per request, like Python. Anything Python would raise on (a missing file) is
+/// its plain 500.
+fn file_response(
+    state: &State,
+    file: &str,
+    content_type: &str,
+    extra: &[(&str, &str)],
+    request: &HeaderMap,
+) -> Response {
+    let path = std::path::Path::new(&state.0.config.static_dir).join(file);
+    let Ok(meta) = std::fs::metadata(&path) else {
+        return server_error();
+    };
+    let Ok(modified) = meta.modified() else {
+        return server_error();
+    };
+    let Ok(since_epoch) = modified.duration_since(std::time::UNIX_EPOCH) else {
+        return server_error();
+    };
+    if !meta.is_file() {
+        return server_error();
+    }
+    let stat = Stat {
+        size: meta.len(),
+        mtime_secs: since_epoch.as_secs() as i64,
+        mtime_nanos: since_epoch.subsec_nanos(),
+    };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return server_error();
+    };
+    if bytes.len() as u64 != stat.size {
+        return server_error();
+    }
+    let (etag, last_modified) = (stat.etag(), stat.last_modified());
+    let size = i128::from(stat.size);
+
+    let mut headers: Vec<(String, String)> = vec![("content-type".into(), content_type.into())];
+    headers.extend(extra.iter().map(|(k, v)| (k.to_string(), v.to_string())));
+    headers.push(("accept-ranges".into(), "bytes".into()));
+    headers.push(("content-length".into(), stat.size.to_string()));
+    headers.push(("last-modified".into(), last_modified.clone()));
+    headers.push(("etag".into(), etag.clone()));
+
+    let range = request.get("range").map(latin1);
+    let if_range = request.get("if-range").map(latin1);
+    let wanted = match &range {
+        None => None,
+        Some(_)
+            if if_range
+                .as_deref()
+                .is_some_and(|v| !static_file::should_use_range(v, &last_modified, &etag)) =>
+        {
+            None
+        }
+        Some(r) => Some(r.as_str()),
+    };
+    let ranges = match wanted.map(|r| static_file::parse_range_header(r, size)) {
+        None => Vec::new(),
+        Some(Ok(ranges)) => ranges,
+        Some(Err(RangeError::Malformed(message))) => return plain_text(400, &[], &message),
+        Some(Err(RangeError::NotSatisfiable(max))) => {
+            return plain_text(
+                416,
+                &[("content-range".to_string(), format!("bytes */{max}"))],
+                "",
+            )
+        }
+        Some(Err(RangeError::Unsupported)) => return server_error(),
+    };
+    match ranges.as_slice() {
+        [] => built(200, &headers, bytes),
+        [(start, end)] => {
+            set_header(
+                &mut headers,
+                "content-range",
+                format!("bytes {start}-{}/{size}", end - 1),
+            );
+            set_header(&mut headers, "content-length", (end - start).to_string());
+            built(
+                206,
+                &headers,
+                bytes[*start as usize..*end as usize].to_vec(),
+            )
+        }
+        many => {
+            use rand::RngCore;
+            let mut raw = [0u8; 13];
+            rand::thread_rng().fill_bytes(&mut raw);
+            let boundary: String = raw.iter().map(|b| format!("{b:02x}")).collect();
+            let mut body = Vec::new();
+            for &(start, end) in many {
+                body.extend_from_slice(
+                    static_file::multipart_part_header(&boundary, content_type, start, end, size)
+                        .as_bytes(),
+                );
+                body.extend_from_slice(&bytes[start as usize..end as usize]);
+                body.extend_from_slice(b"\r\n");
+            }
+            body.extend_from_slice(format!("--{boundary}--").as_bytes());
+            if body.len() as i128
+                != static_file::multipart_content_length(many, &boundary, size, content_type)
+            {
+                return server_error();
+            }
+            set_header(
+                &mut headers,
+                "content-type",
+                format!("multipart/byteranges; boundary={boundary}"),
+            );
+            set_header(&mut headers, "content-length", body.len().to_string());
+            built(206, &headers, body)
+        }
+    }
+}
+
+async fn widget_js(AxState(state): AxState<State>, headers: HeaderMap) -> Response {
+    file_response(
+        &state,
+        "widget.js",
+        "application/javascript",
+        &[("cache-control", "public, max-age=300")],
+        &headers,
+    )
+}
+
+async fn admin_ui(AxState(state): AxState<State>, headers: HeaderMap) -> Response {
+    file_response(
+        &state,
+        "admin.html",
+        "text/html; charset=utf-8",
+        &[("cache-control", "no-store")],
+        &headers,
+    )
+}
+
+async fn owner_ui(AxState(state): AxState<State>, headers: HeaderMap) -> Response {
+    file_response(
+        &state,
+        "owner.html",
+        "text/html; charset=utf-8",
+        &[
+            ("cache-control", "no-store"),
+            ("x-content-type-options", "nosniff"),
+            ("referrer-policy", "no-referrer"),
+        ],
+        &headers,
+    )
+}
+
+/// The OAuth landing page: public, holds no data and exchanges nothing.
+async fn social_oauth_callback(AxState(state): AxState<State>, headers: HeaderMap) -> Response {
+    file_response(
+        &state,
+        "social-oauth-callback.html",
+        "text/html; charset=utf-8",
+        &[
+            ("cache-control", "no-store, no-cache, must-revalidate"),
+            ("pragma", "no-cache"),
+            ("referrer-policy", "no-referrer"),
+            ("x-content-type-options", "nosniff"),
+            ("x-frame-options", "DENY"),
+        ],
+        &headers,
+    )
 }
 
 /// `datetime.isoformat()` for an aware UTC timestamp, as FastAPI serialises it.
@@ -700,6 +941,93 @@ fn appointment_from_row(row: &Row) -> ical::Appointment {
     }
 }
 
+/// Methods and headers `CORSMiddleware` is configured with in `main.py`.
+const CORS_METHODS: &str = "GET, POST, PATCH, DELETE, OPTIONS";
+const CORS_REQUEST_HEADERS: [&str; 7] = [
+    "accept",
+    "accept-language",
+    "authorization",
+    "content-language",
+    "content-type",
+    "x-admin-token",
+    "x-voice-session-token",
+];
+
+/// Starlette's `CORSMiddleware` with `allow_origins=["*"]`, no credentials: a preflight (OPTIONS with `Origin` and
+/// `Access-Control-Request-Method`) is answered here; every other response gets `Vary: Origin`, and
+/// `Access-Control-Allow-Origin: *` when the request had an `Origin`. An unhandled error (Python's 500) bypasses it.
+async fn cors(request: Request, next: Next) -> Response {
+    let origin = request.headers().contains_key("origin");
+    if origin
+        && request.method() == Method::OPTIONS
+        && request
+            .headers()
+            .contains_key("access-control-request-method")
+    {
+        return cors_preflight(request.headers());
+    }
+    let mut response = next.run(request).await;
+    if response.status() == StatusCode::INTERNAL_SERVER_ERROR {
+        return response;
+    }
+    if origin {
+        response
+            .headers_mut()
+            .insert("access-control-allow-origin", HeaderValue::from_static("*"));
+    }
+    let mut vary: Vec<String> = response
+        .headers()
+        .get_all(header::VARY)
+        .iter()
+        .map(|v| v.to_str().unwrap_or("").to_string())
+        .collect();
+    vary.push("Origin".to_string());
+    if let Ok(value) = HeaderValue::from_str(&vary.join(", ")) {
+        response.headers_mut().insert(header::VARY, value);
+    }
+    response
+}
+
+fn cors_preflight(request: &HeaderMap) -> Response {
+    let text = |name: &str| request.get(name).map(latin1);
+    let mut failures: Vec<&str> = Vec::new();
+    let method = text("access-control-request-method").unwrap_or_default();
+    if !CORS_METHODS.split(", ").any(|m| m == method) {
+        failures.push("method");
+    }
+    if let Some(requested) = text("access-control-request-headers") {
+        let ok = requested.split(',').all(|h| {
+            CORS_REQUEST_HEADERS.contains(
+                &h.to_lowercase()
+                    .trim_matches(|c: char| c.is_whitespace() || ('\x1c'..='\x1f').contains(&c)),
+            )
+        });
+        if !ok {
+            failures.push("headers");
+        }
+    }
+    if request.contains_key("access-control-request-private-network") {
+        failures.push("private-network");
+    }
+    let (status, body) = if failures.is_empty() {
+        (200, "OK".to_string())
+    } else {
+        (400, format!("Disallowed CORS {}", failures.join(", ")))
+    };
+    let mut headers = vec![
+        ("content-type".to_string(), "text/plain; charset=utf-8".to_string()),
+        ("content-length".to_string(), body.len().to_string()),
+        ("vary".to_string(), "Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Request-Private-Network".to_string()),
+        ("access-control-allow-origin".to_string(), "*".to_string()),
+        ("access-control-allow-methods".to_string(), CORS_METHODS.to_string()),
+        ("access-control-max-age".to_string(), "600".to_string()),
+        ("access-control-allow-headers".to_string(), "Accept, Accept-Language, Authorization, Content-Language, Content-Type, X-Admin-Token, X-Voice-Session-Token".to_string()),
+    ];
+    // `allow_all_headers` is false, so Python never mirrors the requested headers back.
+    headers.shrink_to_fit();
+    built(status, &headers, body.into_bytes())
+}
+
 /// `owner_boundary`: hardening headers and the foreign-origin refusal for the owner portal and device SMS.
 async fn boundary(AxState(state): AxState<State>, request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
@@ -743,36 +1071,31 @@ async fn boundary(AxState(state): AxState<State>, request: Request, next: Next) 
 }
 
 pub fn app(state: State) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PATCH,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_headers(
-            [
-                "content-type",
-                "x-admin-token",
-                "authorization",
-                "x-voice-session-token",
-            ]
-            .map(axum::http::HeaderName::from_static),
-        );
-    Router::new()
-        .route("/healthz", get(healthz))
-        .route("/api/v1/widget-config", get(widget_config))
-        .route("/admin/tenants", get(admin_list))
-        .route("/admin/tenants/:slug", get(admin_get))
-        .route("/report/:token", get(client_report))
-        .route("/api/v1/calendar/:token", get(calendar_feed))
-        .route("/demo/:slug", get(demo_page))
+    // The routes live in an inner router and the two middlewares wrap it as ONE service. `Router::layer` would instead wrap each
+    // method handler inside axum's `MethodRouter`, which then appends its own `Allow: GET,HEAD` to a CORS preflight.
+    let routes = Router::new()
+        .route("/healthz", get_only(healthz))
+        .route("/api/v1/widget-config", get_only(widget_config))
+        .route("/admin/tenants", get_allow(admin_list, "POST"))
+        .route("/admin/tenants/:slug", get_only(admin_get))
+        .route("/report/:token", get_only(client_report))
+        .route("/api/v1/calendar/:token", get_only(calendar_feed))
+        .route("/demo/:slug", get_only(demo_page))
+        .route("/widget.js", get_only(widget_js))
+        .route("/admin-ui", get_only(admin_ui))
+        .route("/owner-ui", get_only(owner_ui))
+        .route(
+            "/owner/social/oauth/callback",
+            get_only(social_oauth_callback),
+        )
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
         .fallback(not_found)
-        .layer(middleware::from_fn_with_state(state.clone(), boundary))
-        .layer(cors)
-        .with_state(state)
+        .with_state(state.clone());
+    // Python adds `owner_boundary` after CORS, so the boundary is the OUTER middleware: a refused cross-origin request
+    // to the owner portal never reaches CORS and carries none of its headers. axum applies the last `.layer` outermost.
+    Router::new()
+        .fallback_service(routes)
+        .layer(middleware::from_fn(cors))
+        .layer(middleware::from_fn_with_state(state, boundary))
 }
