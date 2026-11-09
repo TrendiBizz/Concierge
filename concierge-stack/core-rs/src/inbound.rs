@@ -1,8 +1,8 @@
 //! Email ingress rules (port of the pure parts of `cloudflare_inbound.py`, `inbound_email.py`, `enquiries.py` and
 //! `email_drafts._address/_subject`): webhook authentication, payload validation, idempotency keys and what is stored.
 use crate::contact::is_email;
-use crate::pyval::truncate_chars;
 use crate::py_strip;
+use crate::pyval::truncate_chars;
 use hmac::{Hmac, Mac};
 use regex::Regex;
 use serde_json::Value;
@@ -62,12 +62,26 @@ pub struct Payload {
 
 /// Everything `cloudflare_inbound.handle` does before it touches the database, in the same order and with the same
 /// status codes. A timestamp using non-ASCII decimal digits (Python accepts) is refused.
-pub fn verify_request(enabled: bool, secret: &str, timestamp: &str, supplied: &str, body: &[u8], now: i64) -> Result<Payload, Rejection> {
+pub fn verify_request(
+    enabled: bool,
+    secret: &str,
+    timestamp: &str,
+    supplied: &str,
+    body: &[u8],
+    now: i64,
+) -> Result<Payload, Rejection> {
     if !enabled || secret.chars().count() < 32 {
         return rej(503, "Inbound email is disabled");
     }
-    let sig_ok = supplied.len() == 64 && supplied.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-    if timestamp.is_empty() || !timestamp.bytes().all(|b| b.is_ascii_digit()) || timestamp.len() > 12 || !sig_ok {
+    let sig_ok = supplied.len() == 64
+        && supplied
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    if timestamp.is_empty()
+        || !timestamp.bytes().all(|b| b.is_ascii_digit())
+        || timestamp.len() > 12
+        || !sig_ok
+    {
         return rej(401, "Invalid signature");
     }
     let ts: i64 = timestamp.parse().expect("at most 12 digits");
@@ -81,7 +95,10 @@ pub fn verify_request(enabled: bool, secret: &str, timestamp: &str, supplied: &s
     if !bool::from(expected.as_bytes().ct_eq(supplied.as_bytes())) {
         return rej(401, "Invalid signature");
     }
-    parse_payload(body).ok_or(Rejection { status: 400, detail: "Invalid email payload" })
+    parse_payload(body).ok_or(Rejection {
+        status: 400,
+        detail: "Invalid email payload",
+    })
 }
 
 fn parse_payload(body: &[u8]) -> Option<Payload> {
@@ -94,11 +111,18 @@ fn parse_payload(body: &[u8]) -> Option<Payload> {
     }
     let s = |k: &str| obj[k].as_str().map(str::to_string);
     let recipient = normalize_recipient(obj["recipient"].as_str()?)?;
-    let (message_id, sender, subject, text) = (s("message_id")?, s("sender")?, s("subject")?, s("text")?);
+    let (message_id, sender, subject, text) =
+        (s("message_id")?, s("sender")?, s("subject")?, s("text")?);
     if sender.chars().count() > 320 || subject.chars().count() > 250 {
         return None;
     }
-    Some(Payload { message_id, recipient, sender, subject, text })
+    Some(Payload {
+        message_id,
+        recipient,
+        sender,
+        subject,
+        text,
+    })
 }
 
 /// `email_drafts._address`: one valid address, no line breaks.
@@ -124,11 +148,25 @@ pub struct Ingest {
 }
 
 /// `None` where Python raises `InboundError` (every such case is a 400).
-pub fn ingest_plan(provider: &str, message_id: &str, sender: &str, recipient: &str, subject: &str, text: &str) -> Option<Ingest> {
-    if !["brevo", "mailgun", "postmark", "ses", "cloudflare"].contains(&provider) || !message_id_re().is_match(message_id) {
+pub fn ingest_plan(
+    provider: &str,
+    message_id: &str,
+    sender: &str,
+    recipient: &str,
+    subject: &str,
+    text: &str,
+) -> Option<Ingest> {
+    if !["brevo", "mailgun", "postmark", "ses", "cloudflare"].contains(&provider)
+        || !message_id_re().is_match(message_id)
+    {
         return None;
     }
-    if recipient.is_empty() || recipient.chars().count() > 320 || py_strip(text).is_empty() || text.chars().count() > 20_000 || text.contains('\0') {
+    if recipient.is_empty()
+        || recipient.chars().count() > 320
+        || py_strip(text).is_empty()
+        || text.chars().count() > 20_000
+        || text.contains('\0')
+    {
         return None;
     }
     let draft_sender = draft_address(sender)?;
@@ -159,10 +197,20 @@ pub struct Enquiry {
 
 fn title(channel: &str) -> String {
     let mut c = channel.chars();
-    c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+    c.next()
+        .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+        .unwrap_or_default()
 }
 
-pub fn enquiry_plan(tenant_id: &str, tenant_name: &str, channel: &str, source: &str, message: &str, email: &str, phone: &str) -> Option<Enquiry> {
+pub fn enquiry_plan(
+    tenant_id: &str,
+    tenant_name: &str,
+    channel: &str,
+    source: &str,
+    message: &str,
+    email: &str,
+    phone: &str,
+) -> Option<Enquiry> {
     if !["email", "sms", "phone", "chat"].contains(&channel) || source.is_empty() {
         return None;
     }
@@ -174,7 +222,10 @@ pub fn enquiry_plan(tenant_id: &str, tenant_name: &str, channel: &str, source: &
         lead_message: truncate_chars(message, 1000),
         original_text: truncate_chars(message, 30_000),
         owner_subject: format!("{} enquiry for {tenant_name}", title(channel)),
-        owner_body: format!("Channel: {channel}\nEmail: {email}\nPhone: {phone}\n\n{}", truncate_chars(message, 30_000)),
+        owner_body: format!(
+            "Channel: {channel}\nEmail: {email}\nPhone: {phone}\n\n{}",
+            truncate_chars(message, 30_000)
+        ),
         owner_dedupe: format!("enquiry-original:{tenant_id}:{channel}:{original_key}"),
         original_key,
     })
