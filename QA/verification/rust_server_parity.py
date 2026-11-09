@@ -21,8 +21,9 @@ from urllib.parse import quote
 ROOT = Path(__file__).resolve().parents[2]
 BIN = ROOT / "concierge-stack/server-rs/target/release/concierge-server"
 PORT = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
-DB = f"postgresql://postgres:test@127.0.0.1:{PORT}/postgres"
-PY, RS = 8098, 8097
+# Parallel runs (several worktrees on one PostgreSQL) must not share a database or ports: the harness deletes every `parity-%` tenant.
+DB = f"postgresql://postgres:test@127.0.0.1:{PORT}/{os.environ.get('CONCIERGE_TEST_DB', 'postgres')}"
+PY, RS = int(os.environ.get("CONCIERGE_TEST_PY_PORT", "8098")), int(os.environ.get("CONCIERGE_TEST_RS_PORT", "8097"))
 ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false"}
 n = 0
 KEEP = ("content-type", "cache-control", "x-content-type-options", "referrer-policy", "access-control-allow-origin")
