@@ -180,6 +180,26 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
 
+  rust-hermes-gateway:
+    name: rust-hermes-gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: concierge-stack/hermes-gateway
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Verify Hermes gateway (capabilities, plan validation, policy, ledger)
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
   socialsync:
     name: socialsync-node
     runs-on: ubuntu-latest

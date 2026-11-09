@@ -99,3 +99,18 @@ are active; minimum TLS is 1.2. Search/AI crawler policies allow indexing, and B
 Preference Sync advertises those policies in robots.txt. Recheck webhook and
 owner access whenever changing bot policies: Free Bot Fight Mode cannot be
 selectively skipped by WAF rules.
+
+## Hermes (separate from the production stack)
+
+`compose.hermes.yml` and `hermes.sh` run Hermes Agent beside, but never inside, the stack above. One container, volume
+and loopback port per business; secrets come from `/opt/trendi/shared` and are never printed.
+
+```sh
+/opt/trendi/releases/20261108-vps/product/scripts/vps/hermes.sh start  --tenant pilot      # internal use
+/opt/trendi/releases/20261108-vps/product/scripts/vps/hermes.sh status --tenant pilot
+/opt/trendi/releases/20261108-vps/product/scripts/vps/hermes.sh ask    --tenant pilot "Say hello in five words"
+```
+
+`--mode customer` refuses to start until an operator-verified `/opt/trendi/shared/hermes/<tenant>.toolsets.yaml` restricts
+Hermes's tools (no terminal, files, browser, cron or delegation). Untested on this host: memory headroom, `cap_drop: ALL`
+with the image entrypoint, and an egress allowlist. Customer actions go through `concierge-stack/hermes-gateway`, never directly.

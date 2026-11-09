@@ -1,0 +1,20 @@
+[package]
+name = "hermes-gateway"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Operation gateway between Hermes (untrusted planner) and Concierge (record, policy and executor): capability tokens, typed plans, policy validation, action ledger."
+
+[dependencies]
+concierge-core = { path = "../core-rs" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono-tz = "0.10"
+
+[profile.dev.package."*"]
+opt-level = 3
