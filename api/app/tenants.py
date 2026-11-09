@@ -27,6 +27,7 @@ UPDATABLE_FIELDS = {
     "max_days_ahead": int,
     "native_booking": bool,
     "notify_email": str,
+    "notify_phone": str,
     "sms_enabled": bool,
     "sms_from": str,
     "lead_sms_template": str,

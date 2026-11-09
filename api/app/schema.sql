@@ -465,3 +465,5 @@ CREATE TABLE IF NOT EXISTS mobile_forwarding_connections (
 ALTER TABLE voice_recordings DROP CONSTRAINT IF EXISTS voice_recordings_mime_type_check;
 ALTER TABLE voice_recordings ADD CONSTRAINT voice_recordings_mime_type_check
  CHECK(mime_type IN ('audio/webm','audio/ogg','audio/mp4','audio/wav'));
+
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS notify_phone text;

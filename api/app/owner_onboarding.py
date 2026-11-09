@@ -19,6 +19,7 @@ class OwnerBusinessProfile(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     site_url: str | None = Field(default=None, max_length=2048)
     greeting: str | None = Field(default=None, max_length=500)
+    notify_phone: str | None = Field(default=None, max_length=16)
     notify_email: str | None = Field(default=None, max_length=254)
     timezone: str | None = Field(default=None, max_length=100)
 
@@ -76,6 +77,17 @@ class OwnerBusinessProfile(BaseModel):
             raise ValueError("Valid notification email required")
         return address
 
+    @field_validator("notify_phone")
+    @classmethod
+    def phone_safe(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return value
+        import re
+        value = value.strip()
+        if not re.fullmatch(r"\+[1-9][0-9]{7,14}", value):
+            raise ValueError("Enter the owner phone in international format, for example +64211234567")
+        return value
+
     @field_validator("timezone")
     @classmethod
     def timezone_safe(cls, value: str | None) -> str | None:
@@ -122,6 +134,7 @@ async def overview(tenant_id) -> dict:
             "name": tenant["name"],
             "site_url": tenant.get("site_url") or "",
             "greeting": tenant.get("greeting") or "",
+            "notify_phone": tenant.get("notify_phone") or "",
             "notify_email": tenant.get("notify_email") or "",
             "timezone": tenant.get("timezone") or "Pacific/Auckland",
         },
@@ -155,6 +168,7 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
         "name": saved["name"],
         "site_url": saved.get("site_url") or "",
         "greeting": saved.get("greeting") or "",
+        "notify_phone": saved.get("notify_phone") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",
     }

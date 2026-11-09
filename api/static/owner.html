@@ -60,6 +60,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <div class="row"><div><label for="onboarding-name">Business name</label><input id="onboarding-name" required maxlength="160" autocomplete="organization"></div><div><label for="onboarding-website">Business website</label><input id="onboarding-website" type="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></div></div><p class="muted">Saving your website does not automatically import pages or activate a widget. Add your business information below while Trendi verifies your website setup.</p><label for="onboarding-greeting">Business greeting</label>
 <textarea id="onboarding-greeting" maxlength="500"></textarea>
 <div class="row">
+<div><label for="onboarding-phone">Owner notification phone</label><input id="onboarding-phone" type="tel" maxlength="16" placeholder="+64211234567"><small>Notification destination. SMS requires a connected, authorized transport.</small></div>
 <div><label for="onboarding-email">Notification email</label>
 <input id="onboarding-email" type="email" maxlength="254" autocomplete="email"></div>
 <div><label for="onboarding-timezone">Timezone (IANA name)</label>
@@ -186,7 +187,7 @@ function resetWorkspace(){
  socialUpload=null;
  for(const id of ["social-destinations","social-previews","social-posts","social-accounts","social-account","drafts","numbers","calls",
    "mobile-connection","phone-setup-status","onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
- for(const id of ["phone-designated","phone-owner","onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone",
+ for(const id of ["phone-designated","phone-owner","onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-phone","onboarding-timezone",
    "composer-body","composer-url","social-hashtags","social-media","social-video","social-upload","invite-email","knowledge-title","knowledge-text","knowledge-file",
    "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
  $("social-account").value="";$("invite-role").value="viewer";$("phone-connection").value="mobile_forwarding";$("phone-answer").value="unanswered";
@@ -530,9 +531,10 @@ async function refreshOnboarding(){
   $("onboarding-website").value=data.business.site_url||"";
   setupProgress.business=!!(data.business.name&&data.business.site_url);renderSetupProgress();
   $("onboarding-greeting").value=data.business.greeting||"";
+  $("onboarding-phone").value=data.business.notify_phone||"";
   $("onboarding-email").value=data.business.notify_email||"";
   $("onboarding-timezone").value=data.business.timezone||"Pacific/Auckland";
-  for(const field of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone"]){
+  for(const field of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-phone","onboarding-timezone"]){
     $(field).disabled=currentRole!=="owner";
   }
   $("onboarding-form").querySelector('button[type="submit"]').disabled=currentRole!=="owner";
@@ -544,6 +546,7 @@ $("onboarding-form").addEventListener("submit",async event=>{
     await request("/owner/onboarding/profile","PATCH",{
       name:$("onboarding-name").value.trim(),site_url:$("onboarding-website").value.trim(),
       greeting:$("onboarding-greeting").value,
+      notify_phone:$("onboarding-phone").value.trim(),
       notify_email:$("onboarding-email").value.trim(),
       timezone:$("onboarding-timezone").value.trim()
     });

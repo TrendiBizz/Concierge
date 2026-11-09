@@ -48,6 +48,15 @@ async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> No
             subject=subject, dedupe_key=dedupe,
         )
 
+    if tenant.get("notify_phone") and tenant.get("sms_enabled"):
+        from . import channel_authorization
+        phone = normalize_phone(tenant["notify_phone"])
+        if phone and await channel_authorization.is_authorized(tenant["id"], "sms_send"):
+            await outbox.enqueue(
+                tenant["id"], "owner_alert", "sms", phone, subject + "\n" + body,
+                dedupe_key=dedupe + ":sms",
+            )
+
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
     try:
