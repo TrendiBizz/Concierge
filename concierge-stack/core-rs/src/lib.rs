@@ -41,6 +41,7 @@ pub mod scoring;
 pub mod settings;
 pub mod sla;
 pub mod sms;
+pub mod social;
 pub mod tasks;
 pub mod telephony;
 pub mod tenants;
@@ -61,6 +62,7 @@ pub(crate) fn py_strip(s: &str) -> &str {
 
 pub mod device_sms;
 pub mod pbx;
+pub mod phone_relay;
 
 /// Python `str.splitlines()`: splits on `\n`, `\r\n`, `\r`, `\v`, `\f`, FS/GS/RS, NEL, LS and PS; no empty tail.
 pub(crate) fn py_splitlines(s: &str) -> Vec<&str> {

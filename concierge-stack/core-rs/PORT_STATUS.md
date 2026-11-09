@@ -146,3 +146,18 @@ text, admin snippet URLs, campaign view and private-audio headers. About 5,000 g
 location, or the exact dumped model). Declined (`Unsupported`, counted and bounded): datetime text outside plain ISO forms, numeric timestamps, integers beyond 64
 bits. The parity run caught two fields I had mis-read when copying the models (`voice_session_token`, `session_id`), which is the reason vectors come from the live classes.
 The route handlers themselves (database access, background tasks, auth dependencies) are not ported.
+
+## Batches 18 and 19 (9 November 2026): social bridge and the telephone relay
+
+**Batch 18, `social.rs` (social_bridge.py).** Configuration rules (private loopback/Docker address only, key length, port checks in CPython's short-circuit order,
+including the `ValueError` a bad port raises), the per-request timeout, translation of every upstream status to a fixed message (the audited Meta and LinkedIn
+message lists are read from the Python source into `social_safe_errors.json`, not retyped), tenant provisioning with the creation-race rule, and all 30 bridge
+operations with their exact validation order (some validate before provisioning, some after) and request paths. Vectors: 160 configurations, about 1,400 upstream
+responses against a fake `httpx`, 900 operation runs against a recording fake whose request sequence must match. Sixteen mutations caught.
+
+**Batch 19, `phone_relay.rs` (phone_relay.py).** Inbound registration (daily limit, other-business conflict, recording offer only with authorization), call setup
+verification, the consented recording start (provider receipt must be a valid recording id; a failure marks the call's recording failed; a non-object receipt raises
+exactly as Python does), the signed recording callback, call finish, and the bounded relay session (setup first, recording consent before the first question, 20-turn
+limit, time limit, fixed fallback texts, finish in all exits). Vectors: 400 registrations, 300 setups, 300 recording starts, 140 callbacks, 260 relay sessions, each
+compared by result and ordered effects. Seventeen mutations caught. Not modelled: SQL semantics of the `WHERE` clauses (fakes cannot check them), real Twilio, and
+asyncio task cancellation timing of an in-flight answer when a new prompt or an interrupt arrives (answers run to completion here).
