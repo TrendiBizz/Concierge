@@ -161,3 +161,18 @@ exactly as Python does), the signed recording callback, call finish, and the bou
 limit, time limit, fixed fallback texts, finish in all exits). Vectors: 400 registrations, 300 setups, 300 recording starts, 140 callbacks, 260 relay sessions, each
 compared by result and ordered effects. Seventeen mutations caught. Not modelled: SQL semantics of the `WHERE` clauses (fakes cannot check them), real Twilio, and
 asyncio task cancellation timing of an in-flight answer when a new prompt or an interrupt arrives (answers run to completion here).
+
+## Batches 20 and 21 (9 November 2026): the outbox worker and booking
+
+**Batch 20, `outbox.rs`.** `process_once` and `_deliver`: stale-claim recovery, the delivery decision chain (deleted tenant, secretary revocation, channel
+authorization rechecked at send time, opt-outs, campaign kill switch, SMS sender readiness, quiet hours put back without counting an attempt, device-SMS
+awaiting-receipt and reconciliation holds, email List-Unsubscribe headers for campaigns, unknown channels), and the retry/failure policy (three attempts, 2x minutes
+back-off, error text capped at 500 characters). 700 scenarios run the real worker with a fixed clock and recording senders; results and ordered effects must match.
+Sixteen mutations caught. Owner alerts keep their separate rules (they skip opt-outs, not the SMS authorization).
+
+**Batch 21, `booking.rs`.** `availability` (window check, slots from business hours, notice, existing bookings and the connected calendar's busy periods, next three
+open days) and `book` (name/phone/email checks, offset and DST-gap refusal, duplicate-booking detection, the enforced read-back with a stored pending key, dry run,
+per-tenant lock, re-check inside the transaction, lead/appointment creation, calendar sync and invitation notice, final wording). 400 availability and 900 booking runs
+against the real module with a fixed clock; results, final context and the ordered database/calendar effects match. Date input follows Python 3.13 (`YYYY-MM-DD`,
+`YYYYMMDD`, ISO week dates); non-ASCII digit dates and fully alternative ISO datetime forms return `Unsupported`. Mutation checks found a vector bug (context recorded
+after the run), which is fixed, and 19 mutations are caught.

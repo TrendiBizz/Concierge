@@ -3,6 +3,7 @@
 
 pub mod acknowledgements;
 pub mod automation;
+pub mod booking;
 pub mod booking_text;
 pub mod calendar;
 pub mod campaigns;
@@ -21,6 +22,7 @@ pub mod inbound;
 pub mod ingest;
 pub mod knowledge;
 pub mod maintenance;
+pub mod outbox;
 pub mod owner_auth;
 pub mod owner_notifications;
 pub mod owner_profile;
