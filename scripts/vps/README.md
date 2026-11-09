@@ -114,3 +114,20 @@ and loopback port per business; secrets come from `/opt/trendi/shared` and are n
 `--mode customer` refuses to start until an operator-verified `/opt/trendi/shared/hermes/<tenant>.toolsets.yaml` restricts
 Hermes's tools (no terminal, files, browser, cron or delegation). Untested on this host: memory headroom, `cap_drop: ALL`
 with the image entrypoint, and an egress allowlist. Customer actions go through `concierge-stack/hermes-gateway`, never directly.
+
+## Grok SIP telephone activation
+
+Website/portal voice uses browser audio and needs no telephone number or SIP
+connection. Optional carrier calls have separate activation requirements; see
+[PHONE_SETUP.md](PHONE_SETUP.md). Rebuilding the API never provisions a number.
+
+Record the source revision when building the production API:
+
+```sh
+docker compose --env-file /opt/trendi/shared/compose.env -f scripts/vps/compose.yml \
+  build --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" api
+```
+
+The resulting image records `org.opencontainers.image.revision`. Archive the
+source, private runtime env and database before deploying migrations. Recreate
+both API and social together because social shares API's network namespace.
