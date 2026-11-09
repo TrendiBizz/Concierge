@@ -116,8 +116,13 @@ def test_different_customers_never_share_a_case():
 # ---------------------------------------------------------------- SLA coverage
 
 
-def test_overdue_reports_every_open_lead_not_only_high_scoring(monkeypatch):
-    """A low-scoring email enquiry must still be chased, or it is silently abandoned."""
+def test_overdue_chases_every_enquiry_when_the_threshold_is_zero(monkeypatch):
+    """sla_min_score = 0 means every enquiry, whatever it scored.
+
+    Scoring weighs phone/email/name/message, so a genuine one-line email from a new customer can
+    score low. With the threshold set, such a lead was never chased at all; setting 0 opts into
+    chasing everything. This is a deliberate per-tenant choice, not a silent default change.
+    """
     captured = {}
 
     async def fake_fetch(sql, *args):
@@ -126,12 +131,32 @@ def test_overdue_reports_every_open_lead_not_only_high_scoring(monkeypatch):
         return []
 
     monkeypatch.setattr(sla.db, "pool", lambda: SimpleNamespace(fetch=fake_fetch))
-    asyncio.run(sla.overdue(TENANT))
+    asyncio.run(sla.overdue({**TENANT, "sla_min_score": 0}))
 
     sql = captured["sql"]
-    # The old query hard-required score >= sla_min_score, which hid whole channels.
-    assert "score >= $2" not in sql, "overdue() still filters out low-scoring enquiries"
+    assert "score >= $4" not in sql, "threshold 0 must drop the score filter entirely"
     assert "status = 'new'" in sql
+    # The score argument is not passed at all in this mode, so the statement has exactly three.
+    assert len(captured["args"]) == 3, captured["args"]
+
+
+def test_overdue_keeps_the_threshold_when_one_is_set(monkeypatch):
+    """The default behaviour is unchanged: a threshold still filters by score.
+
+    This is the contract the existing phase3 integration suite asserts, so it must not drift.
+    """
+    captured = {}
+
+    async def fake_fetch(sql, *args):
+        captured["sql"] = sql
+        captured["args"] = args
+        return []
+
+    monkeypatch.setattr(sla.db, "pool", lambda: SimpleNamespace(fetch=fake_fetch))
+    asyncio.run(sla.overdue({**TENANT, "sla_min_score": 70}))
+
+    assert "score >= $4" in captured["sql"], "a configured threshold must still exclude low scores"
+    assert captured["args"][3] == 70
 
 
 def test_overdue_ignores_opted_out_contacts(monkeypatch):
@@ -419,11 +444,11 @@ def test_takeover_survives_a_merge(real_db):
         "select automation_paused from customer_cases where tenant_id=$1", tid)) is True
 
 
-def test_sla_chases_low_scoring_email_and_excludes_opt_outs(real_db):
-    """The coverage fix: a low-scoring email is chased, an opted-out contact is not."""
+def test_sla_threshold_zero_chases_low_scoring_email_and_excludes_opt_outs(real_db):
+    """With sla_min_score = 0 every enquiry is chased, and an opted-out contact still is not."""
     tid = _run(real_db.fetchval(
         "insert into tenants(slug,name,public_key,timezone,sla_minutes,sla_min_score,notify_email) "
-        "values('nz','NZ','pk1','Pacific/Auckland',60,70,'o@e.com') returning id"))
+        "values('nz','NZ','pk1','Pacific/Auckland',60,0,'o@e.com') returning id"))
     tenant = dict(_run(real_db.fetchrow("select * from tenants where id=$1", tid)))
     _run(real_db.execute(
         "insert into leads(tenant_id,email,message,channel,score,score_label,status,created_at) "
@@ -434,5 +459,26 @@ def test_sla_chases_low_scoring_email_and_excludes_opt_outs(real_db):
     _run(real_db.execute("insert into opt_outs(tenant_id,contact) values($1,'stop@example.com')", tid))
 
     rows = _run(sla.overdue(tenant))
-    assert any(r["score"] == 10 for r in rows), "low-scoring email enquiry was not chased"
+    assert any(r["score"] == 10 for r in rows), "threshold 0 must chase a low-scoring enquiry"
     assert not any(r["email"] == "stop@example.com" for r in rows), "opted-out contact was chased"
+
+
+def test_sla_threshold_keeps_filtering_low_scores(real_db):
+    """The original contract holds: a configured threshold excludes low-scoring leads.
+
+    This mirrors what QA/verification/phase3_integration.py asserts, so the default does not drift.
+    """
+    tid = _run(real_db.fetchval(
+        "insert into tenants(slug,name,public_key,timezone,sla_minutes,sla_min_score,notify_email) "
+        "values('nz','NZ','pk1','Pacific/Auckland',60,70,'o@e.com') returning id"))
+    tenant = dict(_run(real_db.fetchrow("select * from tenants where id=$1", tid)))
+    _run(real_db.execute(
+        "insert into leads(tenant_id,email,message,channel,score,score_label,status,created_at) "
+        "values($1,'low@example.com','Quote','email',10,'cold','new',now()-interval '3 hours')", tid))
+    _run(real_db.execute(
+        "insert into leads(tenant_id,email,message,channel,score,score_label,status,created_at) "
+        "values($1,'high@example.com','Quote','email',90,'hot','new',now()-interval '3 hours')", tid))
+
+    rows = _run(sla.overdue(tenant))
+    assert not any(r["score"] == 10 for r in rows), "threshold 70 must exclude a score of 10"
+    assert any(r["score"] == 90 for r in rows), "a high-scoring lead must still be listed"
