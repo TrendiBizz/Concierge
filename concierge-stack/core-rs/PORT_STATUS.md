@@ -186,3 +186,15 @@ request model, the booking notice (sent once) and the worker loop. Files use a r
 Python side; 160 token scenarios, 200 finish scenarios, 80 start scenarios (all three roles), 60 notices and 40 worker runs must match results, saved tokens and
 effects. Seventeen mutations caught; the only survivor (`scopes.sort()`) is equivalent because the Rust constant is already sorted. The sync state machine, free/busy
 parsing and event ids were ported in batch 6.
+
+## Batch 23 (9 November 2026): request-edge rules
+
+`edge.rs` ports the owner-portal and device-SMS same-origin boundary (`owner_boundary`: foreign `Origin` refused with 403, accepted requests get
+`no-store`, `nosniff` and `no-referrer`, other paths untouched) and the operator admin-token gate (503 when unset, constant-time comparison, 401 otherwise).
+About 860 request shapes run through the real middleware with a fake request. Seven mutations caught.
+
+### What the route layer still needs
+The route handlers in `main.py` (about 150 endpoints) are thin: they parse a request model (ported in batch 17), call a module (most now ported with `Env`
+traits), and shape the response. What remains is the glue that cannot be proven without the real services: an HTTP server, a PostgreSQL driver implementing each
+`Env` trait with the same SQL, the async worker scheduling, and the SQL itself. That has to be verified against the throwaway Postgres 16 + pgvector the CI jobs
+start, and against the real providers for the six acceptance tests; it is not attempted without that evidence.
