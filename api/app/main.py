@@ -23,7 +23,7 @@ from . import (
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
-from . import casetimeline
+from . import casetimeline, hermes_orchestrator
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -1600,6 +1600,88 @@ async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(
     if not exists:
         raise HTTPException(404, "Enquiry not found")
     return await admin_update_lead(lead_id, body)
+
+
+class CaseTakeoverRequest(BaseModel):
+    paused: bool
+
+
+@app.get("/owner/crm/leads/{lead_id}/case")
+async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_user)):
+    """The customer's unified case: every channel, one history, plus the response deadline.
+
+    Scoped to the caller's tenant by joining through `leads`, so a lead id from another business
+    resolves to nothing rather than to their data.
+    """
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    lead = await db.pool().fetchrow(
+        "SELECT id, case_id, name, phone, email, message, status, created_at, channel "
+        "FROM leads WHERE tenant_id=$1 AND id=$2::uuid",
+        user["tenant_id"], lead_id)
+    if not lead:
+        raise HTTPException(404, "Enquiry not found")
+
+    events = []
+    case = None
+    if lead["case_id"]:
+        case = await db.pool().fetchrow(
+            "SELECT case_key, primary_phone, primary_email, automation_paused, takeover_at "
+            "FROM customer_cases WHERE tenant_id=$1 AND id=$2",
+            user["tenant_id"], lead["case_id"])
+        if case:
+            events = await casetimeline.timeline(
+                user["tenant_id"], case["case_key"], limit=200)
+
+    return {
+        "lead_id": str(lead["id"]),
+        "case_key": case["case_key"] if case else None,
+        "automation_paused": bool(case["automation_paused"]) if case else False,
+        "takeover_at": case["takeover_at"].isoformat() if case and case["takeover_at"] else None,
+        "channels_seen": sorted({e["channel"] for e in events}),
+        "event_count": len(events),
+        "events": [
+            {
+                "channel": e["channel"],
+                "direction": e["direction"],
+                "body": e["body"],
+                "occurred_at": e["occurred_at"].isoformat() if e["occurred_at"] else None,
+                "answered_at": e["answered_at"].isoformat() if e["answered_at"] else None,
+            }
+            for e in events
+        ],
+        "deadline": hermes_orchestrator.deadline_state(
+            tenant or {}, {"created_at": lead["created_at"]}),
+    }
+
+
+@app.post("/owner/crm/leads/{lead_id}/takeover")
+async def owner_lead_takeover(
+    lead_id: str, body: CaseTakeoverRequest, user: dict = Depends(owner_auth.current_user)
+):
+    """Take over, or hand back, one customer.
+
+    Pausing stops the assistant replying to that person on every channel, which is what an owner
+    needs the moment they start answering themselves. It is deliberately available to any signed-in
+    member of the business: the person handling the customer is exactly who needs to press it.
+    """
+    lead = await db.pool().fetchrow(
+        "SELECT case_id FROM leads WHERE tenant_id=$1 AND id=$2::uuid", user["tenant_id"], lead_id)
+    if not lead:
+        raise HTTPException(404, "Enquiry not found")
+    if not lead["case_id"]:
+        raise HTTPException(409, "This enquiry has no conversation history to take over yet")
+
+    case = await db.pool().fetchrow(
+        "SELECT case_key FROM customer_cases WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], lead["case_id"])
+    if not case:
+        raise HTTPException(404, "Customer case not found")
+
+    changed = await casetimeline.set_takeover(
+        user["tenant_id"], case_key=case["case_key"], paused=body.paused,
+        by=str(user.get("email") or user.get("id") or "owner"),
+    )
+    return {"lead_id": lead_id, "automation_paused": bool(body.paused), "updated": changed}
 
 
 @app.post("/owner/auth/logout")
