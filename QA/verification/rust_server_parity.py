@@ -25,8 +25,15 @@ PORT = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
 # Parallel runs (several worktrees on one PostgreSQL) must not share a database or ports: the harness deletes every `parity-%` tenant.
 DB = f"postgresql://postgres:test@127.0.0.1:{PORT}/{os.environ.get('CONCIERGE_TEST_DB', 'postgres')}"
 PY, RS = int(os.environ.get("CONCIERGE_TEST_PY_PORT", "8098")), int(os.environ.get("CONCIERGE_TEST_RS_PORT", "8097"))
-ALT_PY, ALT_RS = PY + 2, RS + 2  # a second pair of servers with different settings (see `start_alt_pair`)
-ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false", "UNSUBSCRIBE_SECRET": "parity-unsub-secret"}
+ALT_PY, ALT_RS = PY + 2, RS + 2  # a second and third pair of servers with different settings (see `start_alt_pair`)
+SIP_PY, SIP_RS = PY + 4, RS + 4
+ENV = {"DATABASE_URL": DB, "ADMIN_TOKEN": "parity-admin", "PUBLIC_BASE_URL": "http://localhost:8000", "VOICE_RECORDING_ENABLED": "true", "OUTBOX_ENABLED": "false", "UNSUBSCRIBE_SECRET": "parity-unsub-secret",
+       # settings read by the owner-portal overview, readiness report and email-draft gate (main pair: draft workflow on, telephone NOT ready
+       # because PUBLIC_BASE_URL is not https; the alternate pairs below flip those)
+       "EMAIL_DRAFTS_ENABLED": "true", "LLM_API_KEY": "parity-llm", "WEBSITE_VERIFIED_TENANTS": "parity-open , parity-closed", "PHONE_VERIFIED_TENANTS": "parity-open",
+       "PHONE_RECEPTIONIST_ENABLED": "true", "PHONE_VOICE_PROVIDER": "legacy_twilio_tts", "TWILIO_ACCOUNT_SID": "ACparity", "TWILIO_AUTH_TOKEN": "parity-token",
+       "TWILIO_FROM_NUMBER": "+15550001111", "SMS_PROVIDER": "twilio", "SMTP_HOST": "smtp.parity.invalid", "SMTP_FROM": "from@parity.invalid",
+       "PHONE_RECORDING_ENABLED": "true", "INBOUND_CLOUDFLARE_ENABLED": "true"}
 n = 0
 KEEP = ("content-type", "cache-control", "x-content-type-options", "referrer-policy", "access-control-allow-origin")
 
@@ -76,7 +83,9 @@ def same_raw(label, path, headers=None, ports=None):
     for k in RAW_KEYS:
         # Rust's CorsLayer answers `access-control-allow-origin: *` even without an Origin header, Python's middleware only with one
         # (a pre-existing difference of the shared CORS layer, recorded in PORT_STATUS): compare it only when the request sent an Origin.
-        if k == "access-control-allow-origin" and not (headers or {}).get("Origin"):
+        # The owner boundary's 403 is answered before Python's CORS middleware (no header), while Rust's CorsLayer wraps it (`*`): a
+        # second pre-existing difference, skipped for refusals.
+        if k == "access-control-allow-origin" and (not (headers or {}).get("Origin") or a[0] == 403):
             continue
         assert a[2].get(k) == b[2].get(k), f"{label}: header {k} python={a[2].get(k)} rust={b[2].get(k)}"
     n += 1
@@ -109,17 +118,16 @@ def same(label, path, headers=None, normalise=None):
     return a
 
 
-def start_alt_pair(procs, env_over, drop=()):
+def start_alt_pair(procs, env_over, py_port=None, rs_port=None):
     """A second Python + Rust pair on the same database whose settings differ from the main pair's, for rules that depend on
     configuration (a disabled feature, an unset secret)."""
+    py_port, rs_port = py_port or ALT_PY, rs_port or ALT_RS
     env = {**os.environ, **ENV, **env_over}
-    for k in drop:
-        env.pop(k, None)
-    procs.append(subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(ALT_PY)], cwd=ROOT / "api", env=env,
+    procs.append(subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(py_port)], cwd=ROOT / "api", env=env,
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-    wait(ALT_PY)
-    procs.append(subprocess.Popen([str(BIN)], env={**env, "BIND": f"127.0.0.1:{ALT_RS}"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-    wait(ALT_RS)
+    wait(py_port)
+    procs.append(subprocess.Popen([str(BIN)], env={**env, "BIND": f"127.0.0.1:{rs_port}"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    wait(rs_port)
 
 
 def main():
@@ -357,7 +365,8 @@ def main():
         same_raw("unsubscribe token signed with the fallback secret is refused", f"/api/v1/unsubscribe/{admin_signed}")
         assert get_raw(PY, f"/api/v1/unsubscribe/{admin_signed}")[0] == 404 and get_raw(PY, f"/api/v1/unsubscribe/{good_unsub}")[0] == 200
         # The alternate pair has no UNSUBSCRIBE_SECRET: the signing secret falls back to ADMIN_TOKEN ("parity-admin").
-        start_alt_pair(procs, {"UNSUBSCRIBE_SECRET": ""})
+        start_alt_pair(procs, {"UNSUBSCRIBE_SECRET": "", "EMAIL_DRAFTS_ENABLED": "false", "PUBLIC_BASE_URL": "https://parity.example", "SMS_PROVIDER": "smsgate",
+                               "SMSGATE_BASE_URL": "https://sms.invalid", "SMSGATE_USERNAME": "u", "SMSGATE_PASSWORD": "p", "PHONE_VOICE_PROVIDER": "legacy_twilio_tts"})
         alt = (ALT_PY, ALT_RS)
         same_raw("unsubscribe (fallback secret) token signed with ADMIN_TOKEN", f"/api/v1/unsubscribe/{admin_signed}", ports=alt)
         same_raw("unsubscribe (fallback secret) token signed with UNSUBSCRIBE_SECRET is refused", f"/api/v1/unsubscribe/{good_unsub}", ports=alt)
@@ -418,6 +427,256 @@ def main():
         same_raw("social-media empty token", "/api/v1/social-media/")
         same_raw("social-media encoded slash", "/api/v1/social-media/a%2Fb")
         same_raw("social-media nested", "/api/v1/social-media/a/b")
+
+
+        # ---------------------------------------------------------------- batch 40, family 2: owner-portal reads
+        # Every route authenticates with `Authorization: Bearer <token>` (owner_auth.current_user: SHA-256 of the token looked
+        # up in tenant_sessions, unexpired, user active). The first token comes from the REAL Python POST /owner/auth/login
+        # (a real pbkdf2 hash), the others are inserted exactly as login inserts them. Isolation is tested with a second
+        # tenant that has rows of every kind.
+        import http.client
+        global n
+        from app import owner_auth as py_owner
+
+        def owner_user(slug, email, role, active=True, password_hash="x"):
+            psql(f"INSERT INTO tenant_users(tenant_id,email,role,password_hash,active) SELECT id,'{email}','{role}','{password_hash}',{str(active).lower()} FROM tenants WHERE slug='{slug}'")
+
+        def owner_session(email, token, expires="+ interval '1 hour'"):
+            psql(f"INSERT INTO tenant_sessions(user_id,token_hash,expires_at) SELECT id,'{py_owner.digest(token)}',now() {expires} FROM tenant_users WHERE email='{email}'")
+
+        psql("DELETE FROM tenant_users WHERE email LIKE '%@parity.invalid'")
+        psql("DELETE FROM owner_login_limits")
+        owner_user("parity-open", "owner@parity.invalid", "owner", password_hash=py_owner.password_hash("parity-password-1"))
+        owner_user("parity-open", "viewer@parity.invalid", "viewer")
+        owner_user("parity-open", "gone@parity.invalid", "owner", active=False)
+        owner_user("parity-closed", "owner-b@parity.invalid", "owner")
+        owner_user("parity-trailing", "owner-c@parity.invalid", "editor")
+        login = json.dumps({"slug": "parity-open", "email": "owner@parity.invalid", "password": "parity-password-1"}).encode()
+        rq = urllib.request.Request(f"http://127.0.0.1:{PY}/owner/auth/login", data=login, headers={"Content-Type": "application/json"})
+        tok_a = json.load(urllib.request.urlopen(rq, timeout=30))["access_token"]  # the real login
+        tok_viewer, tok_b, tok_c, tok_gone, tok_expired = "tv" + "v" * 40, "tb" + "b" * 40, "tc" + "c" * 40, "tg" + "g" * 40, "te" + "e" * 40
+        owner_session("viewer@parity.invalid", tok_viewer)
+        owner_session("owner-b@parity.invalid", tok_b)
+        owner_session("owner-c@parity.invalid", tok_c)
+        owner_session("gone@parity.invalid", tok_gone)
+        owner_session("owner@parity.invalid", tok_expired, "- interval '1 second'")
+
+        # ---- seeds. Tenant A = parity-open (rich), B = parity-closed (rich, different values), C = parity-trailing (empty).
+        for slug in ("parity-open", "parity-closed"):
+            psql(f"DELETE FROM leads WHERE tenant_id=(SELECT id FROM tenants WHERE slug='{slug}')")
+        psql("DELETE FROM tasks WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+
+        def conversation(slug, session, channel, msgs):
+            psql(f"INSERT INTO conversations(tenant_id,session_id,channel) SELECT id,'{session}','{channel}' FROM tenants WHERE slug='{slug}'")
+            for i, (role, content) in enumerate(msgs):
+                psql(f"INSERT INTO messages(conversation_id,role,content,created_at) SELECT c.id,'{role}','{content}',now() - interval '{100 - i} minutes' "
+                     f"FROM conversations c JOIN tenants t ON t.id=c.tenant_id WHERE t.slug='{slug}' AND c.session_id='{session}' AND c.channel='{channel}'")
+
+        def lead(slug, key, name, convo=None, src=None, age="1 hour", utm="{}", status="new", score=0):
+            conv = f"(SELECT c.id FROM conversations c JOIN tenants t ON t.id=c.tenant_id WHERE t.slug='{slug}' AND c.session_id='{convo}')" if convo else "NULL"
+            psql(f"INSERT INTO leads(id,tenant_id,conversation_id,name,email,phone,message,channel,utm,created_at,status,score,score_label,score_reasons,notes) "
+                 f"SELECT '{key}',id,{conv},'{name}','e@x.invalid','+6421{key[:4].replace('-', '0')[:3]}','msg {name}','chat','{utm}'::jsonb,now() - interval '{age}','{status}',{score},"
+                 f"'warm','[\"asked price\", \"é\"]'::jsonb,'notes <b>&' FROM tenants WHERE slug='{slug}'")
+            for j, text in enumerate(src or []):
+                psql(f"INSERT INTO enquiry_sources(tenant_id,channel,source_key,lead_id,original_text,created_at) SELECT id,'email','{key}-{j}','{key}','{text}',now() - interval '{age}' + interval '{j} minutes' "
+                     f"FROM tenants WHERE slug='{slug}'")
+
+        conversation("parity-open", "ct1", "chat", [("system", "hidden prompt"), ("user", "Hi <b>there</b> &amp; it''s \"me\" é中"), ("assistant", "Hello!"), ("tool", "tool out"), ("user", "line1\nline2")])
+        conversation("parity-open", "ct2", "chat", [("system", "only a system message")])
+        conversation("parity-closed", "ctB", "chat", [("user", "B SECRET message"), ("assistant", "B reply")])
+        LA1, LA2, LA3, LA4, LB1 = ("aaaaaaa1-0000-4000-8000-000000000001", "aaaaaaa2-0000-4000-8000-000000000002", "aaaaaaa3-0000-4000-8000-000000000003",
+                                   "aaaaaaa4-0000-4000-8000-000000000004", "bbbbbbb1-0000-4000-8000-000000000001")
+        lead("parity-open", LA1, "Ann <b>&", convo="ct1", age="3 hours", utm='{"src": "é", "n": 1}', status="won", score=70)
+        lead("parity-open", LA2, "Bob", convo="ct2", src=["first original <i>text</i>", "second é original"], age="2 hours")
+        lead("parity-open", LA3, "Cy no source", age="90 minutes", score=5)
+        lead("parity-open", LA4, "Di sources only", src=["only source"], age="80 minutes")
+        lead("parity-closed", LB1, "Bea B", convo="ctB", src=["B original"], age="1 hour", score=99)
+        psql("UPDATE leads SET next_action_at=now() + interval '1 day', won_at=now() WHERE id='" + LA1 + "'")
+        # tasks (A has a lead-linked open task, a done one, and one without a lead; B has one)
+        psql("INSERT INTO tasks(tenant_id,lead_id,title,notes,due_at,status,kind,source,created_at,completed_at) SELECT id,'" + LA1 + "','Call Ann <b>','n \"q\"',now() + interval '1 day','open','follow_up','auto',now() - interval '5 hours',NULL FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO tasks(tenant_id,lead_id,title,status,kind,created_at,completed_at) SELECT id,NULL,'Done thing','done','manual',now() - interval '9 hours',now() - interval '1 hour' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO tasks(tenant_id,lead_id,title,created_at) SELECT id,NULL,'B task',now() - interval '4 hours' FROM tenants WHERE slug='parity-closed'")
+        # a voice recording tied to lead A1's conversation (and one tied to B's, so a missing tenant filter shows)
+        psql("INSERT INTO voice_sessions(id,tenant_id,conversation_id,token_hash) SELECT '00000000-0000-4000-8000-0000000000a1',c.tenant_id,c.id,'vs-lead-a' FROM conversations c JOIN tenants t ON t.id=c.tenant_id WHERE t.slug='parity-open' AND c.session_id='ct1'")
+        psql("INSERT INTO voice_recordings(session_id,tenant_id,conversation_id,mime_type,audio,sha256,created_at) SELECT id,tenant_id,conversation_id,'audio/webm',decode('0102030405','hex'),'x',now() - interval '2 days' FROM voice_sessions WHERE token_hash='vs-lead-a'")
+        psql("INSERT INTO voice_sessions(id,tenant_id,conversation_id,token_hash) SELECT '00000000-0000-4000-8000-0000000000a2',c.tenant_id,c.id,'vs-lead-a-old' FROM conversations c JOIN tenants t ON t.id=c.tenant_id WHERE t.slug='parity-open' AND c.session_id='ct1'")
+        psql("INSERT INTO voice_recordings(session_id,tenant_id,conversation_id,mime_type,audio,sha256,created_at) SELECT id,tenant_id,conversation_id,'audio/ogg',decode('0102','hex'),'x',now() - interval '40 days' FROM voice_sessions WHERE token_hash='vs-lead-a-old'")
+        psql("INSERT INTO voice_sessions(id,tenant_id,conversation_id,token_hash) SELECT '00000000-0000-4000-8000-0000000000b1',c.tenant_id,c.id,'vs-lead-b' FROM conversations c JOIN tenants t ON t.id=c.tenant_id WHERE t.slug='parity-closed' AND c.session_id='ctB'")
+        psql("INSERT INTO voice_recordings(session_id,tenant_id,conversation_id,mime_type,audio,sha256,created_at) SELECT id,tenant_id,conversation_id,'audio/mp4',decode('0102030405060708','hex'),'x',now() - interval '1 day' FROM voice_sessions WHERE token_hash='vs-lead-b'")
+        # phone: numbers, setup, calls (with transcripts on phone-channel conversations only)
+        psql("DELETE FROM phone_numbers WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        psql("INSERT INTO phone_numbers(e164,tenant_id,enabled,created_at) SELECT '+6499000001',id,true,now() - interval '3 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO phone_numbers(e164,tenant_id,enabled,created_at) SELECT '+6499000002',id,false,now() - interval '2 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO phone_numbers(e164,tenant_id,enabled) SELECT '+6499000003',id,true FROM tenants WHERE slug='parity-closed'")
+        psql("INSERT INTO managed_phone_setups(tenant_id,designated_number,connection,answer_mode,owner_number,status) SELECT id,'+6499000001','existing_sip','unanswered','+64211234567','test_required' FROM tenants WHERE slug='parity-open' ON CONFLICT (tenant_id) DO NOTHING")
+        psql("INSERT INTO managed_phone_setups(tenant_id,designated_number,connection,answer_mode,owner_number) SELECT id,'+6499000003','mobile_forwarding','all_calls','+64210000000' FROM tenants WHERE slug='parity-closed' ON CONFLICT (tenant_id) DO NOTHING")
+        psql("DELETE FROM phone_calls WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        for sid, slug, frm, status, started, ended in [("CA-a1", "parity-open", "+64211111111", "completed", "2 hours", "now() - interval '1 hour'"), ("CA-a2", "parity-open", "", "ringing", "1 hour", "NULL"),
+                                                       ("CA a/3 é", "parity-open", "+64212222222", "completed", "30 minutes", "now()"), ("CA-b1", "parity-closed", "+6421999", "completed", "10 minutes", "now()")]:
+            psql(f"INSERT INTO phone_calls(call_sid,tenant_id,from_number,to_number,status,started_at,ended_at,recording_consent,recording_status) "
+                 f"SELECT '{sid}',id,'{frm}','+6499000001','{status}',now() - interval '{started}',{ended},'granted','not_started' FROM tenants WHERE slug='{slug}'")
+        conversation("parity-open", "CA-a1", "phone", [("system", "s"), ("user", "Hello caller <b>&"), ("assistant", "Hi, how can I help?"), ("tool", "x"), ("user", "é中")])
+        conversation("parity-open", "CA-a1", "chat", [("user", "NOT a phone message")])
+        conversation("parity-closed", "CA-b1", "phone", [("user", "B call secret")])
+        # channel authorizations (one authorized, one revoked; the rest absent) and knowledge documents
+        psql("DELETE FROM tenant_channel_authorizations WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        psql("INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id,updated_at) SELECT id,'telephone',true,gen_random_uuid(),'2026-11-01 10:00:00.123456+00' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id,updated_at) SELECT id,'social',false,gen_random_uuid(),'2026-11-02 00:00:00+00' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO tenant_channel_authorizations(tenant_id,channel,authorized,actor_id) SELECT id,'sms_send',true,gen_random_uuid() FROM tenants WHERE slug='parity-closed'")
+        psql("DELETE FROM chunks WHERE tenant_id IN (SELECT id FROM tenants WHERE slug IN ('parity-open','parity-closed','parity-trailing')) AND url LIKE 'manual:owner:%'")
+        vec = "array_fill(0.1::real, ARRAY[384])::vector"
+        for slug, url, title, count in [("parity-open", "manual:owner:abc123", "Zebra <doc> & é", 3), ("parity-open", "manual:owner:def456", "Apple doc", 1),
+                                        ("parity-open", "manual:owner:", "Empty id doc", 1), ("parity-closed", "manual:owner:bbb999", "B only doc", 2)]:
+            psql(f"INSERT INTO chunks(tenant_id,url,title,content,embedding) SELECT id,'{url}','{title}','c',{vec} FROM tenants, generate_series(1,{count}) WHERE slug='{slug}'")
+        psql(f"INSERT INTO chunks(tenant_id,url,title,content,embedding) SELECT id,'manual:owner:untitled','','c',{vec} FROM tenants WHERE slug='parity-open'")
+        # email drafts
+        psql("DELETE FROM email_drafts WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        for slug, status, subject, body in [("parity-open", "draft", "Hello <b>", "Reply & more"), ("parity-open", "draft", "", "Second"), ("parity-open", "approved", "Approved", "ok"),
+                                            ("parity-open", "discarded", "Gone é", "bye"), ("parity-closed", "draft", "B draft", "B reply")]:
+            psql(f"INSERT INTO email_drafts(tenant_id,sender,subject,inbound_body,reply_body,status) SELECT id,'a@x.invalid','{subject}','inbound','{body}','{status}' FROM tenants WHERE slug='{slug}'")
+        # overview inputs: A has a paired, online, fully verified phone and telephone on; B has nothing configured
+        psql("UPDATE tenants SET phone_enabled=true, sms_enabled=true, sms_transport='device', notify_email='boss@x.invalid', notify_phone='+64211234567', email_auto_reply=true, native_booking=true, slot_minutes=45, timezone='Pacific/Auckland' WHERE slug='parity-open'")
+        psql("DELETE FROM sms_devices WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        psql("INSERT INTO sms_devices(tenant_id,token_hash,from_number,enabled,last_seen,verified_at,inbound_verified_at) SELECT id,'dev-parity-open','+6421000',true,now() - interval '10 seconds',now(),now() FROM tenants WHERE slug='parity-open'")
+        psql("UPDATE tenants SET phone_enabled=true, sms_enabled=true, sms_transport='', notify_email='', site_url='' , voice_enabled=true WHERE slug='parity-closed'")
+        psql("UPDATE tenants SET calendar_token='ct_parity_open' WHERE slug='parity-open'")
+        psql("UPDATE tenants SET calendar_token='ct_parity_closed' WHERE slug='parity-closed'")
+
+        def bearer(token):
+            return {"Authorization": f"Bearer {token}"}
+
+        # ---- authentication matrix, on EVERY route (the 401 decisions come before any path or query validation)
+        OWNER_ROUTES = ["/owner/me", "/owner/crm", f"/owner/crm/leads/{LA1}/transcript", f"/owner/crm/leads/{LA1}/recordings", "/owner/onboarding",
+                        "/owner/onboarding/authorizations", "/owner/onboarding/readiness", "/owner/knowledge", "/owner/email-drafts", "/owner/phone-setup",
+                        "/owner/phone-numbers", "/owner/phone-calls", "/owner/phone-calls/CA-a1/transcript"]
+        auth_cases = [
+            ("no header", None), ("empty header", {"Authorization": ""}), ("scheme only", {"Authorization": "Bearer"}), ("scheme and empty token", {"Authorization": "Bearer "}),
+            ("lower-case scheme", {"Authorization": "bearer " + tok_a}), ("upper-case scheme", {"Authorization": "BEARER " + tok_a}),
+            ("Basic scheme", {"Authorization": "Basic " + tok_a}), ("no scheme", {"Authorization": tok_a}), ("two spaces", {"Authorization": "Bearer  " + tok_a}),
+            ("trailing space", {"Authorization": "Bearer " + tok_a + " "}), ("unknown token", bearer("nope")), ("expired session", bearer(tok_expired)),
+            ("inactive user", bearer(tok_gone)), ("257-char token", bearer("a" * 257)), ("256-char unknown token", bearer("a" * 256)), ("token with spaces", {"Authorization": "Bearer a b c"}),
+            ("owner", bearer(tok_a)), ("viewer", bearer(tok_viewer)), ("other tenant", bearer(tok_b)), ("empty tenant", bearer(tok_c)),
+        ]
+        # KNOWN DIVERGENCE (HTTP stack, not route logic): uvicorn passes a header value's trailing space through, so `Bearer <valid> ` is
+        # an unknown token to Python (401), while hyper trims it before axum sees it (200). Pinned here so a change is noticed; the
+        # case is left out of the matrix below.
+        assert (get(PY, "/owner/me", {"Authorization": "Bearer " + tok_a + " "})[0], get(RS, "/owner/me", {"Authorization": "Bearer " + tok_a + " "})[0]) == (401, 200)
+        for route in OWNER_ROUTES:
+            for label, hdrs in auth_cases:
+                if label == "trailing space":
+                    continue
+                same_raw(f"{route.split('/', 2)[2][:28]} :: {label}", route, hdrs)
+
+        # ---- per-route behaviour with valid sessions, tenant isolation and awkward data
+        for token, who in ((tok_a, "A"), (tok_b, "B"), (tok_c, "C"), (tok_viewer, "viewer")):
+            for route in ("/owner/phone-setup", "/owner/phone-numbers", "/owner/phone-calls", "/owner/knowledge", "/owner/email-drafts", "/owner/onboarding/authorizations",
+                          "/owner/onboarding", "/owner/onboarding/readiness", "/owner/me"):
+                same_raw(f"{route} as {who}", route, bearer(token))
+        for status in ("draft", "approved", "discarded", "all", "", "Draft", "DRAFT", "other", "draft ", "all&status=draft", "draft&status=all", "draft&status=bogus", "a%20b", "é"):
+            same_raw(f"email-drafts status={status!r}", f"/owner/email-drafts?status={status if '&' in status or '%' in status else quote(status)}", bearer(tok_a))
+        same_raw("email-drafts invalid status without a session (401 beats 422)", "/owner/email-drafts?status=bogus")
+        same_raw("email-drafts status as B", "/owner/email-drafts?status=all", bearer(tok_b))
+        # the rows A has but B must never see, and vice versa, asserted directly as well as compared
+        assert "B draft" not in json.dumps(get(RS, "/owner/email-drafts?status=all", bearer(tok_a))[1])
+        assert "B SECRET" not in json.dumps(get(RS, f"/owner/crm/leads/{LA1}/transcript", bearer(tok_a))[1])
+        same_raw("crm as A", "/owner/crm", bearer(tok_a))
+        same_raw("crm as B", "/owner/crm", bearer(tok_b))
+        crm_a = get(RS, "/owner/crm", bearer(tok_a))[1]
+        assert len(crm_a["leads"]) == 4 and all(x["tenant_id"] == crm_a["leads"][0]["tenant_id"] for x in crm_a["leads"]) and len(crm_a["tasks"]) == 2, crm_a["tasks"]
+        assert crm_a["calendar_url"] == "https://concierge.trendibizz.com/api/v1/calendar/ct_parity_open.ics", crm_a["calendar_url"]
+        # a tenant with no calendar token: each server mints one on first read (the value is random, so only its shape is compared)
+        psql("UPDATE tenants SET calendar_token=NULL WHERE slug='parity-trailing'")
+        pa = get(PY, "/owner/crm", bearer(tok_c))
+        assert re.fullmatch(r"https://concierge\.trendibizz\.com/api/v1/calendar/[A-Za-z0-9_-]{32}\.ics", pa[1]["calendar_url"]), pa
+        psql("UPDATE tenants SET calendar_token=NULL WHERE slug='parity-trailing'")
+        ra = get(RS, "/owner/crm", bearer(tok_c))
+        assert re.fullmatch(r"https://concierge\.trendibizz\.com/api/v1/calendar/[A-Za-z0-9_-]{32}\.ics", ra[1]["calendar_url"]), ra
+        assert pa[0] == ra[0] == 200 and {k: v for k, v in pa[1].items() if k != "calendar_url"} == {k: v for k, v in ra[1].items() if k != "calendar_url"}
+        assert psql("SELECT calendar_token FROM tenants WHERE slug='parity-trailing'") in ra[1]["calendar_url"], "Rust must persist the token it minted"
+        print("ANSWER: /owner/crm mints a missing calendar token on first read (both servers)")
+
+        for who, token in (("A", tok_a), ("B", tok_b), ("C", tok_c), ("viewer", tok_viewer)):
+            for lead_id in (LA1, LA2, LA3, LA4, LB1, "cccccccc-0000-4000-8000-000000000000"):
+                for tail in ("transcript", "recordings"):
+                    same_raw(f"lead {tail} {lead_id[:8]} as {who}", f"/owner/crm/leads/{lead_id}/{tail}", bearer(token))
+        a_rows = get(RS, f"/owner/crm/leads/{LA2}/transcript", bearer(tok_a))[1]
+        assert [r["content"] for r in a_rows] == ["first original <i>text</i>", "second é original"], a_rows  # falls back to enquiry_sources when there are no chat messages
+        assert get(RS, f"/owner/crm/leads/{LB1}/transcript", bearer(tok_a))[0] == 404
+        assert len(get(RS, f"/owner/crm/leads/{LA1}/recordings", bearer(tok_a))[1]) == 1  # the 40-day-old recording is out
+        # uuid path parameter validation (pydantic's own messages) and the router's 404 for an encoded slash
+        for bad in ("abc", "", "1", LA1.upper(), LA1.replace("-", ""), "{" + LA1 + "}", "urn:uuid:" + LA1, LA1 + "0", LA1[:-1], LA1.replace("-", "_", 1), "g" + LA1[1:], LA1[:8] + LA1[9:],
+                    "aaaaaaa1-0000-4000-8000-00000000000g", "--------", " " + LA1, LA1 + " ", "é" * 36, "0" * 36, "x" * 32, LA1 + "-", "a-b-c-d-e"):
+            for tail in ("transcript", "recordings"):
+                same_raw(f"lead {tail} bad uuid {bad!r}", f"/owner/crm/leads/{quote(bad)}/{tail}", bearer(tok_a))
+        same_raw("lead transcript bad uuid without a session (401 beats 422)", "/owner/crm/leads/abc/transcript")
+        same_raw("lead transcript encoded slash", "/owner/crm/leads/abc%2Fdef/transcript", bearer(tok_a))
+        same_raw("lead transcript encoded slash without a session (404 beats 401)", "/owner/crm/leads/abc%2Fdef/transcript")
+        same_raw("lead recordings encoded slash", f"/owner/crm/leads/{LA1}%2F/recordings", bearer(tok_a))
+        same_raw("lead transcript empty id", "/owner/crm/leads//transcript", bearer(tok_a))
+        # phone call transcripts: ids with spaces, slashes, case, other tenants, a chat conversation with the same session id
+        for who, token in (("A", tok_a), ("B", tok_b), ("C", tok_c)):
+            for cid in ("CA-a1", "CA-a2", "CA-b1", quote("CA a/3 é", safe=""), "ca-a1", "CA-a1%20", "nope", "CA-a1%2F", "%2E%2E", "é"):
+                same_raw(f"phone transcript {cid!r} as {who}", f"/owner/phone-calls/{cid if '%' in cid else quote(cid)}/transcript", bearer(token))
+        same_raw("phone transcript empty id", "/owner/phone-calls//transcript", bearer(tok_a))
+        same_raw("phone transcript encoded slash without a session (404 beats 401)", "/owner/phone-calls/a%2Fb/transcript")
+        t = get(RS, "/owner/phone-calls/CA-a1/transcript", bearer(tok_a))[1]
+        assert [r["content"] for r in t] == ["Hello caller <b>&", "Hi, how can I help?", "é中"], t
+        # the owner boundary composes with these routes: a foreign Origin is refused before authentication, hardening headers always
+        for route in ("/owner/me", "/owner/crm", "/owner/phone-calls/CA-a1/transcript", "/owner/nope"):
+            for origin in ("https://evil.example", ""):
+                same_raw(f"{route} origin {origin!r}", route, {**bearer(tok_a), "Origin": origin})
+            for port in (PY, RS):  # an Origin equal to the server's own host is served by both
+                assert get(port, route, {**bearer(tok_a), "Origin": f"http://127.0.0.1:{port}"})[0] != 403, (route, port)
+        a = get_raw(RS, "/owner/me", {**bearer(tok_a), "Origin": "https://evil.example"})
+        assert a[0] == 403 and a[2]["cache-control"] == "no-store", a
+        a = get_raw(RS, "/owner/me", bearer(tok_a))
+        assert a[0] == 200 and a[2]["cache-control"] == "no-store" and a[2]["x-content-type-options"] == "nosniff" and a[2]["referrer-policy"] == "no-referrer", a
+        # a second Authorization header: Starlette's `headers.get` takes the first one
+        for first, second in ((tok_a, "nope"), ("nope", tok_a)):
+            conn = {}
+            for port in (PY, RS):
+                c = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+                c.putrequest("GET", "/owner/me")
+                c.putheader("Authorization", "Bearer " + first)
+                c.putheader("Authorization", "Bearer " + second)
+                c.endheaders()
+                r = c.getresponse()
+                conn[port] = (r.status, r.read())
+                c.close()
+            assert conn[PY] == conn[RS], f"duplicate Authorization header: {conn}"
+            n += 1
+
+
+        # ---- settings-dependent rules on the alternate pairs: alt (draft workflow OFF, https base URL so the Twilio relay is "configured",
+        # smsgate) and sip (Grok provider with one SIP connection for tenant A's enabled number).
+        sip = json.dumps({"11111111-2222-4333-8444-555555555555": {"enabled": True, "tenant": "parity-open", "number": "+6499000001", "signing_secret": "whsec_x"},
+                          "bad": {"enabled": True, "tenant": "parity-closed", "number": "+6499000003", "signing_secret": "s"}})
+        start_alt_pair(procs, {"PHONE_VOICE_PROVIDER": "grok", "XAI_API_KEY": "xai-parity", "XAI_SIP_CONNECTIONS": sip, "SOCIAL_SERVICE_ENABLED": "false"}, SIP_PY, SIP_RS)
+        for ports, name in (((ALT_PY, ALT_RS), "alt"), ((SIP_PY, SIP_RS), "sip")):
+            for token, who in ((tok_a, "A"), (tok_b, "B"), (tok_c, "C")):
+                for route in ("/owner/onboarding", "/owner/onboarding/readiness", "/owner/email-drafts", "/owner/email-drafts?status=all", "/owner/phone-calls"):
+                    same_raw(f"[{name}] {route} as {who}", route, bearer(token), ports=ports)
+        same_raw("[alt] email-drafts gate is checked after validation (422 beats 503)", "/owner/email-drafts?status=bogus", bearer(tok_a), ports=(ALT_PY, ALT_RS))
+        same_raw("[alt] email-drafts gate is checked after the session (401 beats 503)", "/owner/email-drafts", ports=(ALT_PY, ALT_RS))
+        assert get(ALT_RS, "/owner/email-drafts", bearer(tok_a))[0] == 503 and get(SIP_RS, "/owner/email-drafts", bearer(tok_a))[0] == 200
+        assert get(ALT_RS, "/owner/onboarding", bearer(tok_a))[1]["channels"]["telephone"]["configured"] is True  # the Twilio relay branch
+        assert get(SIP_RS, "/owner/onboarding", bearer(tok_a))[1]["channels"]["telephone"]["configured"] is True  # the SIP branch
+        assert get(SIP_RS, "/owner/onboarding", bearer(tok_b))[1]["channels"]["telephone"]["configured"] is False  # key "bad" is not a canonical id
+        assert get(RS, "/owner/onboarding", bearer(tok_a))[1]["channels"]["telephone"]["configured"] is False  # main pair: http base URL, legacy provider
+        # the paired phone going stale flips sms: 10 seconds ago is online, 301 seconds ago is not
+        psql("UPDATE sms_devices SET last_seen=now() - interval '301 seconds' WHERE token_hash='dev-parity-open'")
+        same_raw("onboarding with a stale paired phone", "/owner/onboarding", bearer(tok_a))
+        assert get(RS, "/owner/onboarding", bearer(tok_a))[1]["channels"]["sms"]["configured"] is False
+        psql("UPDATE sms_devices SET last_seen=now() - interval '10 seconds' WHERE token_hash='dev-parity-open'")
+        assert get(RS, "/owner/onboarding", bearer(tok_a))[1]["channels"]["sms"]["configured"] is True
+        # a revoked session and a deactivated user stop working at once
+        psql("DELETE FROM tenant_sessions WHERE token_hash='" + py_owner.digest(tok_viewer) + "'")
+        same_raw("deleted session", "/owner/me", bearer(tok_viewer))
+        psql("UPDATE tenant_users SET active=false WHERE email='owner-b@parity.invalid'")
+        same_raw("deactivated user", "/owner/me", bearer(tok_b))
+        psql("UPDATE tenant_users SET active=true WHERE email='owner-b@parity.invalid'")
+        same_raw("reactivated user", "/owner/me", bearer(tok_b))
+        psql("DELETE FROM tenant_users WHERE email LIKE '%@parity.invalid'")
 
         print(f"{n} comparisons passed")
     finally:

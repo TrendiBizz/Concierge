@@ -28,6 +28,7 @@ pub mod maintenance;
 pub mod outbox;
 pub mod owner_auth;
 pub mod owner_notifications;
+pub mod owner_portal;
 pub mod owner_profile;
 pub mod phone_setup;
 pub mod public_fetch;

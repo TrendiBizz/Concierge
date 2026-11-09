@@ -8,6 +8,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
+use concierge_core::owner_portal::PortalSettings;
 use concierge_core::{social, unsub, voice_records};
 use serde_json::json;
 
@@ -18,12 +19,53 @@ pub struct Extra {
     pub social_enabled: bool,
     pub social_url: String,
     pub social_key: String,
+    pub owner_portal_url: String,
+    pub email_drafts_enabled: bool,
+    portal: PortalSettings,
 }
 
 impl Extra {
+    /// The settings the onboarding overview and readiness report read.
+    pub fn portal(&self) -> PortalSettings {
+        self.portal.clone()
+    }
+
     pub fn from_env() -> Extra {
         let get = |k: &str, d: &str| std::env::var(k).unwrap_or_else(|_| d.to_string());
+        let flag = |k: &str| {
+            concierge_core::pydantic::parse_bool(&json!(get(k, "false"))).unwrap_or(false)
+        };
+        let portal = PortalSettings {
+            llm_api_key: get("LLM_API_KEY", ""),
+            xai_api_key: get("XAI_API_KEY", ""),
+            website_verified_tenants: get("WEBSITE_VERIFIED_TENANTS", ""),
+            phone_verified_tenants: get("PHONE_VERIFIED_TENANTS", ""),
+            phone_receptionist_enabled: flag("PHONE_RECEPTIONIST_ENABLED"),
+            phone_voice_provider: get("PHONE_VOICE_PROVIDER", "grok"),
+            xai_sip_connections: get("XAI_SIP_CONNECTIONS", ""),
+            twilio_auth_token: get("TWILIO_AUTH_TOKEN", ""),
+            twilio_account_sid: get("TWILIO_ACCOUNT_SID", ""),
+            twilio_from_number: get("TWILIO_FROM_NUMBER", ""),
+            twilio_messaging_service_sid: get("TWILIO_MESSAGING_SERVICE_SID", ""),
+            public_base_url: get("PUBLIC_BASE_URL", "http://localhost:8000"),
+            sms_provider: get("SMS_PROVIDER", "twilio"),
+            smsgate_base_url: get("SMSGATE_BASE_URL", ""),
+            smsgate_username: get("SMSGATE_USERNAME", ""),
+            smsgate_password: get("SMSGATE_PASSWORD", ""),
+            smtp_host: get("SMTP_HOST", ""),
+            smtp_from: get("SMTP_FROM", ""),
+            social_service_enabled: flag("SOCIAL_SERVICE_ENABLED"),
+            voice_recording_enabled: flag("VOICE_RECORDING_ENABLED"),
+            phone_recording_enabled: flag("PHONE_RECORDING_ENABLED"),
+            inbound_cloudflare_enabled: flag("INBOUND_CLOUDFLARE_ENABLED"),
+        };
         Extra {
+            owner_portal_url: get(
+                "OWNER_PORTAL_URL",
+                "https://concierge.trendibizz.com/owner-ui",
+            ),
+            email_drafts_enabled: flag("EMAIL_DRAFTS_ENABLED"),
+            portal,
             unsubscribe_secret: get("UNSUBSCRIBE_SECRET", ""),
             social_enabled: concierge_core::pydantic::parse_bool(&json!(get(
                 "SOCIAL_SERVICE_ENABLED",
@@ -178,6 +220,18 @@ impl<S: Send + Sync> FromRequestParts<S> for Seg {
         // axum has already refused to percent-decode an invalid sequence by the time its own extractors run.
         let raw = parts.uri.path().rsplit('/').next().unwrap_or("");
         Ok(Seg(unquote_replace(raw)))
+    }
+}
+
+/// The path segment at `N` (0 is the empty text before the first `/`), decoded like [`Seg`]. For routes whose parameter is not last.
+pub(crate) struct SegAt<const N: usize>(pub String);
+
+#[async_trait]
+impl<S: Send + Sync, const N: usize> FromRequestParts<S> for SegAt<N> {
+    type Rejection = Response;
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let raw = parts.uri.path().split('/').nth(N).unwrap_or("");
+        Ok(SegAt(unquote_replace(raw)))
     }
 }
 

@@ -276,3 +276,50 @@ async fn token_routes_that_never_reach_the_database() {
         (404, br#"{"detail":"Media unavailable"}"#.to_vec())
     );
 }
+
+#[tokio::test]
+async fn owner_reads_refuse_before_touching_the_database() {
+    // routing first: an encoded slash or an empty segment is the router's 404, even without a session
+    for uri in [
+        "/owner/crm/leads//transcript",
+        "/owner/crm/leads/a%2Fb/recordings",
+        "/owner/phone-calls/a%2Fb/transcript",
+    ] {
+        let (s, h, b) = call(router("x"), Request::get(uri).body(Body::empty()).unwrap()).await;
+        assert_eq!(
+            (s.as_u16(), b),
+            (404, br#"{"detail":"Not Found"}"#.to_vec()),
+            "{uri}"
+        );
+        assert_eq!(h["cache-control"], "no-store"); // still under the owner boundary
+    }
+    // then the session: a missing or malformed Authorization header is a 401 before any lookup or validation
+    for auth in [
+        None,
+        Some(""),
+        Some("Bearer"),
+        Some("Bearer "),
+        Some("Basic abc"),
+        Some("abc"),
+    ] {
+        let mut req = Request::get("/owner/crm/leads/not-a-uuid/transcript");
+        if let Some(a) = auth {
+            req = req.header("authorization", a);
+        }
+        let (s, _, b) = call(router("x"), req.body(Body::empty()).unwrap()).await;
+        assert_eq!(
+            (s.as_u16(), b),
+            (
+                401,
+                br#"{"detail":"Bearer authentication required"}"#.to_vec()
+            ),
+            "{auth:?}"
+        );
+    }
+    // a foreign Origin is refused by the boundary before the session is even read
+    let req = Request::get("/owner/me")
+        .header("origin", "https://evil.example")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(call(router("x"), req).await.0, 403);
+}

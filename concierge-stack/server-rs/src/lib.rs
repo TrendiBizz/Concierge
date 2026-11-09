@@ -18,6 +18,7 @@ use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 use tower_http::cors::{Any, CorsLayer};
 
+mod owner;
 mod public;
 
 #[derive(Clone)]
@@ -333,7 +334,7 @@ async fn admin_list(AxState(state): AxState<State>, headers: HeaderMap) -> Respo
     Json(Value::Array(out)).into_response()
 }
 
-fn new_token() -> String {
+pub(crate) fn new_token() -> String {
     use base64::Engine;
     use rand::RngCore;
     let mut b = [0u8; 24];
@@ -779,6 +780,7 @@ pub fn app(state: State) -> Router {
         .route("/api/v1/calendar/:token", get(calendar_feed))
         .route("/demo/:slug", get(demo_page))
         .merge(public::routes())
+        .merge(owner::routes())
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
         .fallback(not_found)
