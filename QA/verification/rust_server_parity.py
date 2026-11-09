@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 BIN = ROOT / "concierge-stack/server-rs/target/release/concierge-server"
@@ -121,6 +122,53 @@ def main():
         for slug in ("parity-open", "parity-closed", "parity-nocal", "missing"):
             same(f"admin get {slug}", f"/admin/tenants/{slug}", {"X-Admin-Token": "parity-admin"}, normalise=lambda r: _drop_times(r))
         same("admin get without token", "/admin/tenants/parity-open")
+
+        # ---------------------------------------------------------------- the client report
+        # The report is the first token-in-path route. Its data is seeded below so both servers read the
+        # same rows; the page is compared as exact text, which also proves the SVG bar arithmetic and the
+        # html.escape rules. `report_token` was set at insert time above.
+        psql("DELETE FROM conversations WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        psql("DELETE FROM outbox WHERE tenant_id IN (SELECT id FROM tenants WHERE slug LIKE 'parity-%')")
+        # Two conversations on the open tenant: one chat, one eval (excluded), so by_channel and the totals differ.
+        psql("INSERT INTO conversations(tenant_id,session_id,channel,started_at) SELECT id,'s1','chat',now() - interval '2 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO conversations(tenant_id,session_id,channel,started_at) SELECT id,'s2','eval',now() - interval '2 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO conversations(tenant_id,session_id,channel,started_at) SELECT id,'s3','sms',now() - interval '1 day' FROM tenants WHERE slug='parity-open'")
+        # Leads with the awkward characters html.escape must handle, plus a long message and an empty name.
+        psql("INSERT INTO leads(tenant_id,name,message,channel,status,score_label,created_at) SELECT id,'Ann & <b>Bob</b>','Wants a \"quote\" & <script>alert(1)</script> for it''s plan','chat','new','hot',now() - interval '2 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO leads(tenant_id,name,message,channel,status,score_label,created_at) SELECT id,'','','sms','won','cold',now() - interval '1 day' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO leads(tenant_id,name,message,channel,status,score_label,created_at) SELECT id,'Zoë Ñandú','é'||repeat('x',200),'voice','contacted','warm',now() - interval '3 days' FROM tenants WHERE slug='parity-open'")
+        psql("INSERT INTO appointments(tenant_id,starts_at,ends_at,created_at) SELECT id,now() + interval '1 day',now() + interval '1 day 1 hour',now() - interval '1 day' FROM tenants WHERE slug='parity-open'")
+        psql("UPDATE leads SET value_cents=2500, updated_at=now() - interval '1 day' WHERE tenant_id IN (SELECT id FROM tenants WHERE slug='parity-open') AND status='won'")
+        # lead_value_cents drives "Estimated pipeline"; set it on one tenant and leave 0 on another to prove the "-" branch.
+        psql("UPDATE tenants SET lead_value_cents=15000, accent_color='#ff00aa' WHERE slug='parity-open'")
+        psql("UPDATE tenants SET lead_value_cents=0 WHERE slug='parity-closed'")
+
+        same("report open", "/report/rt_parity-open")
+        same("report closed (no data, no pipeline)", "/report/rt_parity-closed")
+        same("report accented name", "/report/rt_parity-trailing")
+        same("report unknown token", "/report/rt_nope")
+        same("report empty token", "/report/")
+        for days in ("1", "7", "30", "365", "366", "0", "-5", " 7 ", "+7"):
+            same(f"report days={days!r}", f"/report/rt_parity-open?days={quote(days, safe='')}")
+        for bad in ("abc", "1.5", "1e2", "0x10", ""):
+            same(f"report bad days={bad!r}", f"/report/rt_parity-open?days={bad}")
+        # The huge int is accepted by pydantic and clamped to 365, so it must compare equal to days=365.
+        same("report days=10**24", "/report/rt_parity-open?days=1000000000000000000000000")
+
+        # The empirical answer to "does the edge middleware compose onto a token-in-path route?":
+        # a foreign Origin on /report/{token} must be served (not 403) and must NOT carry the owner-portal
+        # hardening headers, because Python's owner_boundary only guards /owner-ui, /owner/* and
+        # /api/v1/device-sms/*. Compare both servers, then assert the rule directly.
+        for origin in ("https://evil.example", "http://127.0.0.1:8098", ""):
+            same(f"report foreign origin {origin!r}", "/report/rt_parity-open", {"Origin": origin})
+        a = get(PY, "/report/rt_parity-open", {"Origin": "https://evil.example"})
+        b = get(RS, "/report/rt_parity-open", {"Origin": "https://evil.example"})
+        assert a[0] == b[0] == 200, f"report must not be origin-gated: python={a[0]} rust={b[0]}"
+        for h in ("cache-control", "x-content-type-options", "referrer-policy"):
+            assert a[2].get(h) == b[2].get(h), f"report header {h} python={a[2].get(h)} rust={b[2].get(h)}"
+        assert a[2].get("cache-control") is None, f"report must not be hardened, got {a[2].get('cache-control')}"
+        print("ANSWER: /report/{token} is NOT behind the owner boundary (both servers, no hardening headers)")
+
         print(f"{n} comparisons passed")
     finally:
         for p in procs:

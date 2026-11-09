@@ -208,3 +208,34 @@ API) and requires identical status, body and security headers for 25 requests (a
 admin gate, wildcard CORS, a tenant whose calendar token is minted on first read). Six deliberate server mutations (recording authorization skipped, JSON spacing,
 origin gate bypassed, truncated public view, wrong list order, chunk count) were each caught; the chunk-count gap was found by this check and closed with
 seeded chunks. The crate is part of `scripts/rust-gate.sh` and CI job `rust-server-parity`.
+
+## Batch 25 (9 November 2026): `GET /report/{token}`
+
+`concierge-server` now serves the client report, the first route whose credential is a path segment. The token is
+the credential, so the route has no session and no origin gate: the empirical check confirmed Python's
+`owner_boundary` middleware guards only `/owner-ui`, `/owner/*` and `/api/v1/device-sms/*`, so a `/report/{token}`
+request passes through untouched and must NOT carry the three hardening headers. That is now pinned by
+`server-rs/tests/offline.rs::report_route_is_not_behind_the_owner_boundary`, which also fails if someone widens
+`edge::protected` to include `/report/` (mutation-checked).
+
+`core-rs/report.rs` holds the rendering rules as pure functions; the aggregation SQL lives in `concierge-server`.
+Vectors come from the live Python (`parity/gen_vectors25.py` -> `vectors25.json`): 24 `html.escape` cases, 14
+`_money` cases, 12 `str.title()`, 6 `strftime("%b %d")`, 7 bar-arithmetic shapes and 12 `min(max(days,1),365)`
+cases, replayed by `tests/parity25.rs` (6 tests). 16 mutations were caught, including removing the apostrophe
+arm of `html.escape` (which found a real gap: the arm had been dropped while building the vectors and the vector
+caught it), dropping the `$-0` branch of `_money`, and each of the four bar-arithmetic rules.
+
+Two behaviours are worth recording because they are easy to get wrong:
+
+- `make_interval(days => $2)` makes PostgreSQL infer `int4`, so `days` must be bound as `i32`; binding the `i64`
+  that the clamp returns is a driver type error (this was a 500 caught by the differential harness on its first
+  run, not by any unit test).
+- `days: int` in the Python route accepts values beyond 64 bits (`10**24`), and `_stats` clamps them to 365.
+  `report::clamp_days` therefore takes `i128` and clamps before narrowing; narrowing first would send a huge
+  value to 1 instead of 365. The differential harness compares `days=10**24` against `days=365`.
+
+The harness grew 23 comparisons (48 total). It seeds conversations with an `eval` channel (excluded from the
+totals), leads whose names and messages carry `&`, `<`, `>`, `"` and `'`, an empty-name lead, a non-ASCII name
+and a 200-character message, one won lead with a value, and one tenant with `lead_value_cents = 0` to cover the
+`"-"` branch. An unmatched path (including `/report/`, whose empty segment matches no route) now returns
+Starlette's `{"detail": "Not Found"}` from a fallback instead of axum's empty 404 body.

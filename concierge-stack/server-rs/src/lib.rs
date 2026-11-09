@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use concierge_core::edge::{self, Boundary};
-use concierge_core::{channel_auth, requests, tenants};
+use concierge_core::{channel_auth, pydantic, report, requests, tenants};
 use deadpool_postgres::{Manager, Pool};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -84,6 +84,11 @@ fn detail(status: u16, message: &str) -> Response {
 
 fn server_error() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
+}
+
+/// Starlette's `{"detail": "Not Found"}` for a path no route matched.
+async fn not_found() -> Response {
+    detail(404, "Not Found")
 }
 
 /// `datetime.isoformat()` for an aware UTC timestamp, as FastAPI serialises it.
@@ -210,6 +215,20 @@ async fn healthz(AxState(state): AxState<State>) -> Response {
 /// FastAPI's 422 for a missing required query parameter.
 fn missing_query(name: &str) -> Response {
     (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({"detail": [{"type": "missing", "loc": ["query", name], "msg": "Field required", "input": null}]}))).into_response()
+}
+
+/// FastAPI's 422 for a query parameter pydantic could not coerce. The message text is pydantic v2's own.
+fn unprocessable(name: &str, ty: &str, input: &str) -> Response {
+    let msg = match ty {
+        "int_parsing" => "Input should be a valid integer, unable to parse string as an integer",
+        "int_parsing_size" => "Unable to parse input string as an integer, exceeded maximum size",
+        _ => "Input should be a valid integer",
+    };
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(json!({"detail": [{"type": ty, "loc": ["query", name], "msg": msg, "input": input}]})),
+    )
+        .into_response()
 }
 
 async fn widget_config(
@@ -347,6 +366,186 @@ async fn admin_get(
     Json(body).into_response()
 }
 
+/// `GET /report/{token}`: the read-only client report. The unguessable token is the credential, so there is
+/// no session and no origin gate — `edge::owner_boundary` leaves this path alone, exactly as Python's
+/// `owner_boundary` middleware does. `days` is clamped inside `report::clamp_days` like `_stats` does.
+async fn client_report(
+    AxState(state): AxState<State>,
+    Path(token): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
+    let days = match q.get("days") {
+        None => 30,
+        Some(raw) => match pydantic::parse_int(&json!(raw)) {
+            Ok(n) => report::clamp_days(n),
+            Err(ty) => return unprocessable("days", ty, raw),
+        },
+    };
+    // `make_interval(days => $n)` makes PostgreSQL infer `int4` for the parameter, so the value must be bound
+    // as `i32`: binding the `i64` that `min(max(days,1),365)` produces is rejected by the driver as a type
+    // mismatch. `days` is already clamped to 1..=365 here, so the narrowing cannot lose information.
+    let days_param = days as i32;
+    let Some(pool) = state.0.pool.as_ref() else {
+        return server_error();
+    };
+    let Ok(client) = pool.get().await else {
+        return server_error();
+    };
+    let Ok(row) = client
+        .query_opt("SELECT * FROM tenants WHERE report_token = $1", &[&token])
+        .await
+    else {
+        return server_error();
+    };
+    let Some(row) = row else {
+        return detail(404, "Unknown report");
+    };
+    let Ok(tenant) = tenants::load(&row_json(&row)) else {
+        return server_error();
+    };
+    let tenant_id = match uuid::Uuid::parse_str(tenant["id"].as_str().unwrap_or("")) {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+
+    // The aggregates, one query per block, in the same shape `_stats` reads them.
+    let Ok(convs) = client
+        .query(
+            "SELECT channel, count(*) AS conversations FROM conversations \
+             WHERE tenant_id = $1 AND channel <> 'eval' AND started_at > now() - make_interval(days => $2) \
+             GROUP BY channel",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let convs_by_channel: Vec<(String, i64)> = convs
+        .iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, i64>(1)))
+        .collect();
+
+    let Ok(statuses) = client
+        .query(
+            "SELECT status, count(*) AS n FROM leads WHERE tenant_id = $1 \
+             AND created_at > now() - make_interval(days => $2) GROUP BY status",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let leads_by_status: Vec<(String, i64)> = statuses
+        .iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, i64>(1)))
+        .collect();
+
+    let Ok(appointments) = client
+        .query_one(
+            "SELECT count(*) FROM appointments WHERE tenant_id = $1 AND created_at > now() - make_interval(days => $2)",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let appointments = appointments.get::<_, i64>(0);
+
+    let Ok(guard_hits) = client
+        .query_one(
+            "SELECT count(*) FROM messages m JOIN conversations c ON c.id = m.conversation_id \
+             WHERE c.tenant_id = $1 AND m.flag = 'quote_guard' AND m.created_at > now() - make_interval(days => $2)",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let guard_hits = guard_hits.get::<_, i64>(0);
+
+    let Ok(sent) = client
+        .query(
+            "SELECT channel, count(*) AS n FROM outbox WHERE tenant_id = $1 AND status = 'sent' \
+             AND created_at > now() - make_interval(days => $2) GROUP BY channel",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let sent_by_channel: Vec<(String, i64)> = sent
+        .iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, i64>(1)))
+        .collect();
+
+    let Ok(daily_rows) = client
+        .query(
+            "SELECT d::date AS day, \
+               (SELECT count(*) FROM conversations c WHERE c.tenant_id = $1 AND c.channel <> 'eval' AND c.started_at::date = d::date) AS conversations, \
+               (SELECT count(*) FROM leads l WHERE l.tenant_id = $1 AND l.created_at::date = d::date) AS leads \
+             FROM generate_series(now() - make_interval(days => $2 - 1), now(), interval '1 day') d \
+             ORDER BY day",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let daily: Vec<(String, i64, i64)> = daily_rows
+        .iter()
+        .map(|r| {
+            (
+                r.get::<_, chrono::NaiveDate>(0).to_string(),
+                r.get::<_, i64>(1),
+                r.get::<_, i64>(2),
+            )
+        })
+        .collect();
+
+    let Ok(won_value) = client
+        .query_one(
+            "SELECT COALESCE(sum(value_cents), 0) FROM leads WHERE tenant_id = $1 AND status = 'won' \
+             AND updated_at > now() - make_interval(days => $2)",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let won_value_cents = won_value.get::<_, i64>(0);
+
+    let Ok(leads) = client
+        .query(
+            "SELECT name, message, channel, status, score_label, created_at FROM leads WHERE tenant_id = $1 \
+             AND created_at > now() - make_interval(days => $2) ORDER BY created_at DESC LIMIT 25",
+            &[&tenant_id, &days_param],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let lead_rows: Vec<Value> = leads.iter().map(row_json).collect();
+
+    let stats = report::Stats {
+        days,
+        tenant: &tenant,
+        conversations_by_channel: &convs_by_channel,
+        leads_by_status: &leads_by_status,
+        appointments,
+        quote_guard_interventions: guard_hits,
+        sent_by_channel: &sent_by_channel,
+        daily: &daily,
+        won_value_cents,
+    };
+    let page = report::client_report(&stats, &lead_rows);
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        page,
+    )
+        .into_response()
+}
+
 /// `owner_boundary`: hardening headers and the foreign-origin refusal for the owner portal and device SMS.
 async fn boundary(AxState(state): AxState<State>, request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
@@ -413,6 +612,10 @@ pub fn app(state: State) -> Router {
         .route("/api/v1/widget-config", get(widget_config))
         .route("/admin/tenants", get(admin_list))
         .route("/admin/tenants/:slug", get(admin_get))
+        .route("/report/:token", get(client_report))
+        // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
+        // its JSON 404; axum's default fallback would send an empty body instead.
+        .fallback(not_found)
         .layer(middleware::from_fn_with_state(state.clone(), boundary))
         .layer(cors)
         .with_state(state)
