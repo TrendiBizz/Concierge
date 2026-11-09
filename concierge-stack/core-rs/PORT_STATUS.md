@@ -239,3 +239,42 @@ totals), leads whose names and messages carry `&`, `<`, `>`, `"` and `'`, an emp
 and a 200-character message, one won lead with a value, and one tenant with `lead_value_cents = 0` to cover the
 `"-"` branch. An unmatched path (including `/report/`, whose empty segment matches no route) now returns
 Starlette's `{"detail": "Not Found"}` from a fallback instead of axum's empty 404 body.
+
+## Batch 26 (9 November 2026): `GET /api/v1/calendar/{token}.ics`
+
+`concierge-server` now serves the read-only calendar feed, the second route whose credential is a path segment and
+the first that returns a non-HTML, non-JSON body. Like `/report/{token}` it sits outside the owner boundary: the
+token is the credential, so the request passes through untouched and must NOT carry the three hardening headers.
+The differential harness asserts that empirically for a foreign `Origin` and an empty one, and pins the feed's own
+`Cache-Control: private, max-age=300` and `Content-Type: text/calendar; charset=utf-8`.
+
+The ported logic was already in place from batch 24's `core-rs/ical.rs` (`esc`, `fold`, `build`); this batch wires
+it to HTTP. The one real porting problem is path matching, and it is easy to get silently wrong:
+
+- Starlette matches with `^/api/v1/calendar/(?P<token>[^/]+)\.ics$`, so the `.ics` suffix is required and the token
+  must be at least one character: `/api/v1/calendar/abc`, `/api/v1/calendar/.ics` and `/api/v1/calendar/` are all
+  FastAPI 404s. axum 0.7 has no suffix syntax — `:token.ics` silently captures the whole segment *including* the
+  suffix, behaving exactly like a bare `:token`. The route is therefore registered as a single `:token` and strips
+  the suffix itself, answering Starlette's 404 when it is absent. Registering a second pattern for the same path
+  would shadow this one.
+
+The harness grew 12 comparisons (60 total). It seeds a tenant name and appointment fields carrying a comma, a
+semicolon, a backslash and a newline (which is what `esc()` acts on), one cancelled appointment and one with no
+optional fields at all, an appointment 40 days old to sit outside the 30-day window, and a second tenant with no
+appointments for the empty feed. Ten path-matching cases are compared: unknown token, no suffix, suffix only, empty
+path, a token containing a dot, a doubled suffix, a nested path, an uppercase `.ICS`, and both foreign origins.
+`DTSTAMP` is the moment each server built the feed, so the comparison replaces it with a placeholder and keeps
+every other byte — that is where `esc()` and `fold()` show up.
+
+Two mutations were applied and each was caught:
+
+- ignoring the `.ics` suffix and the empty-token rule (axum's native behaviour): the token kept its suffix, no row
+  matched, and Rust answered 404 where Python answered 200;
+- flipping the window to `starts_at < now() + interval '30 days'` and dropping `ORDER BY starts_at`: the body
+  comparison failed, admitting the 40-day-old appointment.
+
+Local runs need `psql`, which this host lacks. `QA/verification/shims/psql` proxies the harness's connection URL
+into the `concierge-parity-pg` container's own client, so
+`PATH="$PWD/QA/verification/shims:$PATH" PYTHONPATH=QA/verification/shims:api python QA/verification/rust_server_parity.py`
+runs unchanged. Note the release binary must be rebuilt after editing `lib.rs`: a stale binary makes the harness
+compare against the previous build and can pass while proving nothing.

@@ -9,6 +9,7 @@ Starts two loopback servers, sends nothing anywhere, and removes the rows it cre
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -169,6 +170,49 @@ def main():
         assert a[2].get("cache-control") is None, f"report must not be hardened, got {a[2].get('cache-control')}"
         print("ANSWER: /report/{token} is NOT behind the owner boundary (both servers, no hardening headers)")
 
+        # ---------------------------------------------------------------- the calendar feed
+        # `GET /api/v1/calendar/{token}.ics`. Starlette matches it with `(?P<token>[^/]+)\.ics$`, so the suffix
+        # is required and the token must be non-empty; axum has no suffix syntax and captures the whole segment,
+        # so these cases prove the handler reproduces Starlette's matching rather than axum's.
+        psql("UPDATE tenants SET calendar_token='ct_parity-open' WHERE slug='parity-open'")
+        psql("UPDATE tenants SET calendar_token='ct_parity_closed' WHERE slug='parity-closed'")
+        # The token keeps its underscore: only the slug uses a hyphen. The two are deliberately spelled
+        # differently here so a mismatch between them fails this comparison instead of passing as a 404.
+        assert psql("SELECT calendar_token FROM tenants WHERE slug='parity-closed'") == "ct_parity_closed"
+        # Appointments that exercise esc() and fold(): the calendar name and fields carry a comma, a semicolon,
+        # a backslash and a newline, one appointment is cancelled, and one has no optional fields at all.
+        psql("UPDATE tenants SET name='Open, Co; Ltd\\' WHERE slug='parity-open'")
+        for lead_id, aid_off, starts, ends, status, name, phone, email, notes in [
+            ("a1", 0, "-1 day", "-1 day", "booked", "Zoë Ñandú", "+64 21 555 0001", "zoe@example.com", "Line one\nLine two, with a comma; and a backslash \\\\ here"),
+            ("a2", 1, "1 day", "1 day", "cancelled", "Bob, Jr.; \"Bobby\"", "", "", ""),
+            ("a3", 2, "2 days", "2 days", "completed", "", "+64 21 555 0003", "", "semi;colon"),
+            ("a4", 3, "40 days", "40 days", "booked", "Old Appointment", "+1", "o@e.com", "outside the 30-day window"),
+        ]:
+            psql(
+                "INSERT INTO appointments(tenant_id,starts_at,ends_at,status,name,phone,email,notes) "
+                f"SELECT id, now() + interval '{starts}', now() + interval '{ends}' + interval '1 hour', "
+                f"'{status}', '{name}', '{phone}', '{email}', '{notes}' FROM tenants WHERE slug='parity-open'"
+            )
+        # A second tenant with no appointments at all: the empty feed.
+        same("calendar feed with appointments", "/api/v1/calendar/ct_parity-open.ics", normalise=_drop_dtstamp)
+        same("calendar feed empty", "/api/v1/calendar/ct_parity_closed.ics", normalise=_drop_dtstamp)
+        # Starlette's matching, reproduced: the suffix is required and a one-character token is the minimum.
+        same("calendar unknown token", "/api/v1/calendar/ct_nope.ics")
+        same("calendar no suffix", "/api/v1/calendar/ct_parity-open")
+        same("calendar suffix only", "/api/v1/calendar/.ics")
+        same("calendar empty path", "/api/v1/calendar/")
+        same("calendar token with a dot", "/api/v1/calendar/ct.parity.ics")
+        same("calendar double suffix", "/api/v1/calendar/ct_parity-open.ics.ics")
+        same("calendar nested path", "/api/v1/calendar/a/b.ics")
+        same("calendar uppercase suffix", "/api/v1/calendar/ct_parity-open.ICS")
+        # The feed is its own credential, so it is not origin-gated either, and it sets its own Cache-Control.
+        for origin in ("https://evil.example", ""):
+            same(f"calendar foreign origin {origin!r}", "/api/v1/calendar/ct_parity-open.ics",
+                 {"Origin": origin}, normalise=_drop_dtstamp)
+        c = get(PY, "/api/v1/calendar/ct_parity-open.ics")
+        assert c[2].get("cache-control") == "private, max-age=300", c[2]
+        assert c[2].get("content-type") == "text/calendar; charset=utf-8", c[2]
+
         print(f"{n} comparisons passed")
     finally:
         for p in procs:
@@ -179,6 +223,15 @@ def main():
             except subprocess.TimeoutExpired:
                 p.kill()
         psql("DELETE FROM tenants WHERE slug LIKE 'parity-%'")
+
+
+def _drop_dtstamp(res):
+    """`DTSTAMP` is the moment each server built the feed, so it legitimately differs by up to a second: replace
+    it with a placeholder and keep every other byte, which is where esc() and fold() show up."""
+    status, body, hdrs = res
+    if isinstance(body, str) and "DTSTAMP:" in body:
+        body = re.sub(r"DTSTAMP:\d{8}T\d{6}Z", "DTSTAMP:<now>", body)
+    return status, body, hdrs
 
 
 def _drop_times(res):

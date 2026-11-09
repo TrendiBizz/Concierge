@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use concierge_core::edge::{self, Boundary};
-use concierge_core::{channel_auth, pydantic, report, requests, tenants};
+use concierge_core::{channel_auth, ical, pydantic, report, requests, tenants};
 use deadpool_postgres::{Manager, Pool};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -546,6 +546,90 @@ async fn client_report(
         .into_response()
 }
 
+/// `GET /api/v1/calendar/{token}.ics`: the read-only appointment feed. Like the report, the token is the
+/// credential, so the route sits outside the owner boundary.
+///
+/// Starlette matches this path with `^/api/v1/calendar/(?P<token>[^/]+)\.ics$`: the `.ics` suffix is required
+/// and the token must be at least one character, so `/api/v1/calendar/abc` and `/api/v1/calendar/.ics` are both
+/// FastAPI 404s. axum 0.7 has no suffix syntax — `:token.ics` silently captures the whole segment including the
+/// suffix, exactly as a bare `:token` would — so the suffix is stripped here and its absence answered as
+/// Starlette's 404. Keeping the route a single `:token` also avoids registering a second pattern for the same
+/// path, which would shadow this one.
+async fn calendar_feed(AxState(state): AxState<State>, Path(raw): Path<String>) -> Response {
+    let Some(token) = raw.strip_suffix(".ics").filter(|t| !t.is_empty()) else {
+        return not_found().await;
+    };
+    let Some(pool) = state.0.pool.as_ref() else {
+        return server_error();
+    };
+    let Ok(client) = pool.get().await else {
+        return server_error();
+    };
+    let Ok(row) = client
+        .query_opt("SELECT * FROM tenants WHERE calendar_token = $1", &[&token])
+        .await
+    else {
+        return server_error();
+    };
+    let Some(row) = row else {
+        return detail(404, "Unknown calendar");
+    };
+    let Ok(tenant) = tenants::load(&row_json(&row)) else {
+        return server_error();
+    };
+    let tenant_id = match uuid::Uuid::parse_str(tenant["id"].as_str().unwrap_or("")) {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+    let Ok(rows) = client
+        .query(
+            "SELECT * FROM appointments WHERE tenant_id = $1 AND starts_at > now() - interval '30 days' \
+             ORDER BY starts_at",
+            &[&tenant_id],
+        )
+        .await
+    else {
+        return server_error();
+    };
+    let appointments: Vec<ical::Appointment> = rows.iter().map(appointment_from_row).collect();
+    let body = ical::build(
+        tenant["name"].as_str().unwrap_or(""),
+        &appointments,
+        chrono::Utc::now().timestamp(),
+    );
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
+            (header::CACHE_CONTROL, "private, max-age=300"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+/// One appointment row as `ical::Appointment`. `id` is a UUID and the timestamps are `timestamptz`; the feed
+/// builder takes Unix seconds, so the conversion happens once here.
+fn appointment_from_row(row: &Row) -> ical::Appointment {
+    let text = |name: &str| row.get::<_, Option<String>>(name);
+    ical::Appointment {
+        id: row
+            .get::<_, Option<uuid::Uuid>>("id")
+            .map_or_else(String::new, |u| u.to_string()),
+        name: text("name"),
+        phone: text("phone"),
+        email: text("email"),
+        notes: text("notes"),
+        status: text("status"),
+        starts_at: row
+            .get::<_, Option<chrono::DateTime<chrono::Utc>>>("starts_at")
+            .map_or(0, |d| d.timestamp()),
+        ends_at: row
+            .get::<_, Option<chrono::DateTime<chrono::Utc>>>("ends_at")
+            .map_or(0, |d| d.timestamp()),
+    }
+}
+
 /// `owner_boundary`: hardening headers and the foreign-origin refusal for the owner portal and device SMS.
 async fn boundary(AxState(state): AxState<State>, request: Request, next: Next) -> Response {
     let path = request.uri().path().to_string();
@@ -613,6 +697,7 @@ pub fn app(state: State) -> Router {
         .route("/admin/tenants", get(admin_list))
         .route("/admin/tenants/:slug", get(admin_get))
         .route("/report/:token", get(client_report))
+        .route("/api/v1/calendar/:token", get(calendar_feed))
         // FastAPI answers an unmatched path (including `/report/`, whose empty segment matches no route) with
         // its JSON 404; axum's default fallback would send an empty body instead.
         .fallback(not_found)
