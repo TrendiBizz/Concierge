@@ -3,8 +3,8 @@
 Rule: the Python in `api/app` stays deployed and untouched until a Rust module has passed parity and been
 deliberately wired in and redeployed. Nothing here has been deployed.
 
-Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7), `parity/gen_vectors8.py` + `parity/gen_ip_tables.py` (batch 8), `parity/gen_vectors9.py` (batch 9), `parity/gen_vectors10.py` (batch 10) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
-`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs`, `parity7.rs`, `parity8.rs`, `parity9.rs` and `parity10.rs` must reproduce every vector. Run `cargo test` in this directory.
+Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (batch 2) and `parity/gen_vectors3.py` (batch 3), `parity/gen_vectors4.py` (batch 4), `parity/gen_vectors5.py` (batch 5), `parity/gen_vectors6.py` (batch 6), `parity/gen_vectors7.py` (batch 7), `parity/gen_vectors8.py` + `parity/gen_ip_tables.py` (batch 8), `parity/gen_vectors9.py` (batch 9), `parity/gen_vectors10.py` (batch 10), `parity/gen_vectors11.py` (batch 11) and `parity/gen_tool_specs.py` run the live Python modules and writes `parity/vectors.json`;
+`tests/parity.rs`, `parity2.rs`, `parity3.rs`, `parity4.rs`, `parity5.rs`, `parity6.rs`, `parity7.rs`, `parity8.rs`, `parity9.rs`, `parity10.rs` and `parity11.rs` must reproduce every vector. Run `cargo test` in this directory.
 
 | Python module | Rust module | Status |
 |---|---|---|
@@ -36,6 +36,9 @@ Parity method: `parity/gen_vectors.py` (batch 1) and `parity/gen_vectors2.py` (b
 | sms.py: Twilio and Android-gateway webhook signatures, gateway payload, `sender_ready` | sms | ported, 73 + 193 + 48 + 228 vectors (incl. the exact 300-second tolerance boundary) |
 | rag.py: `tag_url` (UTM tagging via urlsplit/parse_qsl/urlencode semantics) and `build_system_prompt` for chat, SMS and voice | rag | ported, 100 URL + 160 prompt vectors; the prompt is compared character for character with a fixed clock |
 | cloudflare_inbound.py webhook authentication (HMAC, replay window, size, payload shape), inbound_email.py ingestion rules and keys, enquiries.py keys and owner notice, email_drafts `_address`/`_subject` | inbound | ported; 61 scenarios run the real `handle()` with a fake database and clock (503/401/413/400/404/403 and 14 accepted cases with every stored value compared) |
+| phone_sip.py SIP webhook verification (Standard-Webhooks style) and caller-number parsing; phone_relay.py TwiML, URLs, relay signature, id/consent patterns; managed_phone `sip_twiml`; mobile_connections `forwarding_steps`; tenants `slugify` | telephony | ported, 92 + 23 + 48 + 30 + 23 + 22 vectors incl. the exact 300-second boundary and Python's exception ordering on a non-ASCII signature part |
+| voice.py `build_session` (Grok session config incl. the full voice prompt and tool list) and `_extract_token` | voice_session | ported; 60 sessions compared whole |
+| evals.py behaviour checks | evals | ported, 140 combinations; failure messages that embed a Python `repr()` (prices, quoted replies) are compared by result and fixed prefix only |
 | Twenty delivery outcome classification, calendar_connection OAuth/token handling, async DB/HTTP workers, rest of booking/outbox/quotations I/O, main (HTTP) | not started | next batches |
 
 Known, documented differences: `\s` in the paragraph splitter follows Rust/Unicode White_Space semantics for the
@@ -61,3 +64,5 @@ Python behaviours reproduced deliberately: `lead_view` raises on non-JSON `utm` 
 Signature checks: a signature containing non-ASCII text makes Python's `compare_digest` raise; here it simply fails verification. A gateway timestamp using `_` separators (accepted by Python's `int()`) is refused.
 
 Webhook timestamps with non-ASCII decimal digits: Python accepts them as decimals and answers 'Expired signature'; this port refuses them as 'Invalid signature'. Same status (401), fail closed.
+
+Telephony divergences (all fail closed): a SIP/webhook timestamp written with underscores is refused (Python accepts); caller numbers whose digits after the first are non-ASCII Unicode digits yield no number (Python returns one); `valid_websocket_signature` on a non-HTTPS base returns false where Python raises.

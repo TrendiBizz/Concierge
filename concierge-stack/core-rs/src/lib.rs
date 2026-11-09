@@ -8,6 +8,7 @@ pub mod campaigns;
 pub mod chunking;
 pub mod contact;
 pub mod convo;
+pub mod evals;
 pub mod events;
 pub mod guard;
 pub mod ical;
@@ -25,9 +26,11 @@ pub mod scoring;
 pub mod sla;
 pub mod sms;
 pub mod tasks;
+pub mod telephony;
 pub mod tools;
 pub mod unsub;
 pub mod voice_records;
+pub mod voice_session;
 
 /// Python `str` whitespace (`str.isspace`), which is slightly wider than `char::is_whitespace`.
 pub(crate) fn is_py_space(c: char) -> bool {
