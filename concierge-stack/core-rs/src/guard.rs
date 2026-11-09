@@ -22,7 +22,11 @@ pub struct Amount {
 impl Amount {
     /// Canonical text: no leading zeros, no trailing fractional zeros.
     pub fn canonical(&self) -> String {
-        if self.frac.is_empty() { self.whole.clone() } else { format!("{}.{}", self.whole, self.frac) }
+        if self.frac.is_empty() {
+            self.whole.clone()
+        } else {
+            format!("{}.{}", self.whole, self.frac)
+        }
     }
 }
 
@@ -34,12 +38,18 @@ pub fn amounts(text: &str) -> BTreeSet<Amount> {
             let whole = whole.trim_start_matches('0');
             let whole = if whole.is_empty() { "0" } else { whole };
             let frac = m.get(2).map_or("", |f| f.as_str()).trim_end_matches('0');
-            Amount { whole: whole.to_string(), frac: frac.to_string() }
+            Amount {
+                whole: whole.to_string(),
+                frac: frac.to_string(),
+            }
         })
         .collect()
 }
 
 pub fn unknown_amounts(reply: &str, evidence: &str) -> BTreeSet<Amount> {
     let known = amounts(evidence);
-    amounts(reply).into_iter().filter(|a| !known.contains(a)).collect()
+    amounts(reply)
+        .into_iter()
+        .filter(|a| !known.contains(a))
+        .collect()
 }

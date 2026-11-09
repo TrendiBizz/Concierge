@@ -3,23 +3,31 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const html=fs.readFileSync('api/static/owner.html','utf8');
 function element(){
-  const el={children:[],value:'',hidden:false,handlers:{},attrs:{},disabled:false,
+  const el={children:[],value:'',hidden:false,handlers:{},attrs:{},dataset:{},disabled:false,
     addEventListener(k,fn){this.handlers[k]=fn;},setAttribute(k,v){this.attrs[k]=v;},
     appendChild(child){this.children.push(child);return child;},prepend(child){this.children.unshift(child);},
     removeChild(child){this.children.splice(this.children.indexOf(child),1);},
     querySelector(){return element();},focus(){this.focused=true;},
-    setCustomValidity(message){this.validation=message;},reportValidity(){},
+    setCustomValidity(message){this.validation=message;},reportValidity(){},reset(){this.value='';},
     classList:{add(){},remove(){}},style:{}};
   Object.defineProperty(el,'firstChild',{get(){return this.children[0];}});
   Object.defineProperty(el,'textContent',{get(){return this._text||'';},set(text){this._text=text;this.children=[];}});
   return el;
+}
+function findById(list,id){
+  for(const n of list){
+    if(n.id===id)return n;
+    const hit=findById(n.children||[],id);
+    if(hit)return hit;
+  }
+  return null;
 }
 function portal(hash='',fetcher){
   const nodes=Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],element()]));
   const requests=[],window=new EventTarget();
   const location={origin:'https://example.test',pathname:'/owner-ui',search:'',hash};
   const context=vm.createContext({URL,URLSearchParams,Event,window,location,console,
-    document:{getElementById:id=>nodes[id]||null,createElement:element},
+    document:{getElementById:id=>nodes[id]||findById(Object.values(nodes),id),createElement:element,querySelectorAll:()=>[]},
     history:{replaceState(_a,_b,url){location.hash='';location.replaced=url;}},
     navigator:{},confirm:()=>true,
     fetch:async(url,options)=>{
@@ -39,7 +47,7 @@ test('invitation fragment is consumed locally and removed from history',()=>{
 });
 test('sign-out clears private draft, invitation and identity fields before another customer enters',async()=>{
   const p=portal();
-  const privateFields=['slug','email','social-text','social-link','social-hashtags','social-media','invite-email'];
+  const privateFields=['slug','email','composer-body','composer-url','social-hashtags','social-media','invite-email'];
   for(const field of privateFields)p.nodes[field].value='Synthetic A private data';
   p.nodes['invite-result'].textContent='Synthetic A invitation';
   p.nodes.identity.textContent='Synthetic A';

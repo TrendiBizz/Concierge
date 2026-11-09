@@ -326,6 +326,32 @@ impl Connector for Instagram {
         })
     }
 }
+/// Poll an accepted video without submitting it again.
+pub async fn video_status(token: &str, id: &str) -> Result<Option<bool>, String> {
+    if !safe_id(id) {
+        return Err("Invalid Facebook receipt".into());
+    }
+    let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
+    let response = http()
+        .get(format!("https://graph.facebook.com/{version}/{id}"))
+        .bearer_auth(token)
+        .query(&[("fields", "status")])
+        .send()
+        .await
+        .map_err(|_| "Facebook status unavailable")?;
+    if !response.status().is_success() {
+        return Err("Facebook status unavailable".into());
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|_| "Facebook status invalid")?;
+    Ok(match body["status"]["video_status"].as_str() {
+        Some("ready") => Some(false),
+        Some("error") => Some(true),
+        _ => None,
+    })
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,31 +402,4 @@ mod tests {
         assert!(!safe_id("../abc"));
         assert!(!safe_id("abc:123"));
     }
-}
-
-/// Poll an accepted video without submitting it again.
-pub async fn video_status(token: &str, id: &str) -> Result<Option<bool>, String> {
-    if !safe_id(id) {
-        return Err("Invalid Facebook receipt".into());
-    }
-    let version = std::env::var("SOCIAL_META_GRAPH_VERSION").unwrap_or_else(|_| "v27.0".into());
-    let response = http()
-        .get(format!("https://graph.facebook.com/{version}/{id}"))
-        .bearer_auth(token)
-        .query(&[("fields", "status")])
-        .send()
-        .await
-        .map_err(|_| "Facebook status unavailable")?;
-    if !response.status().is_success() {
-        return Err("Facebook status unavailable".into());
-    }
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|_| "Facebook status invalid")?;
-    Ok(match body["status"]["video_status"].as_str() {
-        Some("ready") => Some(false),
-        Some("error") => Some(true),
-        _ => None,
-    })
 }

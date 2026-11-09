@@ -21,7 +21,9 @@ os.environ.update({
 sys.path.insert(0, os.path.expanduser("~/work-staging/shims"))
 sys.path.insert(0, os.path.expanduser("~/work-staging/concierge-core/api"))
 
-from app import campaigns, db, outbox, tenants, unsub  # noqa: E402
+import uuid  # noqa: E402
+
+from app import campaigns, channel_authorization, db, outbox, tenants, unsub  # noqa: E402
 
 results = []
 
@@ -106,6 +108,13 @@ async def main():
     st = await campaigns.stats(camp["id"])
     check("Pat's pending message cancelled, Sam's still pending", st.get("cancelled") == 1 and st.get("pending") == 1, st)
     check("forged token rejected", await campaigns.unsubscribe(token[:-3] + "xxx") is None)
+
+    # Delivery re-checks the customer's channel authorization before anything else, so the tenant must have
+    # authorized its sending channels for this step to reach (and prove) the campaign kill switch.
+    owner = uuid.uuid4()
+    for channel in ("email_send", "sms_send"):
+        await channel_authorization.record_authorization(
+            tid, owner, channel_authorization.ChannelAuthorization(channel=channel, authorized=True, acknowledgement=True))
 
     # delivery-time kill switch
     await p.execute("UPDATE tenants SET campaigns_enabled = false WHERE id = $1", tid)

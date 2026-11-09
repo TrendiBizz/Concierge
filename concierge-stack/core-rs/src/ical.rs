@@ -2,7 +2,8 @@
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
 const PRODID: &str = "-//Concierge//Appointments//EN";
-const STAMP: &[FormatItem<'static>] = format_description!("[year][month][day]T[hour][minute][second]Z");
+const STAMP: &[FormatItem<'static>] =
+    format_description!("[year][month][day]T[hour][minute][second]Z");
 
 #[derive(Debug, Clone, Default)]
 pub struct Appointment {
@@ -64,7 +65,10 @@ pub fn build(tenant_name: &str, appointments: &[Appointment], now_epoch: i64) ->
         format!("PRODID:{PRODID}"),
         "CALSCALE:GREGORIAN".into(),
         "METHOD:PUBLISH".into(),
-        format!("X-WR-CALNAME:{}", esc(&format!("{tenant_name} appointments"))),
+        format!(
+            "X-WR-CALNAME:{}",
+            esc(&format!("{tenant_name} appointments"))
+        ),
         "REFRESH-INTERVAL;VALUE=DURATION:PT15M".into(),
         "X-PUBLISHED-TTL:PT15M".into(),
     ];
@@ -83,15 +87,33 @@ pub fn build(tenant_name: &str, appointments: &[Appointment], now_epoch: i64) ->
         lines.push(format!("DTSTAMP:{}", stamp(now_epoch)));
         lines.push(format!("DTSTART:{}", stamp(a.starts_at)));
         lines.push(format!("DTEND:{}", stamp(a.ends_at)));
-        lines.push(format!("SUMMARY:{}", esc(&format!("{} - {tenant_name}", some(&a.name).unwrap_or("Appointment")))));
+        lines.push(format!(
+            "SUMMARY:{}",
+            esc(&format!(
+                "{} - {tenant_name}",
+                some(&a.name).unwrap_or("Appointment")
+            ))
+        ));
         if !description.is_empty() {
             lines.push(format!("DESCRIPTION:{}", esc(&description)));
         }
-        lines.push(format!("STATUS:{}", if a.status.as_deref() == Some("cancelled") { "CANCELLED" } else { "CONFIRMED" }));
+        lines.push(format!(
+            "STATUS:{}",
+            if a.status.as_deref() == Some("cancelled") {
+                "CANCELLED"
+            } else {
+                "CONFIRMED"
+            }
+        ));
         lines.push("END:VEVENT".into());
     }
     lines.push("END:VCALENDAR".into());
-    let mut out = lines.iter().filter(|l| !l.is_empty()).map(|l| fold(l)).collect::<Vec<_>>().join("\r\n");
+    let mut out = lines
+        .iter()
+        .filter(|l| !l.is_empty())
+        .map(|l| fold(l))
+        .collect::<Vec<_>>()
+        .join("\r\n");
     out.push_str("\r\n");
     out
 }

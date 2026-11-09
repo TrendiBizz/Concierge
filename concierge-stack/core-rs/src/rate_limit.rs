@@ -10,7 +10,11 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(limit: usize, window: Duration) -> Self {
-        Self { limit, window, hits: HashMap::new() }
+        Self {
+            limit,
+            window,
+            hits: HashMap::new(),
+        }
     }
 
     pub fn check(&mut self, key: &str, now: Instant) -> bool {
@@ -31,6 +35,7 @@ impl RateLimiter {
 
     fn prune(&mut self, now: Instant) {
         let window = self.window;
-        self.hits.retain(|_, q| q.back().is_some_and(|t| now.duration_since(*t) < window));
+        self.hits
+            .retain(|_, q| q.back().is_some_and(|t| now.duration_since(*t) < window));
     }
 }

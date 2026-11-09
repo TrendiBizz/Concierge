@@ -53,7 +53,7 @@ async def contract(key):
         assert submitted["status"] == "pending_approval", submitted
         approval = await social_bridge.request_approval(
             tenant, draft["id"], int(time.time()))
-        assert approval["exact_text"] == "Safe test social draft\n#offline", approval
+        assert approval["exact_text"] == "Safe test social draft\n#offline\nMedia: \nPublishing choices: {}", approval
         decided = await social_bridge.decide(tenant, approval["token"], True)
         assert decided["status"] == "scheduled", decided
         posts = await social_bridge.posts(tenant)

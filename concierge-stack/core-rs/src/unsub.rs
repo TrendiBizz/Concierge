@@ -9,7 +9,12 @@ type HmacSha256 = Hmac<Sha256>;
 fn sign(secret: &[u8], payload: &str) -> String {
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC accepts any key length");
     mac.update(payload.as_bytes());
-    let hex: String = mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect();
+    let hex: String = mac
+        .finalize()
+        .into_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     hex[..32].to_string()
 }
 
@@ -34,12 +39,21 @@ pub fn read_token(secret: &str, token: &str) -> Option<(String, String)> {
     if !bool::from(expected.as_bytes().ct_eq(signature.as_bytes())) {
         return None;
     }
-    let raw = String::from_utf8(URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).ok()?).ok()?;
+    let raw =
+        String::from_utf8(URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).ok()?).ok()?;
     let (tenant, contact) = raw.split_once('|')?;
     (!tenant.is_empty() && !contact.is_empty()).then(|| (tenant.to_string(), contact.to_string()))
 }
 
-pub fn url_for(secret: &str, public_base_url: &str, tenant_id: &str, contact: &str) -> Result<String, &'static str> {
+pub fn url_for(
+    secret: &str,
+    public_base_url: &str,
+    tenant_id: &str,
+    contact: &str,
+) -> Result<String, &'static str> {
     let token = make_token(secret, tenant_id, contact)?;
-    Ok(format!("{}/api/v1/unsubscribe/{token}", public_base_url.trim_end_matches('/')))
+    Ok(format!(
+        "{}/api/v1/unsubscribe/{token}",
+        public_base_url.trim_end_matches('/')
+    ))
 }

@@ -110,7 +110,11 @@ pub fn chunk_text(text: &str, max_chars: usize, overlap: usize) -> Vec<String> {
     for unit in units {
         if !current.is_empty() && char_len(&current) + 2 + char_len(&unit) > max_chars {
             chunks.push(current.clone());
-            let mut tail = if overlap > 0 { tail_chars(&current, overlap) } else { String::new() };
+            let mut tail = if overlap > 0 {
+                tail_chars(&current, overlap)
+            } else {
+                String::new()
+            };
             if let Some((_, rest)) = tail.split_once(' ') {
                 tail = rest.to_string();
             }

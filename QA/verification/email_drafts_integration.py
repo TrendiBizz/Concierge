@@ -13,7 +13,7 @@ os.environ.update({
     "ADMIN_TOKEN": "test-admin-only",
 })
 from fastapi.testclient import TestClient  # noqa: E402
-from app import db, email_drafts, llm  # noqa: E402
+from app import db, email_drafts, llm, rag  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -112,7 +112,9 @@ with TestClient(app) as client:
 
     async def fake_complete(*args, **kwargs):
         return SimpleNamespace(content="Draft from AI. Human review is needed.")
-    with patch.object(llm, "complete", new=fake_complete):
+    async def fake_retrieve(*args, **kwargs):
+        return []  # no embedding provider is contacted; business knowledge retrieval is covered elsewhere
+    with patch.object(llm, "complete", new=fake_complete), patch.object(rag, "retrieve", new=fake_retrieve):
         r = client.post(base, headers=H, json={
             "sender": "person@example.test", "subject": "New enquiry",
             "inbound_body": "Can I get a quote?", "generate": True})
