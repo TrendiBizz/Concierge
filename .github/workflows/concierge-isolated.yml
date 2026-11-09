@@ -201,6 +201,43 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
 
+  hermes-gateway-e2e:
+    name: hermes-gateway-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          python -m pip install -r api/requirements-dev.txt
+      - name: Build the real gateway binary
+        run: cargo build --locked --release --manifest-path concierge-stack/hermes-gateway/Cargo.toml
+      - name: Real gateway -> real API -> PostgreSQL (only Hermes is faked)
+        env:
+          PYTHONPATH: QA/verification/shims:api
+        run: python QA/verification/hermes_gateway_e2e.py
+
   socialsync:
     name: socialsync-node
     runs-on: ubuntu-latest
