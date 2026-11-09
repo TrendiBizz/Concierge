@@ -65,7 +65,7 @@ def connection_config(ident):
 
 
 def configured_for_tenant(tenant,numbers):
-    if not get_settings().xai_api_key or get_settings().phone_voice_provider!='grok':
+    if not get_settings().phone_receptionist_enabled or not get_settings().xai_api_key or get_settings().phone_voice_provider!='grok':
         return False
     try:
         configs=json.loads(get_settings().xai_sip_connections or '{}')
@@ -214,7 +214,7 @@ async def incoming(connection_id: uuid.UUID,request: Request):
     except (ValueError,TypeError,KeyError,AttributeError):
         raise HTTPException(400,"Invalid telephone event") from None
     tenant=await tenants.get_by_slug(config["tenant"])
-    if (number!=config["number"] or not tenant or not tenant.get("phone_enabled")
+    if (not get_settings().phone_receptionist_enabled or number!=config["number"] or not tenant or not tenant.get("phone_enabled")
             or not get_settings().xai_api_key
             or get_settings().phone_voice_provider!='grok'
             or not await channel_authorization.is_authorized(tenant["id"],"telephone")):

@@ -1,0 +1,33 @@
+# Separate optional stack. No public SIP/audio port is exposed by default.
+# Use Concierge's existing API image and DB configuration, not a second CRM.
+services:
+  pbx:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./generated/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./generated/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+    networks:
+      phone:
+        ipv4_address: 172.30.91.2
+  bridge:
+    image: ${CONCIERGE_API_IMAGE:?Set the existing API image}
+    command: [python, -m, app.asterisk_bridge]
+    restart: unless-stopped
+    env_file: ${CONCIERGE_ENV_FILE:?Set the existing private Concierge environment file}
+    environment:
+      ASTERISK_BIND: 0.0.0.0
+      ASTERISK_PEERS: 172.30.91.2/32
+      ASTERISK_ROUTES: ${ASTERISK_ROUTES:?Supply explicit provisioned business routes}
+    volumes:
+      - ../../api/app:/srv/app:ro
+    networks: [phone, concierge]
+networks:
+  phone:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.91.0/29
+  concierge:
+    external: true
+    name: ${CONCIERGE_NETWORK:?Set the existing database network}

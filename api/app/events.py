@@ -30,7 +30,7 @@ def twenty_bridge_payload(tenant: dict, event: str, sections: dict) -> dict | No
     explicitly selects exactly this tenant. A booking attaches a new note to a
     matching person when the bridge can identify them.
     """
-    if event not in ("lead.created", "appointment.booked"):
+    if event not in ("lead.created", "appointment.booked", "voice.completed"):
         return None
     lead = sections.get("lead") or {}
     appt = sections.get("appointment") or {}
@@ -44,7 +44,7 @@ def twenty_bridge_payload(tenant: dict, event: str, sections: dict) -> dict | No
     parts = str(person.get("name") or "").strip().split(None, 1)
     first = parts[0] if parts else ""
     last = parts[1] if len(parts) > 1 else ""
-    if event == "lead.created":
+    if event in ("lead.created", "voice.completed"):
         detail = str(lead.get("message") or "")[:1400]
     else:
         detail = ("Appointment booked: " + str(appt.get("starts_at") or "") +
@@ -77,7 +77,7 @@ def _bridge_url() -> str | None:
 
 
 async def queue_twenty(tenant: dict, event: str, source_id: str,
-                       sections: dict) -> bool:
+                       sections: dict, *, connection=None) -> bool:
     """Persist before attempting delivery; one item per tenant/event/source ID."""
     if not _bridge_enabled(tenant):
         return False
@@ -86,7 +86,7 @@ async def queue_twenty(tenant: dict, event: str, source_id: str,
         return False
     if not source_id:
         raise ValueError("Twenty event needs an idempotent source identifier")
-    result=await db.pool().execute(
+    result=await (connection or db.pool()).execute(
         """INSERT INTO twenty_deliveries(tenant_id,event,source_id,payload)
            VALUES($1,$2,$3,$4::jsonb)
            ON CONFLICT(tenant_id,event,source_id) DO NOTHING""",

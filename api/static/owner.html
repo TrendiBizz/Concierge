@@ -80,7 +80,16 @@ A configured channel still needs Trendi's verification before it is activated.</
 <div id="channel-authorizations" aria-live="polite"></div>
 </section>
 <div class="row">
-<section class="panel"><h2>Telephone numbers</h2><p class="muted">Read-only. Enabling phone reception requires operator verification.</p><div id="numbers"></div></section>
+<section class="panel" id="phone-setup-panel"><h2>Grok phone receptionist</h2>
+<p>Choose the business number your customers call. Connect your existing phone service and let Grok answer using your business information.</p>
+<p id="phone-setup-status" aria-live="polite"></p>
+<form id="phone-setup-form">
+<label for="phone-designated">Business number (with country code)</label><input id="phone-designated" type="tel" required pattern="\+[1-9][0-9]{6,14}" placeholder="+64278817368">
+<label for="phone-connection">Connect your number</label><select id="phone-connection"><option value="mobile_forwarding">My existing smartphone number</option><option value="existing_sip">My existing business phone or SIP account</option><option value="existing_twilio">My existing Twilio account</option></select>
+<label for="phone-answer">When should Grok answer?</label><select id="phone-answer"><option value="unanswered">When I do not answer or am busy</option><option value="all_calls">All calls</option></select>
+<label for="phone-owner">Your contact number (with country code)</label><input id="phone-owner" type="tel" required pattern="\+[1-9][0-9]{6,14}">
+<p class="muted">Use an account and number you already have. No new service or number is ordered. Trendi checks whether your existing service supports AI call routing; mobile-only plans may need a forwarding destination. Text messaging is checked separately. Saving does not change your current phone service.</p>
+<button type="submit">Save phone setup</button></form><div id="mobile-connection" aria-live="polite"></div><div id="numbers"></div></section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
 </div>
 <section class="panel"><h2>Text messages</h2><div id="sms-phone" aria-live="polite"></div>
@@ -136,6 +145,8 @@ let bearer = "";
 let sessionGeneration = 0;
 let setupProgress = {business:false,knowledge:0,accounts:0};
 let currentRole = "";
+const recordingObjectUrls=new Set();
+function clearRecordingAudio(){document.querySelectorAll("audio").forEach(audio=>audio.pause());for(const url of recordingObjectUrls)URL.revokeObjectURL(url);recordingObjectUrls.clear();}
 let oauthWindow = null;
 let oauthChannel = null;
 let pendingOAuthState = "";
@@ -166,6 +177,7 @@ async function request(path,method="GET",data){
   return parsed;
 }
 function resetWorkspace(){
+ clearRecordingAudio();
  sessionGeneration++;
  if(oauthWindow && !oauthWindow.closed)oauthWindow.close();
  pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;clearOAuthChannel();
@@ -173,11 +185,11 @@ function resetWorkspace(){
  $("social-panel").hidden=true;$("invite-panel").hidden=true;
  socialUpload=null;
  for(const id of ["social-destinations","social-previews","social-posts","social-accounts","social-account","drafts","numbers","calls",
-   "onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
- for(const id of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone",
+   "mobile-connection","phone-setup-status","onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks"]){clear($(id));$(id).textContent="";}
+ for(const id of ["phone-designated","phone-owner","onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-timezone",
    "composer-body","composer-url","social-hashtags","social-media","social-video","social-upload","invite-email","knowledge-title","knowledge-text","knowledge-file",
    "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
- $("social-account").value="";$("invite-role").value="viewer";
+ $("social-account").value="";$("invite-role").value="viewer";$("phone-connection").value="mobile_forwarding";$("phone-answer").value="unanswered";
  setupProgress={business:false,knowledge:0,accounts:0};
 }
 async function signIn(slug,email,password){
@@ -195,7 +207,8 @@ async function signIn(slug,email,password){
  else message("Your business workspace is ready. Choose what to set up below.");
 }
 async function refreshCRM(){
- const data=await request("/owner/crm");
+ const generation=sessionGeneration;
+ const data=await request("/owner/crm");assertSession(generation);clearRecordingAudio();
  for(const id of ["crm-leads","crm-appointments","crm-tasks"])clear($(id));
  if(!data.leads.length)$("crm-leads").appendChild(node("p","No enquiries yet. Connected channels will capture them here."));
  for(const lead of data.leads){
@@ -204,6 +217,61 @@ async function refreshCRM(){
   item.appendChild(node("p",lead.channel+" · "+lead.status+" · "+new Date(lead.created_at).toLocaleString()));
   item.appendChild(node("p",[lead.email,lead.phone].filter(Boolean).join(" · ")));
   item.appendChild(node("p",lead.message));
+  const transcript=node("details");transcript.appendChild(node("summary","Conversation transcript"));
+  const transcriptBody=node("div");transcript.appendChild(transcriptBody);let transcriptLoaded=false;
+  transcript.addEventListener("toggle",async()=>{
+   if(!transcript.open||transcriptLoaded)return;
+   const generation=sessionGeneration;transcriptBody.textContent="Loading transcript…";
+   try{
+    const [turns,recordings]=await Promise.all([
+     request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/transcript"),
+     request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/recordings")]);assertSession(generation);
+    clear(transcriptBody);transcriptLoaded=true;
+    if(!turns.length)transcriptBody.appendChild(node("p","No saved transcript for this enquiry.","muted"));
+    for(const turn of turns)transcriptBody.appendChild(node("p",(turn.role==="user"?"Customer: ":"Concierge: ")+turn.content));
+    for(const recording of recordings){
+     const box=node("div");box.appendChild(node("p","Recording · "+new Date(recording.created_at).toLocaleString()));
+     const listen=node("button","Load recording");listen.type="button";
+     listen.addEventListener("click",async()=>{
+      listen.disabled=true;const token=bearer;
+      try{
+       const response=await fetch("/owner/voice-recordings/"+encodeURIComponent(recording.session_id),{headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"});
+       assertSession(generation,token);if(!response.ok)throw new Error("Recording is unavailable");
+       const blob=await response.blob();assertSession(generation,token);const url=URL.createObjectURL(blob);recordingObjectUrls.add(url);
+       const player=document.createElement("audio");player.controls=true;player.src=url;box.appendChild(player);
+       const download=node("a","Download recording");download.href=url;download.download="concierge-recording."+recording.mime_type.split("/")[1];box.appendChild(download);
+      }catch(error){listen.disabled=false;message(error.message,true);}
+     });box.appendChild(listen);
+     if(currentRole==="owner"){
+      const share=node("button","Create a 24-hour sharing link");share.type="button";
+      share.addEventListener("click",async()=>{
+       if(!confirm("Create a link that lets anyone with that link listen to this recording for 24 hours?"))return;
+       share.disabled=true;
+       try{const data=await request("/owner/voice-recordings/"+encodeURIComponent(recording.session_id)+"/share","POST");assertSession(generation);const field=document.createElement("input");field.readOnly=true;field.value=data.url;field.setAttribute("aria-label","Private recording sharing link");box.appendChild(field);field.select();message("Sharing link created. It expires in 24 hours.");}
+       catch(error){share.disabled=false;message(error.message,true);}
+      });box.appendChild(share);
+     }transcriptBody.appendChild(box);
+    }
+    if(currentRole==="owner"&&lead.consent_contact&&(lead.phone||lead.email)){
+     const form=document.createElement("form");const recipient=document.createElement("select");recipient.setAttribute("aria-label","Send copy to customer");
+     for(const channel of ["sms","email"]){const address=channel==="sms"?lead.phone:lead.email;if(address){const option=node("option",channel+": "+address);option.value=channel;recipient.appendChild(option);}}
+     const format=document.createElement("select");format.setAttribute("aria-label","Conversation copy format");const textOption=node("option","Text transcript (SMS includes the customer’s enquiry text)");textOption.value="text";format.appendChild(textOption);
+     for(const recording of recordings){const option=node("option","Recording link · "+new Date(recording.created_at).toLocaleString());option.value=recording.session_id;format.appendChild(option);}
+     const send=node("button","Send conversation copy");send.type="submit";let requestId=crypto.randomUUID();
+     recipient.addEventListener("change",()=>{requestId=crypto.randomUUID();});format.addEventListener("change",()=>{requestId=crypto.randomUUID();});
+     form.append(recipient,format,send);
+     form.addEventListener("submit",async event=>{
+      event.preventDefault();const channel=recipient.value,address=channel==="sms"?lead.phone:lead.email,isRecording=format.value!=="text";
+      if(!confirm("Send "+(isRecording?"a private 24-hour recording link":"the saved conversation text")+" to "+address+"?"))return;
+      send.disabled=true;
+      try{const result=await request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/deliver","POST",{recipient:address,channel,content:isRecording?"recording":"text",request_id:requestId,session_id:isRecording?format.value:null});assertSession(generation);message(result.note||"This delivery request is already queued.");}
+      catch(error){send.disabled=false;message(error.message,true);}
+     });transcriptBody.appendChild(form);
+    }
+
+   }catch(error){if(generation===sessionGeneration)transcriptBody.textContent=error.message;}
+  });item.appendChild(transcript);
+
   if(currentRole!=="viewer"){
    const label=node("label","Enquiry status");const select=document.createElement("select");
    for(const status of ["new","contacted","booked","won","lost"]){const option=node("option",status);option.value=status;select.appendChild(option);}
@@ -413,8 +481,40 @@ $("social-form").addEventListener("submit",async event=>{
  }catch(error){message(error.message,true);}
 });
 
+async function refreshMobileConnection(){
+ const generation=sessionGeneration;
+ if($("phone-connection").value!=="mobile_forwarding"){clear($("mobile-connection"));return;}
+ const data=await request("/owner/mobile-connection");assertSession(generation);
+ const host=$("mobile-connection");clear(host);
+ const status=document.createElement("p");
+ status.textContent=data.status==="destination_needed"?"Your mobile forwarding destination has not been connected yet.":data.status==="authorization_needed"?"Authorize telephone answering above to see your forwarding setup.":data.status==="call_received"?"An incoming call reached your business receptionist. "+(data.last_call.owner_message_queued?"Its owner message is queued; delivery is checked separately.":"No owner message has been queued for this call yet."):"Your forwarding destination is "+data.destination+". Set forwarding on your smartphone, then call your business number from another phone to test.";
+ host.appendChild(status);
+ if(currentRole!=="owner")return;
+ for(const step of data.steps){
+  const line=document.createElement("p");line.textContent=step.label;
+  if(step.dial){const code=document.createElement("code");code.textContent=step.dial;line.appendChild(document.createElement("br"));line.appendChild(code);line.appendChild(document.createTextNode(" — enter in your Phone keypad and press Call. Check setting: "+step.check));}
+  host.appendChild(line);
+ }
+}
+
+async function refreshPhoneSetup(){
+ const generation=sessionGeneration;
+ const data=await request("/owner/phone-setup");assertSession(generation);
+ $("phone-setup-status").textContent=data.status==="not_requested"?"Not connected":data.status==="active"?"Connected":data.status==="test_required"?"Ready for your forwarding test":"Setup requested — Trendi must connect and test your number before answering is live.";
+ for(const [field,key] of [["phone-designated","designated_number"],["phone-connection","connection"],["phone-answer","answer_mode"],["phone-owner","owner_number"]]){
+  if(data[key])$(field).value=data[key];$(field).disabled=currentRole!=="owner";
+ }
+ $("phone-setup-form").querySelector("button").disabled=currentRole!=="owner";
+ await refreshMobileConnection();
+}
+$("phone-setup-form").addEventListener("submit",async event=>{
+ event.preventDefault();if(currentRole!=="owner")return;
+ try{await request("/owner/phone-setup","PUT",{designated_number:$("phone-designated").value.trim(),connection:$("phone-connection").value,answer_mode:$("phone-answer").value,owner_number:$("phone-owner").value.trim()});await refreshPhoneSetup();message("Phone setup requested. Trendi will confirm the connection and test it before activation.");}catch(error){message(error.message,true);}
+});
+
 async function refreshOnboarding(){
  const generation=sessionGeneration;
+  await refreshPhoneSetup();assertSession(generation);
   const data=await request("/owner/onboarding");assertSession(generation);
   const channels=$("onboarding-channels");clear(channels);
   channels.appendChild(node("h3",data.business.name));

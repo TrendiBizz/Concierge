@@ -74,6 +74,10 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
         f"lead:{lead['id']}:owner",
     )
 
+    await lead_followup(tenant, lead)
+
+
+async def lead_followup(tenant: dict, lead: dict) -> None:
     # Speed-to-lead text. If they texted us first, the conversation already is the reply.
     to = _sms_target(tenant, lead["phone"], lead["consent_contact"])
     if to and lead["channel"] != "sms":

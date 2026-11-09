@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # PSTN telephone receptionist: opt-in and off until a real provider is validated.
     phone_receptionist_enabled: bool = False
+    voice_recording_enabled: bool = False  # web audio: business opt-in plus caller choice
     phone_recording_enabled: bool = False  # separate paid-provider + legal approval
     phone_voice_provider: Literal['grok','legacy_twilio_tts'] = 'grok'
     # Operator-only JSON mapping connection UUID -> tenant, number, whsec secret.

@@ -3,6 +3,7 @@ import html
 import json
 import logging
 import re
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,8 +20,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
+from . import mobile_connections
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -49,6 +51,17 @@ async def lifespan(_: FastAPI):
     await tenants.ensure_report_tokens()
     await tenants.ensure_calendar_tokens()
     stop = asyncio.Event()
+    async def maintain_voice_records():
+        while not stop.is_set():
+            try:
+                await voice_records.purge_expired()
+            except Exception:
+                log.warning("Voice recording retention cleanup will retry")
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=3600)
+            except asyncio.TimeoutError:
+                pass
+    voice_retention_worker = asyncio.create_task(maintain_voice_records())
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
     sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
@@ -56,6 +69,7 @@ async def lifespan(_: FastAPI):
         settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
     yield
     stop.set()
+    await voice_retention_worker
     if worker:
         await worker
     if sla_worker:
@@ -70,6 +84,8 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
 app.include_router(device_sms.router)
 app.include_router(phone_sip.router)
+app.include_router(managed_phone.router)
+app.include_router(mobile_connections.router)
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.
@@ -77,7 +93,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token", "Authorization"],
+    allow_headers=["Content-Type", "X-Admin-Token", "Authorization", "X-Voice-Session-Token"],
 )
 
 
@@ -149,7 +165,9 @@ async def widget_js():
 @app.get("/api/v1/widget-config")
 async def widget_config(request: Request, key: str):
     tenant = await _tenant_for(request, key)
-    return tenants.public_view(tenant)
+    result = tenants.public_view(tenant)
+    result["recording_available"] = bool(settings.voice_recording_enabled and tenant.get("voice_enabled") and await channel_authorization.is_authorized(tenant["id"], "call_recording"))
+    return result
 
 
 class ChatRequest(BaseModel):
@@ -292,6 +310,7 @@ async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -
 class VoiceTokenRequest(BaseModel):
     key: str
     session_id: str
+    recording_consent: bool = False
 
 
 @app.post("/api/v1/voice/token")
@@ -300,7 +319,9 @@ async def voice_token(req: VoiceTokenRequest, request: Request):
     _rate_limit(request, session_id)
     tenant = await _tenant_for(request, req.key)
     try:
-        return await voice.mint_token(tenant)
+        result = await voice.mint_token(tenant)
+        result["voice_session"] = await voice_records.start(tenant, session_id, record=req.recording_consent)
+        return result
     except voice.VoiceUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except httpx.HTTPError:
@@ -313,6 +334,8 @@ class ToolRequest(BaseModel):
     args: dict = {}
     page_url: str | None = None
     utm: dict[str, str] = {}
+    voice_session_id: uuid.UUID | None = None
+    voice_session_token: str = Field(default="", max_length=200)
 
 
 @app.post("/api/v1/tools/{name}")
@@ -328,6 +351,11 @@ async def tool_endpoint(name: str, req: ToolRequest, request: Request):
         "page_url": req.page_url,
         "utm": convo.clean_utm(req.utm),
     }
+    if req.voice_session_id:
+        session = await voice_records.authenticate(req.voice_session_id, req.voice_session_token)
+        if session["tenant_id"] != tenant["id"] or session["conversation_id"] != conversation_id:
+            raise HTTPException(403, "Voice session does not belong to this conversation")
+        ctx["voice_session"] = session
     return await run_tool(tenant, name, req.args, ctx)
 
 
@@ -348,6 +376,40 @@ async def voice_log(req: VoiceLogRequest, request: Request):
     conversation_id = await convo.get_or_create(tenant, session_id, "voice", req.page_url, req.utm)
     await convo.save_message(conversation_id, "user" if req.role == "user" else "assistant", req.text)
     return {"ok": True}
+
+
+@app.post("/api/v1/voice/sessions/{session_id}/recording")
+async def voice_recording_upload(session_id: uuid.UUID, request: Request):
+    session = await voice_records.authenticate(session_id, request.headers.get("x-voice-session-token", ""))
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > voice_records.MAX_AUDIO:
+            raise HTTPException(413, "Recording exceeds the size limit")
+    return await voice_records.store_audio(session, bytes(body), request.headers.get("content-type", ""))
+
+
+@app.post("/api/v1/voice/sessions/{session_id}/finish")
+async def voice_session_finish(session_id: uuid.UUID, request: Request):
+    session = await voice_records.authenticate(session_id, request.headers.get("x-voice-session-token", ""))
+    tenant = await tenants.get_by_id(session["tenant_id"])
+    if not tenant:
+        raise HTTPException(404, "Business unavailable")
+    return await voice_records.finish(session, tenant)
+
+
+def private_audio_response(row, filename):
+    return Response(bytes(row["audio"]), media_type=row["mime_type"], headers={
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow, noarchive",
+        "Content-Disposition": 'inline; filename="'+filename+'"',
+    })
+
+
+@app.get("/api/v1/voice/recordings/shared/{token}")
+async def shared_voice_recording(token: str):
+    row = await voice_records.shared_audio(token)
+    return private_audio_response(row, "concierge-recording." + row["mime_type"].split("/")[1])
 
 
 # -------------------------------------------------------------- demo page
@@ -1289,6 +1351,15 @@ class PhoneNumberEnable(BaseModel):
     enabled: bool
 
 
+@app.get("/admin/tenants/{slug}/phone-setup", dependencies=admin)
+async def admin_phone_setup(slug: str):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "SELECT designated_number,connection,answer_mode,owner_number,status FROM managed_phone_setups WHERE tenant_id=$1",
+        tenant["id"])
+    return dict(row) if row else {"status": "not_requested"}
+
+
 @app.get("/admin/tenants/{slug}/phone-numbers", dependencies=admin)
 async def admin_phone_numbers(slug: str):
     tenant = await _require_tenant(slug)
@@ -1457,6 +1528,54 @@ async def owner_crm(user: dict = Depends(owner_auth.current_user)):
             "calendar_url": _origin_of(settings.owner_portal_url) + "/api/v1/calendar/" + tenant["calendar_token"] + ".ics"}
 
 
+@app.get("/owner/crm/leads/{lead_id}/transcript")
+async def owner_crm_transcript(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    exists = await db.pool().fetchval(
+        "SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2", user["tenant_id"], lead_id)
+    if not exists:
+        raise HTTPException(404, "Enquiry not found")
+    rows = await db.pool().fetch(
+        "SELECT m.role,m.content,m.created_at FROM leads l "
+        "JOIN conversations c ON c.id=l.conversation_id AND c.tenant_id=l.tenant_id "
+        "JOIN messages m ON m.conversation_id=c.id "
+        "WHERE l.tenant_id=$1 AND l.id=$2 AND m.role IN ('user','assistant') "
+        "ORDER BY m.id LIMIT 1000", user["tenant_id"], lead_id)
+    return [dict(row) for row in rows]
+
+
+@app.get("/owner/crm/leads/{lead_id}/recordings")
+async def owner_crm_recordings(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    return await voice_records.recordings_for_lead(user["tenant_id"], lead_id)
+
+
+@app.get("/owner/voice-recordings/{session_id}")
+async def owner_voice_recording(session_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    row = await voice_records.audio_for_owner(user["tenant_id"], session_id)
+    return private_audio_response(row, "concierge-recording." + row["mime_type"].split("/")[1])
+
+
+@app.post("/owner/voice-recordings/{session_id}/share")
+async def owner_share_voice_recording(session_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    token = await voice_records.share(user["tenant_id"], session_id)
+    return {"url": settings.public_base_url.rstrip("/")+"/api/v1/voice/recordings/shared/"+token, "expires_in_hours": 24}
+
+
+class VoiceCopyRequest(BaseModel):
+    recipient: str = Field(min_length=1, max_length=254)
+    channel: Literal["sms", "email"]
+    content: Literal["text", "recording"]
+    request_id: uuid.UUID
+    session_id: uuid.UUID | None = None
+
+
+@app.post("/owner/crm/leads/{lead_id}/deliver")
+async def owner_deliver_voice_copy(lead_id: uuid.UUID, body: VoiceCopyRequest, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    return await voice_records.deliver(tenant, lead_id, **body.model_dump())
+
+
 @app.patch("/owner/crm/leads/{lead_id}")
 async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
@@ -1550,9 +1669,8 @@ async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user))
     checks = {
         "telephone": status["channels"]["telephone"]["configured"],
         "call_recording": bool(
-            settings.phone_recording_enabled
-            and settings.twilio_account_sid
-            and settings.twilio_auth_token
+            (settings.voice_recording_enabled and status["channels"].get("website_voice", {}).get("configured"))
+            or (settings.phone_recording_enabled and settings.twilio_account_sid and settings.twilio_auth_token)
         ),
         "email_read": bool(settings.inbound_cloudflare_enabled),
         "email_send": status["channels"]["email"]["configured"],
@@ -1624,6 +1742,20 @@ async def owner_approve_draft(draft_id: int, user: dict = Depends(owner_auth.cur
     if not row:
         raise HTTPException(409, "Draft unavailable")
     return row
+
+
+@app.get("/owner/phone-setup")
+async def owner_phone_setup(user: dict = Depends(owner_auth.current_user)):
+    row = await db.pool().fetchrow(
+        "SELECT designated_number,connection,answer_mode,owner_number,status FROM managed_phone_setups WHERE tenant_id=$1",
+        user["tenant_id"])
+    return dict(row) if row else {"status": "not_requested"}
+
+
+@app.put("/owner/phone-setup")
+async def owner_save_phone_setup(body: managed_phone.PhoneSetup, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await managed_phone.save_setup(user["tenant_id"], body)
 
 
 @app.get("/owner/phone-numbers")

@@ -412,3 +412,56 @@ CREATE TABLE IF NOT EXISTS tenant_channel_authorization_audit (
 );
 CREATE INDEX IF NOT EXISTS tenant_channel_audit_tenant_idx
 ON tenant_channel_authorization_audit(tenant_id, created_at DESC);
+
+-- A setup request is not number ownership, provisioning or activation.
+CREATE TABLE IF NOT EXISTS managed_phone_setups (
+    tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    designated_number text NOT NULL,
+    connection text NOT NULL CHECK(connection IN ('existing_sip','existing_twilio','mobile_forwarding')),
+    answer_mode text NOT NULL CHECK(answer_mode IN ('all_calls','unanswered')),
+    owner_number text NOT NULL,
+    status text NOT NULL DEFAULT 'requested' CHECK(status IN ('requested','provisioning','test_required','active')),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Voice recordings remain private; external links are explicit, short-lived shares.
+CREATE TABLE IF NOT EXISTS voice_sessions (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+ token_hash text NOT NULL UNIQUE,
+ recording_consent boolean NOT NULL DEFAULT false,
+ expires_at timestamptz NOT NULL DEFAULT now()+interval '30 minutes',
+ finalized_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS voice_recordings (
+ session_id uuid PRIMARY KEY REFERENCES voice_sessions(id) ON DELETE CASCADE,
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+ mime_type text NOT NULL CHECK(mime_type IN ('audio/webm','audio/ogg','audio/mp4')),
+ audio bytea NOT NULL CHECK(octet_length(audio)<=12582912),
+ sha256 text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE voice_sessions ADD COLUMN IF NOT EXISTS delivery_request jsonb;
+CREATE INDEX IF NOT EXISTS voice_recordings_tenant_idx ON voice_recordings(tenant_id,conversation_id);
+CREATE TABLE IF NOT EXISTS voice_recording_shares (
+ token_hash text PRIMARY KEY,
+ session_id uuid NOT NULL REFERENCES voice_recordings(session_id) ON DELETE CASCADE,
+ tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ expires_at timestamptz NOT NULL DEFAULT now()+interval '24 hours'
+);
+
+-- Explicit business-owned destination; public mobile number remains unchanged.
+CREATE TABLE IF NOT EXISTS mobile_forwarding_connections (
+ tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+ destination text UNIQUE NOT NULL REFERENCES phone_numbers(e164) ON DELETE CASCADE,
+ carrier text NOT NULL CHECK(carrier IN ('spark_nz','other')),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Telephone AudioSocket capture uses bounded mono PCM WAV, shared owner playback.
+ALTER TABLE voice_recordings DROP CONSTRAINT IF EXISTS voice_recordings_mime_type_check;
+ALTER TABLE voice_recordings ADD CONSTRAINT voice_recordings_mime_type_check
+ CHECK(mime_type IN ('audio/webm','audio/ogg','audio/mp4','audio/wav'));

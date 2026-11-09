@@ -17,6 +17,23 @@ log = logging.getLogger("concierge.tools")
 
 TOOL_SPECS: list[dict] = [
     {
+        "name": "request_conversation_copy",
+        "description": "Request a copy after this voice conversation is saved. First capture_lead with the caller's contact and permission. Read back that recipient, whether they want saved text or the recording link, and SMS or email. Call with confirmed=true only after their clear yes. A requested or queued response never means sent.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "channel": {"type": "string", "enum": ["sms", "email"]},
+                "content": {"type": "string", "enum": ["text", "recording"]},
+                "confirmed": {"type": "boolean"},
+            },
+            "required": ["channel", "content", "confirmed"],
+        },
+        "voice": True,
+        "chat": False,
+        "website_only": True,
+        "available": lambda t: True,
+    },
+    {
         "name": "capture_lead",
         "description": (
             "Save a visitor's contact details and what they want so the business can follow up. "
@@ -126,11 +143,11 @@ def chat_tools(tenant: dict) -> list[dict]:
     ]
 
 
-def voice_tools(tenant: dict) -> list[dict]:
+def voice_tools(tenant: dict, *, website=False) -> list[dict]:
     return [
         {"type": "function", **{k: s[k] for k in ("name", "description", "parameters")}}
         for s in TOOL_SPECS
-        if s["voice"] and s["available"](tenant)
+        if s["voice"] and s["available"](tenant) and (website or not s.get("website_only"))
     ]
 
 
@@ -161,9 +178,10 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
             "consent_marketing_basis=CASE WHEN $8 THEN 'visitor agreed to promotions in conversation' ELSE consent_marketing_basis END, "
             "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
             "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
-            "AND source_key IS NOT NULL ORDER BY created_at LIMIT 1) RETURNING *",
+            "AND (source_key IS NOT NULL OR channel='voice') ORDER BY created_at LIMIT 1) RETURNING *",
             tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
         if existing:
+            await automation.lead_followup(tenant, dict(existing))
             ctx["lead_captured"] = True
             return {"ok": True, "note": "Enquiry updated in the CRM. The team can follow up."}
 
@@ -226,7 +244,21 @@ async def _search_knowledge(tenant: dict, args: dict, ctx: dict) -> dict:
     }
 
 
+async def _request_conversation_copy(tenant: dict, args: dict, ctx: dict) -> dict:
+    from fastapi import HTTPException
+    from . import voice_records
+    session = ctx.get("voice_session")
+    if not session:
+        return {"ok": False, "error": "A verified website voice session is required"}
+    try:
+        return await voice_records.request_delivery(session, tenant,
+            channel=args.get("channel"), content=args.get("content"), confirmed=args.get("confirmed"))
+    except HTTPException as exc:
+        return {"ok": False, "error": exc.detail}
+
+
 _HANDLERS = {
+    "request_conversation_copy": _request_conversation_copy,
     "capture_lead": _capture_lead,
     "get_booking_link": _get_booking_link,
     "check_availability": _check_availability,
