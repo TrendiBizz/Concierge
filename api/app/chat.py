@@ -1,11 +1,14 @@
 """One conversation turn, shared by web chat, SMS and the eval runner."""
 
 import json
+import logging
 
-from . import convo, db, guard, llm, enquiries, owner_notifications
+from . import casetimeline, convo, db, guard, llm, enquiries, owner_notifications
 import hashlib
 from .rag import build_system_prompt, retrieve
 from .tools import chat_tools, run_tool
+
+log = logging.getLogger("concierge.chat")
 
 MAX_TOOL_ROUNDS = 4
 GENERIC_FAILURE = (
@@ -67,6 +70,21 @@ async def run_turn(
     sender_email: str | None = None,
     dry_run: bool = False,
 ) -> dict:
+    # Human takeover: if the owner has personally taken over this customer, produce no AI reply.
+    # This runs BEFORE any model call, so a takeover costs nothing and cannot be raced.
+    # dry_run is exempt: eval scenarios must still exercise the model, and a dry run sends nothing.
+    if not dry_run:
+        try:
+            paused = await casetimeline.is_paused_for(
+                tenant["id"], phone=sender_phone or "", email=sender_email or "",
+                default_cc=casetimeline.tenant_country_code(tenant),
+            )
+        except Exception:  # noqa: BLE001 - a lookup failure must not silence the assistant
+            log.exception("takeover lookup failed for tenant %s", tenant.get("slug"))
+            paused = False
+        if paused:
+            return {"reply": "", "suppressed": True, "reason": "human_takeover", "conversation_id": None}
+
     conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
     ctx = {
         "conversation_id": conversation_id,
@@ -117,6 +135,13 @@ async def run_turn(
         reply = GENERIC_FAILURE
 
     await convo.save_message(conversation_id, "assistant", reply, flag)
+    # Email is only a generated draft here; outbox marks it answered after a successful send.
+    # Direct chat/SMS responses are returned to their channel caller in this turn.
+    if not dry_run and channel != "email":
+        await casetimeline.mark_replied(
+            tenant["id"], phone=sender_phone or "", email=sender_email or "", channel=channel,
+            default_cc=casetimeline.tenant_country_code(tenant),
+        )
     if channel in ('chat', 'sms', 'email') and not dry_run:
         rows = await db.pool().fetch('SELECT role,content FROM messages WHERE conversation_id=$1 ORDER BY id', conversation_id)
         dialogue = '\n\n'.join(('Enquirer' if row['role']=='user' else 'Concierge') + ': ' + row['content'] for row in rows)

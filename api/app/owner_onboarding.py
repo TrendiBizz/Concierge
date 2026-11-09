@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import db, tenants
+from . import channel_authorization, db, tenants
 from .config import get_settings
 
 
@@ -200,4 +200,147 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
         "notify_phone": saved.get("notify_phone") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",
+    }
+
+
+async def set_email_auto_reply(
+    tenant: dict, *, enabled: bool, actor_id: str, acknowledgement: bool,
+) -> dict:
+    """Turn automatic email replies on or off for one business, as one auditable action.
+
+    A reply is only delivered when THREE things agree, each checked at a different stage:
+
+      1. tenants.email_auto_reply                     -- queues the job at ingress, gates the worker
+      2. tenant_channel_authorizations('email_read')  -- gates the worker and delivery
+      3. tenant_channel_authorizations('email_send')  -- gates delivery
+
+    Setting only the flag leaves the worker writing jobs it then marks 'held', which reads as a
+    broken feature rather than a missing authorization. Setting only the authorizations queues
+    nothing. So this writes all three, and reports whether the result is actually READY.
+
+    `acknowledgement` is required to ENABLE, because an owner is affirming they control the mailbox
+    and have authority to let the assistant answer it. It is deliberately NOT required to DISABLE:
+    someone switching this off may be reacting to a live problem, and making an emergency stop
+    harder than the start would be backwards.
+
+    Returns a truthful readiness report. A partial enable is reported as partial -- never as working.
+    """
+    if enabled and not acknowledgement:
+        raise ValueError(
+            "Enabling automatic email replies requires acknowledgement that the business controls "
+            "this mailbox and authorizes the assistant to answer it"
+        )
+
+    saved = await tenants.update(tenant["slug"], {"email_auto_reply": bool(enabled)})
+    if saved is None:
+        raise ValueError("Tenant unavailable")
+
+    failures: list[str] = []
+    for channel in ("email_read", "email_send"):
+        try:
+            await channel_authorization.record_authorization(
+                tenant["id"], actor_id,
+                channel_authorization.ChannelAuthorization(
+                    channel=channel, authorized=bool(enabled), acknowledgement=True,
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - report, never claim success we did not achieve
+            failures.append(f"{channel}: {exc}")
+
+    ready = enabled and not failures
+    return {
+        "email_auto_reply": bool(enabled),
+        "enabled": bool(enabled),
+        # Only true when every gate is satisfied, so a caller cannot mistake a half-enable for a
+        # working channel.
+        "ready": ready,
+        "authorizations_set": [c for c in ("email_read", "email_send")
+                               if not any(f.startswith(c) for f in failures)],
+        "reason": "" if ready or not enabled else "; ".join(failures)
+                  or "Automatic replies are switched off",
+    }
+
+
+# ---------------------------------------------------------------- booking enablement
+
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def open_day_count(hours: dict | None) -> int:
+    """How many weekdays have at least one opening window."""
+    if not isinstance(hours, dict):
+        return 0
+    return sum(1 for day in DAYS if hours.get(day))
+
+
+def _minutes(hhmm: str) -> int:
+    hh, mm = hhmm.split(":")
+    return int(hh) * 60 + int(mm)
+
+
+def booking_hours_problem(hours: dict | None, slot_minutes: int) -> str:
+    """Explain why these hours cannot produce a booking, or '' when they can.
+
+    Checked BEFORE enabling, because the failure it prevents is silent: with every day closed, or
+    with a window shorter than one slot, availability returns "no free times" for every date and the
+    customer simply concludes the business is fully booked. Nothing raises, so nothing gets fixed.
+
+    The boundary is deliberate: a window exactly one slot long (09:00-09:30 with 30-minute slots)
+    yields exactly one bookable time and must be accepted, not rejected as too short.
+    """
+    if not isinstance(hours, dict) or not open_day_count(hours):
+        return (
+            "No opening hours are set, so booking would offer no times on any day. "
+            "Set at least one opening window before enabling booking."
+        )
+    slot = max(int(slot_minutes or 0), 1)
+    usable = 0
+    for day in DAYS:
+        for window in hours.get(day) or []:
+            try:
+                if _minutes(window[1]) - _minutes(window[0]) >= slot:
+                    usable += 1
+            except (TypeError, ValueError, IndexError):
+                continue  # malformed entries are the validator's job; ignore them here
+    if not usable:
+        return (
+            f"No opening window is long enough for a {slot}-minute appointment, so booking could "
+            "never offer a time. Widen an opening window or shorten the appointment length."
+        )
+    return ""
+
+
+async def set_native_booking(tenant: dict, *, enabled: bool, acknowledgement: bool) -> dict:
+    """Turn customer booking on or off for one business, and say whether it can really book.
+
+    Enabling requires acknowledgement AND usable hours. Refusing a broken enable is the whole point:
+    the alternative is a tool that advertises availability and then answers "no free times" forever.
+
+    Disabling needs no acknowledgement and is never blocked by bad hours. An owner whose hours are
+    misconfigured must still be able to stop taking bookings -- making the stop harder than the start
+    would be backwards, exactly as with email replies.
+    """
+    if enabled and not acknowledgement:
+        raise ValueError(
+            "Enabling customer booking requires acknowledgement that the business hours and rules "
+            "are correct and that the assistant may book appointments"
+        )
+
+    problem = booking_hours_problem(tenant.get("business_hours"), tenant.get("slot_minutes") or 30)
+    if enabled and problem:
+        raise ValueError(problem)
+
+    saved = await tenants.update(tenant["slug"], {"native_booking": bool(enabled)})
+    if saved is None:
+        raise ValueError("Tenant unavailable")
+
+    ready = bool(enabled) and not problem
+    return {
+        "native_booking": bool(enabled),
+        "enabled": bool(enabled),
+        "ready": ready,
+        "open_days": open_day_count(tenant.get("business_hours")),
+        "slot_minutes": int(tenant.get("slot_minutes") or 30),
+        # Reported even when switching OFF, so a broken configuration stays visible.
+        "reason": problem if (problem or not enabled) else "",
     }

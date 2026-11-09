@@ -1,11 +1,24 @@
-"""Response-time alerts: tell the owner when a promising lead has been left waiting.
+"""Response-time alerts: tell the owner when an enquiry has been left waiting.
 
-A client sets sla_minutes (0 = off) and sla_min_score (default 70, i.e. hot). A lead is "waiting" when
-it is still status 'new', scores at or above sla_min_score, has no booked appointment, and is older than
-sla_minutes. The owner gets ONE email per lead (dedupe key), sent inside the allowed hours (8am-9pm local),
-so a 3am lead produces a morning alert, not a 3am one. Marking the lead contacted in the dashboard (or
-anything other than 'new') clears it. Alerts are only raised for leads under two days old, so switching
-this on never floods the owner with old leads.
+A client sets sla_minutes (0 = off) and sla_min_score. An enquiry is "waiting" when it is still status
+'new', has no booked appointment, and is older than sla_minutes. The owner gets ONE email per lead
+(dedupe key), sent inside the allowed hours (8am-9pm local), so a 3am lead produces a morning alert,
+not a 3am one. Marking the lead contacted in the dashboard (or anything other than 'new') clears it.
+Alerts are only raised for leads under two days old, so switching this on never floods the owner with
+old leads.
+
+TWO MODES, and the difference matters:
+
+  sla_min_score > 0 (the default 70) -- "promising leads only". Enquiries scoring below the client's
+      threshold are not chased. This is the original behaviour and stays the default.
+
+  sla_min_score = 0 -- "every enquiry". The score filter is dropped entirely, so an inbound email or
+      text is chased whatever it scored. This exists because a low score is not evidence that nobody
+      needs an answer: scoring weighs phone/email/name/message, so a genuine one-line email from a new
+      customer can score low and was previously never followed up at all. Choosing 0 is a deliberate
+      opt-in, because it can increase the number of alerts the owner receives.
+
+Either way the customer's own opt-out and an owner takeover always suppress the alert.
 """
 
 import asyncio
@@ -25,27 +38,49 @@ LIST_MAX_AGE_DAYS = 7       # the dashboard list looks back further
 
 
 async def overdue(tenant: dict, only_unalerted: bool = False, max_age_days: int = LIST_MAX_AGE_DAYS) -> list[dict]:
-    """Leads currently waiting longer than the client's target. Empty when the feature is off."""
+    """Enquiries that have waited longer than the client's target, across every channel.
+
+    Honours the client's chosen mode: with sla_min_score > 0 only leads at or above the threshold are
+    listed; with sla_min_score = 0 every enquiry is listed whatever it scored. Score always sets the
+    ORDER, so a hot lead is surfaced first.
+
+    Two exclusions are deliberate and must not be removed:
+      - anyone on the opt-out list, because chasing them is a compliance failure;
+      - any customer whose case the owner has taken over, because the owner is already handling it.
+
+    Empty when the feature is off (sla_minutes = 0).
+    """
     minutes = int(tenant.get("sla_minutes") or 0)
     if minutes <= 0:
         return []
+    min_score = int(tenant.get("sla_min_score") if tenant.get("sla_min_score") is not None else 70)
     rows = await db.pool().fetch(
         f"""
         SELECT id, name, phone, email, message, channel, score, score_label, score_reasons,
                created_at, sla_alerted_at,
                floor(EXTRACT(EPOCH FROM (now() - created_at)) / 60)::int AS minutes_waiting
         FROM leads
-        WHERE tenant_id = $1 AND status = 'new' AND score >= $2
-          AND created_at < now() - make_interval(mins => $3)
-          AND created_at > now() - make_interval(days => $4)
+        WHERE tenant_id = $1 AND status = 'new'
+          {"AND score >= $4" if min_score > 0 else ""}
+          AND created_at < now() - make_interval(mins => $2)
+          AND created_at > now() - make_interval(days => $3)
           AND NOT EXISTS (SELECT 1 FROM appointments a
                           WHERE a.lead_id = leads.id AND a.status IN ('booked', 'completed'))
+          AND NOT EXISTS (SELECT 1 FROM customer_cases c
+                          WHERE c.id = leads.case_id AND c.automation_paused)
+          AND NOT EXISTS (SELECT 1 FROM opt_outs o
+                          WHERE o.tenant_id = leads.tenant_id
+                            AND o.contact = ANY (ARRAY[
+                                  CASE WHEN leads.email <> '' THEN lower(leads.email) END,
+                                  CASE WHEN leads.phone <> '' THEN leads.phone END]))
           {"AND sla_alerted_at IS NULL" if only_unalerted else ""}
         ORDER BY score DESC, created_at
         LIMIT 100
         """,
-        tenant["id"], int(tenant.get("sla_min_score") if tenant.get("sla_min_score") is not None else 70),
-        minutes, max_age_days,
+        # Only pass the score argument when the clause using it was rendered, or asyncpg rejects
+        # the statement for having more parameters than placeholders.
+        *([tenant["id"], minutes, max_age_days, min_score] if min_score > 0
+          else [tenant["id"], minutes, max_age_days]),
     )
     return [dict(r) for r in rows]
 

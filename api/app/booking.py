@@ -10,7 +10,7 @@ import json
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import automation, convo, db, calendar_connection
+from . import automation, casetimeline, convo, db, calendar_connection
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -114,7 +114,7 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
     notes = str(args.get("notes") or "").strip()[:500]
     consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
 
-    phone = normalize_phone(phone_raw, settings.default_country_code) or ""
+    phone = normalize_phone(phone_raw, casetimeline.tenant_country_code(tenant)) or ""
     if not name:
         return {"ok": False, "error": "Need the visitor's name."}
     if not (phone or is_email(email)):

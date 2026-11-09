@@ -23,6 +23,7 @@ from . import (
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import casetimeline, hermes_orchestrator, provider_readiness
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -235,7 +236,7 @@ async def sms_inbound(public_key: str, request: Request):
 
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
-    sender = normalize_phone(params.get("From", ""), settings.default_country_code)
+    sender = normalize_phone(params.get("From", ""), casetimeline.tenant_country_code(tenant))
     body = (params.get("Body") or "").strip()
     if not sender or not body:
         return _twiml("")
@@ -269,7 +270,7 @@ async def smsgate_inbound(public_key: str, request: Request):
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     payload = envelope.get("payload") or {}
-    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", settings.default_country_code)
+    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", casetimeline.tenant_country_code(tenant))
     body = (payload.get("message") or "").strip()
     if not sender or not body:
         return {"ok": True}
@@ -1601,6 +1602,100 @@ async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(
     return await admin_update_lead(lead_id, body)
 
 
+class CaseTakeoverRequest(BaseModel):
+    paused: bool
+
+
+@app.get("/owner/crm/leads/{lead_id}/case")
+async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_user)):
+    """The customer's unified case: every channel, one history, plus the response deadline.
+
+    Scoped to the caller's tenant by joining through `leads`, so a lead id from another business
+    resolves to nothing rather than to their data.
+    """
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    lead = await db.pool().fetchrow(
+        "SELECT id, case_id, name, phone, email, message, status, created_at, channel "
+        "FROM leads WHERE tenant_id=$1 AND id=$2::uuid",
+        user["tenant_id"], lead_id)
+    if not lead:
+        raise HTTPException(404, "Enquiry not found")
+
+    events = []
+    case = None
+    if lead["case_id"]:
+        case = await db.pool().fetchrow(
+            "SELECT case_key, primary_phone, primary_email, automation_paused, takeover_at "
+            "FROM customer_cases WHERE tenant_id=$1 AND id=$2",
+            user["tenant_id"], lead["case_id"])
+        if case:
+            events = await casetimeline.timeline(
+                user["tenant_id"], case["case_key"], limit=200)
+
+    return {
+        "lead_id": str(lead["id"]),
+        "case_key": case["case_key"] if case else None,
+        "automation_paused": bool(case["automation_paused"]) if case else False,
+        "takeover_at": case["takeover_at"].isoformat() if case and case["takeover_at"] else None,
+        "channels_seen": sorted({e["channel"] for e in events}),
+        "event_count": len(events),
+        "events": [
+            {
+                "channel": e["channel"],
+                "direction": e["direction"],
+                "body": e["body"],
+                "occurred_at": e["occurred_at"].isoformat() if e["occurred_at"] else None,
+                "answered_at": e["answered_at"].isoformat() if e["answered_at"] else None,
+            }
+            for e in events
+        ],
+        "deadline": hermes_orchestrator.deadline_state(
+            tenant or {}, {"created_at": lead["created_at"]}),
+    }
+
+
+@app.post("/owner/crm/leads/{lead_id}/takeover")
+async def owner_lead_takeover(
+    lead_id: str, body: CaseTakeoverRequest, user: dict = Depends(owner_auth.current_user)
+):
+    """Take over, or hand back, one customer.
+
+    Pausing stops the assistant replying to that person on every channel, which is what an owner
+    needs the moment they start answering themselves. It is deliberately available to any signed-in
+    member of the business: the person handling the customer is exactly who needs to press it.
+    """
+    lead = await db.pool().fetchrow(
+        "SELECT case_id FROM leads WHERE tenant_id=$1 AND id=$2::uuid", user["tenant_id"], lead_id)
+    if not lead:
+        raise HTTPException(404, "Enquiry not found")
+    if not lead["case_id"]:
+        raise HTTPException(409, "This enquiry has no conversation history to take over yet")
+
+    case = await db.pool().fetchrow(
+        "SELECT case_key FROM customer_cases WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], lead["case_id"])
+    if not case:
+        raise HTTPException(404, "Customer case not found")
+
+    changed = await casetimeline.set_takeover(
+        user["tenant_id"], case_key=case["case_key"], paused=body.paused,
+        by=str(user.get("email") or user.get("id") or "owner"),
+    )
+    return {"lead_id": lead_id, "automation_paused": bool(body.paused), "updated": changed}
+
+
+@app.get("/owner/provider-readiness")
+async def owner_provider_readiness(user: dict = Depends(owner_auth.current_user)):
+    """What is blocking each provider, and which steps need a person rather than a deployment.
+
+    Reads configuration only and changes nothing. A step marked ready means the software side is
+    satisfied; it is NOT a claim that the provider has accepted anything, which only the provider
+    can confirm.
+    """
+    owner_auth.require_role(user, "owner")
+    return provider_readiness.report()
+
+
 @app.post("/owner/auth/logout")
 async def owner_logout(request: Request, user: dict = Depends(owner_auth.current_user)):
     await owner_auth.logout(request.headers["authorization"].partition(" ")[2])
@@ -1684,6 +1779,62 @@ async def owner_channel_authorization_update(
     try:
         return await channel_authorization.record_authorization(
             user["tenant_id"], user["id"], body,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+class EmailAutoReplyRequest(BaseModel):
+    enabled: bool
+    acknowledgement: bool = False
+
+
+@app.post("/owner/onboarding/email-auto-reply")
+async def owner_set_email_auto_reply(
+    body: EmailAutoReplyRequest,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Turn automatic email replies on or off for this business, as one auditable action.
+
+    Enabling requires acknowledgement and sets the flag plus BOTH channel authorizations, because a
+    reply is only delivered when all three agree. The response reports whether the channel is
+    actually ready rather than implying success from the flag alone.
+    """
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    try:
+        return await owner_onboarding.set_email_auto_reply(
+            tenant, enabled=body.enabled, actor_id=user["id"], acknowledgement=body.acknowledgement,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+class NativeBookingRequest(BaseModel):
+    enabled: bool
+    acknowledgement: bool = False
+
+
+@app.post("/owner/onboarding/native-booking")
+async def owner_set_native_booking(
+    body: NativeBookingRequest,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Turn customer booking on or off, refusing an enable that could never book anything.
+
+    Enabling requires acknowledgement and usable opening hours. Without that check an owner could
+    switch booking on with every day closed, and the assistant would answer "no free times" for
+    every date the customer asked about -- silent breakage, because nothing raises.
+    """
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    try:
+        return await owner_onboarding.set_native_booking(
+            tenant, enabled=body.enabled, acknowledgement=body.acknowledgement,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import events, outbox, sales, scoring, tasks
+from . import casetimeline, events, outbox, sales, scoring, tasks
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -38,7 +38,7 @@ def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
     """A phone number we may text: SMS enabled for the client, visitor consented, number valid."""
     if not (tenant.get("sms_enabled") and consent and phone):
         return None
-    return normalize_phone(phone, get_settings().default_country_code)
+    return normalize_phone(phone, casetimeline.tenant_country_code(tenant))
 
 
 async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> None:
@@ -46,7 +46,7 @@ async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> No
     await owner_notifications.queue(tenant, subject, body, dedupe)
 
 
-async def on_lead_created(tenant: dict, lead: dict) -> None:
+async def on_lead_created(tenant: dict, lead: dict, *, message_key: str | None = None) -> None:
     # Scoring reloads the persisted row, which excludes transient ingress flags.
     owner_notice_queued = bool(lead.get("_owner_notice_queued"))
     try:
@@ -54,7 +54,7 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
     except Exception:  # scoring must never stop a lead from being handled
         log.exception("lead scoring failed for %s", lead.get("id"))
     try:
-        await tasks.create_follow_up(tenant, lead)  # one to-do per new lead, completes itself when answered
+        await tasks.create_follow_up(tenant, lead, message_key=message_key)
     except Exception:
         log.exception("follow-up to-do failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))

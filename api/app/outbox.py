@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import channel_authorization, db, device_sms, mailer, sms, tenants, unsub
+from . import casetimeline, channel_authorization, db, device_sms, mailer, sms, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -60,24 +60,37 @@ async def cancel_for_appointment(appointment_id) -> int:
     return int(result.split()[-1])
 
 
+async def _optout_cc(tenant_id) -> str:
+    """The dialling country to canonicalise an opt-out key with.
+
+    This MUST be the tenant's own country, not the global default. Using the global setting (which
+    defaults to '1', US) meant a number outside +1 failed to parse, so the RAW string was stored as
+    the opt-out key. The same person's other spellings then did not match it, and we kept texting
+    someone who had unsubscribed. That is a compliance failure, not a cosmetic one.
+    """
+    from . import casetimeline, tenants
+    tenant = await tenants.get_by_id(tenant_id) if tenant_id else None
+    return casetimeline.tenant_country_code(tenant)
+
+
 async def opt_out(tenant_id, contact: str) -> None:
     await db.pool().execute(
         "INSERT INTO opt_outs (tenant_id, contact) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
 
 
 async def opt_in(tenant_id, contact: str) -> None:
     await db.pool().execute(
         "DELETE FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
 
 
 async def is_opted_out(tenant_id, contact: str) -> bool:
     found = await db.pool().fetchval(
         "SELECT 1 FROM opt_outs WHERE tenant_id = $1 AND contact = $2",
-        tenant_id, contact_key(contact, get_settings().default_country_code),
+        tenant_id, contact_key(contact, await _optout_cc(tenant_id)),
     )
     return bool(found)
 
@@ -112,6 +125,23 @@ async def _deliver(row: dict) -> None:
     if row["kind"] not in OWNER_KINDS and await is_opted_out(row["tenant_id"], row["to_addr"]):
         await _finish(row["id"], "skipped", "opted_out")
         return
+
+    # Human takeover, rechecked at delivery time. A reply queued BEFORE the owner took over would
+    # otherwise still arrive afterwards, which is the window that checking only at queue time leaves
+    # open. Owner alerts are exempt: takeover silences replies to the CUSTOMER, never the owner's own
+    # notification, which is the very message they need in order to act.
+    if row["kind"] not in OWNER_KINDS and row["channel"] in ("email", "sms"):
+        try:
+            if await casetimeline.is_paused_for(
+                row["tenant_id"],
+                phone=row["to_addr"] if row["channel"] == "sms" else "",
+                email=row["to_addr"] if row["channel"] == "email" else "",
+                default_cc=casetimeline.tenant_country_code(tenant),
+            ):
+                await _finish(row["id"], "skipped", "human_takeover")
+                return
+        except Exception:  # noqa: BLE001 - a lookup failure must not block a legitimate reply
+            log.exception("takeover check failed for outbox row %s", row["id"])
 
     if row.get("campaign_id") and not tenant.get("campaigns_enabled"):
         await _finish(row["id"], "skipped", "campaigns_disabled")  # kill switch, checked at send time
@@ -155,6 +185,11 @@ async def _deliver(row: dict) -> None:
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"], headers,
         )
+        if row["kind"] == "email_secretary_reply":
+            await casetimeline.mark_replied(
+                row["tenant_id"], email=row["to_addr"], channel="email",
+                default_cc=casetimeline.tenant_country_code(tenant),
+            )
     else:
         await _finish(row["id"], "failed", f"unknown channel {row['channel']}")
         return

@@ -17,7 +17,7 @@ import json
 import string
 from datetime import datetime, timedelta, timezone
 
-from . import db, outbox, sms, unsub
+from . import casetimeline, db, outbox, sms, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -147,7 +147,7 @@ async def audience(tenant: dict, campaign: dict) -> dict:
     )
     opted_out = {r["contact"] for r in await db.pool().fetch(
         "SELECT contact FROM opt_outs WHERE tenant_id = $1", tenant["id"])}
-    recent = {contact_key(r["to_addr"], s.default_country_code) for r in await db.pool().fetch(
+    recent = {contact_key(r["to_addr"], casetimeline.tenant_country_code(tenant)) for r in await db.pool().fetch(
         "SELECT to_addr FROM outbox WHERE tenant_id = $1 AND campaign_id IS NOT NULL AND channel = $2 "
         "AND status IN ('pending','sending','sent') AND created_at > now() - make_interval(days => $3)",
         tenant["id"], channel, s.campaign_cooldown_days)}
@@ -157,7 +157,7 @@ async def audience(tenant: dict, campaign: dict) -> dict:
     skipped = {"opted_out": 0, "cooldown": 0, "duplicate": 0, "over_cap": 0}
     for lead in leads:
         lead = dict(lead)
-        key = contact_key(lead[column], s.default_country_code)
+        key = contact_key(lead[column], casetimeline.tenant_country_code(tenant))
         if key in seen:
             skipped["duplicate"] += 1
         elif key in opted_out:

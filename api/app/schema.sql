@@ -241,7 +241,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at  timestamptz
 );
 CREATE INDEX IF NOT EXISTS tasks_tenant_idx ON tasks (tenant_id, status, due_at);
-CREATE UNIQUE INDEX IF NOT EXISTS tasks_follow_up_idx ON tasks (lead_id) WHERE kind = 'follow_up';
 
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS won_at timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_at timestamptz;
@@ -467,6 +466,10 @@ ALTER TABLE voice_recordings ADD CONSTRAINT voice_recordings_mime_type_check
  CHECK(mime_type IN ('audio/webm','audio/ogg','audio/mp4','audio/wav'));
 
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS notify_phone text;
+-- Per-tenant dialling country, so a local number becomes the RIGHT E.164 form. The global default
+-- is '1' (US); a business outside +1 previously inherited it and produced wrong numbers, which also
+-- split one customer across two case identities.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_country_code text NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS quotations (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -516,6 +519,64 @@ CREATE TABLE IF NOT EXISTS email_secretary_jobs (
  status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0,
  claimed_at timestamptz, error text NOT NULL DEFAULT '', UNIQUE(tenant_id,source_key)
 );
+
+-- Unified customer case timeline (see app/casetimeline.py).
+-- A case is a CUSTOMER, not a conversation: one person who emails, texts and calls is one case,
+-- whatever channel each message arrived on. `case_key` is derived from the strongest available
+-- identity (E.164 phone, else lower-cased email) and is tenant-scoped.
+CREATE TABLE IF NOT EXISTS customer_cases (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    case_key          text NOT NULL,
+    display_name      text NOT NULL DEFAULT '',
+    primary_phone     text NOT NULL DEFAULT '',
+    primary_email     text NOT NULL DEFAULT '',
+    -- Set when the owner personally replies: automation must stop chasing this customer.
+    automation_paused boolean NOT NULL DEFAULT false,
+    takeover_at       timestamptz,
+    takeover_by       text NOT NULL DEFAULT '',
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    updated_at        timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, case_key)
+);
+CREATE INDEX IF NOT EXISTS customer_cases_tenant_idx ON customer_cases (tenant_id, updated_at DESC);
+
+-- Append-only cross-channel history. `source_key` makes provider webhook replays idempotent.
+CREATE TABLE IF NOT EXISTS case_events (
+    id          bigserial PRIMARY KEY,
+    case_id     uuid NOT NULL REFERENCES customer_cases(id) ON DELETE CASCADE,
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel     text NOT NULL,
+    direction   text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+    -- Set for messages; NULL for non-message events (booking, quote, note).
+    source_key  text,
+    body        text NOT NULL DEFAULT '',
+    occurred_at timestamptz NOT NULL DEFAULT now(),
+    -- When this inbound message was answered, so unanswered work can be found without guessing.
+    answered_at timestamptz,
+    UNIQUE (tenant_id, channel, source_key)
+);
+CREATE INDEX IF NOT EXISTS case_events_case_idx ON case_events (case_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS case_events_unanswered_idx
+    ON case_events (tenant_id, occurred_at) WHERE direction = 'inbound' AND answered_at IS NULL;
+
+-- Link existing per-channel records to the unified case. Nullable: existing rows keep working.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS case_id uuid REFERENCES customer_cases(id) ON DELETE SET NULL;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS case_id uuid REFERENCES customer_cases(id) ON DELETE SET NULL;
+
+-- Per-message follow-up. The old tasks_follow_up_idx allowed ONE follow-up per lead forever, so a
+-- second customer message produced no new work. This adds a message-scoped unique index.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS case_id uuid REFERENCES customer_cases(id) ON DELETE CASCADE;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS message_key text;
+-- Replace the original one-per-lead index: it otherwise rejects every second message task.
+DROP INDEX IF EXISTS tasks_follow_up_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_legacy_follow_up_idx
+    ON tasks (lead_id) WHERE kind = 'follow_up' AND message_key IS NULL;
+-- Unknown contacts have no case_id yet, but their replay must still not create duplicate work.
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_lead_message_follow_up_idx
+    ON tasks (lead_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_message_follow_up_idx
+    ON tasks (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
 
 -- Hermes gateway support (see app/hermes_ops.py). All additive; everything stays off until HERMES_GATEWAY_ENABLED.
 CREATE TABLE IF NOT EXISTS hermes_tenant_settings (
