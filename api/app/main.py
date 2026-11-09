@@ -23,7 +23,7 @@ from . import (
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
-from . import casetimeline, hermes_orchestrator
+from . import casetimeline, hermes_orchestrator, provider_readiness
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -1682,6 +1682,18 @@ async def owner_lead_takeover(
         by=str(user.get("email") or user.get("id") or "owner"),
     )
     return {"lead_id": lead_id, "automation_paused": bool(body.paused), "updated": changed}
+
+
+@app.get("/owner/provider-readiness")
+async def owner_provider_readiness(user: dict = Depends(owner_auth.current_user)):
+    """What is blocking each provider, and which steps need a person rather than a deployment.
+
+    Reads configuration only and changes nothing. A step marked ready means the software side is
+    satisfied; it is NOT a claim that the provider has accepted anything, which only the provider
+    can confirm.
+    """
+    owner_auth.require_role(user, "owner")
+    return provider_readiness.report()
 
 
 @app.post("/owner/auth/logout")
