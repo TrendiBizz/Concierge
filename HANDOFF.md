@@ -1,3 +1,4 @@
+> Latest engineering handoff (Rust port, Hermes gateway, CI repair): [QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md](QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md).
 > Current authoritative scope (9 November 2026): [Concierge portal secretary handoff](QA/verification/HANDOFF_CONCIERGE_PORTAL_WORKFLOW_2026-11-09.md). Read that first; the historical state below is superseded.
 
 # Handoff - Website AI Concierge (read this first in the new chat)
