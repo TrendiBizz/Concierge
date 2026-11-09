@@ -227,12 +227,17 @@ channel keys : ['booking', 'crm', 'email', 'sms', 'social', 'telephone',
 
 | | |
 | --- | --- |
-| Commit deployed | `2fbda86` (application code: `owner_onboarding.py`, `owner.html`) |
-| Image | `trendi-concierge-api:vps` → `3c05e01c5220`, revision label `2fbda86` |
+| Commit | `37d0846` (the image was built from this working tree before it was committed; the revision label baked into the image reads `2fbda86`, its parent) |
+| Image | `trendi-concierge-api:vps` → `3c05e01c5220` |
 | Rollback image | `trendi-concierge-api:before-booking-readiness-20261110` → `7a16174bc7cc` |
 | Backup | `/opt/trendi/backups/booking-readiness-20261110` (source-before.tgz, api.env.before, image-before.txt) |
 | Recreate | `api` and `social` together, `--no-deps --force-recreate` |
-| Verified | deployed `owner_onboarding.py` and `owner.html` SHA-256 match local exactly; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present |
+| Verified | deployed `owner_onboarding.py` SHA-256 `3aa7ca14…` and `owner.html` SHA-256 `938eff08…` are **byte-identical to HEAD**; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present |
+
+The revision label in the image is not the same string as HEAD because the change was
+still uncommitted at build time. Deployment currency was therefore established by
+**file content**, not by trusting the label — which is the same standard applied to the
+earlier "stale API" incident, where a merged commit did not mean a deployed one.
 
 No application behaviour was changed beyond exposing readiness; every previously
 verified path was re-checked after the redeploy and none regressed.
