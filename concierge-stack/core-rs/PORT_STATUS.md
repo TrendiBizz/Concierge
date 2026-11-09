@@ -110,3 +110,18 @@ scheduling. Declined cases (`Fail::Unsupported`): netlocs with non-ASCII charact
 (about 2% of the corpus, which over-samples them). `html_tables.json` (entity table) is specific to the recorded CPython; regenerate with the production
 interpreter. Fifteen mutations were caught; one more (atomic lazy groups in robots patterns) is a proven equivalent mutant (the leftmost match is always the best
 choice for the remainder), and three mutants first survived and exposed real test gaps, which now have dedicated vectors.
+
+## Batch 15 (9 November 2026)
+
+Vectors from `parity/gen_vectors15.py` (live `config`, `owner_onboarding`, `email_drafts`, `tenants`; fake databases and a fake model; nothing sent).
+
+| Python | Rust | Evidence |
+|---|---|---|
+| config.py owner-portal validator, `effective_llm_key`, `voice_ws_url`, `sms_configured`, `email_configured` | settings | 31 portal URLs (incl. credentials, query, fragment, loopback HTTP) and 400 generated settings |
+| owner_onboarding.py `OwnerBusinessProfile` (11 fields, pydantic int/bool/dict/str rules, opening-hours rules, URL/email/phone/timezone rules), `website_channel_status` | owner_profile | about 680 profiles with exact pydantic error type and location; every one of the 598 IANA zones known to Python must be accepted |
+| email_drafts.py address/subject cleaning, drafting prompt, stored draft parameters, approval decision | drafts | 60 drafting prompts compared character for character, 120 draft inserts, 24 approval paths with the exact queued row |
+| tenants.py updatable fields, UPDATE statement, slug conflict sequence, create parameters, clone snapshot, public view, JSON column loading | tenants | 220 updates (SQL text and parameters), 24 creates with 0-5 slug conflicts, 40 clones |
+
+Documented differences: timezone check uses chrono-tz plus tzdata's `Factory`; host-specific files Python accepts as zones (`localtime`, `posixrules`) are
+refused. Integer text beyond 128 bits and non-JSON-repr floats return `Unsupported`. Equivalent mutants (cannot be killed because the code is redundant in
+Python too): the 7-weekday-key count (more than 7 keys always contains an invalid day name) and the CR/LF check in `_address` (the e-mail pattern already refuses them).

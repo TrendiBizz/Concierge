@@ -302,3 +302,35 @@ pub fn hostname(netloc: &str) -> Option<String> {
         None => host.to_lowercase(),
     })
 }
+
+/// `(username, password)` of a netloc, as `SplitResult.username` / `.password` (`None` when absent).
+pub fn userinfo(netloc: &str) -> (Option<String>, Option<String>) {
+    match netloc.rsplit_once('@') {
+        None => (None, None),
+        Some((info, _)) => match info.split_once(':') {
+            Some((u, p)) => (Some(u.to_string()), Some(p.to_string())),
+            None => (Some(info.to_string()), None),
+        },
+    }
+}
+
+/// `SplitResult.port`: `Err(Fail::Value)` is the ValueError for a non-numeric or out-of-range port.
+pub fn port(netloc: &str) -> Result<Option<u32>, Fail> {
+    let hostinfo = netloc.rsplit_once('@').map_or(netloc, |(_, h)| h);
+    let port = if let Some((_, bracketed)) = hostinfo.split_once('[') {
+        let after = bracketed.split_once(']').map_or("", |(_, a)| a);
+        after.split_once(':').map_or("", |(_, p)| p)
+    } else {
+        hostinfo.split_once(':').map_or("", |(_, p)| p)
+    };
+    if port.is_empty() {
+        return Ok(None);
+    }
+    if !port.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Fail::Value);
+    }
+    match port.parse::<u64>() {
+        Ok(n) if n <= 65535 => Ok(Some(n as u32)),
+        _ => Err(Fail::Value),
+    }
+}
