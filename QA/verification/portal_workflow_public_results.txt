@@ -1,0 +1,5 @@
+PASS public browser /owner-ui 200
+PASS public browser /owner/social/oauth/callback 200
+PASS public browser /healthz 404
+PASS public browser /owner/calendar 401
+PASS public browser /owner/crm/quotations 401

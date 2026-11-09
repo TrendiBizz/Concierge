@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify Trendi encrypted backup can be restored
+After=docker.service network-online.target
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/trendi/releases/20261108-vps/product/scripts/vps/restore-test.sh
+Environment=RESTIC_CACHE_DIR=/opt/trendi/backups/restic-cache
+UMask=0077
+Nice=10
+TimeoutStartSec=1800

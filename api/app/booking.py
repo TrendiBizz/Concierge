@@ -10,7 +10,7 @@ import json
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import automation, convo, db
+from . import automation, convo, db, calendar_connection
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -35,7 +35,7 @@ def day_slots(tenant: dict, day: date, now_utc: datetime, booked: list[tuple[dat
             start_utc = cursor.replace(tzinfo=tz).astimezone(timezone.utc)
             end_utc = start_utc + step
             clash = any(b_start < end_utc and b_end > start_utc for b_start, b_end in booked)
-            if start_utc >= earliest and not clash:
+            if start_utc.astimezone(tz).replace(tzinfo=None) == cursor and start_utc >= earliest and not clash:
                 slots.append(start_utc)
             cursor += step
     return slots
@@ -43,7 +43,7 @@ def day_slots(tenant: dict, day: date, now_utc: datetime, booked: list[tuple[dat
 
 async def _booked(tenant_id, day: date, tz: ZoneInfo, conn=None) -> list[tuple[datetime, datetime]]:
     start = datetime.combine(day, time(0, 0), tzinfo=tz).astimezone(timezone.utc)
-    end = start + timedelta(days=1)
+    end = datetime.combine(day + timedelta(days=1), time(0, 0), tzinfo=tz).astimezone(timezone.utc)
     runner = conn or db.pool()
     rows = await runner.fetch(
         "SELECT starts_at, ends_at FROM appointments WHERE tenant_id = $1 AND status = 'booked' "
@@ -56,6 +56,9 @@ async def _booked(tenant_id, day: date, tz: ZoneInfo, conn=None) -> list[tuple[d
 async def _slots_on(tenant: dict, day: date, conn=None) -> list[datetime]:
     tz = ZoneInfo(tenant["timezone"])
     booked = await _booked(tenant["id"], day, tz, conn)
+    start = datetime.combine(day, time(0), tzinfo=tz).astimezone(timezone.utc)
+    end = datetime.combine(day + timedelta(days=1), time(0), tzinfo=tz).astimezone(timezone.utc)
+    booked += await calendar_connection.busy(tenant['id'], start, end)
     return day_slots(tenant, day, datetime.now(timezone.utc), booked)
 
 
@@ -117,14 +120,29 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
     if not (phone or is_email(email)):
         return {"ok": False, "error": "Need a valid phone number or email so we can confirm."}
 
+    if start_local.tzinfo is not None:
+        return {"ok": False, "error": "Use business local time without a UTC offset"}
     start_utc = start_local.replace(tzinfo=tz).astimezone(timezone.utc)
+    if start_utc.astimezone(tz).replace(tzinfo=None) != start_local:
+        return {"ok": False, "error": "That local time does not exist because of daylight saving"}
+    conversation_id = ctx.get('conversation_id')
+    if conversation_id and args.get('confirmed') is True:
+        previous = await db.pool().fetchrow(
+            'SELECT * FROM appointments WHERE tenant_id=$1 AND conversation_id=$2 AND starts_at=$3',
+            tenant['id'], conversation_id, start_utc)
+        if previous:
+            if previous['status'] != 'booked':
+                return {'ok': False, 'error': 'That earlier booking is no longer active. Ask the team to reschedule or choose a new time.'}
+            if previous['name'] != name or previous['email'] != (email if is_email(email) else '') or previous['phone'] != phone:
+                return {"ok": False, "error": "A different booking already exists for this conversation and time"}
+            return booking_result(tenant, previous, duplicate=True)
     free = await _slots_on(tenant, start_local.date())
     if start_utc not in free:
         return {"ok": False, "error": "That time is not available. Call check_availability and offer a listed slot."}
 
     # --- Enforced read-back -------------------------------------------------
     conversation_id = ctx.get("conversation_id")
-    key = {"start": start_utc.isoformat(), "name": name.lower()}
+    key = {"start": start_utc.isoformat(), "name": name.lower(), "email": email.lower(), "phone": phone, "consent": consent}
     pending = await convo.get_pending_booking(conversation_id) if conversation_id else None
     if not (args.get("confirmed") is True and pending == key):
         if conversation_id:
@@ -150,7 +168,8 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", str(tenant["id"]))
             if start_utc not in await _slots_on(tenant, start_local.date(), conn):
                 return {"ok": False, "error": "Sorry, that time was just taken. Call check_availability for other times."}
-            lead = await conn.fetchrow(
+            existing_lead = await conn.fetchrow('SELECT * FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], conversation_id) if conversation_id else None
+            lead = existing_lead or await conn.fetchrow(
                 """
                 INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
                                    page_url, utm, webhook_status, status, consent_contact)
@@ -165,8 +184,8 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             appt = await conn.fetchrow(
                 """
                 INSERT INTO appointments (tenant_id, lead_id, conversation_id, starts_at, ends_at, name,
-                                          phone, email, notes, consent_contact)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                                          phone, email, notes, consent_contact, calendar_sync_requested)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
                 RETURNING *
                 """,
                 tenant["id"], lead["id"], conversation_id, start_utc, end_utc, name, phone,
@@ -175,8 +194,22 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
     if conversation_id:
         await convo.set_pending_booking(conversation_id, None)
 
-    await automation.on_appointment_booked(tenant, dict(appt), dict(lead))
-    text = f"Booked for {automation.fmt_local(tenant, start_utc)}"
+    await calendar_connection.sync_one(appt['id'])
+    appt = await db.pool().fetchrow('SELECT * FROM appointments WHERE tenant_id=$1 AND id=$2', tenant['id'], appt['id'])
+    await calendar_connection.notify_synced(appt["id"])
+    result = booking_result(tenant, appt)
+    text = result['confirmation']
     ctx["appointment_text"] = text
     ctx["lead_captured"] = True
-    return {"ok": True, "confirmation": text, "appointment_id": str(appt["id"])}
+    return result
+
+
+def booking_result(tenant, appt, duplicate=False):
+    synced = appt.get('calendar_state') == 'synced'
+    when = automation.fmt_local(tenant, appt['starts_at'])
+    confirmation = (f"Booked for {when}. The calendar provider accepted the event and invitation request."
+                    if synced else f"Appointment request saved for {when}. Calendar booking and invitation are pending; the team must confirm.")
+    return {'ok': True, 'confirmation': confirmation, 'appointment_id': str(appt['id']),
+            'booking_status': 'booked' if synced else 'pending_calendar',
+            'calendar_state': appt.get('calendar_state', 'unconnected'),
+            'invitation_state': appt.get('invitation_state', 'pending'), 'duplicate': duplicate}

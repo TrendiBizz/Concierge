@@ -17,6 +17,31 @@ log = logging.getLogger("concierge.tools")
 
 TOOL_SPECS: list[dict] = [
     {
+        "name": "request_enquiry_acknowledgement",
+        "description": "Ask whether the enquirer wants a separate acknowledgement. If declined use requested=false. Otherwise ask for channel and recipient, call with confirmed=false, read back the result, wait for yes, then call with the same recipient/channel and confirmed=true. This is separate from notifying the business owner. Never claim a queued message was received.",
+        "parameters": {"type": "object", "properties": {
+            "requested": {"type": "boolean"}, "channel": {"type": "string", "enum": ["email", "sms"]},
+            "recipient": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["requested"]},
+        "voice": True, "chat": True, "available": lambda t: True,
+    },
+    {
+        "name": "request_conversation_copy",
+        "description": "Request a copy after this voice conversation is saved. First capture_lead with the caller's contact and permission. Read back that recipient, whether they want saved text or the recording link, and SMS or email. Call with confirmed=true only after their clear yes. A requested or queued response never means sent.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "channel": {"type": "string", "enum": ["sms", "email"]},
+                "content": {"type": "string", "enum": ["text", "recording"]},
+                "confirmed": {"type": "boolean"},
+            },
+            "required": ["channel", "content", "confirmed"],
+        },
+        "voice": True,
+        "chat": False,
+        "website_only": True,
+        "available": lambda t: True,
+    },
+    {
         "name": "capture_lead",
         "description": (
             "Save a visitor's contact details and what they want so the business can follow up. "
@@ -35,6 +60,13 @@ TOOL_SPECS: list[dict] = [
                 "consent_to_contact": {
                     "type": "boolean",
                     "description": "True only if the visitor agreed to be texted or emailed by the business",
+                },
+                "consent_to_marketing": {
+                    "type": "boolean",
+                    "description": (
+                        "True only if the visitor explicitly said yes when asked whether they also want "
+                        "offers and promotions. Never assume it, and never set it just because they gave contact details."
+                    ),
                 },
             },
             "required": ["message"],
@@ -119,11 +151,11 @@ def chat_tools(tenant: dict) -> list[dict]:
     ]
 
 
-def voice_tools(tenant: dict) -> list[dict]:
+def voice_tools(tenant: dict, *, website=False) -> list[dict]:
     return [
         {"type": "function", **{k: s[k] for k in ("name", "description", "parameters")}}
         for s in TOOL_SPECS
-        if s["voice"] and s["available"](tenant)
+        if s["voice"] and s["available"](tenant) and (website or not s.get("website_only"))
     ]
 
 
@@ -134,6 +166,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     phone_raw = str(args.get("phone") or ctx.get("sender_phone") or "").strip()[:40]
     message = str(args.get("message") or "").strip()[:1000]
     consent = bool(args.get("consent_to_contact")) or bool(ctx.get("sms_inbound"))
+    marketing = bool(args.get("consent_to_marketing"))  # explicit only; texting us first is not marketing consent
 
     phone = normalize_phone(phone_raw, settings.default_country_code) or ""
     email_ok = is_email(email)
@@ -142,11 +175,32 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     if ctx.get("dry_run"):
         return {"ok": True, "note": "(dry run) lead would be saved"}
 
+    # Enquiries captured at channel ingress already exist before the AI runs.
+    # Enrich that record instead of creating a duplicate when the caller gives details.
+    if ctx.get("conversation_id"):
+        existing = await db.pool().fetchrow(
+            "UPDATE leads SET name=CASE WHEN $3<>'' THEN $3 ELSE name END, "
+            "email=CASE WHEN $4<>'' THEN $4 ELSE email END, "
+            "phone=CASE WHEN $5<>'' THEN $5 ELSE phone END, message=$6, "
+            "consent_contact=consent_contact OR $7, consent_marketing=consent_marketing OR $8, "
+            "consent_marketing_basis=CASE WHEN $8 THEN 'visitor agreed to promotions in conversation' ELSE consent_marketing_basis END, "
+            "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
+            "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
+            "ORDER BY created_at LIMIT 1) RETURNING *",
+            tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
+        if existing:
+            await automation.lead_followup(tenant, dict(existing))
+            ctx["lead_captured"] = True
+            return {"ok": True, "note": "Enquiry updated in the CRM. The team can follow up."}
+
     row = await db.pool().fetchrow(
         """
         INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
-                           page_url, utm, webhook_status, consent_contact)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
+                           page_url, utm, webhook_status, consent_contact, consent_marketing,
+                           consent_marketing_basis, consent_marketing_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12,
+                CASE WHEN $12 THEN 'visitor agreed to promotions in ' || $7 || ' conversation' ELSE '' END,
+                CASE WHEN $12 THEN now() END)
         RETURNING *
         """,
         tenant["id"],
@@ -160,6 +214,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
         json.dumps(ctx.get("utm") or {}),
         "pending" if tenant.get("lead_webhook_url") else "none",
         consent,
+        marketing,
     )
     await automation.on_lead_created(tenant, dict(row))
     ctx["lead_captured"] = True
@@ -197,7 +252,27 @@ async def _search_knowledge(tenant: dict, args: dict, ctx: dict) -> dict:
     }
 
 
+async def _request_conversation_copy(tenant: dict, args: dict, ctx: dict) -> dict:
+    from fastapi import HTTPException
+    from . import voice_records
+    session = ctx.get("voice_session")
+    if not session:
+        return {"ok": False, "error": "A verified website voice session is required"}
+    try:
+        return await voice_records.request_delivery(session, tenant,
+            channel=args.get("channel"), content=args.get("content"), confirmed=args.get("confirmed"))
+    except HTTPException as exc:
+        return {"ok": False, "error": exc.detail}
+
+
+async def _request_ack(tenant, args, ctx):
+    from . import acknowledgements
+    return await acknowledgements.request(tenant, args, ctx)
+
+
 _HANDLERS = {
+    "request_enquiry_acknowledgement": _request_ack,
+    "request_conversation_copy": _request_conversation_copy,
     "capture_lead": _capture_lead,
     "get_booking_link": _get_booking_link,
     "check_availability": _check_availability,

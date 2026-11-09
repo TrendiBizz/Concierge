@@ -1,0 +1,8 @@
+[Unit]
+Description=Monthly Trendi backup restore test
+[Timer]
+OnCalendar=*-*-01 03:45:00 Pacific/Auckland
+Persistent=true
+Unit=trendi-restore-test.service
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Three Concierge plans for small businesses, agencies and power users.">
+<title>Pricing - Concierge</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23667eea'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="tailwind-build.css">
+<link rel="stylesheet" href="site.css">
+<script>document.documentElement.classList.add('js');</script>
+</head>
+<body class="font-sans antialiased bg-gray-50 text-gray-900">
+<nav id="nav" class="fixed w-full z-50 bg-white/95 backdrop-blur-sm shadow-md">
+ <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="flex justify-between items-center h-16">
+   <a href="index.html" class="flex-shrink-0"><span class="text-2xl font-bold gradient-text">Concierge</span></a>
+   <div class="hidden md:flex items-center space-x-8">
+    <div class="relative group">
+     <button type="button" class="text-gray-700 hover:text-teal-700 transition py-5 flex items-center gap-1" aria-haspopup="true">Product
+      <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5-1-1L10 10 6.5 6.5z"/></svg></button>
+     <div class="mega hidden group-hover:block group-focus-within:block absolute left-1/2 -translate-x-1/2 top-full pt-0">
+      <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-6 grid grid-cols-3 gap-x-10 gap-y-6 w-[44rem]"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Get more leads in the door</p><a href="crm.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">CRM</a><a href="voice-ai.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Voice AI</a><a href="ai-chatbot.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Chat Widget and AI</a><a href="websites-funnels.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Websites and Funnels</a><a href="ad-manager.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Ad Manager</a></div><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Build relationships that convert</p><a href="workflows.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Workflows and Automations</a><a href="calendars.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Calendars and Reminders</a><a href="mobile-app.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Mobile App</a><a href="voicemail.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Ringless Voicemail</a></div><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Close deals with less back-and-forth</p><a href="payments.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Invoicing and Payments</a><a href="ecommerce.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Order Forms, Gift Cards and Loyalty</a></div><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Create fans, not just customers</p><a href="reputation.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Reputation Management</a><a href="communities.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Communities and Social Planner</a></div><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Bring past leads back</p><a href="email-marketing.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Email Marketing</a><a href="sms-whatsapp.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">SMS and WhatsApp</a></div><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">AI built into the work</p><a href="content-ai.html" class="block py-1 text-sm text-gray-600 hover:text-teal-700">Content AI</a></div></div>
+     </div>
+    </div>
+    <a href="pricing.html" class="text-gray-700 hover:text-teal-700 transition">Pricing</a>
+    <a href="about.html" class="text-gray-700 hover:text-teal-700 transition">About</a>
+    <a href="contact.html" class="text-gray-700 hover:text-teal-700 transition">Contact</a>
+   </div>
+   <div class="flex items-center gap-3">
+    <a href="contact.html" data-app-link class="text-gray-700 hover:text-teal-700 transition">Log in</a>
+    <a href="pricing.html" class="bg-gradient-to-r from-teal-700 to-teal-900 text-white px-5 py-2 rounded-full font-semibold hover:shadow-lg transition">Get Started</a>
+    <button id="menuToggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu" class="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100">
+     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+   </div>
+  </div>
+ </div>
+ <div id="mobileMenu" class="hidden md:hidden border-t border-gray-100 bg-white max-h-[75vh] overflow-y-auto">
+  <div class="px-4 py-3">
+   <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Product</p>
+   <a href="crm.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">CRM</a><a href="voice-ai.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Voice AI</a><a href="ai-chatbot.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Chat Widget and AI</a><a href="websites-funnels.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Websites and Funnels</a><a href="ad-manager.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Ad Manager</a><a href="workflows.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Workflows and Automations</a><a href="calendars.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Calendars and Reminders</a><a href="mobile-app.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Mobile App</a><a href="voicemail.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Ringless Voicemail</a><a href="payments.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Invoicing and Payments</a><a href="ecommerce.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Order Forms, Gift Cards and Loyalty</a><a href="reputation.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Reputation Management</a><a href="communities.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Communities and Social Planner</a><a href="email-marketing.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Email Marketing</a><a href="sms-whatsapp.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">SMS and WhatsApp</a><a href="content-ai.html" class="block py-1.5 pl-3 text-gray-600 hover:text-teal-700">Content AI</a>
+   <div class="border-t border-gray-100 mt-3 pt-3">
+    <a href="pricing.html" class="block py-1.5 text-gray-700">Pricing</a>
+    <a href="about.html" class="block py-1.5 text-gray-700">About</a>
+    <a href="contact.html" class="block py-1.5 text-gray-700">Contact</a>
+    <a href="contact.html" data-app-link class="block py-1.5 text-gray-700">Log in</a>
+   </div>
+  </div>
+ </div>
+</nav>
+<header class="hero-gradient pt-32 pb-16 text-center">
+ <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 text-balance">Simple plans, one platform</h1>
+  <p class="text-lg md:text-xl text-white/90 max-w-3xl mx-auto">Pick the plan that fits where your business is today and move up when it grows.</p>
+ </div>
+</header>
+<main>
+<section class="py-20"><div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+ <div class="grid md:grid-cols-3 gap-8 items-stretch"><div class="pricing-card relative flex flex-col bg-white p-8 rounded-2xl shadow-lg reveal"><h2 class="text-xl font-bold text-gray-800 mb-2">Starter</h2><p class="text-4xl font-bold gradient-text mb-4">$97<span class="text-lg font-normal text-gray-500">/month</span></p><p class="text-gray-600 mb-6">For small businesses and freelancers.</p><ul class="feature-list space-y-2 mb-8 flex-grow"><li>Unlimited funnels and landing pages</li><li>AI chatbot included</li><li>Basic automation workflows</li><li>Email support</li></ul><a href="contact.html?plan=starter" class="block text-center w-full bg-teal-700 text-white py-3 rounded-lg font-semibold hover:bg-teal-800 transition">Get started</a></div><div class="pricing-card pricing-featured relative flex flex-col bg-gradient-to-br from-teal-700 to-teal-900 p-8 rounded-2xl shadow-xl reveal"><div class="absolute top-0 right-0 -mt-4 -mr-4 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1 rounded-full shadow">MOST POPULAR</div><h2 class="text-xl font-bold text-white mb-2">Unlimited</h2><p class="text-5xl font-bold text-white mb-4">$497<span class="text-lg font-normal text-teal-100">/month</span></p><p class="text-teal-100 mb-6">For founders, agencies and consultants.</p><ul class="feature-list on-dark space-y-2 mb-8 flex-grow"><li>Everything in Starter, plus</li><li>Advanced AI features</li><li>Premium automation workflows</li><li>Priority support</li><li>Rebilling with margin</li></ul><a href="contact.html?plan=unlimited" class="block text-center w-full bg-white text-teal-700 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">Get started</a></div><div class="pricing-card relative flex flex-col bg-white p-8 rounded-2xl shadow-lg reveal"><h2 class="text-xl font-bold text-gray-800 mb-2">Founder</h2><p class="text-4xl font-bold gradient-text mb-4">$997<span class="text-lg font-normal text-gray-500">/month</span></p><p class="text-gray-600 mb-6">For power users who want a hands-on partner.</p><ul class="feature-list space-y-2 mb-8 flex-grow"><li>Everything in Unlimited, plus</li><li>Exclusive Founder feature set</li><li>Advanced analytics</li><li>Dedicated account manager</li></ul><a href="contact.html?plan=founder" class="block text-center w-full bg-teal-700 text-white py-3 rounded-lg font-semibold hover:bg-teal-800 transition">Get started</a></div></div>
+</div></section>
+<section class="py-16 bg-white"><div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+ <h2 class="text-3xl font-bold text-center mb-10 gradient-text">Pricing questions</h2>
+ <div class="space-y-4"><details class="faq bg-white rounded-lg shadow p-5 reveal"><summary class="font-semibold text-gray-800 cursor-pointer">Is there a free trial?</summary><p class="text-gray-600 mt-3">Add your trial terms here before launch.</p></details><details class="faq bg-white rounded-lg shadow p-5 reveal"><summary class="font-semibold text-gray-800 cursor-pointer">Can I change plans later?</summary><p class="text-gray-600 mt-3">Add your upgrade and downgrade policy here before launch.</p></details><details class="faq bg-white rounded-lg shadow p-5 reveal"><summary class="font-semibold text-gray-800 cursor-pointer">Are there usage charges for texts, calls and AI?</summary><p class="text-gray-600 mt-3">Add how usage is billed here before launch.</p></details></div>
+</div></section>
+</main>
+<footer class="bg-gray-900 text-white py-12">
+ <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="grid md:grid-cols-4 gap-8">
+   <div>
+    <h5 class="text-xl font-bold mb-4 gradient-text inline-block">Concierge</h5>
+    <p class="text-gray-400 text-sm">The AI-powered business operating system.</p>
+   </div>
+   <div class="md:col-span-2">
+    <h6 class="font-semibold mb-3">Product</h6>
+    <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-400"><li><a href="crm.html" class="hover:text-white transition">CRM</a></li><li><a href="voice-ai.html" class="hover:text-white transition">Voice AI</a></li><li><a href="ai-chatbot.html" class="hover:text-white transition">Chat Widget and AI</a></li><li><a href="websites-funnels.html" class="hover:text-white transition">Websites and Funnels</a></li><li><a href="ad-manager.html" class="hover:text-white transition">Ad Manager</a></li><li><a href="workflows.html" class="hover:text-white transition">Workflows and Automations</a></li><li><a href="calendars.html" class="hover:text-white transition">Calendars and Reminders</a></li><li><a href="mobile-app.html" class="hover:text-white transition">Mobile App</a></li><li><a href="voicemail.html" class="hover:text-white transition">Ringless Voicemail</a></li><li><a href="payments.html" class="hover:text-white transition">Invoicing and Payments</a></li><li><a href="ecommerce.html" class="hover:text-white transition">Order Forms, Gift Cards and Loyalty</a></li><li><a href="reputation.html" class="hover:text-white transition">Reputation Management</a></li><li><a href="communities.html" class="hover:text-white transition">Communities and Social Planner</a></li><li><a href="email-marketing.html" class="hover:text-white transition">Email Marketing</a></li><li><a href="sms-whatsapp.html" class="hover:text-white transition">SMS and WhatsApp</a></li><li><a href="content-ai.html" class="hover:text-white transition">Content AI</a></li></ul>
+   </div>
+   <div>
+    <h6 class="font-semibold mb-3">Company</h6>
+    <ul class="space-y-2 text-sm text-gray-400">
+     <li><a href="pricing.html" class="hover:text-white transition">Pricing</a></li>
+     <li><a href="about.html" class="hover:text-white transition">About</a></li>
+     <li><a href="contact.html" class="hover:text-white transition">Contact</a></li>
+     <li><a href="security.html" class="hover:text-white transition">Security</a></li>
+     <li><a href="privacy.html" class="hover:text-white transition">Privacy</a></li>
+     <li><a href="terms.html" class="hover:text-white transition">Terms</a></li>
+     <li><a href="cookies.html" class="hover:text-white transition">Cookies</a></li>
+    </ul>
+   </div>
+  </div>
+  <div class="border-t border-gray-800 mt-12 pt-8 text-sm text-gray-400 flex flex-col md:flex-row md:justify-between gap-3">
+   <p>&copy; <span id="year">2026</span> Concierge. All rights reserved.</p>
+   <p><a href="mailto:admin@trendibizz.com" class="hover:text-white transition">admin@trendibizz.com</a> &middot; <a href="tel:+64278817368" class="hover:text-white transition">+64 27 8817368</a></p>
+  </div>
+ </div>
+</footer>
+<button id="scrollToTop" type="button" aria-label="Scroll to top" class="fixed bottom-6 right-6 bg-teal-700 text-white w-12 h-12 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 hover:bg-teal-800 z-40">&uarr;</button>
+<script src="site.js"></script>
+</body>
+</html>
+</content>

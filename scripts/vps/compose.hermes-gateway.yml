@@ -1,0 +1,28 @@
+# The Hermes gateway on the VPS. Separate from compose.yml (the live stack) and compose.hermes.yml (Hermes itself).
+#
+#   scripts/vps/hermes.sh gateway-start --tenant pilot
+#
+# Host networking is deliberate and is the trade-off to know about: Concierge (127.0.0.1:8000) and Hermes (127.0.0.1:8642)
+# both publish on host loopback only, which a bridged container cannot reach. The gateway itself binds 127.0.0.1:4420 and
+# refuses any other address. It holds three distinct keys and nothing else: no database, no provider or SMTP credentials,
+# no Docker socket. Its filesystem is read-only and it runs as a non-root user.
+#
+# NOT YET RUN on this host (no Docker daemon where this was written): the image build, host networking and memory use.
+name: trendi-hermes-gateway
+services:
+  hermes-gateway:
+    build:
+      context: ../..
+      dockerfile: scripts/vps/Dockerfile.gateway
+    image: trendi-hermes-gateway:vps
+    container_name: hermes-gateway
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - {path: /opt/trendi/shared/hermes/gateway.env, format: raw}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128

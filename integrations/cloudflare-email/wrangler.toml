@@ -1,0 +1,6 @@
+name = "trendi-concierge-inbound"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+# No routes, email bindings or secrets configured: DO NOT DEPLOY as-is.
+# Set CONCIERGE_INGEST_URL and CONCIERGE_INBOUND_SECRET as Worker secrets,
+# verify mailbox DNS ownership, then approve activation separately.

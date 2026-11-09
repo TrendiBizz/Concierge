@@ -1,0 +1,27 @@
+{
+  "task_id": "task-1",
+  "tenant_id": "00000000-0000-0000-0000-0000000000a1",
+  "actions": [
+    {
+      "op": "schedule_followup",
+      "idempotency_key": "k-1",
+      "dedupe_key": "hermes:00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-0000000000c1:k-1",
+      "fingerprint": "be55a5e263dc064b4bfc572ad9fff6b9a73f71360cff98a10c07d6c313ddde37",
+      "case_version": 7,
+      "params": {
+        "title": "Call Ann",
+        "due_at": "2027-01-18T09:00:00+13:00"
+      }
+    }
+  ],
+  "delivery": {
+    "channel": "email",
+    "recipient": "ann@example.com",
+    "subject": "Opening hours",
+    "body": "We open at 9am.",
+    "mode": "needs_approval",
+    "fingerprint": "1a4d8146e9bc1359912c614cd977ce6da949c51a4d9d26ebd60194bf4e23a588",
+    "dedupe_key": "hermes:00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-0000000000c1:task-1:email",
+    "send_at": "2027-01-15T19:00:00+00:00"
+  }
+}

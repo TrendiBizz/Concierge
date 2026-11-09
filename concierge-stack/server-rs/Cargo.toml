@@ -1,0 +1,22 @@
+[package]
+name = "concierge-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Rust HTTP server for Concierge. Read-only routes first; every decision comes from concierge-core, verified against the Python API."
+
+[dependencies]
+concierge-core = { path = "../core-rs" }
+axum = { version = "0.7", default-features = false, features = ["http1", "json", "tokio", "query"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
+deadpool-postgres = "0.14"
+serde_json = { version = "1", features = ["preserve_order"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+uuid = "1"
+rand = "0.8"
+base64 = "0.22"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

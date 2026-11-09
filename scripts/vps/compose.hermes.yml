@@ -1,0 +1,46 @@
+# Hermes Agent on the VPS: one loopback-only container per business (or one shared "pilot" for internal use).
+# Deliberately separate from compose.yml so the live API/database stack is never touched by Hermes changes.
+#
+#   scripts/vps/hermes.sh start --tenant pilot     # preferred: handles keys, config and this file
+#
+# Hermes is an UNTRUSTED PLANNER. It gets no Docker socket, no host mounts, no shared database, no SMTP or provider
+# credentials: its only writable storage is its own named volume, and customer actions go through the hermes-gateway
+# (capability tokens + policy validation), never directly. See QA/verification/HERMES_CONCIERGE_FRAMEWORK_2026-11-09.md.
+#
+# NOT YET VERIFIED ON THIS HOST (no Docker daemon was available where this was written): memory/CPU headroom,
+# `read_only: true` compatibility and the egress allowlist. Check `docker stats` and Hermes logs on the first run.
+name: trendi-hermes-${HERMES_TENANT:-pilot}
+services:
+  hermes:
+    image: ${HERMES_IMAGE:-nousresearch/hermes-agent:stable}
+    container_name: hermes-${HERMES_TENANT:-pilot}
+    command: [gateway, run]
+    restart: unless-stopped
+    # Loopback only: reached through the VPS shell or the gateway, never from the internet.
+    ports: ["127.0.0.1:${HERMES_PORT:-8642}:8642"]
+    volumes: ["data:/opt/data"]
+    # The 8 GB host also runs PostgreSQL, the API (1.2 GB), social, the website, Caddy and the CRM. Start small
+    # (one concurrent orchestration task) and raise only after measuring queue age and `docker stats`.
+    mem_limit: ${HERMES_MEM:-2g}
+    cpus: ${HERMES_CPUS:-1}
+    pids_limit: 512
+    # If the container will not start, suspect cap_drop first: an entrypoint that switches user needs SETUID/SETGID.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=256m"]
+    # read_only: true   # enable once a first run proves Hermes writes only to /opt/data and /tmp
+    networks: [hermes]
+    # Assumes python3 exists in the image (Hermes is a Python application); confirm with `docker exec hermes-pilot python3 -V`.
+    healthcheck:
+      test: [CMD-SHELL, "python3 -c \"import socket;socket.create_connection(('127.0.0.1',8642),3)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+networks:
+  # Own bridge: no route to the stack's database network. Outbound access to the model provider is still open;
+  # restrict it with a host firewall rule on this bridge once the provider addresses are confirmed (framework §8).
+  hermes: {}
+volumes:
+  data:
+    name: hermes_${HERMES_TENANT:-pilot}_data

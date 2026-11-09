@@ -4,3 +4,23 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# Module databases and runtime data (never commit)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*/data/
+.pids
+node_modules/
+
+# Never commit environment files or their backups (they hold real secrets). .env.example is the template.
+.env.*
+!.env.example
+
+# Docker-internal credentials are exported locally from the Mac keychain.
+.private/
+
+# Private, pre-cutover rollback archive; never commit.
+.migration-rollback/

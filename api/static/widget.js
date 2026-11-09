@@ -178,13 +178,13 @@
       ".b.note{align-self:center;background:transparent;color:#555;font-size:12px}" +
       ".status{min-height:20px;padding:2px 14px;font-size:12px;color:#555;background:#f6f7f9}" +
       ".bar{display:flex;gap:8px;padding:10px;border-top:1px solid #e3e5e8;background:#fff}" +
-      ".bar input{flex:1;border:1px solid #cfd3d8;border-radius:999px;padding:10px 14px;font-size:14px;outline:none}" +
+      ".bar input{flex:1;border:1px solid #cfd3d8;border-radius:999px;padding:10px 14px;font-size:16px;outline:none}" +
       ".bar input:focus{border-color:" + accent + "}" +
       ".btn{border:0;border-radius:999px;width:40px;height:40px;cursor:pointer;font-size:16px;background:" + accent + ";color:#fff}" +
       ".btn.mic.on{background:#dc2626}" +
       ".btn[disabled]{opacity:.5;cursor:default}" +
       ".foot{padding:6px 12px 10px;font-size:11px;color:#666;text-align:center;background:#fff}" +
-      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;max-height:100vh;border-radius:0}}";
+      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0}}";
 
     var launcher = el("button", { class: "launcher", type: "button", "aria-label": "Open AI guide" }, [
       el("span", { text: "\u{1F4AC}" }),
@@ -203,6 +203,12 @@
       cfg.voice_enabled && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && "WebSocket" in window;
     if (voiceSupported) bar.appendChild(micBtn);
     bar.appendChild(sendBtn);
+    var recordChoice = el("input", { type: "checkbox", "aria-label": "Record this voice conversation" });
+    var recordingSupported = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported &&
+      ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].some(function (mime) { return MediaRecorder.isTypeSupported(mime); });
+    var recordLabel = el("label", { class: "foot" }, [recordChoice, document.createTextNode("Record this conversation for the business. Audio is kept for 30 days.")]);
+    recordLabel.hidden = !(cfg.recording_available && recordingSupported);
+
 
     var panel = el("div", { class: "panel", role: "dialog", "aria-label": cfg.name + " AI guide" }, [
       el("div", { class: "head" }, [
@@ -212,10 +218,20 @@
       log,
       status,
       bar,
+      recordLabel,
       el("div", { class: "foot", text: "You are chatting with an AI. It can make mistakes. Conversations may be saved to help the team follow up." }),
     ]);
 
-    shadow.appendChild(style);
+    // A site with a strict Content-Security-Policy (style-src 'self') blocks an inline <style> element,
+    // which left the widget unstyled. Constructable stylesheets are not blocked by that policy, so use
+    // one when the browser supports it and fall back to the <style> element in older browsers.
+    try {
+      var sheet = new CSSStyleSheet();
+      sheet.replaceSync(style.textContent);
+      shadow.adoptedStyleSheets = [sheet];
+    } catch (e) {
+      shadow.appendChild(style);
+    }
     shadow.appendChild(launcher);
     shadow.appendChild(panel);
     document.body.appendChild(host);
@@ -250,6 +266,11 @@
     }
     launcher.addEventListener("click", openPanel);
     closeBtn.addEventListener("click", closePanel);
+    // The host website can open the assistant without submitting a message,
+    // starting voice, or reaching into the widget's shadow DOM.
+    window.addEventListener("concierge:open", openPanel);
+    window.__ccWidgetReady = true;
+    window.dispatchEvent(new Event("concierge:ready"));
 
     // -------------------------------------------------------------- chat
     var busy = false;
@@ -298,6 +319,15 @@
     });
 
     // ------------------------------------------------------------- voice
+    var voiceSID = SID;
+    var voiceSession = null;
+    var voiceLogRequests = [];
+    var voiceToolRequests = [];
+    var voiceToolIds = new Set();
+    var recordingDestination = null;
+    var recorder = null;
+    var recordingResult = Promise.resolve(null);
+    var voiceTimer = null;
     var ws = null;
     var stream = null;
     var actx = null;
@@ -307,6 +337,7 @@
     var nextTime = 0;
     var pendingCalls = [];
     var userText = "";
+    var completedInputIds = new Set();
     var assistantText = "";
     var voiceActive = false;
     var sampleBuffer = [];
@@ -320,14 +351,16 @@
       text = (text || "").trim();
       if (!text) return;
       addMsg(role, text);
-      post("/api/v1/voice/log", {
+      var saved = post("/api/v1/voice/log", {
         key: KEY,
-        session_id: SID,
+        session_id: voiceSID,
         role: role,
         text: text.slice(0, 4000),
         page_url: location.href,
         utm: UTM,
-      }).catch(function () {});
+      }).then(function (res) { if (!res.ok) throw new Error("Transcript could not be saved"); });
+      saved.catch(function () { setStatus("Some transcript text could not be saved."); });
+      voiceLogRequests.push(saved);
     }
 
     function playChunk(b64) {
@@ -339,6 +372,7 @@
       var src = actx.createBufferSource();
       src.buffer = buf;
       src.connect(actx.destination);
+      if (recordingDestination) src.connect(recordingDestination);
       var startAt = Math.max(actx.currentTime + 0.02, nextTime);
       src.start(startAt);
       nextTime = startAt + buf.duration;
@@ -361,6 +395,7 @@
     }
 
     function onSamples(f32) {
+      if (!voiceActive || !actx) return;
       sampleBuffer.push(f32);
       sampleCount += f32.length;
       // Send ~100ms batches.
@@ -381,6 +416,7 @@
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      if (!voiceActive) { stream.getTracks().forEach(function (track) { track.stop(); }); stream = null; return; }
       var AC = window.AudioContext || window.webkitAudioContext;
       try {
         actx = new AC({ sampleRate: 24000 });
@@ -388,8 +424,28 @@
         actx = new AC();
       }
       if (actx.state === "suspended") await actx.resume();
+      if (!voiceActive) return;
 
       var source = actx.createMediaStreamSource(stream);
+      if (voiceSession && voiceSession.recording) {
+        recordingDestination = actx.createMediaStreamDestination();
+        source.connect(recordingDestination);
+        var mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(function (type) { return MediaRecorder.isTypeSupported(type); });
+        var chunks = [], total = 0;
+        recorder = new MediaRecorder(recordingDestination.stream, { mimeType: mime, audioBitsPerSecond: 48000 });
+        recordingResult = new Promise(function (resolve) {
+          recorder.ondataavailable = function (event) {
+            if (event.data.size) { chunks.push(event.data); total += event.data.size; }
+            if (total > 11 * 1024 * 1024 && recorder && recorder.state === "recording") {
+              recorder.stop(); addMsg("note", "The audio recording reached its size limit. The conversation can continue without recording.");
+            }
+          };
+          recorder.onstop = function () { resolve(new Blob(chunks, { type: mime })); };
+          recorder.onerror = function () { resolve(null); addMsg("note", "Audio recording failed. Text transcription can continue."); };
+        });
+        recorder.start(1000);
+      }
+
       sink = actx.createGain();
       sink.gain.value = 0; // keeps the capture graph running without echoing the mic
       sink.connect(actx.destination);
@@ -400,6 +456,7 @@
           var url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: "application/javascript" }));
           await actx.audioWorklet.addModule(url);
           URL.revokeObjectURL(url);
+          if (!voiceActive || !actx) return;
           captureNode = new AudioWorkletNode(actx, "cc-capture");
           captureNode.port.onmessage = function (ev) {
             onSamples(ev.data);
@@ -411,6 +468,7 @@
           usedWorklet = false; // e.g. the host page's CSP blocks blob: workers
         }
       }
+      if (!voiceActive || !actx) return;
       if (!usedWorklet) {
         captureNode = actx.createScriptProcessor(2048, 1, 1);
         captureNode.onaudioprocess = function (ev) {
@@ -430,8 +488,10 @@
       try {
         var res = await post("/api/v1/tools/" + encodeURIComponent(ev.name), {
           key: KEY,
-          session_id: SID,
+          session_id: voiceSID,
           args: args,
+          voice_session_id: voiceSession ? voiceSession.id : null,
+          voice_session_token: voiceSession ? voiceSession.token : "",
           page_url: location.href,
           utm: UTM,
         });
@@ -440,6 +500,7 @@
         result = { ok: false, error: "Network error" };
       }
       if (ev.name === "capture_lead" && result.ok) addMsg("note", "✓ Your details were sent to the team.");
+      if (ev.name === "request_conversation_copy" && result.ok) addMsg("note", "Your copy is requested for after the conversation is saved. Delivery has not been confirmed yet.");
       if (ev.name === "book_appointment" && result.ok && result.confirmation) addMsg("note", "✓ " + result.confirmation);
       if (ev.name === "get_booking_link" && result.ok && result.booking_url) addMsg("assistant", "Book here: " + result.booking_url);
       return { call_id: ev.call_id, output: JSON.stringify(result) };
@@ -469,6 +530,16 @@
           // convention; harmless if the server never sends it.)
           interrupt();
           break;
+        case "conversation.item.input_audio_transcription.completed":
+          if (ev.item_id && completedInputIds.has(ev.item_id)) break;
+          if (ev.item_id) {
+            completedInputIds.add(ev.item_id);
+            if (completedInputIds.size > 500) completedInputIds.delete(completedInputIds.values().next().value);
+          }
+          var finalInput = ev.transcript || ev.text || userText;
+          userText = "";
+          if (finalInput) logVoice("user", finalInput);
+          break;
         case "conversation.item.input_audio_transcription.updated":
           // Cumulative transcript of what the visitor said.
           userText = ev.transcript || ev.text || userText;
@@ -478,7 +549,11 @@
           assistantText += ev.delta || "";
           break;
         case "response.function_call_arguments.done":
-          pendingCalls.push(runToolCall(ev));
+          if (!ev.call_id || voiceToolIds.has(ev.call_id) || voiceToolIds.size >= 40) break;
+          voiceToolIds.add(ev.call_id);
+          var toolRequest = runToolCall(ev);
+          pendingCalls.push(toolRequest);
+          voiceToolRequests.push(toolRequest);
           break;
         case "response.done":
           if (assistantText) {
@@ -509,8 +584,40 @@
       }
     }
 
+    async function finishVoice(savedSession, savedLogs, savedTools, savedRecording) {
+      if (!savedSession) return;
+      try {
+        var logResults = await Promise.allSettled(savedLogs.concat(savedTools));
+        if (logResults.some(function (result) { return result.status === "rejected"; })) addMsg("note", "Part of the conversation could not be saved. Please tell the team if anything is missing.");
+        var blob = await savedRecording;
+        if (blob && blob.size) {
+          var uploaded = await fetch(API + "/api/v1/voice/sessions/" + encodeURIComponent(savedSession.id) + "/recording", {
+            method: "POST", headers: { "Content-Type": blob.type, "X-Voice-Session-Token": savedSession.token }, body: blob,
+          });
+          if (!uploaded.ok) addMsg("note", "The audio recording could not be saved. The team will still receive the saved text.");
+        }
+        var finished = await fetch(API + "/api/v1/voice/sessions/" + encodeURIComponent(savedSession.id) + "/finish", {
+          method: "POST", headers: { "X-Voice-Session-Token": savedSession.token },
+        });
+        if (!finished.ok) throw new Error("Conversation completion could not be saved");
+        var completion = await finished.json();
+        if (completion.delivery) addMsg("note", completion.delivery.status === "not_queued" ? "Your copy could not be queued: " + completion.delivery.note : "Your copy is queued for delivery. It has not been confirmed sent.");
+      } catch (error) { addMsg("note", "The conversation could not be fully saved. Please contact the team if you need to follow up."); }
+    }
+
     function stopVoice() {
+      if (userText) logVoice("user", userText);
+      if (assistantText) logVoice("assistant", assistantText);
+      userText = "";
+      assistantText = "";
       voiceActive = false;
+      if (voiceTimer) { clearTimeout(voiceTimer); voiceTimer = null; }
+      var savedSession = voiceSession, savedLogs = voiceLogRequests.slice(), savedTools = voiceToolRequests.slice(), savedRecording = recordingResult;
+      voiceSession = null; voiceLogRequests = []; voiceToolRequests = []; recordingResult = Promise.resolve(null);
+      if (recorder && recorder.state === "recording") recorder.stop();
+      recorder = null; recordingDestination = null;
+      recordChoice.disabled = false;
+      finishVoice(savedSession, savedLogs, savedTools, savedRecording);
       micBtn.classList.remove("on");
       interrupt();
       if (ws) {
@@ -547,10 +654,13 @@
 
     async function startVoice() {
       voiceActive = true;
+      micBtn.disabled = true;
+      voiceSID = newSessionId(); voiceLogRequests = []; voiceToolRequests = []; voiceToolIds.clear(); completedInputIds.clear();
+      recordChoice.disabled = true;
       micBtn.classList.add("on");
       setStatus("Connecting…");
       try {
-        var res = await post("/api/v1/voice/token", { key: KEY, session_id: SID });
+        var res = await post("/api/v1/voice/token", { key: KEY, session_id: voiceSID, recording_consent: !!(cfg.recording_available && recordingSupported && recordChoice.checked) });
         if (!res.ok) {
           var detail = "";
           try {
@@ -559,12 +669,17 @@
           throw new Error(detail || "Voice is unavailable right now.");
         }
         var data = await res.json();
+        if (!voiceActive) return;
+        voiceSession = data.voice_session;
         await startMic();
+        if (!voiceActive) { stopVoice(); return; }
+        voiceTimer = setTimeout(stopVoice, 10 * 60 * 1000);
 
         // The token travels as a WebSocket subprotocol because browsers cannot set headers.
         var PREFIX = "xai-client-secret.";
         var protocol = data.token.indexOf(PREFIX) === 0 ? data.token : PREFIX + data.token;
-        ws = new WebSocket(data.url, [protocol]);
+        var activeSocket = new WebSocket(data.url, [protocol]);
+        ws = activeSocket;
         ws.onopen = function () {
           wsSend({ type: "session.update", session: data.session });
           wsSend({
@@ -579,13 +694,13 @@
           setStatus("Listening…");
         };
         ws.onmessage = function (ev) {
-          if (typeof ev.data === "string") onServerEvent(ev.data);
+          if (ws === activeSocket && voiceActive && typeof ev.data === "string") onServerEvent(ev.data);
         };
         ws.onerror = function () {
           setStatus("Voice connection failed.");
         };
         ws.onclose = function () {
-          if (voiceActive) {
+          if (ws === activeSocket && voiceActive) {
             stopVoice();
             setStatus("Voice ended. You can keep typing.");
           }
@@ -594,7 +709,7 @@
         stopVoice();
         var denied = e && e.name === "NotAllowedError";
         setStatus(denied ? "Microphone access was blocked." : (e && e.message) || "Voice is unavailable right now.");
-      }
+      } finally { micBtn.disabled = false; }
     }
 
     micBtn.addEventListener("click", function () {

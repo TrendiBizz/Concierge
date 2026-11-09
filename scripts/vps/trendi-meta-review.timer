@@ -1,0 +1,10 @@
+[Unit]
+Description=Check the isolated Meta review workspace for approved publishing jobs
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=20s
+Unit=trendi-meta-review.service
+
+[Install]
+WantedBy=timers.target

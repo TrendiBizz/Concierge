@@ -1,0 +1,25 @@
+PASS owner sees own business
+PASS owner sees unverified label
+PASS owner sees seven consent controls
+PASS owner consent role protection
+PASS owner explicitly authorized one channel
+PASS owner revoked same channel without activation
+PASS owner profile edit rights
+PASS owner saved through existing portal
+PASS owner calendar connection role protection
+PASS owner website voice and booking role protection
+PASS owner quotation form role protection
+PASS quotation form submits integer cents and explicit tax
+PASS reviewed quotation removes price edit control
+PASS owner logout clears business fields
+PASS owner no JavaScript exceptions
+PASS viewer sees own business
+PASS viewer sees unverified label
+PASS viewer sees seven consent controls
+PASS viewer consent role protection
+PASS viewer profile edit rights
+PASS viewer calendar connection role protection
+PASS viewer website voice and booking role protection
+PASS viewer quotation form role protection
+PASS viewer logout clears business fields
+PASS viewer no JavaScript exceptions

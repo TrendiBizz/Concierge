@@ -1,0 +1,19 @@
+# Hermes gateway (Rust): capability tokens, plan validation, orchestrated runs. Loopback only, non-root, read-only filesystem.
+# The crate depends on concierge-core by path, so both crates are built from the repository root as context.
+FROM rust:1.91-bookworm AS build
+WORKDIR /build/concierge-stack
+COPY concierge-stack/core-rs/Cargo.toml concierge-stack/core-rs/Cargo.lock core-rs/
+COPY concierge-stack/core-rs/src core-rs/src
+COPY concierge-stack/hermes-gateway/Cargo.toml concierge-stack/hermes-gateway/Cargo.lock hermes-gateway/
+COPY concierge-stack/hermes-gateway/src hermes-gateway/src
+WORKDIR /build/concierge-stack/hermes-gateway
+RUN CARGO_BUILD_JOBS=1 cargo build --locked --release -j 1
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10003 --no-create-home hermesgw
+COPY --from=build /build/concierge-stack/hermes-gateway/target/release/hermes-gateway /usr/local/bin/hermes-gateway
+USER hermesgw
+ENV HERMES_GATEWAY_BIND=127.0.0.1:4420
+ENTRYPOINT ["/usr/local/bin/hermes-gateway"]

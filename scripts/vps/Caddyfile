@@ -1,0 +1,44 @@
+{
+    auto_https off
+    admin off
+}
+:8080 {
+    header X-Trendi-Release "20261108-vps"
+    encode gzip
+    @website host trendibizz.com
+    handle @website {
+        reverse_proxy website:8080
+    }
+    @www host www.trendibizz.com
+    handle @www {
+        redir https://trendibizz.com{uri} 301
+    }
+    @chat {
+        host chat.trendibizz.com
+        path /widget.js /api/v1/widget-config /api/v1/chat /api/v1/voice/token /api/v1/voice/log /api/v1/voice/sessions/* /api/v1/voice/recordings/shared/* /api/v1/tools/* /api/v1/unsubscribe/* /api/v1/smsgate/* /api/v1/sms/*
+    }
+    handle @chat {
+        reverse_proxy api:8000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
+    @owner {
+        host concierge.trendibizz.com
+        path /owner-ui /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /api/v1/social-media/* /api/v1/device-sms/* /api/v1/phone/xai/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/*
+    }
+    handle @owner {
+        reverse_proxy api:8000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
+    @crm host crm.trendibizz.com
+    handle @crm {
+        reverse_proxy crm:3000 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
+    respond 404
+}

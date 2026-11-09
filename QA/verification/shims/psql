@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# `psql` shim for hosts without a PostgreSQL client.
+#
+# The parity harness calls `psql "$DB" -v ON_ERROR_STOP=1 -At -c "$SQL"`, where DB is a URL like
+# postgresql://postgres:test@127.0.0.1:55432/postgres. This host has no psql, but the parity database runs in
+# the `concierge-parity-pg` container, which does. Rewrite the URL to the container's own connection string and
+# run the client inside it.
+#
+# Only the connection form the harness actually uses is supported; anything else is passed through untouched so
+# a real psql (if one is ever installed) keeps working.
+set -euo pipefail
+
+CONTAINER="${CONCIERGE_PSQL_CONTAINER:-concierge-parity-pg}"
+
+if [ "$#" -eq 0 ]; then
+  exec docker exec -i "$CONTAINER" psql
+fi
+
+DB="$1"
+shift
+
+case "$DB" in
+  postgresql://*|postgres://*)
+    # Split user:pass@host:port/dbname and re-aim it at the container's loopback listener.
+    rest="${DB#*://}"
+    userpass="${rest%%@*}"
+    user="${userpass%%:*}"
+    pass="${userpass#*:}"
+    hostpart="${rest#*@}"
+    dbname="${hostpart##*/}"
+
+    if [ "$pass" = "$userpass" ]; then
+      # No password in the URL: let the container's trust auth handle it.
+      exec docker exec -i -e "PGPASSWORD=" "$CONTAINER" \
+        psql -U "$user" -d "$dbname" "$@"
+    fi
+
+    exec docker exec -i -e "PGPASSWORD=$pass" "$CONTAINER" \
+      psql -U "$user" -h 127.0.0.1 -d "$dbname" "$@"
+    ;;
+  *)
+    exec docker exec -i "$CONTAINER" psql "$DB" "$@"
+    ;;
+esac

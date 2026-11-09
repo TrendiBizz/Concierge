@@ -1,0 +1,7 @@
+Controlled owner enquiry CONCIERGE-20261109-RECEIPT-V1
+Lead 2026aedc-aa5d-4f7a-bc18-8144217ff242 retained in CRM with complete original.
+Original email outbox6 sent attempt1, received Gmail message1a1bdce724d40099, subject Chat enquiry for Trendi Concierge, 2026-11-09T00:56:20Z. Complete original reference verified in actual received body.
+Duplicate owner email outbox8 received message1a1bdce7320c4231 at00:56:21Z. Diagnosed scorer row reload dropping ingress transient dedupe flag; fixed6e53fc4 with red/green regression and exacttwo-channel outbox check. No further email sent.
+SMS outbox7 and duplicate9 failed native Send confirmation; no verified send receipts. Old Saturday/11:05 screenshots do not prove this enquiry delivery. Neither failed job automatically replayed.
+Calendar realprovider results in portal_workflow_calendar_live_results.txt. Owner is also organizer/attendee, so provider_requested is verified but separate guest inbox receipt is not claimed. Gmail search of exact calendar reference returned no email. One synthetic15minute event retained in owner calendar and CRM. Extra confirmation/reminder outbox count0.
+Reconciled SMS-only retry explicitly approved when user ready. Failed jobs retained, not reset/replayed. Dedupe owner-authorized-20261109-sms-reconciled-v1. Outbox10 SENT attempt1; device job ed8e6f24-cd95-4f4d-962d-55adb033f0b7 SENT; verified Messages receipt1B620D3E-2487-4A10-822E-804E73607AA3. User confirmed “yes it worked” and supplied screenshot14:08 showing outbound and inbound complete exact reference. No email resent.

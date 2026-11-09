@@ -1,0 +1,80 @@
+name: concierge-twenty
+
+# Twenty CRM, standalone. Open http://localhost:3010 after "docker compose up -d".
+# Secrets live in .env (created by setup.sh, never committed).
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?run ./setup.sh first}
+      POSTGRES_DB: default
+    volumes:
+      - twenty_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d default"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3010:3000"
+    environment:
+      NODE_PORT: "3000"
+      SERVER_URL: https://crm.trendibizz.com
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "true"
+      PG_DATABASE_URL: postgres://postgres:${PG_PASSWORD:?run ./setup.sh first}@db:5432/default
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET:?run ./setup.sh first}
+      STORAGE_TYPE: local
+      DISABLE_DB_MIGRATIONS: "false"
+    volumes:
+      - twenty_storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  worker:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    restart: unless-stopped
+    command: ["yarn", "worker:prod"]
+    environment:
+      SERVER_URL: https://crm.trendibizz.com
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "true"
+      PG_DATABASE_URL: postgres://postgres:${PG_PASSWORD:?run ./setup.sh first}@db:5432/default
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET:?run ./setup.sh first}
+      STORAGE_TYPE: local
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - twenty_storage:/app/packages/twenty-server/.local-storage
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  twenty_db:
+  twenty_storage:

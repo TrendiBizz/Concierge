@@ -89,6 +89,11 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/concierge
       ADMIN_TOKEN: ${ADMIN_TOKEN:?run scripts/gen-env.sh}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://api.localhost}
+      # Social integration is explicitly opt-in. API and Rust sidecar share the
+      # API container's loopback network namespace; no public social port.
+      SOCIAL_SERVICE_ENABLED: ${SOCIAL_SERVICE_ENABLED:-false}
+      SOCIAL_SERVICE_URL: http://127.0.0.1:4390
+      SOCIAL_CONCIERGE_KEY: ${SOCIAL_CONCIERGE_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.x.ai/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -105,6 +110,24 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      # SMS provider switch, campaigns and response alerts. Every default matches app/config.py, so an
+      # unchanged .env behaves exactly as before.
+      SMS_PROVIDER: ${SMS_PROVIDER:-twilio}
+      TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
+      SMSGATE_BASE_URL: ${SMSGATE_BASE_URL:-}
+      SMSGATE_SEND_PATH: ${SMSGATE_SEND_PATH:-/3rdparty/v1/messages}
+      SMSGATE_USERNAME: ${SMSGATE_USERNAME:-}
+      SMSGATE_PASSWORD: ${SMSGATE_PASSWORD:-}
+      SMSGATE_SIGNING_KEY: ${SMSGATE_SIGNING_KEY:-}
+      SMSGATE_SIM_NUMBER: ${SMSGATE_SIM_NUMBER:-0}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:-}
+      CAMPAIGN_MAX_RECIPIENTS: ${CAMPAIGN_MAX_RECIPIENTS:-200}
+      CAMPAIGN_COOLDOWN_DAYS: ${CAMPAIGN_COOLDOWN_DAYS:-30}
+      CAMPAIGN_EMAIL_PER_HOUR: ${CAMPAIGN_EMAIL_PER_HOUR:-60}
+      CAMPAIGN_SMS_PER_HOUR: ${CAMPAIGN_SMS_PER_HOUR:-20}
+      SLA_POLL_SECONDS: ${SLA_POLL_SECONDS:-60}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach LM Studio running on the host machine
     ports:
       # Direct access for local development / the CLI. Caddy serves the public hostname.
       - "127.0.0.1:8000:8000"
@@ -117,6 +140,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # Social OAuth backend (optional): shares the API's loopback namespace.
+  # Configure the git-ignored social.env and matching SOCIAL_CONCIERGE_KEY
+  # in the Compose environment before enabling this profile.
+  social:
+    build: ./concierge-stack/social-service
+    <<: *restart
+    profiles: ["social"]
+    network_mode: "service:api"
+    env_file:
+      - path: ./concierge-stack/social-service/data/social.env
+        required: false
+    environment:
+      SOCIAL_DB: /data/social.db
+      SOCIAL_BIND: 127.0.0.1:4390
+      SOCIAL_ENABLE_PUBLISH: "false"
+    volumes:
+      - social_data:/data
+    depends_on:
+      - api
 
   # ---------------------------------------------------------- automation
   n8n:
@@ -220,6 +263,7 @@ services:
       - kuma_data:/app/data
 
 volumes:
+  social_data:
   caddy_data:
   caddy_config:
   pg_data:

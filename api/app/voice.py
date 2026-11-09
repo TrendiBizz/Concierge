@@ -21,12 +21,14 @@ class VoiceUnavailable(RuntimeError):
     pass
 
 
-def build_session(tenant: dict) -> dict:
+def build_session(tenant: dict, *, website=False) -> dict:
     """Session config the widget sends as its first `session.update` event."""
     settings = get_settings()
     return {
         "voice": tenant.get("voice") or settings.voice_default,
-        "instructions": build_system_prompt(tenant, None, channel="voice"),
+        "instructions": build_system_prompt(tenant, None, channel="voice") + (
+            "\nIf the caller asks for a text copy or recording link, save their contact and permission with capture_lead. Read back the saved recipient and requested format, wait for yes, then use request_conversation_copy. It arranges delivery after the conversation ends; never claim it was already sent. If recording is unavailable, offer saved text instead."
+            if website else ""),
         "turn_detection": {"type": "server_vad"},
         "audio": {
             "input": {
@@ -35,7 +37,7 @@ def build_session(tenant: dict) -> dict:
             },
             "output": {"format": {"type": "audio/pcm", "rate": 24000}},
         },
-        "tools": voice_tools(tenant),
+        "tools": voice_tools(tenant, website=website),
     }
 
 
@@ -86,5 +88,5 @@ async def mint_token(tenant: dict) -> dict:
     return {
         "token": token,
         "url": settings.voice_ws_url,
-        "session": build_session(tenant),
+        "session": build_session(tenant, website=True),
     }

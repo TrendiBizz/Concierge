@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Concierge account connection</title></head>
+<body><main><h1>Returning to Concierge</h1><p id="status">Completing account authorization…</p></main>
+<script>
+"use strict";
+(function(){
+ const params=new URLSearchParams(window.location.search);
+ const state=params.get("state")||"";
+ const code=params.get("code")||"";
+ const error=params.get("error")||"";
+ // Only return credentials to the same-origin window that initiated this popup.
+ // Never persist the authorization code or send it to any remote script.
+ if(!/^[A-Za-z0-9_-]{32,256}$/.test(state) ||
+    (code.length>2048 || error.length>256) || (!code && !error)){
+    document.getElementById("status").textContent="Unable to verify the connection. Return to Concierge and try again.";
+    history.replaceState(null,"",location.pathname);
+    return;
+ }
+ const response={type:"concierge-social-oauth",state,code,error};
+ // Strip the sensitive provider response before notifying other windows.
+ history.replaceState(null,"",location.pathname);
+ if(window.opener){
+   try{window.opener.postMessage(response,location.origin);}catch(_){}
+ }
+ if(typeof BroadcastChannel!=="undefined"){
+   const channel=new BroadcastChannel("concierge-social-oauth:"+state);
+   channel.postMessage(response);
+   setTimeout(()=>{channel.close();window.close();},800);
+ }else if(window.opener){
+   window.close();
+ }else{
+   document.getElementById("status").textContent="Return to the original Concierge tab to finish connecting. If it does not update, try again.";
+   return;
+ }
+ document.getElementById("status").textContent="Authorization returned to Concierge. You can close this window.";
+})();
+</script></body></html>

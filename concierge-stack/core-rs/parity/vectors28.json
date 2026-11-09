@@ -1,0 +1,4163 @@
+{
+ "stat": [
+  {
+   "size": 0,
+   "mtime_ns": 0,
+   "mtime_repr": "0.0",
+   "etag": "\"a10a9b3bebddaf0fc961ceee55436513\"",
+   "last_modified": "Thu, 01 Jan 1970 00:00:00 GMT"
+  },
+  {
+   "size": 1,
+   "mtime_ns": 1,
+   "mtime_repr": "1e-09",
+   "etag": "\"6b0c74fa6a96187fa21420aec0eb590a\"",
+   "last_modified": "Thu, 01 Jan 1970 00:00:00 GMT"
+  },
+  {
+   "size": 29430,
+   "mtime_ns": 1794219280470824189,
+   "mtime_repr": "1794219280.4708242",
+   "etag": "\"b8bc1079fa45b09979e1c53a33ae68e7\"",
+   "last_modified": "Mon, 09 Nov 2026 10:14:40 GMT"
+  },
+  {
+   "size": 80022,
+   "mtime_ns": 1794219280000000000,
+   "mtime_repr": "1794219280.0",
+   "etag": "\"adac449903c823860b51a2445723c24d\"",
+   "last_modified": "Mon, 09 Nov 2026 10:14:40 GMT"
+  },
+  {
+   "size": 5,
+   "mtime_ns": 1700000000999999999,
+   "mtime_repr": "1700000001.0",
+   "etag": "\"ce716f8df2804fa7f4545533cbd25c0d\"",
+   "last_modified": "Tue, 14 Nov 2023 22:13:21 GMT"
+  },
+  {
+   "size": 46905,
+   "mtime_ns": 1700000000100000000,
+   "mtime_repr": "1700000000.1",
+   "etag": "\"e3a7bdebc148fdb74c38972e6e621485\"",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT"
+  },
+  {
+   "size": 7,
+   "mtime_ns": 1234567890123456789,
+   "mtime_repr": "1234567890.1234567",
+   "etag": "\"a96fdc6c8743ae0ec752b0fc5894558d\"",
+   "last_modified": "Fri, 13 Feb 2009 23:31:30 GMT"
+  },
+  {
+   "size": 123456789,
+   "mtime_ns": 1999999999000000001,
+   "mtime_repr": "1999999999.0",
+   "etag": "\"c387f5c46c108c3bb299d1621a41a42f\"",
+   "last_modified": "Wed, 18 May 2033 03:33:19 GMT"
+  },
+  {
+   "size": 3,
+   "mtime_ns": 1600000000500000000,
+   "mtime_repr": "1600000000.5",
+   "etag": "\"134d0e91c6ce527133cfc73498ad2ca2\"",
+   "last_modified": "Sun, 13 Sep 2020 12:26:40 GMT"
+  },
+  {
+   "size": 10,
+   "mtime_ns": 1762683240000000001,
+   "mtime_repr": "1762683240.0",
+   "etag": "\"cd74a88d2d178e309e58557b7273e675\"",
+   "last_modified": "Sun, 09 Nov 2025 10:14:00 GMT"
+  },
+  {
+   "size": 100,
+   "mtime_ns": 1762683240999999999,
+   "mtime_repr": "1762683241.0",
+   "etag": "\"2106d90a2e366a1d663d9966fd0426c4\"",
+   "last_modified": "Sun, 09 Nov 2025 10:14:01 GMT"
+  },
+  {
+   "size": 65536,
+   "mtime_ns": 1500000000000000007,
+   "mtime_repr": "1500000000.0",
+   "etag": "\"755c1c9f53d290dfdaf9abbc98a06b5e\"",
+   "last_modified": "Fri, 14 Jul 2017 02:40:00 GMT"
+  }
+ ],
+ "range": [
+  {
+   "header": "bytes=0-",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=5-",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=5-",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=5-",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=5-",
+   "size": 10,
+   "ok": [
+    [
+     5,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=5-",
+   "size": 11,
+   "ok": [
+    [
+     5,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=5-",
+   "size": 100,
+   "ok": [
+    [
+     5,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=5-",
+   "size": 29430,
+   "ok": [
+    [
+     5,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=-5",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 10,
+   "ok": [
+    [
+     5,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 11,
+   "ok": [
+    [
+     6,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 100,
+   "ok": [
+    [
+     95,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-5",
+   "size": 29430,
+   "ok": [
+    [
+     29425,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-0",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=-0",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=-0",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=-0",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=-0",
+   "size": 11,
+   "unsat": 11
+  },
+  {
+   "header": "bytes=-0",
+   "size": 100,
+   "unsat": 100
+  },
+  {
+   "header": "bytes=-0",
+   "size": 29430,
+   "unsat": 29430
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-1000",
+   "size": 29430,
+   "ok": [
+    [
+     28430,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 11,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 100,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=10-5",
+   "size": 29430,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,3-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     6
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     6
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     6
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     6
+    ]
+   ]
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     9,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     9,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     9,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=9-9,0-0",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     9,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,0-1",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=4-5,0-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": " BYTES = 0-1",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=,",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=,",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=-",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes",
+   "size": 0,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 1,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 5,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 10,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 11,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 100,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "bytes",
+   "size": 29430,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 0,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 1,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 5,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 10,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 11,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 100,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "",
+   "size": 29430,
+   "malformed": "Malformed range header."
+  },
+  {
+   "header": "=0-1",
+   "size": 0,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 1,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 5,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 10,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 11,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 100,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "=0-1",
+   "size": 29430,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 0,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 1,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 5,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 10,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 11,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 100,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "items=0-1",
+   "size": 29430,
+   "malformed": "Only support bytes range"
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "Bytes=1-2",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes =1-2",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes\t=1-2",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-b",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-b",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=a-1",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "header": "bytes=+1-+3",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 11,
+   "ok": [
+    [
+     10,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 100,
+   "ok": [
+    [
+     10,
+     21
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1_0-2_0",
+   "size": 29430,
+   "ok": [
+    [
+     10,
+     21
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1__0-2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=_1-2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1_-2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0x1-2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=--3",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=--3",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=--3",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=--3",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=--3",
+   "size": 11,
+   "unsat": 11
+  },
+  {
+   "header": "bytes=--3",
+   "size": 100,
+   "unsat": 100
+  },
+  {
+   "header": "bytes=--3",
+   "size": 29430,
+   "unsat": 29430
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 10,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 11,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 100,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=5--3",
+   "size": 29430,
+   "malformed": "Range header: start must be less than end"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1.5-2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes= 1 - 2 ",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2-3",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4;q=1",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-2,x,3-4",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-99999999999999999999999",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 11,
+   "unsat": 11
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 100,
+   "unsat": 100
+  },
+  {
+   "header": "bytes=99999999999999999999999-",
+   "size": 29430,
+   "unsat": 29430
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-99999999999999999999999",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 10,
+   "ok": [
+    [
+     5,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 11,
+   "ok": [
+    [
+     6,
+     11
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 100,
+   "ok": [
+    [
+     95,
+     100
+    ]
+   ]
+  },
+  {
+   "header": "bytes=-00005",
+   "size": 29430,
+   "ok": [
+    [
+     29425,
+     29430
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0000-0004",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=3",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=3,4",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,\t5-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4\u001c,5-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=\u001c0-4",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,7",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,-",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     5
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 5,
+   "ok": [
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 10,
+   "ok": [
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 11,
+   "ok": [
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 100,
+   "ok": [
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=1-1,1-1,1-1",
+   "size": 29430,
+   "ok": [
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes==0-1",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 0,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 1,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 5,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 10,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 11,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 100,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0-1=2",
+   "size": 29430,
+   "malformed": "Range header: range must be requested"
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0 -1",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0- 1",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 0,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 1,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 5,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 10,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 11,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 100,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,0-0,1-1",
+   "size": 29430,
+   "ok": []
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 10,
+   "unsat": 10
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 11,
+   "unsat": 11
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     12,
+     13
+    ],
+    [
+     14,
+     15
+    ],
+    [
+     16,
+     17
+    ],
+    [
+     18,
+     19
+    ],
+    [
+     20,
+     21
+    ],
+    [
+     22,
+     23
+    ],
+    [
+     24,
+     25
+    ],
+    [
+     26,
+     27
+    ],
+    [
+     28,
+     29
+    ],
+    [
+     30,
+     31
+    ],
+    [
+     32,
+     33
+    ],
+    [
+     34,
+     35
+    ],
+    [
+     36,
+     37
+    ],
+    [
+     38,
+     39
+    ],
+    [
+     40,
+     41
+    ],
+    [
+     42,
+     43
+    ],
+    [
+     44,
+     45
+    ],
+    [
+     46,
+     47
+    ],
+    [
+     48,
+     49
+    ],
+    [
+     50,
+     51
+    ],
+    [
+     52,
+     53
+    ],
+    [
+     54,
+     55
+    ],
+    [
+     56,
+     57
+    ],
+    [
+     58,
+     59
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-0,2-2,4-4,6-6,8-8,10-10,12-12,14-14,16-16,18-18,20-20,22-22,24-24,26-26,28-28,30-30,32-32,34-34,36-36,38-38,40-40,42-42,44-44,46-46,48-48,50-50,52-52,54-54,56-56,58-58",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     12,
+     13
+    ],
+    [
+     14,
+     15
+    ],
+    [
+     16,
+     17
+    ],
+    [
+     18,
+     19
+    ],
+    [
+     20,
+     21
+    ],
+    [
+     22,
+     23
+    ],
+    [
+     24,
+     25
+    ],
+    [
+     26,
+     27
+    ],
+    [
+     28,
+     29
+    ],
+    [
+     30,
+     31
+    ],
+    [
+     32,
+     33
+    ],
+    [
+     34,
+     35
+    ],
+    [
+     36,
+     37
+    ],
+    [
+     38,
+     39
+    ],
+    [
+     40,
+     41
+    ],
+    [
+     42,
+     43
+    ],
+    [
+     44,
+     45
+    ],
+    [
+     46,
+     47
+    ],
+    [
+     48,
+     49
+    ],
+    [
+     50,
+     51
+    ],
+    [
+     52,
+     53
+    ],
+    [
+     54,
+     55
+    ],
+    [
+     56,
+     57
+    ],
+    [
+     58,
+     59
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1,2-3,4-5,6-7,8-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,5-9",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-4,6-9,5-5",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 0,
+   "unsat": 0,
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 1,
+   "unsat": 1,
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 5,
+   "ok": [
+    [
+     3,
+     5
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 10,
+   "ok": [
+    [
+     3,
+     6
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 11,
+   "ok": [
+    [
+     3,
+     6
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 100,
+   "ok": [
+    [
+     3,
+     6
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=٣-٥",
+   "size": 29430,
+   "ok": [
+    [
+     3,
+     6
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 0,
+   "unsat": 0,
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     4
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     4
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     4
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     4
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-٣",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     4
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 0,
+   "unsat": 0
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 1,
+   "unsat": 1
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 5,
+   "unsat": 5
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     7
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     7
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     7
+    ]
+   ]
+  },
+  {
+   "header": "bytes=0-1, 5-6",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     7
+    ]
+   ]
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 0,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 1,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 5,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 10,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 11,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 100,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bуtes=0-1",
+   "size": 29430,
+   "malformed": "Only support bytes range",
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 0,
+   "unsat": 0,
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 1,
+   "ok": [
+    [
+     0,
+     1
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 5,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 10,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 11,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 100,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ],
+   "declined": true
+  },
+  {
+   "header": "bytes=0-１",
+   "size": 29430,
+   "ok": [
+    [
+     0,
+     2
+    ]
+   ],
+   "declined": true
+  }
+ ],
+ "if_range": [
+  {
+   "value": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": true
+  },
+  {
+   "value": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": true
+  },
+  {
+   "value": "W/\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "W/Tue, 14 Nov 2023 22:13:20 GMT",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "0da1cad39bfe4ae886f6a276fde519c5",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "tue, 14 nov 2023 22:13:20 gmt",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "\"0da1cad39bfe4ae886f6a276fde519c5\" ",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": " \"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "*",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  },
+  {
+   "value": "Mon, 09 Nov 2026 10:14:40 GMT",
+   "last_modified": "Tue, 14 Nov 2023 22:13:20 GMT",
+   "etag": "\"0da1cad39bfe4ae886f6a276fde519c5\"",
+   "use": false
+  }
+ ],
+ "multipart": [
+  {
+   "ranges": [
+    [
+     0,
+     5
+    ],
+    [
+     7,
+     10
+    ]
+   ],
+   "size": 10,
+   "content_type": "text/html; charset=utf-8",
+   "boundary": "0123456789abcdef0123456789",
+   "length": 244,
+   "headers": [
+    "--0123456789abcdef0123456789\r\nContent-Type: text/html; charset=utf-8\r\nContent-Range: bytes 0-4/10\r\n\r\n",
+    "--0123456789abcdef0123456789\r\nContent-Type: text/html; charset=utf-8\r\nContent-Range: bytes 7-9/10\r\n\r\n"
+   ]
+  },
+  {
+   "ranges": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ]
+   ],
+   "size": 100,
+   "content_type": "application/javascript",
+   "boundary": "0123456789abcdef0123456789",
+   "length": 339,
+   "headers": [
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 0-0/100\r\n\r\n",
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 2-2/100\r\n\r\n",
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 4-4/100\r\n\r\n"
+   ]
+  },
+  {
+   "ranges": [
+    [
+     0,
+     29430
+    ]
+   ],
+   "size": 29430,
+   "content_type": "application/javascript",
+   "boundary": "0123456789abcdef0123456789",
+   "length": 29568,
+   "headers": [
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 0-29429/29430\r\n\r\n"
+   ]
+  },
+  {
+   "ranges": [
+    [
+     9,
+     10
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "size": 10,
+   "content_type": "text/html; charset=utf-8",
+   "boundary": "0123456789abcdef0123456789",
+   "length": 238,
+   "headers": [
+    "--0123456789abcdef0123456789\r\nContent-Type: text/html; charset=utf-8\r\nContent-Range: bytes 9-9/10\r\n\r\n",
+    "--0123456789abcdef0123456789\r\nContent-Type: text/html; charset=utf-8\r\nContent-Range: bytes 0-0/10\r\n\r\n"
+   ]
+  },
+  {
+   "ranges": [
+    [
+     10,
+     100
+    ],
+    [
+     1000,
+     10000
+    ]
+   ],
+   "size": 29430,
+   "content_type": "application/javascript",
+   "boundary": "0123456789abcdef0123456789",
+   "length": 9336,
+   "headers": [
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 10-99/29430\r\n\r\n",
+    "--0123456789abcdef0123456789\r\nContent-Type: application/javascript\r\nContent-Range: bytes 1000-9999/29430\r\n\r\n"
+   ]
+  }
+ ]
+}

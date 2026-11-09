@@ -1,0 +1,152 @@
+//! Paired-phone SMS decisions (port of the pure parts of `device_sms.py`): device authentication, send validation, what an
+//! existing job means, receipts and inbound messages. The database halves stay in Python.
+use crate::py_strip;
+use regex::Regex;
+use sha2::{Digest, Sha256};
+use std::sync::OnceLock;
+
+pub fn token_hash(token: &str) -> String {
+    Sha256::digest(token.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+fn e164() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"^\+[1-9][0-9]{6,14}$").unwrap())
+}
+
+pub fn is_number(s: &str) -> bool {
+    e164().is_match(s)
+}
+
+/// The bearer token from an `Authorization` header, or `None` for a 401 (missing, wrong scheme, or not 40-256 characters).
+pub fn bearer_token(header: &str) -> Option<&str> {
+    let token = header.strip_prefix("Bearer ")?;
+    (40..=256).contains(&token.chars().count()).then_some(token)
+}
+
+pub struct Tenant<'a> {
+    pub sms_enabled: bool,
+    pub transport: &'a str,
+    pub from: &'a str,
+}
+
+/// After the device row is found: a 403 reason, or `None` when the connection is active. A receipt is accepted even if the
+/// business has since switched SMS off, so an already-sent text can still be confirmed.
+pub fn forbidden(tenant: Option<&Tenant>, receiving_receipt: bool, device_from: &str) -> bool {
+    match tenant {
+        None => true,
+        Some(t) => {
+            !receiving_receipt
+                && (!t.sms_enabled || t.transport != "device" || t.from != device_from)
+        }
+    }
+}
+
+/// The first checks of `enqueue`, with Python's messages.
+pub fn validate_enqueue(
+    sms_enabled: bool,
+    transport: &str,
+    recipient: &str,
+    body: &str,
+) -> Result<(), &'static str> {
+    if !sms_enabled || transport != "device" {
+        return Err("Paired-phone SMS is not enabled for this business");
+    }
+    if !is_number(recipient) || py_strip(body).is_empty() || body.chars().count() > 1500 {
+        return Err("Invalid SMS recipient or body");
+    }
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum JobOutcome {
+    Sent(String),
+    Reconcile(&'static str),
+    Awaiting(String),
+}
+
+/// What an existing job with the same request key means for a repeat request.
+pub struct ExistingJob<'a> {
+    pub recipient: &'a str,
+    pub body: &'a str,
+    pub device: &'a str,
+    pub status: &'a str,
+    pub receipt: &'a str,
+    pub id: &'a str,
+}
+
+pub fn job_outcome(job: &ExistingJob<'_>, recipient: &str, body: &str, device: &str) -> JobOutcome {
+    if job.recipient != recipient || job.body != body || job.device != device {
+        return JobOutcome::Reconcile("SMS identity or content changed; review required");
+    }
+    match job.status {
+        "sent" => JobOutcome::Sent(job.receipt.to_string()),
+        "failed" | "uncertain" | "cancelled" => {
+            JobOutcome::Reconcile("SMS outcome requires owner review")
+        }
+        _ => JobOutcome::Awaiting(job.id.to_string()),
+    }
+}
+
+/// `Receipt` model + the route's extra rule. `Err` is the HTTP status.
+pub fn receipt_valid(
+    job_id: &str,
+    status: &str,
+    receipt: &str,
+    extra_fields: bool,
+) -> Result<(), u16> {
+    let uuid = Regex::new(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    )
+    .unwrap();
+    if extra_fields
+        || !uuid.is_match(job_id)
+        || !["sent", "failed", "uncertain"].contains(&status)
+        || receipt.chars().count() > 200
+    {
+        return Err(422);
+    }
+    if status == "sent" && receipt.is_empty() {
+        return Err(422);
+    }
+    Ok(())
+}
+
+/// `Incoming` model.
+pub fn incoming_valid(
+    message_id: &str,
+    sender: &str,
+    to: &str,
+    body: &str,
+    extra_fields: bool,
+) -> bool {
+    !extra_fields
+        && (1..=200).contains(&message_id.chars().count())
+        && is_number(sender)
+        && is_number(to)
+        && (1..=1500).contains(&body.chars().count())
+}
+
+/// 403 when the text is not for the connected line, or is from the line itself.
+pub fn inbound_forbidden(to: &str, sender: &str, device_from: &str) -> bool {
+    to != device_from || sender == device_from
+}
+
+/// Opt-out/in keywords and HELP are operational: they bypass quiet hours and opt-outs.
+pub fn is_operational_keyword(body: &str) -> bool {
+    [
+        "STOP",
+        "STOPALL",
+        "UNSUBSCRIBE",
+        "CANCEL",
+        "END",
+        "QUIT",
+        "START",
+        "UNSTOP",
+        "HELP",
+    ]
+    .contains(&py_strip(body).to_uppercase().as_str())
+}

@@ -2,7 +2,8 @@
 
 import json
 
-from . import convo, db, guard, llm
+from . import convo, db, guard, llm, enquiries, owner_notifications
+import hashlib
 from .rag import build_system_prompt, retrieve
 from .tools import chat_tools, run_tool
 
@@ -63,6 +64,7 @@ async def run_turn(
     page_url: str | None = None,
     utm: dict | None = None,
     sender_phone: str | None = None,
+    sender_email: str | None = None,
     dry_run: bool = False,
 ) -> dict:
     conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
@@ -76,12 +78,16 @@ async def run_turn(
         "dry_run": dry_run,
     }
 
+    if channel == 'chat' and not dry_run:
+        await enquiries.capture(tenant, 'chat', str(conversation_id), message, conversation_id=conversation_id)
     history = await _history(conversation_id)
     await convo.save_message(conversation_id, "user", message)
 
     hits = await retrieve(tenant["id"], message)
-    prompt_channel = "sms" if channel == "sms" else "chat"
+    prompt_channel = "voice" if channel in ("voice", "phone") else ("sms" if channel == "sms" else ("email" if channel == "email" else "chat"))
     messages: list[dict] = [{"role": "system", "content": build_system_prompt(tenant, hits, prompt_channel)}]
+    if sender_email:
+        messages.append({"role": "system", "content": "Reply address supplied by authenticated email ingress: " + sender_email})
     messages += history
     messages.append({"role": "user", "content": message})
 
@@ -111,6 +117,13 @@ async def run_turn(
         reply = GENERIC_FAILURE
 
     await convo.save_message(conversation_id, "assistant", reply, flag)
+    if channel in ('chat', 'sms', 'email') and not dry_run:
+        rows = await db.pool().fetch('SELECT role,content FROM messages WHERE conversation_id=$1 ORDER BY id', conversation_id)
+        dialogue = '\n\n'.join(('Enquirer' if row['role']=='user' else 'Concierge') + ': ' + row['content'] for row in rows)
+        lead = await db.pool().fetchval('SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], conversation_id)
+        key = hashlib.sha256((str(conversation_id) + message + reply).encode()).hexdigest()
+        await owner_notifications.queue(tenant, channel.title() + ' conversation for ' + tenant['name'], dialogue,
+                                        f"dialogue:{tenant['id']}:{key}", lead_id=lead)
     return {
         "reply": reply,
         "lead_captured": bool(ctx.get("lead_captured")),

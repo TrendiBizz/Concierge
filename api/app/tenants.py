@@ -15,6 +15,8 @@ UPDATABLE_FIELDS = {
     "voice": str,
     "voice_enabled": bool,
     "voice_daily_limit": int,
+    "phone_enabled": bool,
+    "phone_daily_limit": int,
     "booking_url": str,
     "lead_webhook_url": str,
     "incentive": str,
@@ -25,13 +27,20 @@ UPDATABLE_FIELDS = {
     "max_days_ahead": int,
     "native_booking": bool,
     "notify_email": str,
+    "notify_phone": str,
+    "email_auto_reply": bool,
     "sms_enabled": bool,
     "sms_from": str,
     "lead_sms_template": str,
     "review_url": str,
     "lead_value_cents": int,
+    "sla_minutes": int,
+    "sla_min_score": int,
+    "campaigns_enabled": bool,
+    "scoring": dict,
+    "weekly_digest": bool,
 }
-JSONB_FIELDS = {"business_hours"}
+JSONB_FIELDS = {"business_hours", "scoring"}
 
 # Copied by "clone" (a snapshot of settings, never knowledge, contacts or keys).
 CLONE_FIELDS = [
@@ -52,7 +61,7 @@ def _load(row) -> dict:
 
 def slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "tenant"
+    return slug[:80].rstrip("-") or "tenant"
 
 
 def new_public_key() -> str:
@@ -83,6 +92,27 @@ async def get_by_report_token(token: str) -> dict | None:
     return _load(row) if row else None
 
 
+async def get_by_calendar_token(token: str) -> dict | None:
+    row = await db.pool().fetchrow("SELECT * FROM tenants WHERE calendar_token = $1", token)
+    return _load(row) if row else None
+
+
+async def ensure_calendar_tokens() -> None:
+    """Backfill calendar-feed tokens for clients created before the feature existed."""
+    for row in await db.pool().fetch("SELECT id FROM tenants WHERE calendar_token IS NULL"):
+        await db.pool().execute("UPDATE tenants SET calendar_token = $2 WHERE id = $1", row["id"], new_report_token())
+
+
+async def ensure_calendar_token(tenant: dict) -> dict:
+    """A client's calendar token, created on the spot if it does not have one yet (e.g. inserted by hand)."""
+    if tenant.get("calendar_token"):
+        return tenant
+    row = await db.pool().fetchrow(
+        "UPDATE tenants SET calendar_token = COALESCE(calendar_token, $2) WHERE id = $1 RETURNING *",
+        tenant["id"], new_report_token())
+    return _load(row)
+
+
 async def list_all() -> list[dict]:
     rows = await db.pool().fetch("SELECT * FROM tenants ORDER BY created_at DESC")
     return [_load(r) for r in rows]
@@ -99,31 +129,35 @@ async def ensure_report_tokens() -> None:
 
 async def create(name: str, site_url: str | None, slug: str | None = None, **fields) -> dict:
     slug = slugify(slug or name)
-    # Make the slug unique rather than failing on a name clash.
+    # Let the unique constraint arbitrate simultaneous customer creation.
     base, n = slug, 1
-    while await get_by_slug(slug):
+    while True:
+        row = await db.pool().fetchrow(
+            """
+            INSERT INTO tenants (slug, name, public_key, report_token, site_url, allowed_origins,
+                                 persona, greeting, booking_url, lead_webhook_url, incentive)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (slug) DO NOTHING
+            RETURNING *
+            """,
+            slug,
+            name,
+            new_public_key(),
+            new_report_token(),
+            site_url,
+            fields.get("allowed_origins") or [],
+            fields.get("persona") or "",
+            fields.get("greeting") or "",
+            fields.get("booking_url"),
+            fields.get("lead_webhook_url"),
+            fields.get("incentive") or "",
+        )
+        if row:
+            break
         n += 1
         slug = f"{base}-{n}"
-
     row = await db.pool().fetchrow(
-        """
-        INSERT INTO tenants (slug, name, public_key, report_token, site_url, allowed_origins,
-                             persona, greeting, booking_url, lead_webhook_url, incentive)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING *
-        """,
-        slug,
-        name,
-        new_public_key(),
-        new_report_token(),
-        site_url,
-        fields.get("allowed_origins") or [],
-        fields.get("persona") or "",
-        fields.get("greeting") or "",
-        fields.get("booking_url"),
-        fields.get("lead_webhook_url"),
-        fields.get("incentive") or "",
-    )
+        "UPDATE tenants SET calendar_token = $2 WHERE id = $1 RETURNING *", row["id"], new_report_token())
     return _load(row)
 
 

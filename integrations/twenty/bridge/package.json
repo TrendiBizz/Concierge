@@ -1,0 +1,12 @@
+{
+  "name": "concierge-twenty-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Concierge lead bridge: website form leads into the Twenty CRM. Zero dependencies.",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/bridge.test.mjs"
+  }
+}

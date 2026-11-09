@@ -1,0 +1,4 @@
+{"aggregate_input_channels":2,"coordinator_pid":40286,"physical_input_channels":0,"public_aggregate":148,"tone_pid":40308}
+{"frames":289280,"peak":0.0043727853335440159,"positive_crossings":5930,"reader_pid":40309,"rms":0.0028000793162676137,"sample_rate":48000,"synthetic_signal_detected":true}
+{"aggregate_destroy_status":0,"defaults_preserved":true}
+{"tap_destroy_status":0}

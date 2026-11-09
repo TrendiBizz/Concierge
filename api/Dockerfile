@@ -16,6 +16,10 @@ RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BA
 COPY app ./app
 COPY static ./static
 
+# COPY keeps the host file modes. A source file that is 600 on the host (for example an
+# empty __init__.py) would be unreadable by the unprivileged user below, so normalize.
+RUN chmod -R a+rX /srv/app /srv/static
+
 RUN useradd --system --uid 10001 app && chown -R app /opt/fastembed
 USER app
 

@@ -1,0 +1,2 @@
+{"email_transport_configured": true, "outbox_enabled": true, "inbound_email_enabled": true, "inbound_signing_key_configured": true, "public_recording_base": "https://chat.trendibizz.com", "calendar_secret_directory_configured": true, "enabled_inbound_mailboxes": 1, "enabled_sms_devices": 1, "connected_calendars": 1}
+Calendar OAuth completed for canonical owner; both scopes approved. Calendar API enabled with explicit user approval. Real freeBusy and event POST/GET passed; see calendar_live results.

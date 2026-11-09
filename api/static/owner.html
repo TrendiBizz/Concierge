@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your Concierge workspace | Trendi</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif;color:#14213d;background:#f5f7fb;--navy:#14213d;--lime:#c6f432}
+*{box-sizing:border-box}body{margin:0}main{max-width:1060px;margin:24px auto;padding:0 18px}
+h1{font-size:1.7rem;margin:0 0 8px}h2{font-size:1.2rem}p{line-height:1.5}
+.panel{background:white;border:1px solid #d9e2ed;border-radius:12px;padding:20px;margin:16px 0}
+input,textarea,select{display:block;width:100%;font:inherit;padding:10px;border:1px solid #9eacc0;border-radius:7px;margin:6px 0 14px}
+textarea{min-height:130px;resize:vertical}
+label{font-weight:600}button{font:inherit;background:#14213d;color:#fff;border:0;padding:10px 16px;border-radius:7px;cursor:pointer;margin:4px}
+button.secondary{background:#53657b}button.danger{background:#9d2437}button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:650px){.row{grid-template-columns:1fr}}
+.muted{color:#586c82}.error{color:#aa2438;white-space:pre-wrap}.success{color:#12643f;white-space:pre-wrap}
+.item{border-top:1px solid #e4e9ef;padding:16px 0;overflow-wrap:anywhere}
+pre{white-space:pre-wrap;word-break:break-word;background:#f5f7fa;border-radius:6px;padding:10px;max-height:240px;overflow:auto}
+a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #528200;outline-offset:3px}
+.portal-header{background:#fff;border-bottom:1px solid #e0e6f1}.portal-header .portal-wrap{max-width:1060px;margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.portal-brand{display:flex;align-items:center;gap:18px;text-decoration:none;font-weight:700}.portal-brand svg{display:block;width:125px;height:32px}.portal-header nav{display:flex;gap:20px;flex-wrap:wrap;font-size:.9rem}.portal-header nav a{text-decoration:none}.workspace-nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.workspace-nav a{padding:10px 14px;border:1px solid #c9d2e3;border-radius:8px;text-decoration:none;background:#fff}.workspace-nav a:hover{background:var(--lime)}section[id]{scroll-margin-top:20px}.portal-footer{max-width:1060px;margin:32px auto;padding:18px;border-top:1px solid #d9e2ed;font-size:.9rem}
+[hidden]{display:none!important}
+.social-destination{display:flex;gap:10px;align-items:center;margin:8px 0}.social-destination input{width:auto}#social-previews textarea{min-height:140px}
+</style>
+</head>
+<body>
+<header class="portal-header"><div class="portal-wrap"><a class="portal-brand" href="https://trendibizz.com/" aria-label="Trendi home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" role="img" aria-label="Trendi"><svg width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#14213d"/><path d="M29 13V40A7 7 0 0 0 36 47H46" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 31L46 22" fill="none" stroke="#c6f432" stroke-width="6.5" stroke-linecap="round"/></svg><g transform="translate(78 5)" stroke="#14213d"><g fill="none" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8V38A8 8 0 0 0 18 46H24M2 22H22"/><path d="M38 22V46M38 34C38 27 42 22 50 22"/><path d="M60 34H82A11 11 0 1 0 78.5 42"/><path d="M94 22V46M94 34A10 10 0 0 1 114 34V46"/><circle cx="139" cy="34" r="11"/><path d="M150 8V46"/><path d="M164 22V46"/></g><circle cx="164" cy="10" r="4.2" fill="#14213d" stroke="none"/></g></svg><span>Concierge</span></a><nav aria-label="Trendi services"><a href="https://trendibizz.com/concierge">Concierge</a><a href="https://trendibizz.com/seo">SEO and AI visibility</a><a href="https://trendibizz.com/penetration-testing">Penetration testing</a></nav></div></header>
+<main>
+<h1>Your Concierge workspace</h1>
+<p class="muted">Your built-in CRM, enquiries, bookings, business setup and connected accounts.</p>
+<div id="notice" role="status" aria-live="polite"></div>
+<section id="login-panel" class="panel">
+<h2 id="login-heading">Customer sign-in</h2><p class="muted" id="login-help">Use the business ID and email from your Trendi invitation. New to Concierge? <a href="https://trendibizz.com/concierge-start">Request setup</a>.</p>
+<form id="login-form">
+<div class="row"><div><label for="slug">Business ID</label><input id="slug" required autocomplete="organization"></div>
+<div><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div></div>
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="12" required>
+<button type="submit">Sign in</button>
+</form>
+<details id="invitation-details"><summary>Accept invitation or recovery link</summary>
+<form id="redeem-form">
+<label id="redeem-token-label" for="redeem-token">Invitation or recovery token</label><input id="redeem-token" required autocomplete="off">
+<label for="new-password">New password (12+ characters)</label><input id="new-password" type="password" required minlength="12" autocomplete="new-password">
+<label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" required minlength="12" autocomplete="new-password"><button type="submit">Set password and open workspace</button>
+</form></details>
+</section>
+<section id="app-panel" hidden>
+<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
+<div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
+<section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
+<section class="panel" id="quotations-panel"><h2>Quotations</h2><p>Prepare a draft linked to an enquiry. Review prices and tax before marking it reviewed. Quotes are never sent automatically.</p>
+<form id="quote-form"><label for="quote-lead">Contact and enquiry</label><select id="quote-lead" required></select><label for="quote-title">Quotation title</label><input id="quote-title" required maxlength="160">
+<div class="row"><div><label for="quote-currency">Currency</label><input id="quote-currency" value="NZD" required pattern="[A-Z]{3}" maxlength="3"></div><div><label for="quote-tax">Tax (%) — set for this quotation</label><input id="quote-tax" value="0" inputmode="decimal" required></div></div>
+<div id="quote-lines"></div><button id="quote-add-line" type="button" class="secondary">Add line</button>
+<label for="quote-notes">Notes</label><textarea id="quote-notes" maxlength="4000"></textarea><button type="submit">Save draft quotation</button><button id="quote-reset" class="secondary" type="button">New draft</button></form><div id="quote-list"></div></section>
+<section class="panel" id="calendar-panel"><h2>Owner calendar</h2><p>Connect this business's Google Calendar so Concierge can check availability, create events and request invitations for confirmed bookings.</p><p id="calendar-status" aria-live="polite"></p><button id="calendar-connect" type="button">Connect Google Calendar</button><button id="calendar-disconnect" type="button" class="secondary" hidden>Disconnect calendar</button></section>
+<section class="panel"><h2>Your setup</h2><p class="muted">Save your business details, add the information Concierge should use, and connect the accounts you choose. Each channel is tested before activation.</p><div id="setup-summary" aria-live="polite"></div></section>
+<section class="panel" id="onboarding-panel">
+<h2>Business setup</h2>
+<p class="muted">Your business information and channel connections are private to your account.
+A configured channel still needs Trendi's verification before it is activated.</p>
+<div id="onboarding-channels" aria-live="polite"></div>
+<form id="onboarding-form">
+<div class="row"><div><label for="onboarding-name">Business name</label><input id="onboarding-name" required maxlength="160" autocomplete="organization"></div><div><label for="onboarding-website">Business website</label><input id="onboarding-website" type="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></div></div><p class="muted">Save your website, then import its public pages into this business’s knowledge. Import only a website you own or have permission to index. Website voice uses the visitor’s microphone and internet connection.</p><label for="onboarding-greeting">Business greeting</label>
+<textarea id="onboarding-greeting" maxlength="500"></textarea>
+<div class="row">
+<div><label for="onboarding-phone">Owner notification phone</label><input id="onboarding-phone" type="tel" maxlength="16" placeholder="+64211234567"><small>Notification destination. SMS requires a connected, authorized transport.</small></div>
+<div><label for="onboarding-email">Notification email</label>
+<input id="onboarding-email" type="email" maxlength="254" autocomplete="email"></div>
+<div><label for="onboarding-timezone">Timezone (IANA name)</label>
+<input id="onboarding-timezone" maxlength="100" placeholder="Pacific/Auckland"></div>
+</div>
+<label><input type="checkbox" id="onboarding-voice"> Enable website voice receptionist</label><label><input type="checkbox" id="onboarding-booking"> Allow Concierge to book agreed appointments</label><label for="onboarding-slot">Appointment length (minutes)</label><input id="onboarding-slot" type="number" min="5" max="240" value="30"><fieldset><legend>Booking hours in your business timezone</legend><p>Enter times such as 09:00-17:00. Separate split hours with a comma. Leave closed days empty.</p><div id="onboarding-hours"></div></fieldset>
+<label><input type="checkbox" id="onboarding-email-auto"> Allow Concierge to answer incoming email automatically using my business information</label><p class="muted">Requires a connected inbox and permission to read and send email. Leave off to review email replies before sending.</p>
+<button type="submit">Save business setup</button><button id="website-import" type="button" class="secondary">Import website knowledge</button><p id="website-import-status" aria-live="polite"></p>
+</form>
+</section>
+<section class="panel" id="knowledge-panel">
+<h2>Business information</h2><p class="muted">Add the FAQs, services, opening hours and price lists Concierge should use for your business. This information belongs only to your workspace. Saving the same document title replaces that document.</p>
+<form id="knowledge-form"><label for="knowledge-title">Document title</label><input id="knowledge-title" required maxlength="120" placeholder="Business information">
+<label for="knowledge-file">Upload text or Markdown (optional, up to 100 KB)</label><input id="knowledge-file" type="file" accept=".txt,.md,text/plain,text/markdown">
+<label for="knowledge-text">Business information</label><textarea id="knowledge-text" required maxlength="100000" placeholder="Paste information here, or choose a text file above."></textarea><button type="submit">Save business information</button></form>
+<div id="knowledge-documents" aria-live="polite"></div></section>
+<section class="panel" id="channel-authorizations-panel">
+<h2>Customer channel permissions</h2>
+<p class="muted">The business owner must explicitly authorize each capability. Authorization does not connect accounts, activate messages or start call recording. Caller consent and live provider verification are separate requirements.</p>
+<div id="channel-authorizations" aria-live="polite"></div>
+</section>
+<details><summary>Optional existing phone service and call forwarding</summary><p class="muted">Website voice works independently of these optional carrier connections.</p>
+<div class="row">
+<section class="panel" id="phone-setup-panel"><h2>Optional cellular phone receptionist</h2>
+<p>Choose the business number your customers call. Connect your existing phone service and let Grok answer using your business information.</p>
+<p id="phone-setup-status" aria-live="polite"></p>
+<form id="phone-setup-form">
+<label for="phone-designated">Business number (with country code)</label><input id="phone-designated" type="tel" required pattern="\+[1-9][0-9]{6,14}" placeholder="+64278817368">
+<label for="phone-connection">Connect your number</label><select id="phone-connection"><option value="mobile_forwarding">My existing smartphone number</option><option value="existing_sip">My existing business phone or SIP account</option><option value="existing_twilio">My existing Twilio account</option></select>
+<label for="phone-answer">When should Grok answer?</label><select id="phone-answer"><option value="unanswered">When I do not answer or am busy</option><option value="all_calls">All calls</option></select>
+<label for="phone-owner">Your contact number (with country code)</label><input id="phone-owner" type="tel" required pattern="\+[1-9][0-9]{6,14}">
+<p class="muted">Use an account and number you already have. No new service or number is ordered. Trendi checks whether your existing service supports AI call routing; mobile-only plans may need a forwarding destination. Text messaging is checked separately. Saving does not change your current phone service.</p>
+<button type="submit">Save phone setup</button></form><div id="mobile-connection" aria-live="polite"></div><div id="numbers"></div></section>
+<section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
+</div>
+</details>
+<section class="panel"><h2>Text messages</h2><div id="sms-phone" aria-live="polite"></div>
+<button id="sms-phone-refresh" type="button" class="secondary">Refresh text messages</button></section>
+<section class="panel">
+<h2>Email drafts awaiting review</h2>
+<p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
+<button type="button" id="refresh">Refresh</button>
+<div id="drafts"></div><h3>Automatic email replies</h3><p>Queued means awaiting delivery, not received. Held or failed work requires owner review before retrying.</p><div id="email-jobs"></div><button id="email-jobs-refresh" class="secondary" type="button">Refresh email reply status</button>
+</section>
+<section id="social-panel" class="panel" hidden>
+<h2>Social accounts and drafts</h2>
+<p class="muted">Posts stay within your business. New posts need your approval before they can be scheduled. Live social publishing remains separately controlled by Trendi. OAuth account linking requires an approved Trendi configuration. Your passwords are never entered into Concierge.</p>
+<button type="button" id="social-google_business-connect" hidden>Connect Google Business Profile</button>
+<button type="button" id="social-facebook-connect" hidden>Connect Facebook Pages</button>
+<button type="button" id="social-instagram-connect" hidden>Connect Instagram</button>
+
+<button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn profile</button>
+<button type="button" id="social-linkedin_organization-connect" hidden>Connect LinkedIn company Pages</button>
+<button type="button" id="social-x-connect" hidden>Connect X</button>
+<button type="button" id="social-tiktok-connect" hidden>Connect TikTok</button>
+<p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
+<div id="social-accounts" aria-live="polite"></div>
+<form id="social-form" hidden>
+<label for="composer-body">Post text</label>
+<textarea id="composer-body" maxlength="10000" required></textarea>
+<label for="social-account">Linked social account</label>
+<div id="social-destinations" role="group" aria-label="Choose post destinations"></div><select id="social-account" multiple hidden aria-describedby="social-compose-help"></select><p id="social-compose-help" class="muted">Choose the accounts for this post. Each destination gets its own editable preview before you save or approve it.</p>
+<div class="row">
+<div><label for="composer-url">Link (optional)</label><input id="composer-url" type="url" maxlength="2000"></div>
+<div><label for="social-media">Public HTTPS image URL (or upload a photo)</label><input id="social-media" type="url" maxlength="2048" placeholder="https://your-cdn.example/photo.jpg"></div>
+<div><label for="social-hashtags">Hashtags (optional)</label><input id="social-hashtags" maxlength="2000"></div>
+</div>
+<div><label for="social-upload">Upload a photo or video (up to 64 MB)</label><input id="social-upload" type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime"><p id="social-upload-status" class="muted" aria-live="polite"></p></div><div><label for="social-video">External video URL (TikTok requires a file upload)</label><input id="social-video" type="url" maxlength="2048"></div><button type="submit">Prepare platform previews</button>
+</form>
+<section id="social-previews" aria-live="polite"></section>
+<button type="button" id="social-refresh" class="secondary">Refresh social drafts</button>
+<div id="social-posts" aria-live="polite"></div>
+</section>
+<section id="invite-panel" class="panel" hidden>
+<h2>Invite team member</h2><p class="muted">The generated invitation token is shown once for manual delivery through a verified private channel; it is never emailed automatically.</p>
+<form id="invite-form"><label for="invite-email">Email</label><input id="invite-email" type="email" required>
+<label for="invite-role">Role</label><select id="invite-role"><option>viewer</option><option>editor</option><option>owner</option></select>
+<button type="submit">Create invitation</button></form>
+<div id="invite-result"></div>
+</section>
+</section>
+</main>
+<footer class="portal-footer"><p>Concierge is a Trendi service. <a href="https://trendibizz.com/contact">Contact Trendi</a> · <a href="https://trendibizz.com/privacy">Privacy</a> · <a href="https://trendibizz.com/terms">Terms</a></p></footer>
+<script>
+"use strict";
+let bearer = "";
+let sessionGeneration = 0;
+let setupProgress = {business:false,knowledge:0,accounts:0};
+let currentRole = "";
+const recordingObjectUrls=new Set();
+function clearRecordingAudio(){document.querySelectorAll("audio").forEach(audio=>audio.pause());for(const url of recordingObjectUrls)URL.revokeObjectURL(url);recordingObjectUrls.clear();}
+let oauthWindow = null;
+let oauthChannel = null;
+let pendingOAuthState = "";
+let pendingOAuthProvider = "";
+// The original signed-in tab retains its bearer token. The callback may lose
+// window.opener under the provider's Cross-Origin-Opener-Policy. A state-scoped,
+// same-origin BroadcastChannel is a fallback, not an authorization bypass.
+function clearOAuthChannel(){
+ if(oauthChannel){oauthChannel.close();oauthChannel=null;}
+}
+const $ = id => document.getElementById(id);
+function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
+function node(tag,text,cls){const el=document.createElement(tag);el.textContent=String(text??"");if(cls)el.className=cls;return el;}
+function assertSession(generation,token=bearer){
+ if(generation!==sessionGeneration || token!==bearer){const error=new Error("Previous session request ignored");error.name="SessionChangedError";throw error;}
+}
+function message(text,failed=false){if(String(text).includes("Previous session request ignored"))return;const host=$("notice");clear(host);host.appendChild(node("p",text,failed?"error":"success"));}
+async function request(path,method="GET",data){
+  const generation=sessionGeneration, sessionToken=bearer;
+  const headers={"Accept":"application/json"};
+  if(data!==undefined)headers["Content-Type"]="application/json";
+  if(bearer)headers["Authorization"]="Bearer "+bearer;
+  const result=await fetch(path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),cache:"no-store",credentials:"omit"});
+  const parsed=await result.json().catch(()=>({}));
+  assertSession(generation,sessionToken);
+  if(result.status===401 && bearer)resetWorkspace();
+  if(!result.ok)throw new Error(typeof parsed.detail==="string"?parsed.detail:"Request failed ("+result.status+")");
+  return parsed;
+}
+function resetWorkspace(){
+ clearRecordingAudio();
+ sessionGeneration++;
+ if(oauthWindow && !oauthWindow.closed)oauthWindow.close();
+ pendingOAuthState="";pendingOAuthProvider="";oauthWindow=null;clearOAuthChannel();
+ bearer="";currentRole="";$("app-panel").hidden=true;$("login-panel").hidden=false;
+ $("social-panel").hidden=true;$("invite-panel").hidden=true;
+ socialUpload=null;
+ for(const id of ["social-destinations","social-previews","social-posts","social-accounts","social-account","drafts","numbers","calls",
+   "mobile-connection","phone-setup-status","onboarding-channels","channel-authorizations","invite-result","identity","knowledge-documents","setup-summary","crm-leads","crm-appointments","crm-tasks","quote-list","quote-lead","calendar-status","website-import-status","email-jobs"]){clear($(id));$(id).textContent="";}
+ for(const id of ["phone-designated","phone-owner","onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-phone","onboarding-timezone",
+   "composer-body","composer-url","social-hashtags","social-media","social-video","social-upload","invite-email","knowledge-title","knowledge-text","knowledge-file",
+   "redeem-token","new-password","confirm-password","password","slug","email"]){$(id).value="";}
+ $("social-account").value="";$("invite-role").value="viewer";$("phone-connection").value="mobile_forwarding";$("phone-answer").value="unanswered";
+ for(const day of ["mon","tue","wed","thu","fri","sat","sun"])$("hours-"+day).value="";$("onboarding-voice").checked=false;$("onboarding-booking").checked=false;$("onboarding-slot").value="30";
+ setupProgress={business:false,knowledge:0,accounts:0};resetQuote();$("onboarding-email-auto").checked=false;
+}
+async function signIn(slug,email,password){
+ const data=await request("/owner/auth/login","POST",{slug,email,password});
+ bearer=data.access_token;sessionGeneration++;
+ $("password").value="";
+ const user=await request("/owner/me");currentRole=user.role;
+ $("identity").textContent=user.tenant+" — "+user.email+" ("+user.role+")";
+ $("login-panel").hidden=true;$("app-panel").hidden=false;
+ $("invite-panel").hidden=user.role!=="owner";
+ const generation=sessionGeneration;
+ const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs()]);
+ assertSession(generation);
+ if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
+ else message("Your business workspace is ready. Choose what to set up below.");
+}
+async function refreshCRM(){
+ const generation=sessionGeneration;
+ const data=await request("/owner/crm");assertSession(generation);clearRecordingAudio();
+ for(const id of ["crm-leads","crm-appointments","crm-tasks"])clear($(id));
+ if(!data.leads.length)$("crm-leads").appendChild(node("p","No enquiries yet. Connected channels will capture them here."));
+ for(const lead of data.leads){
+  const item=node("article","","item");
+  item.appendChild(node("h4",lead.name||lead.email||lead.phone||"Enquiry"));
+  item.appendChild(node("p",lead.channel+" · "+lead.status+" · "+new Date(lead.created_at).toLocaleString()));
+  item.appendChild(node("p",[lead.email,lead.phone].filter(Boolean).join(" · ")));
+  item.appendChild(node("p",lead.message));
+  const transcript=node("details");transcript.appendChild(node("summary","Conversation transcript"));
+  const transcriptBody=node("div");transcript.appendChild(transcriptBody);let transcriptLoaded=false;
+  transcript.addEventListener("toggle",async()=>{
+   if(!transcript.open||transcriptLoaded)return;
+   const generation=sessionGeneration;transcriptBody.textContent="Loading transcript…";
+   try{
+    const [turns,recordings]=await Promise.all([
+     request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/transcript"),
+     request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/recordings")]);assertSession(generation);
+    clear(transcriptBody);transcriptLoaded=true;
+    if(!turns.length)transcriptBody.appendChild(node("p","No saved transcript for this enquiry.","muted"));
+    for(const turn of turns)transcriptBody.appendChild(node("p",(turn.role==="user"?"Customer: ":"Concierge: ")+turn.content));
+    for(const recording of recordings){
+     const box=node("div");box.appendChild(node("p","Recording · "+new Date(recording.created_at).toLocaleString()));
+     const listen=node("button","Load recording");listen.type="button";
+     listen.addEventListener("click",async()=>{
+      listen.disabled=true;const token=bearer;
+      try{
+       const response=await fetch("/owner/voice-recordings/"+encodeURIComponent(recording.session_id),{headers:{Authorization:"Bearer "+token},cache:"no-store",credentials:"omit"});
+       assertSession(generation,token);if(!response.ok)throw new Error("Recording is unavailable");
+       const blob=await response.blob();assertSession(generation,token);const url=URL.createObjectURL(blob);recordingObjectUrls.add(url);
+       const player=document.createElement("audio");player.controls=true;player.src=url;box.appendChild(player);
+       const download=node("a","Download recording");download.href=url;download.download="concierge-recording."+recording.mime_type.split("/")[1];box.appendChild(download);
+      }catch(error){listen.disabled=false;message(error.message,true);}
+     });box.appendChild(listen);
+     if(currentRole==="owner"){
+      const share=node("button","Create a 24-hour sharing link");share.type="button";
+      share.addEventListener("click",async()=>{
+       if(!confirm("Create a link that lets anyone with that link listen to this recording for 24 hours?"))return;
+       share.disabled=true;
+       try{const data=await request("/owner/voice-recordings/"+encodeURIComponent(recording.session_id)+"/share","POST");assertSession(generation);const field=document.createElement("input");field.readOnly=true;field.value=data.url;field.setAttribute("aria-label","Private recording sharing link");box.appendChild(field);field.select();message("Sharing link created. It expires in 24 hours.");}
+       catch(error){share.disabled=false;message(error.message,true);}
+      });box.appendChild(share);
+     }transcriptBody.appendChild(box);
+    }
+    if(currentRole==="owner"&&lead.consent_contact&&(lead.phone||lead.email)){
+     const form=document.createElement("form");const recipient=document.createElement("select");recipient.setAttribute("aria-label","Send copy to customer");
+     for(const channel of ["sms","email"]){const address=channel==="sms"?lead.phone:lead.email;if(address){const option=node("option",channel+": "+address);option.value=channel;recipient.appendChild(option);}}
+     const format=document.createElement("select");format.setAttribute("aria-label","Conversation copy format");const textOption=node("option","Text transcript (SMS includes the customer’s enquiry text)");textOption.value="text";format.appendChild(textOption);
+     for(const recording of recordings){const option=node("option","Recording link · "+new Date(recording.created_at).toLocaleString());option.value=recording.session_id;format.appendChild(option);}
+     const send=node("button","Send conversation copy");send.type="submit";let requestId=crypto.randomUUID();
+     recipient.addEventListener("change",()=>{requestId=crypto.randomUUID();});format.addEventListener("change",()=>{requestId=crypto.randomUUID();});
+     form.append(recipient,format,send);
+     form.addEventListener("submit",async event=>{
+      event.preventDefault();const channel=recipient.value,address=channel==="sms"?lead.phone:lead.email,isRecording=format.value!=="text";
+      if(!confirm("Send "+(isRecording?"a private 24-hour recording link":"the saved conversation text")+" to "+address+"?"))return;
+      send.disabled=true;
+      try{const result=await request("/owner/crm/leads/"+encodeURIComponent(lead.id)+"/deliver","POST",{recipient:address,channel,content:isRecording?"recording":"text",request_id:requestId,session_id:isRecording?format.value:null});assertSession(generation);message(result.note||"This delivery request is already queued.");}
+      catch(error){send.disabled=false;message(error.message,true);}
+     });transcriptBody.appendChild(form);
+    }
+
+   }catch(error){if(generation===sessionGeneration)transcriptBody.textContent=error.message;}
+  });item.appendChild(transcript);
+
+  if(currentRole!=="viewer"){
+   const label=node("label","Enquiry status");const select=document.createElement("select");
+   for(const status of ["new","contacted","booked","won","lost"]){const option=node("option",status);option.value=status;select.appendChild(option);}
+   select.value=lead.status;label.appendChild(select);item.appendChild(label);
+   const save=node("button","Save status");save.type="button";
+   save.addEventListener("click",async()=>{save.disabled=true;try{await request("/owner/crm/leads/"+encodeURIComponent(lead.id),"PATCH",{status:select.value});await refreshCRM();message("Enquiry updated.");}catch(error){message(error.message,true);}finally{save.disabled=false;}});
+   item.appendChild(save);
+  }
+  $("crm-leads").appendChild(item);
+ }
+ for(const appointment of data.appointments)$("crm-appointments").appendChild(node("p",new Date(appointment.starts_at).toLocaleString()+" · "+appointment.name+" · "+appointment.status+" · Calendar: "+(appointment.calendar_state||"unconnected")+" · Invitation: "+(appointment.invitation_state||"pending")+(appointment.calendar_error?" · "+appointment.calendar_error:"")));
+ if(!data.appointments.length)$("crm-appointments").appendChild(node("p","No appointments yet."));
+ for(const task of data.tasks)$("crm-tasks").appendChild(node("p",task.title+" · "+task.status));
+ if(!data.tasks.length)$("crm-tasks").appendChild(node("p","No follow-up tasks yet."));
+}
+
+let editingQuote=null;
+function cents(value){const text=String(value).trim();if(!/^\d+(\.\d{1,2})?$/.test(text))throw new Error("Enter a positive amount with up to two decimal places");const [whole,fraction=""]=text.split(".");const amount=Number(whole)*100+Number(fraction.padEnd(2,"0"));if(!Number.isSafeInteger(amount))throw new Error("Amount is too large");return amount;}
+function addQuoteLine(line={}){
+ const row=node("div","","row");
+ for(const [key,label,value] of [["description","Description",line.description||""],["quantity","Quantity",line.quantity||"1"],["price","Unit price",line.unit_price_cents!==undefined?(line.unit_price_cents/100).toFixed(2):""]]){
+  const box=node("label",label),input=document.createElement("input");input.dataset.key=key;input.value=value;input.required=true;input.setAttribute("aria-label",label);if(key!=="description")input.inputMode="decimal";box.appendChild(input);row.appendChild(box);
+ }
+ const remove=node("button","Remove line","secondary");remove.type="button";remove.addEventListener("click",()=>row.remove());row.appendChild(remove);$("quote-lines").appendChild(row);
+}
+function resetQuote(){editingQuote=null;$("quote-form").reset();clear($("quote-lines"));addQuoteLine();}
+$("quote-add-line").addEventListener("click",()=>addQuoteLine());$("quote-reset").addEventListener("click",resetQuote);
+$("quote-form").addEventListener("submit",async event=>{
+ event.preventDefault();if(currentRole==="viewer")return;
+ try{
+  const lines=Array.from($("quote-lines").children).map(row=>({description:row.querySelector('[data-key="description"]').value,quantity:row.querySelector('[data-key="quantity"]').value,unit_price_cents:cents(row.querySelector('[data-key="price"]').value)}));
+  const body={lead_id:$("quote-lead").value,title:$("quote-title").value,currency:$("quote-currency").value,tax_basis_points:cents($("quote-tax").value),lines,notes:$("quote-notes").value,version:editingQuote?.version||1};
+  await request("/owner/crm/quotations"+(editingQuote?"/"+encodeURIComponent(editingQuote.id):""),editingQuote?"PUT":"POST",body);resetQuote();await refreshQuotes();message("Draft quotation saved. Review prices and tax before approval.");
+ }catch(error){message(error.message,true);}
+});
+async function refreshQuotes(){
+ const generation=sessionGeneration;const [quotes,crm]=await Promise.all([request("/owner/crm/quotations"),request("/owner/crm")]);assertSession(generation);
+ clear($("quote-list"));const selected=$("quote-lead").value;clear($("quote-lead"));
+ for(const lead of crm.leads){const option=node("option",(lead.name||lead.email||lead.phone||"Enquiry")+" — "+lead.message.slice(0,70));option.value=lead.id;$("quote-lead").appendChild(option);}if(selected)$("quote-lead").value=selected;
+ $("quote-form").hidden=currentRole==="viewer";
+ for(const quote of quotes){
+  const item=node("article","","item");const money=value=>quote.currency+" "+(value/100).toFixed(2);
+  item.appendChild(node("h3",quote.title+" · "+quote.status));item.appendChild(node("p",[quote.contact.name,quote.contact.email,quote.contact.phone].filter(Boolean).join(" · ")));
+  for(const line of quote.lines)item.appendChild(node("p",line.description+" · "+line.quantity+" × "+money(line.unit_price_cents)+" = "+money(line.amount_cents)));
+  item.appendChild(node("p","Subtotal "+money(quote.subtotal_cents)+" · Tax "+money(quote.tax_cents)+" · Total "+money(quote.total_cents)));if(quote.notes)item.appendChild(node("p",quote.notes));
+  if(quote.status==="draft"&&currentRole!=="viewer"){
+   const edit=node("button","Edit draft");edit.type="button";edit.addEventListener("click",()=>{editingQuote=quote;$("quote-lead").value=quote.lead_id;$("quote-title").value=quote.title;$("quote-currency").value=quote.currency;$("quote-tax").value=(quote.tax_basis_points/100).toFixed(2);$("quote-notes").value=quote.notes;clear($("quote-lines"));quote.lines.forEach(addQuoteLine);$("quote-form").scrollIntoView();});item.appendChild(edit);
+  }
+  if(currentRole==="owner")for(const status of (quote.status==="draft"?["reviewed","void"]:quote.status==="reviewed"?["accepted","declined","void"]:["accepted","declined"].includes(quote.status)?["void"]:[])){
+   const button=node("button","Mark "+status,"secondary");button.type="button";button.addEventListener("click",async()=>{button.disabled=true;try{await request("/owner/crm/quotations/"+encodeURIComponent(quote.id)+"/status","POST",{status,version:quote.version});await refreshQuotes();message("Quotation marked "+status+". No quotation was sent.");}catch(error){message(error.message,true);button.disabled=false;}});item.appendChild(button);
+  }$("quote-list").appendChild(item);
+ }if(!quotes.length)$("quote-list").appendChild(node("p","No quotations yet. Choose an enquiry to prepare a draft."));
+}
+async function refreshEmailJobs(){
+ const generation=sessionGeneration;const jobs=await request("/owner/email-secretary/jobs");assertSession(generation);clear($("email-jobs"));
+ for(const job of jobs){const item=node("article","","item");item.appendChild(node("p",job.sender+" · "+job.subject+" · "+job.status+(job.error?" · "+job.error:"")));
+ if(currentRole==="owner"&&["held","failed"].includes(job.status)){const retry=node("button","Retry email reply");retry.type="button";retry.addEventListener("click",async()=>{if(!confirm("Retry this email reply? It will be queued only if automatic replies and email permissions are enabled."))return;try{await request("/owner/email-secretary/jobs/"+job.id+"/retry","POST");await refreshEmailJobs();message("Email reply scheduled for retry.");}catch(error){message(error.message,true);}});item.appendChild(retry);}$("email-jobs").appendChild(item);}
+ if(!jobs.length)$("email-jobs").appendChild(node("p","No automatic email replies."));
+}
+$("email-jobs-refresh").addEventListener("click",()=>refreshEmailJobs().catch(error=>message(error.message,true)));
+async function refreshCalendar(){const generation=sessionGeneration;const data=await request("/owner/calendar");assertSession(generation);$("calendar-status").textContent=data.connected?"Google Calendar connected for this business.":data.configured?"Ready to connect this business’s Google Calendar.":"Calendar connection setup is pending.";$("calendar-connect").hidden=currentRole!=="owner"||data.connected;$("calendar-connect").disabled=!data.configured;$("calendar-disconnect").hidden=currentRole!=="owner"||!data.connected;}
+$("calendar-connect").addEventListener("click",()=>startSocialOAuth("calendar"));
+$("calendar-disconnect").addEventListener("click",async()=>{try{await request("/owner/calendar","DELETE");await refreshCalendar();message("Calendar disconnected.");}catch(error){message(error.message,true);}});
+$("website-import").addEventListener("click",async()=>{const generation=sessionGeneration;const button=$("website-import");button.disabled=true;$("website-import-status").textContent="Importing your saved website…";try{const result=await request("/owner/knowledge/import-website","POST");assertSession(generation);$("website-import-status").textContent=result.pages+" pages imported ("+result.chunks+" knowledge passages).";await refreshKnowledge();}catch(error){if(generation===sessionGeneration)$("website-import-status").textContent=error.message;}finally{if(generation===sessionGeneration)button.disabled=false;}});
+resetQuote();
+$("crm-refresh").addEventListener("click",()=>refreshCRM().catch(error=>message(error.message,true)));
+$("login-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{await signIn($("slug").value.trim(),$("email").value.trim(),$("password").value);}
+ catch(error){message(error.message,true);}
+});
+$("redeem-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ if($("new-password").value!==$("confirm-password").value){message("The passwords do not match.",true);return;}
+ const password=$("new-password").value;
+ try{
+  const result=await request("/owner/auth/redeem","POST",{token:$("redeem-token").value,password});
+  $("redeem-token").value="";$("new-password").value="";$("confirm-password").value="";
+  $("slug").value=result.slug;$("email").value=result.email;
+  $("login-form").hidden=false;$("redeem-token").type="text";$("redeem-token-label").hidden=false;
+  $("invitation-details").open=false;
+  try{await signIn(result.slug,result.email,password);}
+  catch(error){message("Password set. Sign in to open your business workspace. "+error.message,true);}
+ }catch(error){message(error.message,true);}
+});
+// Read single-use invitations from the fragment, then remove them before any HTTP request.
+const invitation=new URLSearchParams(location.hash.slice(1)).get("invite");
+if(invitation!==null){
+ history.replaceState(null,"",location.pathname+location.search);
+ if(/^[A-Za-z0-9_-]{20,256}$/.test(invitation)){
+  $("redeem-token").value=invitation;$("redeem-token").type="hidden";$("redeem-token-label").hidden=true;
+  $("login-form").hidden=true;$("invitation-details").open=true;
+  $("login-heading").textContent="Welcome to Trendi Concierge";
+  $("login-help").textContent="Set your password to open the business workspace you were invited to.";
+ }else{message("This invitation link is invalid. Ask Trendi for a new invitation.",true);}
+}
+$("logout").addEventListener("click",()=>{
+ const ending=request("/owner/auth/logout","POST").catch(()=>{});
+ resetWorkspace();message("Signed out.");void ending;
+});
+$("refresh").addEventListener("click",()=>refresh().catch(err=>message(err.message,true)));
+function socialOAuthPath(provider){if(provider==="calendar")return "/owner/calendar";return "/owner/social/oauth/"+(["facebook","instagram"].includes(provider)?"meta/":"")+(provider==="google_business"?"google":provider);}
+async function startSocialOAuth(provider){
+ if(currentRole!=="owner")return;
+ if(oauthWindow && !oauthWindow.closed && pendingOAuthState){
+   oauthWindow.focus();return;
+ }
+ pendingOAuthState="";pendingOAuthProvider="";clearOAuthChannel();
+ const instructions={
+  linkedin:"Use your personal LinkedIn login to connect your member profile.",
+  linkedin_organization:"Use your LinkedIn login to authorize the company Pages you administer through the dedicated Pages app.",
+  facebook:"Use the Facebook login that manages your business Pages, then authorize only the Pages for this business.",
+  instagram:"Use the login that manages your professional Instagram account and its connected business Page.",
+  x:"Use the X account you want connected to this business.",
+  tiktok:"Use the TikTok account you want connected to this business."
+ };
+ message("Continue in the provider window. "+(instructions[provider]||"Authorize the account for this business."));
+ // Open synchronously during the trusted click to avoid popup blockers.
+ const popup=window.open("about:blank","concierge-social-oauth","width=620,height=760");
+ if(!popup){message("Allow popups for this Concierge page to link accounts.",true);return;}
+ oauthWindow=popup;
+ try{
+   const start=await request(socialOAuthPath(provider)+"/start","POST");
+   const u=new URL(start.authorization_url);
+   if(u.protocol!=="https:" || u.username || u.password ||
+      !start.state || start.state.length<32)throw new Error("Invalid OAuth start response");
+   pendingOAuthState=start.state;
+   pendingOAuthProvider=provider;
+   if(typeof BroadcastChannel!=="undefined"){
+     oauthChannel=new BroadcastChannel("concierge-social-oauth:"+start.state);
+     oauthChannel.onmessage=event=>finishSocialOAuth(event.data);
+   }
+   popup.location.href=u.href;
+ }catch(error){
+   popup.close();oauthWindow=null;pendingOAuthState="";pendingOAuthProvider="";
+   clearOAuthChannel();
+   message(provider+" linking is not available: "+error.message,true);
+ }
+}
+$("social-google_business-connect").addEventListener("click",()=>startSocialOAuth("google_business"));
+$("social-facebook-connect").addEventListener("click",()=>startSocialOAuth("facebook"));
+$("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("instagram"));
+
+$("social-linkedin_organization-connect").addEventListener("click",()=>startSocialOAuth("linkedin_organization"));
+$("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
+$("social-x-connect").addEventListener("click",()=>startSocialOAuth("x"));
+$("social-tiktok-connect").addEventListener("click",()=>startSocialOAuth("tiktok"));
+async function finishSocialOAuth(data){
+ if(data?.type!=="concierge-social-oauth" || !pendingOAuthState)return;
+ if(data.state!==pendingOAuthState){
+   message("Social connection rejected: OAuth session does not match.",true);return;
+ }
+ const provider=pendingOAuthProvider;
+ pendingOAuthState="";pendingOAuthProvider="";
+ clearOAuthChannel();
+ // opener may be severed by the OAuth provider's COOP security headers.
+ try{if(oauthWindow && !oauthWindow.closed)oauthWindow.close();}catch(_){}
+ oauthWindow=null;
+ if(data.error || !data.code){
+   message("Social account authorization was cancelled or denied.",true);return;
+ }
+ try{
+   await request(socialOAuthPath(provider)+"/finish","POST",
+     {state:data.state,code:data.code});
+   if(provider==="calendar"){await refreshCalendar();message("Business calendar connected. New bookings will check availability and request invitations.");return;}
+   await refreshSocial();
+   message(provider+" account connected. Posting remains disabled until separately approved.");
+ }catch(error){message("Account connection failed: "+error.message,true);}
+}
+window.addEventListener("message",event=>{
+ if(event.origin!==location.origin || !oauthWindow ||
+    event.source!==oauthWindow)return;
+ void finishSocialOAuth(event.data);
+});
+$("social-refresh").addEventListener("click",()=>refreshSocial().catch(err=>message(err.message,true)));
+let socialUpload=null;
+$("social-upload").addEventListener("change",async()=>{
+ const generation=sessionGeneration;socialUpload=null;const file=$("social-upload").files[0];if(!file)return;
+ if(file.size>64*1024*1024){message("Use a file smaller than 64 MB",true);return;}
+ $("social-upload-status").textContent="Uploading and checking media…";
+ try{
+  const result=await fetch("/owner/social/media",{method:"POST",headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/octet-stream"},body:file});
+  assertSession(generation);if(!result.ok)throw new Error("Upload failed. Use a JPG/PNG image or MP4/MOV video under 64 MB");
+  socialUpload=await result.json();$("social-upload-status").textContent="Ready: "+socialUpload.kind+", "+socialUpload.width+" × "+socialUpload.height+(socialUpload.duration_seconds?", "+Math.round(socialUpload.duration_seconds)+" seconds":"");
+ }catch(error){$("social-upload-status").textContent="";message(error.message,true);}
+});
+$("social-form").addEventListener("submit",async event=>{
+ event.preventDefault(); if(currentRole==="viewer")return;
+ const generation=sessionGeneration;
+ try{
+  const account_ids=Array.from($("social-account").selectedOptions).map(option=>option.value);
+  if(!account_ids.length)throw new Error("Select at least one linked account");
+  const variants=await request("/owner/social/compose","POST",{
+   content:$("composer-body").value,account_ids,link:$("composer-url").value.trim(),
+   hashtags:$("social-hashtags").value.trim(),media:socialUpload?.kind==="image"?["upload:"+socialUpload.id]:($("social-media").value.trim()?[$("social-media").value.trim()]:[]),
+   video:socialUpload?.kind==="video"?"upload:"+socialUpload.id:($("social-video").value.trim()||null)
+  });
+  assertSession(generation); const host=$("social-previews");clear(host);
+  host.appendChild(node("h3","Review your platform versions"));
+  const drafts=[];
+  for(const variant of variants){
+   const item=node("article","","item");item.appendChild(node("h4",variant.account_name+" — "+variant.network.replaceAll("_"," ")));
+   const edit=node("textarea",variant.content);edit.value=variant.content;edit.setAttribute("aria-label","Post preview for "+variant.account_name);item.appendChild(edit);
+   item.appendChild(node("p",[variant.link,variant.hashtags].filter(Boolean).join("\n"),"muted"));
+   const counter=node("p","","muted");
+   const updateCounter=()=>{counter.textContent=variant.network==="x"?"X limit: 280 weighted characters. Checked when saving.":[edit.value,variant.link,variant.hashtags].filter(Boolean).join("\n").length+" / "+variant.limit+" characters";};
+   edit.addEventListener("input",updateCounter);updateCounter();item.appendChild(counter);
+   for(const warning of variant.warnings)item.appendChild(node("p",warning,"muted"));
+   for(const error of variant.errors)item.appendChild(node("p",error,"error"));
+   const options={};
+   if(variant.tiktok_creator){
+    const creator=variant.tiktok_creator;
+    item.appendChild(node("p","TikTok creator: "+creator.creator_nickname+" (@"+creator.creator_username+")"));
+    const privacy=document.createElement("select");privacy.setAttribute("aria-label","Who can view this TikTok video");
+    const empty=node("option","Choose video visibility");empty.value="";privacy.appendChild(empty);
+    for(const level of creator.privacy_level_options){const option=node("option",level.replaceAll("_"," "));option.value=level;privacy.appendChild(option);}
+    item.appendChild(privacy);privacy.addEventListener("change",()=>options.privacy_level=privacy.value);
+    const duration=document.createElement("input");duration.type="number";duration.min="0.1";duration.step="0.1";duration.max=String(creator.max_video_post_duration_sec);duration.placeholder="Video duration in seconds";duration.setAttribute("aria-label","Video duration in seconds");if(socialUpload?.kind==="video"){duration.value=String(socialUpload.duration_seconds);duration.readOnly=true;options.duration_seconds=socialUpload.duration_seconds;}item.appendChild(duration);duration.addEventListener("input",()=>options.duration_seconds=Number(duration.value));
+    for(const [key,label,disabled] of [["allow_comments","Allow comments",creator.comment_disabled],["allow_duet","Allow Duet",creator.duet_disabled],["allow_stitch","Allow Stitch",creator.stitch_disabled],["brand_organic_toggle","This promotes my own business",false],["brand_content_toggle","Paid partnership or branded content",false],["music_usage_consent","I agree to TikTok Music Usage Confirmation",false],["branded_content_consent","For paid partnerships, I agree to TikTok Branded Content Policy",false],["creator_consent","I consent to sending this video to TikTok with these settings",false]]){
+     const wrap=node("label",label);const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.disabled=disabled;checkbox.addEventListener("change",()=>options[key]=checkbox.checked);wrap.prepend(checkbox);item.appendChild(wrap);
+    }
+   }
+   host.appendChild(item);drafts.push({variant,edit,options});
+  }
+  const save=node("button","Save reviewed versions as drafts");save.disabled=variants.some(v=>v.errors.length);
+  save.addEventListener("click",async()=>{
+   save.disabled=true;
+   try{
+    for(const {variant,edit,options} of drafts){
+     assertSession(generation);
+     if(variant.saved)continue;
+     if(variant.network==="tiktok" && (!options.privacy_level||!options.creator_consent||!options.music_usage_consent||!options.duration_seconds))throw new Error("Choose TikTok visibility, duration and video consent before saving");
+     const saved=await request("/owner/social/posts","POST",{content:edit.value,account_ids:[variant.account_id],link:variant.link,hashtags:variant.hashtags,media:variant.media,options});variant.post_id=saved.id;
+     variant.saved=true;
+     for(const field of edit.parentElement.querySelectorAll("input,select,textarea"))field.disabled=true;
+    }
+    save.textContent="Versions saved";
+    if(currentRole==="owner"){
+     const when=document.createElement("input");when.type="datetime-local";when.setAttribute("aria-label","Schedule all reviewed versions (leave blank for now)");host.appendChild(when);
+     const approve=node("button","Approve and schedule all reviewed versions");
+     approve.addEventListener("click",async()=>{
+      approve.disabled=true;
+      try{
+       const scheduled=when.value?Math.floor(new Date(when.value).getTime()/1000):Math.floor(Date.now()/1000);if(!Number.isFinite(scheduled)||scheduled<Math.floor(Date.now()/1000)-60)throw new Error("Choose a valid future publishing time");
+       const approvals=[];
+       for(const {variant} of drafts){if(!variant.submitted){await request("/owner/social/posts/"+encodeURIComponent(variant.post_id)+"/submit","POST");variant.submitted=true;}
+        const approval=await request("/owner/social/posts/"+encodeURIComponent(variant.post_id)+"/approval-request","POST",{scheduled_at:scheduled});approvals.push({variant,approval});}
+       if(!confirm("Approve these EXACT platform versions and media for "+new Date(scheduled*1000).toLocaleString()+"?\n\n"+approvals.map(({variant,approval})=>variant.account_name+"\n"+approval.exact_text).join("\n\n—\n\n"))){approve.disabled=false;return;}
+       for(const {approval} of approvals)await request("/owner/social/approvals/"+encodeURIComponent(approval.token)+"/approve","POST");
+       clear(host);await refreshSocial();message("Reviewed versions scheduled. Each platform will report its delivery status; posting requires activation.");
+      }catch(error){approve.disabled=false;message(error.message,true);}
+     });host.appendChild(approve);
+    }
+    await refreshSocial();message("Platform versions saved. Review all versions before approving publication.");
+   }catch(error){save.disabled=false;message(error.message,true);}
+  });host.appendChild(save);
+  message("Platform previews are ready. Nothing has been published.");
+ }catch(error){message(error.message,true);}
+});
+
+async function refreshMobileConnection(){
+ const generation=sessionGeneration;
+ if($("phone-connection").value!=="mobile_forwarding"){clear($("mobile-connection"));return;}
+ const data=await request("/owner/mobile-connection");assertSession(generation);
+ const host=$("mobile-connection");clear(host);
+ const status=document.createElement("p");
+ status.textContent=data.status==="destination_needed"?"Your mobile forwarding destination has not been connected yet.":data.status==="authorization_needed"?"Authorize telephone answering above to see your forwarding setup.":data.status==="call_received"?"An incoming call reached your business receptionist. "+(data.last_call.owner_message_queued?"Its owner message is queued; delivery is checked separately.":"No owner message has been queued for this call yet."):"Your forwarding destination is "+data.destination+". Set forwarding on your smartphone, then call your business number from another phone to test.";
+ host.appendChild(status);
+ if(currentRole!=="owner")return;
+ for(const step of data.steps){
+  const line=document.createElement("p");line.textContent=step.label;
+  if(step.dial){const code=document.createElement("code");code.textContent=step.dial;line.appendChild(document.createElement("br"));line.appendChild(code);line.appendChild(document.createTextNode(" — enter in your Phone keypad and press Call. Check setting: "+step.check));}
+  host.appendChild(line);
+ }
+}
+
+async function refreshPhoneSetup(){
+ const generation=sessionGeneration;
+ const data=await request("/owner/phone-setup");assertSession(generation);
+ $("phone-setup-status").textContent=data.status==="not_requested"?"Not connected":data.status==="active"?"Connected":data.status==="test_required"?"Ready for your forwarding test":"Setup requested — Trendi must connect and test your number before answering is live.";
+ for(const [field,key] of [["phone-designated","designated_number"],["phone-connection","connection"],["phone-answer","answer_mode"],["phone-owner","owner_number"]]){
+  if(data[key])$(field).value=data[key];$(field).disabled=currentRole!=="owner";
+ }
+ $("phone-setup-form").querySelector("button").disabled=currentRole!=="owner";
+ await refreshMobileConnection();
+}
+$("phone-setup-form").addEventListener("submit",async event=>{
+ event.preventDefault();if(currentRole!=="owner")return;
+ try{await request("/owner/phone-setup","PUT",{designated_number:$("phone-designated").value.trim(),connection:$("phone-connection").value,answer_mode:$("phone-answer").value,owner_number:$("phone-owner").value.trim()});await refreshPhoneSetup();message("Phone setup requested. Trendi will confirm the connection and test it before activation.");}catch(error){message(error.message,true);}
+});
+
+const bookingDays=["mon","tue","wed","thu","fri","sat","sun"];
+for(const day of bookingDays){const label=node("label",day.toUpperCase()),input=document.createElement("input");input.id="hours-"+day;input.maxLength=100;label.appendChild(input);$("onboarding-hours").appendChild(label);}
+async function refreshOnboarding(){
+ const generation=sessionGeneration;
+  await refreshPhoneSetup().catch(()=>{});assertSession(generation);
+  const data=await request("/owner/onboarding");assertSession(generation);
+  const channels=$("onboarding-channels");clear(channels);
+  channels.appendChild(node("h3",data.business.name));
+  if(data.business.site_url){
+    channels.appendChild(node("p","Website: "+data.business.site_url,"muted"));
+  }
+  for(const [name,state] of Object.entries(data.channels)){
+    const display=name.replaceAll("_"," ");
+    const label=state.built_in?"Ready — built-in CRM":state.verified?"Configured — live test passed":state.configured?"Configured — provider test required":"Not configured";
+    channels.appendChild(node("p",display+": "+label,"muted"));
+  }
+  $("onboarding-name").value=data.business.name||"";
+  $("onboarding-website").value=data.business.site_url||"";
+  setupProgress.business=!!(data.business.name&&data.business.site_url);renderSetupProgress();
+  $("onboarding-greeting").value=data.business.greeting||"";
+  $("onboarding-voice").checked=!!data.business.voice_enabled;$("onboarding-booking").checked=!!data.business.native_booking;$("onboarding-slot").value=data.business.slot_minutes||30;
+  for(const day of bookingDays){$("hours-"+day).value=(data.business.business_hours?.[day]||[]).map(window=>window.join("-")).join(", ");$("hours-"+day).disabled=currentRole!=="owner";}
+  for(const id of ["onboarding-voice","onboarding-booking","onboarding-slot"])$(id).disabled=currentRole!=="owner";
+  $("onboarding-email-auto").checked=!!data.business.email_auto_reply;
+  $("onboarding-email-auto").disabled=currentRole!=="owner";
+  $("website-import").disabled=currentRole!=="owner";
+  $("onboarding-phone").value=data.business.notify_phone||"";
+  $("onboarding-email").value=data.business.notify_email||"";
+  $("onboarding-timezone").value=data.business.timezone||"Pacific/Auckland";
+  for(const field of ["onboarding-name","onboarding-website","onboarding-greeting","onboarding-email","onboarding-phone","onboarding-timezone"]){
+    $(field).disabled=currentRole!=="owner";
+  }
+  $("onboarding-form").querySelector('button[type="submit"]').disabled=currentRole!=="owner";
+}
+$("onboarding-form").addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(currentRole!=="owner")return;
+  try{
+    await request("/owner/onboarding/profile","PATCH",{
+      name:$("onboarding-name").value.trim(),site_url:$("onboarding-website").value.trim(),
+      greeting:$("onboarding-greeting").value,
+      email_auto_reply:$("onboarding-email-auto").checked,
+      voice_enabled:$("onboarding-voice").checked,native_booking:$("onboarding-booking").checked,slot_minutes:Number($("onboarding-slot").value),
+      business_hours:Object.fromEntries(bookingDays.map(day=>[day,$("hours-"+day).value.trim()?$("hours-"+day).value.split(",").map(window=>window.trim().split("-").map(time=>time.trim())):[]])),
+      notify_phone:$("onboarding-phone").value.trim(),
+      notify_email:$("onboarding-email").value.trim(),
+      timezone:$("onboarding-timezone").value.trim()
+    });
+    await refreshOnboarding();
+    message("Business setup saved. No phone, email or social channel has been activated.");
+  }catch(error){message(error.message,true);}
+});
+function renderSetupProgress(){
+ const host=$("setup-summary");clear(host);
+ for(const [target,label,value] of [
+  ["onboarding-panel","1. Business details",setupProgress.business?"Saved":"Add your website and business details"],
+  ["knowledge-panel","2. Business information",setupProgress.knowledge?setupProgress.knowledge+" document(s) saved":"Add FAQs, hours or service information"],
+  ["calendar-panel","3. Calendar and invitations","Connect this business’s calendar"],
+  ["social-panel","4. Social accounts",setupProgress.accounts?setupProgress.accounts+" account(s) connected":"Connect the networks you want to use"]
+ ]){
+  const line=node("p");const link=node("a",label);link.setAttribute("href","#"+target);
+  line.appendChild(link);line.appendChild(node("span"," — "+value));host.appendChild(line);
+ }
+}
+async function refreshKnowledge(){
+ const generation=sessionGeneration;
+ const documents=await request("/owner/knowledge");assertSession(generation);
+ const host=$("knowledge-documents");clear(host);
+ $("knowledge-form").hidden=currentRole==="viewer";
+ setupProgress.knowledge=documents.length;renderSetupProgress();
+ if(!documents.length){host.appendChild(node("p","No business documents saved yet.","muted"));return;}
+ for(const document of documents){
+  const item=node("div","","item");item.appendChild(node("strong",document.title));
+  item.appendChild(node("p","Saved for your business. To update it, save new information with the same title.","muted"));
+  if(currentRole!=="viewer"){
+   const remove=node("button","Remove document","danger");
+   remove.addEventListener("click",async()=>{
+    if(!confirm("Remove this business document from Concierge’s knowledge?"))return;
+    try{await request("/owner/knowledge/"+encodeURIComponent(document.document_id),"DELETE");await refreshKnowledge();message("Business document removed.");}
+    catch(error){message(error.message,true);}
+   });item.appendChild(remove);
+  }host.appendChild(item);
+ }
+}
+$("knowledge-file").addEventListener("change",async()=>{
+ const file=$("knowledge-file").files?.[0];if(!file)return;
+ const generation=sessionGeneration;
+ if(file.size>100000 || !/\.(txt|md)$/i.test(file.name)){
+  $("knowledge-file").value="";message("Choose a text or Markdown file no larger than 100 KB.",true);return;
+ }
+ try{
+  const text=await file.text();if(generation!==sessionGeneration)return;
+  if(text.includes("\u0000"))throw new Error("Use a readable text or Markdown document.");
+  $("knowledge-text").value=text;
+  if(!$("knowledge-title").value.trim())$("knowledge-title").value=file.name.replace(/\.(txt|md)$/i,"").slice(0,120);
+  message("File loaded. Review the information, then choose Save business information.");
+ }catch(error){message(error.message,true);}
+});
+$("knowledge-form").addEventListener("submit",async event=>{
+ event.preventDefault();if(currentRole==="viewer")return;
+ const button=$("knowledge-form").querySelector('button[type="submit"]');button.disabled=true;
+ try{
+  await request("/owner/knowledge","POST",{title:$("knowledge-title").value.trim(),text:$("knowledge-text").value});
+  await refreshKnowledge();$("knowledge-text").value="";$("knowledge-file").value="";
+  message("Business information saved privately to your workspace. Channels have not been activated.");
+ }catch(error){message(error.message,true);}
+ finally{button.disabled=currentRole==="viewer";}
+});
+const channelLabels={
+ telephone:"Answer customer telephone calls",
+ call_recording:"Allow recording, subject to each caller's consent",
+ email_read:"Read authorized inbound business email",
+ email_send:"Send owner-approved business email",
+ sms_read:"Read authorized inbound business text messages",
+ sms_send:"Send approved business text messages",
+ social:"Connect approved business social accounts"
+};
+async function refreshChannelAuthorizations(){
+ const generation=sessionGeneration;
+ const [declarations,readiness]=await Promise.all([
+   request("/owner/onboarding/authorizations"),
+   request("/owner/onboarding/readiness")
+ ]);
+ assertSession(generation);
+ const host=$("channel-authorizations");clear(host);
+ for(const [key,label] of Object.entries(channelLabels)){
+   const status=readiness.channels[key];
+   const row=node("div","","item");
+   const title=node("label",label);
+   const checkbox=node("input");checkbox.type="checkbox";
+   checkbox.checked=!!declarations[key]?.authorized;
+   checkbox.disabled=currentRole!=="owner";
+   title.prepend(checkbox);row.appendChild(title);
+   row.appendChild(node("p",status.configured?"Provider configured; live verification outstanding":"Provider not configured","muted"));
+   row.appendChild(node("p","Status: "+(status.active?"Active":"NOT ACTIVE"),"muted"));
+   checkbox.addEventListener("change",async()=>{
+     if(checkbox.checked && !confirm("Do you control this channel and authorize Concierge to use it for your business? This does not enable the channel or replace provider/caller consent.")){
+       checkbox.checked=false;return;
+     }
+     checkbox.disabled=true;
+     try{
+       await request("/owner/onboarding/authorizations","POST",{
+         channel:key,authorized:checkbox.checked,acknowledgement:true
+       });
+       await refreshChannelAuthorizations();
+       message("Permission saved. Provider activation and verification remain separate.");
+     }catch(error){
+       checkbox.checked=!checkbox.checked;
+       checkbox.disabled=false;message(error.message,true);
+     }
+   });
+   host.appendChild(row);
+ }
+}
+async function refreshSocial(){
+ const generation=sessionGeneration;
+  const status=await request("/owner/social/status");assertSession(generation);
+  $("social-panel").hidden=false;
+  const canLink=status.enabled&&currentRole==="owner";
+  $("social-google_business-connect").hidden=!canLink;
+  $("social-google_business-connect").disabled=!status.providers?.google_business;
+  $("social-google_business-connect").title=status.providers?.google_business?"Connect a Google Business Profile":"Google developer project / Business Profile API not configured";
+  $("social-facebook-connect").hidden=!canLink;
+  $("social-instagram-connect").hidden=!canLink;
+  $("social-facebook-connect").disabled=!status.providers?.facebook;
+  $("social-instagram-connect").disabled=!status.providers?.instagram;
+  $("social-facebook-connect").title=status.providers?.facebook?"Connect a Facebook Page":"Facebook developer app not configured";
+  $("social-instagram-connect").title=status.providers?.instagram?"Connect a professional Instagram account":"Instagram developer app not configured";
+  $("social-linkedin-connect").hidden=!canLink;
+  $("social-linkedin-connect").disabled=!status.providers?.linkedin;
+  $("social-linkedin-connect").title=status.providers?.linkedin?"Connect LinkedIn":"Operator must configure and verify LinkedIn OAuth first";
+  $("social-tiktok-connect").hidden=!canLink;
+  $("social-tiktok-connect").disabled=!status.providers?.tiktok;
+  $("social-tiktok-connect").title=status.providers?.tiktok?"Connect an authorized TikTok account":"TikTok Login Kit developer app and scopes must be approved";
+  for(const provider of ["facebook","instagram","linkedin","linkedin_organization","tiktok","google_business","x"]){
+    $("social-"+provider+"-connect").hidden=!canLink||!status.providers?.[provider];
+  }
+  $("social-oauth-readiness").textContent=!status.enabled?
+    "Account connections are awaiting Trendi setup for your business. Contact Trendi when you are ready.":
+    "Choose a network to connect your own account. You authorize access on the provider’s website; you do not need to create a developer app. Publishing requires separate approval.";
+  if(!status.enabled)return;
+  const [accounts,posts]=await Promise.all([
+    request("/owner/social/accounts"),request("/owner/social/posts")
+  ]);
+  assertSession(generation);
+  setupProgress.accounts=accounts.filter(account=>!account.needs_reauth).length;renderSetupProgress();
+  clear($("social-accounts"));clear($("social-destinations"));clear($("social-account"));clear($("social-posts"));
+  $("social-form").hidden=currentRole==="viewer"||!accounts.length;
+  if(!accounts.length){
+    $("social-accounts").appendChild(node("p",
+      "No social accounts connected yet. Choose a network above to connect an account for this business.","muted"));
+  }else{
+    for(const account of accounts){
+      if(["mastodon","bluesky"].includes(account.network))continue;
+      $("social-accounts").appendChild(node("p",
+         account.network+" — "+account.display_name+
+         (account.needs_reauth?" (disconnected or reconnection required)":"")));
+      if(currentRole==="owner" && !account.needs_reauth && account.expires_at &&
+         ["instagram","linkedin","google_business","x"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
+        const renew=node("button","Renew "+account.display_name,"secondary");
+        renew.addEventListener("click",async()=>{
+          try{
+            await request("/owner/social/oauth/renew/"+encodeURIComponent(account.id),"POST");
+            await refreshSocial();message("Account access renewed with the provider.");
+          }catch(error){message("Token renewal not available: "+error.message+". Reconnect the account if needed.",true);}
+        });
+        $("social-accounts").appendChild(renew);
+      }
+      if(account.network==="google_business" && currentRole==="owner" && !account.needs_reauth){
+        const unlink=node("button","Disconnect "+account.display_name,"danger");
+        unlink.addEventListener("click",async()=>{
+          if(!confirm("Disconnect this business location from Concierge?"))return;
+          try{
+            await request(socialOAuthPath(account.network)+"/accounts/"+encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Google Business location disconnected locally. Remove Trendi access in your Google Account if desired.");
+          }catch(error){message("Google Business disconnection failed: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(unlink);
+      }
+      if(["facebook","instagram"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
+        const unlink=node("button","Disconnect "+account.display_name,"danger");
+        unlink.addEventListener("click",async()=>{
+          if(!confirm("Disconnect this account from Concierge? Future posts will be blocked. You may also remove Trendi access in Meta settings."))return;
+          try{
+            await request(socialOAuthPath(account.network)+"/accounts/"+encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Credentials removed from Concierge. Review provider app access separately.");
+          }catch(error){message("Could not unlink account: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(unlink);
+      }
+      if(account.network==="mastodon" && currentRole==="owner" && !account.needs_reauth){
+        const disconnect=node("button","Disconnect "+account.display_name,"danger");
+        disconnect.addEventListener("click",async()=>{
+          if(!confirm("Revoke this account's access at Mastodon and disconnect it from Concierge?"))return;
+          try{
+            await request("/owner/social/oauth/mastodon/accounts/"+
+              encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();message("Account access revoked and disconnected.");
+          }catch(error){message("Could not verify revocation: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(disconnect);
+      }
+      if(["linkedin","linkedin_organization"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
+        const unlink=node("button","Unlink "+account.display_name,"danger");
+        unlink.addEventListener("click",async()=>{
+          if(!confirm("Remove this LinkedIn account from Concierge?"+
+             "\nYou must also revoke the app in LinkedIn settings to withdraw provider consent."))return;
+          try{
+            await request("/owner/social/oauth/linkedin/accounts/"+
+              encodeURIComponent(account.id),"DELETE");
+            await refreshSocial();
+            message("Local LinkedIn credentials erased. Revoke the app separately in LinkedIn settings.");
+          }catch(error){message("LinkedIn unlink failed: "+error.message,true);}
+        });
+        $("social-accounts").appendChild(unlink);
+      }
+      if(!account.needs_reauth && !["mastodon","bluesky"].includes(account.network)){
+        const option=node("option",account.network+" — "+account.display_name);
+        option.value=account.id;$("social-account").appendChild(option);
+        const label=node("label",account.network.replaceAll("_"," ")+" — "+account.display_name,"social-destination");const choose=document.createElement("input");choose.type="checkbox";choose.addEventListener("change",()=>option.selected=choose.checked);label.prepend(choose);$("social-destinations").appendChild(label);
+      }
+    }
+  }
+  if(!posts.length)$("social-posts").appendChild(node("p","No drafts yet.","muted"));
+  for(const post of posts){
+    const item=node("article","","item");
+    item.appendChild(node("strong",post.status.replaceAll("_"," ")));
+    item.appendChild(node("pre",
+      [post.content,post.link,post.hashtags].filter(Boolean).join("\n")));
+    if(post.last_error)item.appendChild(node("p",post.last_error,"error"));
+    if(post.status==="draft" && currentRole!=="viewer"){
+      const submit=node("button","Submit for approval");
+      submit.addEventListener("click",async()=>{
+        try{
+          await request("/owner/social/posts/"+encodeURIComponent(post.id)+"/submit","POST");
+          await refreshSocial();message("Draft submitted for approval. Not published.");
+        }catch(error){message(error.message,true);}
+      });
+      item.appendChild(submit);
+    }
+    if(post.status==="pending_approval" && currentRole==="owner"){
+      const approve=node("button","Review and approve");
+      approve.addEventListener("click",async()=>{
+        try{
+          const approval=await request("/owner/social/posts/"+
+            encodeURIComponent(post.id)+"/approval-request","POST",
+            {scheduled_at:Math.floor(Date.now()/1000)});
+          if(!confirm("Approve this EXACT post for your business?\n\n"+
+                      approval.exact_text+"\n\nLive publishing requires separate operator enablement.")){
+            return;
+          }
+          await request("/owner/social/approvals/"+
+             encodeURIComponent(approval.token)+"/approve","POST");
+          await refreshSocial();
+          message("Post approved and scheduled in Concierge; delivery is NOT confirmed.");
+        }catch(error){message(error.message,true);}
+      });
+      item.appendChild(approve);
+    }
+    $("social-posts").appendChild(item);
+  }
+}
+
+async function refresh(){
+ const generation=sessionGeneration;
+ const [drafts,numbers,calls,phoneSms]=await Promise.all([
+   request("/owner/email-drafts?status=draft").catch(error=>({error:error.message})),
+   request("/owner/phone-numbers"),request("/owner/phone-calls"),
+   request("/owner/sms-phone").catch(error=>({error:error.message}))
+ ]);
+ assertSession(generation);
+ clear($("numbers"));clear($("calls"));clear($("drafts"));
+ const smsHost=$("sms-phone");clear(smsHost);
+ if(phoneSms.error){smsHost.appendChild(node("p","Phone connection status unavailable."));}
+ else if(!phoneSms.paired){smsHost.appendChild(node("p","No phone paired for text messages. Your existing number and carrier can be retained when the connection is set up.","muted"));}
+ else{
+   smsHost.appendChild(node("p",phoneSms.number+" — "+(phoneSms.online?"Phone connected":"Phone offline")));
+   smsHost.appendChild(node("p","Sending: "+(phoneSms.send_verified?"tested":"test required")+" · Receiving: "+(phoneSms.receive_verified?"tested":"test required")));
+   if(currentRole==="owner"){
+     const test=node("button","Test linked phone");test.disabled=!phoneSms.online;
+     test.addEventListener("click",async()=>{
+       if(!confirm('Send this test SMS to your linked number '+phoneSms.number+'?\n\nTrendi Concierge SMS connection test. No reply needed.'))return;
+       test.disabled=true;
+       try{await request("/owner/sms-phone/test","POST",{acknowledgement:true,request_id:crypto.randomUUID()});message("Phone test queued. Approve the exact message on your Mac, then refresh to check the result.");await refresh();}
+       catch(error){message(error.message,true);test.disabled=false;}
+     });smsHost.appendChild(test);
+   }
+   const labels={queued:"Awaiting phone approval",claimed:"Awaiting phone result",sent:"Sent",failed:"Not sent",uncertain:"Result uncertain — check before trying again",cancelled:"Cancelled"};
+   for(const text of phoneSms.messages||[]){const item=node("article","","item");item.appendChild(node("strong",labels[text.status]||text.status));item.appendChild(node("p","To: "+text.recipient));item.appendChild(node("p",text.body));smsHost.appendChild(item);}
+ }
+ if(Array.isArray(numbers)){for(const n of numbers){$("numbers").appendChild(node("p",n.e164+" — "+(n.enabled?"enabled":"disabled")));}if(!numbers.length)$("numbers").appendChild(node("p","No numbers registered.","muted"));}
+ if(Array.isArray(calls)){for(const c of calls){const call=node("article","","item");call.appendChild(node("p",c.status+" | "+c.started_at+" | "+c.from_number+
+    " | Recording: "+(c.recording_status||"not started")));
+    const view=node("button","View call transcript");const transcript=node("div");
+    view.addEventListener("click",async()=>{view.disabled=true;try{const lines=await request("/owner/phone-calls/"+encodeURIComponent(c.call_sid)+"/transcript");clear(transcript);if(!lines.length)transcript.appendChild(node("p","No transcript available for this call."));for(const line of lines)transcript.appendChild(node("p",(line.role==="user"?"Caller: ":"Concierge: ")+line.content));}catch(error){message(error.message,true);}finally{view.disabled=false;}});
+    call.appendChild(view);call.appendChild(transcript);$("calls").appendChild(call);
+ }if(!calls.length)$("calls").appendChild(node("p","No calls yet.","muted"));}
+ if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
+ if(!drafts.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
+ for(const draft of drafts){
+   const item=node("article","","item");
+   item.appendChild(node("h3","#"+draft.id+" — "+draft.subject));
+   item.appendChild(node("p","From: "+draft.sender));
+   item.appendChild(node("strong","Incoming (untrusted)"));
+   item.appendChild(node("pre",draft.inbound_body));
+   if(currentRole!=="viewer"){
+     const edit=node("textarea",draft.reply_body);edit.value=draft.reply_body;
+     edit.setAttribute("aria-label","Proposed reply for draft "+draft.id);
+     item.appendChild(node("strong","Reply for human review"));item.appendChild(edit);
+     const save=node("button","Save changes");
+     save.addEventListener("click",async()=>{
+       try{await request("/owner/email-drafts/"+draft.id,"PATCH",{reply_body:edit.value});message("Draft saved.");}
+       catch(error){message(error.message,true);}
+     });
+     item.appendChild(save);
+     const discard=node("button","Discard","danger");
+     discard.addEventListener("click",async()=>{
+       if(!confirm("Discard this draft?"))return;
+       try{await request("/owner/email-drafts/"+draft.id+"/discard","POST");await refresh();message("Draft discarded.");}
+       catch(error){message(error.message,true);}
+     });
+     item.appendChild(discard);
+     if(currentRole==="owner"){
+       const approve=node("button","Approve for outbound queue");
+       approve.addEventListener("click",async()=>{
+         if(!confirm("Have you reviewed recipient, claims, and the complete reply? This action may queue an email for delivery if outbound service is enabled."))return;
+         try{await request("/owner/email-drafts/"+draft.id+"/approve","POST");await refresh();message("Draft approved and queued (only if outbound service is enabled).");}
+         catch(error){message(error.message,true);}
+       });
+       item.appendChild(approve);
+     }
+   }else{item.appendChild(node("pre",draft.reply_body));}
+   $("drafts").appendChild(item);
+ }
+}
+$("sms-phone-refresh").addEventListener("click",()=>refresh().catch(error=>message(error.message,true)));
+$("invite-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  const result=await request("/owner/invitations","POST",{email:$("invite-email").value,role:$("invite-role").value});
+  const host=$("invite-result");clear(host);
+  host.appendChild(node("p","Share this invitation link privately with the person you invited. It expires in 24 hours."));
+  const field=node("textarea",result.invitation_url);field.value=result.invitation_url;field.readOnly=true;field.setAttribute("aria-label","Private invitation link");host.appendChild(field);
+  message("Invitation created but not delivered.");
+ }catch(error){message(error.message,true);}
+});
+</script>
+</body>
+</html>

@@ -166,9 +166,11 @@ async def crawl(site_url: str, max_pages: int = 40, concurrency: int = 4, delay:
         raise ValueError(f"Not a crawlable URL: {site_url}")
     host = host_of(start)
 
+    from .public_fetch import PublicClient
     async with httpx.AsyncClient(
-        headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=15.0
-    ) as client:
+        headers={"User-Agent": USER_AGENT}, follow_redirects=False, timeout=10.0, trust_env=False
+    ) as transport:
+        client = PublicClient(transport, urlsplit(start).hostname)
         robots = await _load_robots(client, start)
         seeds = [start] + [
             u for u in await _sitemap_urls(client, start, max_pages * 3) if host_of(u) == host

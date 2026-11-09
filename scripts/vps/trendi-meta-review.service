@@ -1,0 +1,13 @@
+[Unit]
+Description=Deliver approved posts only for the isolated Meta review workspace
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/trendi/releases/20261108-vps/product/scripts/vps/meta-review-worker.py
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+TimeoutStartSec=750

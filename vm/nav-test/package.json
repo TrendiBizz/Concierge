@@ -1,0 +1,9 @@
+{
+  "name": "concierge-nav-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless Chrome click-test of the Concierge site navigation",
+  "scripts": { "test": "node nav-test.mjs" },
+  "dependencies": { "puppeteer-core": "^24.0.0" }
+}

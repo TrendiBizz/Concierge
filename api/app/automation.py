@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import events, outbox
+from . import events, outbox, sales, scoring, tasks
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -22,6 +22,18 @@ def fmt_local(tenant: dict, moment: datetime) -> str:
     return f"{local:%A, %B} {local.day} at {hour12}:{local:%M} {suffix} {local:%Z}"
 
 
+def _score_tag(lead: dict) -> str:
+    label = lead.get("score_label")
+    return f"[{label.upper()}] " if label in ("hot", "warm") else ""
+
+
+def _score_lines(lead: dict) -> str:
+    if lead.get("score") is None:
+        return ""
+    why = "; ".join(scoring.reasons_of(lead)) or "-"
+    return f"Score: {lead['score']}/100 ({lead.get('score_label')})\nWhy: {why}\n\n"
+
+
 def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
     """A phone number we may text: SMS enabled for the client, visitor consented, number valid."""
     if not (tenant.get("sms_enabled") and consent and phone):
@@ -30,45 +42,70 @@ def _sms_target(tenant: dict, phone: str, consent: bool) -> str | None:
 
 
 async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> None:
-    if tenant.get("notify_email") and is_email(tenant["notify_email"]):
-        await outbox.enqueue(
-            tenant["id"], "owner_alert", "email", tenant["notify_email"], body,
-            subject=subject, dedupe_key=dedupe,
-        )
+    from . import owner_notifications
+    await owner_notifications.queue(tenant, subject, body, dedupe)
 
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
+    # Scoring reloads the persisted row, which excludes transient ingress flags.
+    owner_notice_queued = bool(lead.get("_owner_notice_queued"))
+    try:
+        lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
+    except Exception:  # scoring must never stop a lead from being handled
+        log.exception("lead scoring failed for %s", lead.get("id"))
+    try:
+        await tasks.create_follow_up(tenant, lead)  # one to-do per new lead, completes itself when answered
+    except Exception:
+        log.exception("follow-up to-do failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
+    try:
+        await events.queue_twenty(tenant,"lead.created",str(lead["id"]),
+                                 {"lead":events.lead_view(lead)})
+    except Exception:
+        log.exception("Could not persist Twenty CRM delivery for lead %s",lead["id"])
 
     contact = lead["phone"] or lead["email"] or "-"
-    await _owner_alert(
-        tenant,
-        f"New lead for {tenant['name']}: {lead['name'] or contact}",
-        f"Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
-        f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
-        f"lead:{lead['id']}:owner",
-    )
+    if not owner_notice_queued:
+        await _owner_alert(
+            tenant,
+            f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",
+            f"{_score_lines(lead)}Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
+            f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
+            f"lead:{lead['id']}:owner",
+        )
 
-    # Speed-to-lead text. If they texted us first, the conversation already is the reply.
-    to = _sms_target(tenant, lead["phone"], lead["consent_contact"])
-    if to and lead["channel"] != "sms":
-        template = tenant.get("lead_sms_template") or (
-            "Hi {first}, thanks for reaching out to {business}! A team member will follow up shortly. "
-            "Reply STOP to opt out."
-        )
-        text = template.format(first=_first_name(lead["name"]), name=lead["name"], business=tenant["name"])
-        await outbox.enqueue(
-            tenant["id"], "speed_to_lead", "sms", to, text,
-            dedupe_key=f"lead:{lead['id']}:sms", lead_id=lead["id"],
-        )
+    await lead_followup(tenant, lead)
+
+
+async def lead_followup(tenant: dict, lead: dict) -> None:
+    # Contact consent permits follow-up, but is not a request for an acknowledgement.
+    # The explicit request_enquiry_acknowledgement tool queues the visitor's copy.
+    return
 
 
 async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> None:
+    if lead:
+        try:
+            lead = await scoring.apply(lead, booked=True, weights=scoring.weights_for(tenant))
+        except Exception:
+            log.exception("lead scoring failed for %s", lead.get("id"))
+    if lead:  # a booking is a deal that has reached the 'booked' stage
+        try:
+            await sales.change_status(lead["id"], "booked")
+        except Exception:
+            log.exception("could not move lead to booked: %s", lead.get("id"))
     events.emit(
         tenant, "appointment.booked",
         appointment=events.appointment_view(appt, tenant["timezone"]),
         lead=events.lead_view(lead) if lead else None,
     )
+    try:
+        await events.queue_twenty(tenant,"appointment.booked",str(appt["id"]),{
+            "appointment":events.appointment_view(appt,tenant["timezone"]),
+            "lead":events.lead_view(lead) if lead else None,
+        })
+    except Exception:
+        log.exception("Could not persist Twenty CRM delivery for booking %s",appt["id"])
     when = fmt_local(tenant, appt["starts_at"])
     await _owner_alert(
         tenant,
@@ -80,7 +117,7 @@ async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> 
 
     now = datetime.now(timezone.utc)
     sms_to = _sms_target(tenant, appt["phone"], appt["consent_contact"])
-    email_to = appt["email"] if is_email(appt["email"]) else None
+    email_to = appt["email"] if appt["consent_contact"] and is_email(appt["email"]) else None
     first = _first_name(appt["name"])
 
     # Confirmation + two reminders, on whichever channels we are allowed to use.

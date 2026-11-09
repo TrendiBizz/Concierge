@@ -1,0 +1,14 @@
+{
+  "name": "concierge-sites",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Concierge Sites: simple published pages (heading/paragraph/image/button/lead form blocks) and the leads they capture. Standalone, no GHL dependency.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/api.test.mjs"
+  }
+}

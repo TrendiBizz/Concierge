@@ -46,7 +46,7 @@ async def save_message(conversation_id, role: str, content: str, flag: str | Non
         "INSERT INTO messages (conversation_id, role, content, flag) VALUES ($1, $2, $3, $4)",
         conversation_id,
         role,
-        content[:4000],
+        content[:30000],
         flag,
     )
 

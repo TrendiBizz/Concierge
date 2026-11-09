@@ -3,7 +3,9 @@ import html
 import json
 import logging
 import re
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qs, urlsplit
@@ -11,12 +13,16 @@ from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from . import automation, chat as chat_engine, convo, db, ingest, llm, outbox, sms, tenants, voice
+from . import (
+    automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
+)
+from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -43,16 +49,51 @@ START_WORDS = {"START", "UNSTOP"}
 async def lifespan(_: FastAPI):
     await db.init()
     await tenants.ensure_report_tokens()
+    await tenants.ensure_calendar_tokens()
     stop = asyncio.Event()
+    async def maintain_voice_records():
+        while not stop.is_set():
+            try:
+                await voice_records.purge_expired()
+            except Exception:
+                log.warning("Voice recording retention cleanup will retry")
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=3600)
+            except asyncio.TimeoutError:
+                pass
+    voice_retention_worker = asyncio.create_task(maintain_voice_records())
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
+    sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
+    digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
+    twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
+        settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
+    email_worker = asyncio.create_task(email_secretary.run_forever(stop))
+    calendar_worker = asyncio.create_task(calendar_connection.run_forever(stop))
     yield
     stop.set()
+    await calendar_worker
+    await email_worker
+    await voice_retention_worker
     if worker:
         await worker
+    if sla_worker:
+        await sla_worker
+    if digest_worker:
+        await digest_worker
+    if twenty_worker:
+        await twenty_worker
     await db.close()
 
 
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
+app.include_router(device_sms.router)
+app.include_router(phone_sip.router)
+app.include_router(managed_phone.router)
+app.include_router(mobile_connections.router)
+app.include_router(quotations.router)
+app.include_router(calendar_connection.router)
+app.include_router(email_secretary.router)
+app.include_router(hermes_ops.router)  # answers 404 unless HERMES_GATEWAY_ENABLED and HERMES_GATEWAY_KEY are set
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.
@@ -60,8 +101,29 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token"],
+    allow_headers=["Content-Type", "X-Admin-Token", "Authorization", "X-Voice-Session-Token"],
 )
+
+
+@app.middleware("http")
+async def owner_boundary(request: Request, call_next):
+    """Same-origin owner portal; no third-party browser access to owner APIs."""
+    path = request.url.path
+    if path == "/owner-ui" or path.startswith("/owner/") or path.startswith("/api/v1/device-sms/"):
+        origin = request.headers.get("origin")
+        if origin:
+            allowed = {
+                f"{request.url.scheme}://{request.url.netloc}".lower(),
+                _origin_of(settings.public_base_url),
+            }
+            if origin.rstrip("/").lower() not in allowed:
+                return Response(status_code=403, headers={"Cache-Control": "no-store"})
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+    return await call_next(request)
 
 
 # ------------------------------------------------------------------ helpers
@@ -111,7 +173,9 @@ async def widget_js():
 @app.get("/api/v1/widget-config")
 async def widget_config(request: Request, key: str):
     tenant = await _tenant_for(request, key)
-    return tenants.public_view(tenant)
+    result = tenants.public_view(tenant)
+    result["recording_available"] = bool(settings.voice_recording_enabled and tenant.get("voice_enabled") and await channel_authorization.is_authorized(tenant["id"], "call_recording"))
+    return result
 
 
 class ChatRequest(BaseModel):
@@ -160,7 +224,7 @@ async def sms_inbound(public_key: str, request: Request):
     tenant = await tenants.get_by_key(public_key)
     if tenant is None:
         raise HTTPException(status_code=404, detail="Unknown key")
-    if not settings.twilio_auth_token:
+    if sms.provider() != "twilio" or not settings.twilio_auth_token:
         raise HTTPException(status_code=503, detail="SMS is not configured")
 
     raw = (await request.body()).decode("utf-8", errors="replace")
@@ -169,37 +233,92 @@ async def sms_inbound(public_key: str, request: Request):
     if not sms.validate_signature(settings.twilio_auth_token, url, params, request.headers.get("X-Twilio-Signature", "")):
         raise HTTPException(status_code=403, detail="Invalid signature")
 
+    if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
+        raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     sender = normalize_phone(params.get("From", ""), settings.default_country_code)
     body = (params.get("Body") or "").strip()
     if not sender or not body:
         return _twiml("")
+    # Twilio sends its own opt-out confirmation, so STOP gets no reply of ours here.
+    return _twiml(await _sms_reply(tenant, sender, body, confirm_stop=False))
 
+
+@app.post("/api/v1/smsgate/{public_key}")
+async def smsgate_inbound(public_key: str, request: Request):
+    """Webhook for the self-hosted Android SMS gateway (event sms:received). The reply is sent as a
+    new text, because the gateway has no reply-in-response mechanism like TwiML."""
+    tenant = await tenants.get_by_key(public_key)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Unknown key")
+    if sms.provider() != "smsgate" or not settings.smsgate_signing_key:
+        raise HTTPException(status_code=503, detail="SMS gateway is not configured")
+
+    raw = await request.body()
+    if not sms.validate_smsgate_signature(
+        settings.smsgate_signing_key, raw,
+        request.headers.get("X-Timestamp", ""), request.headers.get("X-Signature", ""),
+    ):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+    try:
+        envelope = json.loads(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    if not isinstance(envelope, dict) or envelope.get("event") != "sms:received":
+        return {"ok": True}  # delivery receipts and pings are acknowledged and ignored
+
+    if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
+        raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
+    payload = envelope.get("payload") or {}
+    sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", settings.default_country_code)
+    body = (payload.get("message") or "").strip()
+    if not sender or not body:
+        return {"ok": True}
+
+    reply = await _sms_reply(tenant, sender, body, confirm_stop=True)
+    if reply:
+        events.spawn(_send_reply(tenant, sender, reply))
+    return {"ok": True}
+
+
+async def _send_reply(tenant: dict, to: str, text: str) -> None:
+    try:
+        await sms.send_sms(to, text, tenant.get("sms_from"))
+    except Exception:
+        log.exception("sms reply failed for %s", tenant["slug"])
+
+
+async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -> str:
+    """Shared inbound-text logic for every provider. Returns the reply text, or "" for no reply."""
     command = body.upper()
     if command in STOP_WORDS:
         await outbox.opt_out(tenant["id"], sender)
-        return _twiml("")  # Twilio sends its own opt-out confirmation
+        return f"You're unsubscribed from {tenant['name']} messages. Reply START to resume." if confirm_stop else ""
     if command in START_WORDS:
         await outbox.opt_in(tenant["id"], sender)
-        return _twiml(f"You're subscribed to messages from {tenant['name']} again. Reply STOP to opt out.")
+        return f"You're subscribed to messages from {tenant['name']} again. Reply STOP to opt out."
     if command == "HELP":
-        return _twiml(f"{tenant['name']} AI assistant. Msg&data rates may apply. Reply STOP to opt out.")
+        return f"{tenant['name']} AI assistant. Msg&data rates may apply. Reply STOP to opt out."
     if await outbox.is_opted_out(tenant["id"], sender):
-        return _twiml("")
+        return ""
 
     session_id = "sms" + re.sub(r"\D", "", sender)
     if not sms_limiter.check(session_id):
-        return _twiml("")
+        return ""
+    conversation_id = await convo.get_or_create(tenant, session_id, "sms", None, None)
+    await enquiries.capture(tenant, "sms", session_id, body,
+                            conversation_id=conversation_id, phone=sender, consent_contact=True)
     try:
         result = await chat_engine.run_turn(tenant, session_id, "sms", body[:1000], sender_phone=sender)
     except Exception:
         log.exception("sms turn failed for %s", tenant["slug"])
-        return _twiml("Sorry, I'm having trouble right now. The team will get back to you.")
-    return _twiml(result["reply"])
+        return "Sorry, I'm having trouble right now. The team will get back to you."
+    return result["reply"]
 
 
 class VoiceTokenRequest(BaseModel):
     key: str
     session_id: str
+    recording_consent: bool = False
 
 
 @app.post("/api/v1/voice/token")
@@ -208,7 +327,9 @@ async def voice_token(req: VoiceTokenRequest, request: Request):
     _rate_limit(request, session_id)
     tenant = await _tenant_for(request, req.key)
     try:
-        return await voice.mint_token(tenant)
+        result = await voice.mint_token(tenant)
+        result["voice_session"] = await voice_records.start(tenant, session_id, record=req.recording_consent)
+        return result
     except voice.VoiceUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except httpx.HTTPError:
@@ -221,6 +342,8 @@ class ToolRequest(BaseModel):
     args: dict = {}
     page_url: str | None = None
     utm: dict[str, str] = {}
+    voice_session_id: uuid.UUID | None = None
+    voice_session_token: str = Field(default="", max_length=200)
 
 
 @app.post("/api/v1/tools/{name}")
@@ -236,6 +359,11 @@ async def tool_endpoint(name: str, req: ToolRequest, request: Request):
         "page_url": req.page_url,
         "utm": convo.clean_utm(req.utm),
     }
+    if req.voice_session_id:
+        session = await voice_records.authenticate(req.voice_session_id, req.voice_session_token)
+        if session["tenant_id"] != tenant["id"] or session["conversation_id"] != conversation_id:
+            raise HTTPException(403, "Voice session does not belong to this conversation")
+        ctx["voice_session"] = session
     return await run_tool(tenant, name, req.args, ctx)
 
 
@@ -256,6 +384,40 @@ async def voice_log(req: VoiceLogRequest, request: Request):
     conversation_id = await convo.get_or_create(tenant, session_id, "voice", req.page_url, req.utm)
     await convo.save_message(conversation_id, "user" if req.role == "user" else "assistant", req.text)
     return {"ok": True}
+
+
+@app.post("/api/v1/voice/sessions/{session_id}/recording")
+async def voice_recording_upload(session_id: uuid.UUID, request: Request):
+    session = await voice_records.authenticate(session_id, request.headers.get("x-voice-session-token", ""))
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > voice_records.MAX_AUDIO:
+            raise HTTPException(413, "Recording exceeds the size limit")
+    return await voice_records.store_audio(session, bytes(body), request.headers.get("content-type", ""))
+
+
+@app.post("/api/v1/voice/sessions/{session_id}/finish")
+async def voice_session_finish(session_id: uuid.UUID, request: Request):
+    session = await voice_records.authenticate(session_id, request.headers.get("x-voice-session-token", ""))
+    tenant = await tenants.get_by_id(session["tenant_id"])
+    if not tenant:
+        raise HTTPException(404, "Business unavailable")
+    return await voice_records.finish(session, tenant)
+
+
+def private_audio_response(row, filename):
+    return Response(bytes(row["audio"]), media_type=row["mime_type"], headers={
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow, noarchive",
+        "Content-Disposition": 'inline; filename="'+filename+'"',
+    })
+
+
+@app.get("/api/v1/voice/recordings/shared/{token}")
+async def shared_voice_recording(token: str):
+    row = await voice_records.shared_audio(token)
+    return private_audio_response(row, "concierge-recording." + row["mime_type"].split("/")[1])
 
 
 # -------------------------------------------------------------- demo page
@@ -393,13 +555,14 @@ async def client_report(token: str, days: int = 30):
             f'<rect x="{x + bar_w * 0.45:.1f}" y="{110 - h_l:.1f}" width="{max(bar_w * 0.4, 1):.1f}" height="{h_l:.1f}" fill="{html.escape(tenant["accent_color"])}"/>'
         )
     leads = await db.pool().fetch(
-        "SELECT name, message, channel, status, created_at FROM leads WHERE tenant_id = $1 "
+        "SELECT name, message, channel, status, score_label, created_at FROM leads WHERE tenant_id = $1 "
         "AND created_at > now() - make_interval(days => $2) ORDER BY created_at DESC LIMIT 25",
         tenant["id"], s["days"],
     )
     rows = "".join(
         f"<tr><td>{r['created_at']:%b %d}</td><td>{html.escape((r['name'] or 'Visitor').split(' ')[0])}</td>"
-        f"<td>{html.escape(r['message'][:140])}</td><td>{html.escape(r['channel'])}</td><td>{html.escape(r['status'])}</td></tr>"
+        f"<td>{html.escape(r['message'][:140])}</td><td>{html.escape(r['channel'])}</td><td>{html.escape(r['status'])}</td>"
+        f"<td>{html.escape((r['score_label'] or 'cold').title())}</td></tr>"
         for r in leads
     )
     card = lambda label, value: f'<div class="c"><b>{value}</b><span>{label}</span></div>'  # noqa: E731
@@ -429,7 +592,7 @@ async def client_report(token: str, days: int = 30):
 <div class="g">{cards}</div>
 <section><b>Daily activity</b> <small>grey = conversations, colour = leads</small>
 <svg viewBox="0 0 600 115" width="100%" role="img" aria-label="Daily conversations and leads">{''.join(bars)}</svg></section>
-<section><b>Recent leads</b><table><tr><th>Date</th><th>Who</th><th>What they wanted</th><th>Via</th><th>Status</th></tr>{rows or '<tr><td colspan=5>No leads yet.</td></tr>'}</table></section>
+<section><b>Recent leads</b><table><tr><th>Date</th><th>Who</th><th>What they wanted</th><th>Via</th><th>Status</th><th>Interest</th></tr>{rows or '<tr><td colspan=6>No leads yet.</td></tr>'}</table></section>
 <p><small>Estimated pipeline = leads x the average lead value agreed with your provider. Contact details are not shown on this page.</small></p>
 </main></body></html>"""
     return HTMLResponse(page)
@@ -467,6 +630,8 @@ class TenantUpdate(BaseModel):
     accent_color: str | None = None
     voice: str | None = None
     voice_enabled: bool | None = None
+    phone_enabled: bool | None = None
+    phone_daily_limit: int | None = Field(default=None, ge=0, le=100_000)
     voice_daily_limit: int | None = Field(default=None, ge=0, le=100_000)
     booking_url: str | None = None
     lead_webhook_url: str | None = None
@@ -483,6 +648,18 @@ class TenantUpdate(BaseModel):
     lead_sms_template: str | None = None
     review_url: str | None = None
     lead_value_cents: int | None = Field(default=None, ge=0, le=100_000_000)
+    sla_minutes: int | None = Field(default=None, ge=0, le=1440)       # 0 = response alerts off
+    sla_min_score: int | None = Field(default=None, ge=0, le=100)
+    campaigns_enabled: bool | None = None
+    weekly_digest: bool | None = None                                  # Monday summary email to notify_email
+    scoring: dict[str, int] | None = None                              # {} resets to the defaults
+
+    @field_validator("scoring")
+    @classmethod
+    def _scoring(cls, value):
+        if value is None:
+            return value
+        return scoring.validate_overrides(value)
 
     @field_validator("timezone")
     @classmethod
@@ -532,6 +709,13 @@ class LeadUpdate(BaseModel):
     status: Literal["new", "contacted", "booked", "won", "lost"] | None = None
     notes: str | None = Field(default=None, max_length=4000)
     value_cents: int | None = Field(default=None, ge=0, le=100_000_000)
+    lost_reason: str | None = Field(default=None, max_length=300)   # only used together with status = lost
+    next_action_at: datetime | None = None                          # also moves the lead's follow-up to-do
+
+    @field_validator("next_action_at")
+    @classmethod
+    def _aware(cls, value):
+        return value if value is None or value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 class AppointmentUpdate(BaseModel):
@@ -546,6 +730,7 @@ def _with_snippet(tenant: dict) -> dict:
         "demo_url": f"{base}/demo/{tenant['slug']}?presenter=1",
         "report_url": f"{base}/report/{tenant['report_token']}",
         "sms_webhook_url": f"{base}/api/v1/sms/{tenant['public_key']}",
+        "calendar_url": f"{base}/api/v1/calendar/{tenant['calendar_token']}.ics" if tenant.get("calendar_token") else None,
     }
 
 
@@ -570,7 +755,7 @@ async def admin_list_tenants():
 
 @app.get("/admin/tenants/{slug}", dependencies=admin)
 async def admin_get_tenant(slug: str):
-    tenant = await _require_tenant(slug)
+    tenant = await tenants.ensure_calendar_token(await _require_tenant(slug))
     chunks = await db.pool().fetchval("SELECT count(*) FROM chunks WHERE tenant_id = $1", tenant["id"])
     return {**_with_snippet(tenant), "chunk_count": chunks}
 
@@ -638,13 +823,282 @@ async def admin_demo_questions(slug: str):
 
 
 @app.get("/admin/tenants/{slug}/leads", dependencies=admin)
-async def admin_leads(slug: str, limit: int = 100):
+async def admin_leads(slug: str, limit: int = 100, min_score: int = 0):
     tenant = await _require_tenant(slug)
     rows = await db.pool().fetch(
-        "SELECT * FROM leads WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2",
-        tenant["id"], min(max(limit, 1), 500),
+        "SELECT * FROM leads WHERE tenant_id = $1 AND score >= $3 ORDER BY created_at DESC LIMIT $2",
+        tenant["id"], min(max(limit, 1), 500), max(min_score, 0),
     )
     return [dict(r) for r in rows]
+
+
+class CampaignCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    channel: Literal["sms", "email"]
+    subject: str = Field(default="", max_length=200)
+    body: str = Field(min_length=1, max_length=600)
+    older_than_days: int = Field(default=30, ge=0, le=3650)
+    statuses: list[Literal["new", "contacted", "booked", "won", "lost"]] = ["new", "contacted", "lost"]
+    min_score: int = Field(default=0, ge=0, le=100)
+    max_recipients: int | None = Field(default=None, ge=1)
+
+
+class CampaignSend(BaseModel):
+    expected_recipients: int = Field(ge=0)
+
+
+class MarketingConsent(BaseModel):
+    consent: bool
+    basis: str = Field(min_length=5, max_length=300)  # where the consent came from, kept as the audit trail
+
+
+def _campaign_view(campaign: dict) -> dict:
+    view = dict(campaign)
+    if isinstance(view.get("filters"), str):
+        view["filters"] = json.loads(view["filters"])
+    return view
+
+
+async def _require_campaign(campaign_id: int) -> tuple[dict, dict]:
+    campaign = await campaigns.get(campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Unknown campaign")
+    return campaign, await tenants.get_by_id(campaign["tenant_id"])
+
+
+@app.post("/admin/tenants/{slug}/campaigns", dependencies=admin, status_code=201)
+async def admin_create_campaign(slug: str, body: CampaignCreate):
+    """Create a DRAFT campaign and return who it would reach. Nothing is sent."""
+    tenant = await _require_tenant(slug)
+    try:
+        campaign = await campaigns.create(
+            tenant, body.name, body.channel, body.subject, body.body,
+            body.model_dump(include={"older_than_days", "statuses", "min_score", "max_recipients"}),
+        )
+    except campaigns.CampaignError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"campaign": _campaign_view(campaign), "preview": await campaigns.preview(tenant, campaign)}
+
+
+@app.get("/admin/tenants/{slug}/campaigns", dependencies=admin)
+async def admin_list_campaigns(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT * FROM campaigns WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100", tenant["id"])
+    return [{**_campaign_view(dict(r)), "delivery": await campaigns.stats(r["id"])} for r in rows]
+
+
+@app.get("/admin/campaigns/{campaign_id}/preview", dependencies=admin)
+async def admin_preview_campaign(campaign_id: int):
+    campaign, tenant = await _require_campaign(campaign_id)
+    return await campaigns.preview(tenant, campaign)
+
+
+@app.post("/admin/campaigns/{campaign_id}/send", dependencies=admin)
+async def admin_send_campaign(campaign_id: int, body: CampaignSend):
+    """Queue the campaign. `expected_recipients` must match the preview's recipient count."""
+    campaign, tenant = await _require_campaign(campaign_id)
+    try:
+        return await campaigns.send(tenant, campaign, body.expected_recipients)
+    except campaigns.CampaignError as exc:
+        raise HTTPException(status_code=409 if str(exc).startswith("Audience changed") else 400, detail=str(exc))
+
+
+@app.post("/admin/campaigns/{campaign_id}/cancel", dependencies=admin)
+async def admin_cancel_campaign(campaign_id: int):
+    campaign, _ = await _require_campaign(campaign_id)
+    return {"cancelled_pending": await campaigns.cancel(campaign)}
+
+
+@app.get("/admin/campaigns/{campaign_id}", dependencies=admin)
+async def admin_get_campaign(campaign_id: int):
+    campaign, _ = await _require_campaign(campaign_id)
+    return {**_campaign_view(campaign), "delivery": await campaigns.stats(campaign_id)}
+
+
+@app.patch("/admin/leads/{lead_id}/marketing-consent", dependencies=admin)
+async def admin_marketing_consent(lead_id: str, body: MarketingConsent):
+    """Record (or withdraw) marketing consent for a lead, with where it came from."""
+    try:
+        row = await db.pool().fetchrow(
+            "UPDATE leads SET consent_marketing = $2, consent_marketing_basis = $3, "
+            "consent_marketing_at = CASE WHEN $2 THEN now() END, updated_at = now() WHERE id = $1::uuid "
+            "RETURNING id, consent_marketing, consent_marketing_basis, consent_marketing_at",
+            lead_id, body.consent, body.basis.strip(),
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid lead id")
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown lead")
+    return dict(row)
+
+
+def _plain_page(title: str, body_html: str, status: int = 200) -> HTMLResponse:
+    page = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
+        f"<title>{html.escape(title)}</title>"
+        "<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#111}"
+        "button{font:inherit;padding:.7rem 1.2rem;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}</style>"
+        f"</head><body><h1>{html.escape(title)}</h1>{body_html}</body></html>"
+    )
+    return HTMLResponse(page, status_code=status)
+
+
+@app.get("/api/v1/unsubscribe/{token}", response_class=HTMLResponse)
+async def unsubscribe_page(token: str):
+    """Confirm page. Opening the link does nothing by itself, so mail scanners cannot unsubscribe anyone."""
+    if unsub.read_token(token) is None:
+        return _plain_page("This link is not valid", "<p>It may be incomplete. Reply to the email and we will remove you.</p>", 404)
+    return _plain_page(
+        "Unsubscribe",
+        '<p>Stop receiving promotional messages from this business?</p><form method="post"><button>Unsubscribe</button></form>',
+    )
+
+
+@app.post("/api/v1/unsubscribe/{token}", response_class=HTMLResponse)
+async def unsubscribe_do(token: str):
+    """Performs the unsubscribe. Also serves mail apps' one-click unsubscribe (RFC 8058)."""
+    result = await campaigns.unsubscribe(token)
+    if result is None:
+        return _plain_page("This link is not valid", "<p>Reply to the email and we will remove you.</p>", 404)
+    return _plain_page(
+        "You are unsubscribed",
+        f"<p>{html.escape(result['tenant_name'])} will not send you promotional messages again.</p>",
+    )
+
+
+@app.get("/admin/tenants/{slug}/scoring", dependencies=admin)
+async def admin_scoring(slug: str):
+    """The scoring weights in force for this client, with defaults, for the dashboard editor."""
+    tenant = await _require_tenant(slug)
+    return {"weights": scoring.describe(tenant)}
+
+
+@app.post("/admin/tenants/{slug}/rescore", dependencies=admin)
+async def admin_rescore(slug: str):
+    """Recompute every lead's score with the client's current weights."""
+    tenant = await _require_tenant(slug)
+    return await scoring.rescore_tenant(tenant)
+
+
+@app.get("/admin/tenants/{slug}/sla", dependencies=admin)
+async def admin_sla(slug: str):
+    """Response-time settings and the leads currently waiting longer than the target."""
+    tenant = await _require_tenant(slug)
+    waiting = await sla.overdue(tenant)
+    return {
+        "sla_minutes": tenant.get("sla_minutes") or 0,
+        "sla_min_score": tenant.get("sla_min_score") if tenant.get("sla_min_score") is not None else 70,
+        "waiting": [
+            {
+                "id": str(w["id"]), "name": w["name"], "phone": w["phone"], "email": w["email"],
+                "message": w["message"], "channel": w["channel"], "score": w["score"],
+                "score_label": w["score_label"], "reasons": scoring.reasons_of(w),
+                "minutes_waiting": w["minutes_waiting"], "alerted": w["sla_alerted_at"] is not None,
+                "created_at": w["created_at"].isoformat(),
+            }
+            for w in waiting
+        ],
+    }
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    notes: str = Field(default="", max_length=2000)
+    due_at: datetime | None = None
+    lead_id: str | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _aware(cls, value):
+        return _aware(value)
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+    due_at: datetime | None = None
+    status: Literal["open", "done"] | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _aware(cls, value):
+        return _aware(value)
+
+
+def _aware(value):
+    """A date typed without a timezone is taken as UTC, so it can never be misread as local time."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+@app.get("/admin/tenants/{slug}/tasks", dependencies=admin)
+async def admin_list_tasks(slug: str, status: Literal["open", "done", "all"] = "open"):
+    tenant = await _require_tenant(slug)
+    return await tasks.list_tasks(tenant["id"], status)
+
+
+@app.post("/admin/tenants/{slug}/tasks", dependencies=admin, status_code=201)
+async def admin_create_task(slug: str, body: TaskCreate):
+    tenant = await _require_tenant(slug)
+    if body.lead_id:
+        try:
+            found = await db.pool().fetchval("SELECT 1 FROM leads WHERE id = $1::uuid AND tenant_id = $2", body.lead_id, tenant["id"])
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid lead id")
+        if not found:
+            raise HTTPException(status_code=404, detail="Unknown lead")
+    try:
+        return await tasks.create(tenant["id"], body.title, body.notes, body.due_at, lead_id=body.lead_id)
+    except tasks.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.patch("/admin/tasks/{task_id}", dependencies=admin)
+async def admin_update_task(task_id: int, body: TaskUpdate):
+    try:
+        row = await tasks.update(task_id, body.model_dump(exclude_unset=True))
+    except tasks.TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown to-do")
+    return row
+
+
+@app.delete("/admin/tasks/{task_id}", dependencies=admin)
+async def admin_delete_task(task_id: int):
+    if not await tasks.delete(task_id):
+        raise HTTPException(status_code=404, detail="Unknown to-do")
+    return {"deleted": True}
+
+
+@app.get("/admin/tenants/{slug}/pipeline", dependencies=admin)
+async def admin_pipeline(slug: str):
+    return await sales.pipeline(await _require_tenant(slug))
+
+
+@app.get("/admin/tenants/{slug}/sales-summary", dependencies=admin)
+async def admin_sales_summary(slug: str, days: int = 7):
+    return await sales.summary(await _require_tenant(slug), min(max(days, 1), 365))
+
+
+@app.get("/api/v1/calendar/{token}.ics")
+async def calendar_feed(token: str):
+    """Read-only appointment feed to subscribe to from Google / Apple / Outlook Calendar. The token is the credential."""
+    tenant = await tenants.get_by_calendar_token(token)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Unknown calendar")
+    rows = await db.pool().fetch(
+        "SELECT * FROM appointments WHERE tenant_id = $1 AND starts_at > now() - interval '30 days' ORDER BY starts_at",
+        tenant["id"],
+    )
+    return Response(
+        content=ical.build(tenant, [dict(r) for r in rows]),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @app.patch("/admin/leads/{lead_id}", dependencies=admin)
@@ -653,16 +1107,30 @@ async def admin_update_lead(lead_id: str, body: LeadUpdate):
     data = {k: v for k, v in data.items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    parts = [f"{col} = ${i}" for i, col in enumerate(data, start=2)]
+    status = data.pop("status", None)
+    reason = data.pop("lost_reason", "") or ""
+    row = None
     try:
-        row = await db.pool().fetchrow(
-            f"UPDATE leads SET {', '.join(parts)}, updated_at = now() WHERE id = $1::uuid RETURNING *",
-            lead_id, *data.values(),
-        )
+        if data:
+            parts = [f"{col} = ${i}" for i, col in enumerate(data, start=2)]
+            row = await db.pool().fetchrow(
+                f"UPDATE leads SET {', '.join(parts)}, updated_at = now() WHERE id = $1::uuid RETURNING *",
+                lead_id, *data.values(),
+            )
+            if row is None:
+                raise LookupError
+        if status:
+            row = await sales.change_status(lead_id, status, reason)  # records history, tidies the follow-up
+            if row is None:
+                raise LookupError
+        if "next_action_at" in data and row is not None:
+            await tasks.set_follow_up_due(dict(row), data["next_action_at"])
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Unknown lead")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid lead id")
-    if row is None:
-        raise HTTPException(status_code=404, detail="Unknown lead")
     return dict(row)
 
 
@@ -690,6 +1158,8 @@ async def admin_update_appointment(appointment_id: str, body: AppointmentUpdate)
     appt = dict(row)
     tenant = await tenants.get_by_id(appt["tenant_id"])
     await automation.on_appointment_status(tenant, appt, body.status)
+    if body.status in ("cancelled", "no_show"):
+        await calendar_connection.sync_one(appt["id"])
     return appt
 
 
@@ -725,3 +1195,940 @@ async def admin_conversations(slug: str, limit: int = 50):
 @app.get("/admin/tenants/{slug}/stats", dependencies=admin)
 async def admin_stats(slug: str, days: int = 30):
     return await _stats(await _require_tenant(slug), days)
+
+
+
+@app.get("/admin/capabilities", dependencies=admin)
+async def admin_capabilities():
+    return {"email_drafts": settings.email_drafts_enabled}
+
+
+# ------------------------------------------- email draft approval (disabled by default)
+class EmailDraftCreate(BaseModel):
+    sender: str = Field(min_length=3, max_length=320)
+    subject: str = Field(default="", max_length=250)
+    inbound_body: str = Field(min_length=1, max_length=20000)
+    reply_body: str | None = Field(default=None, max_length=10000)
+    source_id: str = Field(default="", max_length=500)
+    generate: bool = False
+
+
+class EmailDraftRevision(BaseModel):
+    reply_body: str = Field(min_length=1, max_length=10000)
+
+
+def _email_feature_gate():
+    if not settings.email_drafts_enabled:
+        raise HTTPException(status_code=503, detail="Email draft workflow is disabled")
+
+
+@app.get("/admin/tenants/{slug}/email-drafts", dependencies=admin)
+async def admin_email_drafts(slug: str, status: Literal["draft", "approved", "discarded", "all"] = "draft"):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    return await email_drafts.list_drafts(tenant["id"], status)
+
+
+@app.post("/admin/tenants/{slug}/email-drafts", dependencies=admin, status_code=201)
+async def admin_email_draft_create(slug: str, body: EmailDraftCreate):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    if body.generate and body.reply_body:
+        raise HTTPException(status_code=400, detail="Choose generated or manual draft")
+    if not body.generate and not body.reply_body:
+        raise HTTPException(status_code=400, detail="Provide reply_body or request generation")
+    try:
+        reply = (
+            await email_drafts.propose(tenant, body.sender, body.subject, body.inbound_body)
+            if body.generate else body.reply_body
+        )
+        return await email_drafts.create(
+            tenant["id"], body.sender, body.subject, body.inbound_body,
+            reply, body.source_id,
+        )
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except llm.LLMNotConfigured:
+        raise HTTPException(status_code=503, detail="AI email drafting is not configured")
+
+
+@app.patch("/admin/tenants/{slug}/email-drafts/{draft_id}", dependencies=admin)
+async def admin_email_draft_revise(slug: str, draft_id: int, body: EmailDraftRevision):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    try:
+        result = await email_drafts.revise(tenant["id"], draft_id, body.reply_body)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Editable draft not found")
+    return result
+
+
+@app.post("/admin/tenants/{slug}/email-drafts/{draft_id}/discard", dependencies=admin)
+async def admin_email_draft_discard(slug: str, draft_id: int):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    result = await email_drafts.discard(tenant["id"], draft_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Editable draft not found")
+    return result
+
+
+@app.post("/admin/tenants/{slug}/email-drafts/{draft_id}/approve", dependencies=admin)
+async def admin_email_draft_approve(slug: str, draft_id: int):
+    _email_feature_gate()
+    tenant = await _require_tenant(slug)
+    try:
+        result = await email_drafts.approve(tenant["id"], draft_id)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=409, detail="Draft already handled or does not exist")
+    return result
+
+
+
+# -------------------------------------------------------- PSTN phone adapter (opt-in)
+async def _phone_webhook_form(request: Request) -> dict[str, str]:
+    # Twilio sends application/x-www-form-urlencoded, not multipart.
+    if not request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+        raise HTTPException(status_code=415, detail="Invalid telephone webhook content type")
+    raw = await request.body()
+    if len(raw) > 8192:
+        raise HTTPException(status_code=413, detail="Telephone webhook too large")
+    try:
+        items = parse_qs(raw.decode("utf-8"), keep_blank_values=True, strict_parsing=True)
+    except (UnicodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Malformed telephone webhook")
+    if any(len(v) != 1 for v in items.values()):
+        raise HTTPException(status_code=400, detail="Duplicate telephone webhook field")
+    return {key: values[0] for key, values in items.items()}
+
+
+@app.post("/api/v1/phone/twilio/inbound")
+async def twilio_phone_inbound(request: Request):
+    if not phone_relay.configured():
+        raise HTTPException(status_code=503, detail="Telephone receptionist disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/inbound")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid telephone webhook signature")
+    try:
+        tenant = await phone_relay.register_inbound(form)
+    except phone_relay.PhoneError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return Response(content=phone_relay.twiml(tenant), media_type="application/xml")
+
+
+@app.post("/api/v1/phone/twilio/ended")
+async def twilio_phone_ended(request: Request):
+    if not phone_relay.configured():
+        raise HTTPException(status_code=503, detail="Telephone receptionist disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/ended")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid telephone webhook signature")
+    await phone_relay.finish(form.get("CallSid", ""), "completed")
+    return Response(content='<Response><Hangup/></Response>', media_type="application/xml")
+
+
+@app.post("/api/v1/phone/twilio/recording")
+async def twilio_phone_recording_receipt(request: Request):
+    if not phone_relay.configured() or not settings.phone_recording_enabled:
+        raise HTTPException(status_code=503, detail="Call recording disabled")
+    form = await _phone_webhook_form(request)
+    uri = phone_relay.external_url("/api/v1/phone/twilio/recording")
+    if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(status_code=403, detail="Invalid recording callback signature")
+    try:
+        await phone_relay.recording_callback(form)
+    except phone_relay.PhoneError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {"ok": True}
+
+
+@app.websocket("/api/v1/phone/relay")
+async def twilio_phone_relay(websocket: WebSocket):
+    await phone_relay.relay(websocket)
+
+
+class PhoneNumberCreate(BaseModel):
+    e164: str = Field(pattern=r"^\+[1-9]\d{6,14}$")
+
+
+class PhoneNumberEnable(BaseModel):
+    enabled: bool
+
+
+@app.get("/admin/tenants/{slug}/phone-setup", dependencies=admin)
+async def admin_phone_setup(slug: str):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "SELECT designated_number,connection,answer_mode,owner_number,status FROM managed_phone_setups WHERE tenant_id=$1",
+        tenant["id"])
+    return dict(row) if row else {"status": "not_requested"}
+
+
+@app.get("/admin/tenants/{slug}/phone-numbers", dependencies=admin)
+async def admin_phone_numbers(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT e164, enabled, created_at FROM phone_numbers WHERE tenant_id=$1",
+        tenant["id"],
+    )
+    return [dict(row) for row in rows]
+
+
+@app.post("/admin/tenants/{slug}/phone-numbers", dependencies=admin, status_code=201)
+async def admin_phone_number_create(slug: str, body: PhoneNumberCreate):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "INSERT INTO phone_numbers (e164, tenant_id) VALUES ($1,$2) "
+        "ON CONFLICT DO NOTHING RETURNING e164, enabled, created_at",
+        body.e164, tenant["id"],
+    )
+    if row is None:
+        raise HTTPException(status_code=409, detail="Number already registered")
+    return dict(row)
+
+
+@app.patch("/admin/tenants/{slug}/phone-numbers/{number}", dependencies=admin)
+async def admin_phone_number_enable(slug: str, number: str, body: PhoneNumberEnable):
+    tenant = await _require_tenant(slug)
+    row = await db.pool().fetchrow(
+        "UPDATE phone_numbers SET enabled=$3 WHERE e164=$1 AND tenant_id=$2 "
+        "RETURNING e164, enabled, created_at", number, tenant["id"], body.enabled,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Number not found for this business")
+    return dict(row)
+
+
+@app.get("/admin/tenants/{slug}/phone-calls", dependencies=admin)
+async def admin_phone_call_history(slug: str):
+    tenant = await _require_tenant(slug)
+    rows = await db.pool().fetch(
+        "SELECT call_sid, from_number, to_number, status, started_at, ended_at "
+        "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
+        tenant["id"],
+    )
+    return [dict(row) for row in rows]
+
+# Mailbox registration is operator-only; sending and receipt remain disabled by default.
+class InboundMailbox(BaseModel):
+    recipient: str = Field(min_length=3, max_length=320)
+    enabled: bool = False
+
+
+@app.post("/admin/tenants/{slug}/inbound-mailboxes", dependencies=admin)
+async def register_inbound_mailbox(slug: str, body: InboundMailbox):
+    tenant = await _require_tenant(slug)
+    try:
+        await cloudflare_inbound.register_mailbox(tenant["id"], body.recipient, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "enabled": body.enabled}
+
+
+@app.post("/api/v1/inbound/cloudflare")
+async def cloudflare_email_webhook(request: Request):
+    return await cloudflare_inbound.handle(request)
+
+
+# ------------------------------------------------- tenant-owner access (separate from operator)
+class OwnerInvite(BaseModel):
+    email: str = Field(max_length=320)
+    role: Literal["viewer", "editor", "owner"] = "viewer"
+
+
+class OwnerRecovery(BaseModel):
+    email: str = Field(max_length=320)
+
+
+class OwnerRedeem(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=12, max_length=256)
+
+
+class OwnerLogin(BaseModel):
+    slug: str
+    email: str
+    password: str
+
+
+@app.post("/admin/tenants/{slug}/owner-invitations", dependencies=admin, status_code=201)
+async def admin_invite_owner(slug: str, body: OwnerInvite):
+    tenant = await _require_tenant(slug)
+    try:
+        token = await owner_auth.make_invite(tenant["id"], body.email, body.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    # Do not auto-email credentials; operator delivers token over verified channel.
+    return {"invitation_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
+
+
+@app.post("/admin/tenants/{slug}/owner-recovery", dependencies=admin)
+async def admin_owner_recovery(slug: str, body: OwnerRecovery):
+    tenant = await _require_tenant(slug)
+    try:
+        token = await owner_auth.make_invite(tenant["id"], body.email, "viewer", "recovery")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"recovery_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
+
+
+@app.get("/owner-ui")
+async def owner_ui():
+    return FileResponse(
+        STATIC_DIR / "owner.html", media_type="text/html",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                 "Referrer-Policy": "no-referrer"},
+    )
+
+
+@app.get("/owner/social/oauth/callback", include_in_schema=False)
+async def owner_social_oauth_callback():
+    # Public landing page only. It cannot exchange a code or authenticate anyone.
+    # The original logged-in tab compares state before exchanging the code itself.
+    return FileResponse(
+        STATIC_DIR / "social-oauth-callback.html", media_type="text/html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate",
+                 "Pragma": "no-cache", "Referrer-Policy": "no-referrer",
+                 "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"},
+    )
+
+
+@app.post("/owner/auth/redeem")
+async def owner_redeem(body: OwnerRedeem):
+    try:
+        return await owner_auth.redeem(body.token, body.password)
+    except ValueError:
+        raise HTTPException(400, "Invalid invitation or password")
+
+
+@app.post("/owner/auth/login")
+async def owner_login(body: OwnerLogin, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    if not await owner_auth.allow_login_attempt(ip, body.slug, body.email):
+        raise HTTPException(429, "Too many login attempts")
+    try:
+        token = await owner_auth.login_for_tenant(body.slug, body.email, body.password)
+    except ValueError:
+        token = None
+    if token is None:
+        raise HTTPException(401, "Invalid credentials")
+    return {"access_token": token, "token_type": "bearer", "expires_in": 43200}
+
+
+@app.get("/owner/me")
+async def owner_me(user: dict = Depends(owner_auth.current_user)):
+    return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}
+
+
+@app.get("/owner/crm")
+async def owner_crm(user: dict = Depends(owner_auth.current_user)):
+    tenant = await tenants.ensure_calendar_token(await _require_tenant(user["slug"]))
+    leads, appointments, todos = await asyncio.gather(
+        admin_leads(user["slug"]), admin_appointments(user["slug"]),
+        tasks.list_tasks(user["tenant_id"], "all"))
+    return {"leads": leads, "appointments": appointments, "tasks": todos,
+            "calendar_url": _origin_of(settings.owner_portal_url) + "/api/v1/calendar/" + tenant["calendar_token"] + ".ics"}
+
+
+@app.get("/owner/crm/leads/{lead_id}/transcript")
+async def owner_crm_transcript(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    exists = await db.pool().fetchval(
+        "SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2", user["tenant_id"], lead_id)
+    if not exists:
+        raise HTTPException(404, "Enquiry not found")
+    rows = await db.pool().fetch(
+        "SELECT m.role,m.content,m.created_at FROM leads l "
+        "JOIN conversations c ON c.id=l.conversation_id AND c.tenant_id=l.tenant_id "
+        "JOIN messages m ON m.conversation_id=c.id "
+        "WHERE l.tenant_id=$1 AND l.id=$2 AND m.role IN ('user','assistant') "
+        "ORDER BY m.id LIMIT 1000", user["tenant_id"], lead_id)
+    return [dict(row) for row in rows] if rows else [
+        {'role': 'user', 'content': row['original_text'], 'created_at': row['created_at']}
+        for row in await db.pool().fetch('SELECT original_text,created_at FROM enquiry_sources WHERE tenant_id=$1 AND lead_id=$2 ORDER BY created_at', user['tenant_id'], lead_id)]
+
+
+@app.get("/owner/crm/leads/{lead_id}/recordings")
+async def owner_crm_recordings(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    return await voice_records.recordings_for_lead(user["tenant_id"], lead_id)
+
+
+@app.get("/owner/voice-recordings/{session_id}")
+async def owner_voice_recording(session_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    row = await voice_records.audio_for_owner(user["tenant_id"], session_id)
+    return private_audio_response(row, "concierge-recording." + row["mime_type"].split("/")[1])
+
+
+@app.post("/owner/voice-recordings/{session_id}/share")
+async def owner_share_voice_recording(session_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    token = await voice_records.share(user["tenant_id"], session_id)
+    return {"url": settings.public_base_url.rstrip("/")+"/api/v1/voice/recordings/shared/"+token, "expires_in_hours": 24}
+
+
+class VoiceCopyRequest(BaseModel):
+    recipient: str = Field(min_length=1, max_length=254)
+    channel: Literal["sms", "email"]
+    content: Literal["text", "recording"]
+    request_id: uuid.UUID
+    session_id: uuid.UUID | None = None
+
+
+@app.post("/owner/crm/leads/{lead_id}/deliver")
+async def owner_deliver_voice_copy(lead_id: uuid.UUID, body: VoiceCopyRequest, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    return await voice_records.deliver(tenant, lead_id, **body.model_dump())
+
+
+@app.patch("/owner/crm/leads/{lead_id}")
+async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        exists = await db.pool().fetchval("SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2::uuid",
+                                         user["tenant_id"], lead_id)
+    except Exception:
+        raise HTTPException(404, "Enquiry not found")
+    if not exists:
+        raise HTTPException(404, "Enquiry not found")
+    return await admin_update_lead(lead_id, body)
+
+
+@app.post("/owner/auth/logout")
+async def owner_logout(request: Request, user: dict = Depends(owner_auth.current_user)):
+    await owner_auth.logout(request.headers["authorization"].partition(" ")[2])
+    return {"ok": True}
+
+
+@app.get("/owner/onboarding")
+async def owner_onboarding_overview(user: dict = Depends(owner_auth.current_user)):
+    try:
+        return await owner_onboarding.overview(user["tenant_id"])
+    except ValueError:
+        raise HTTPException(404, "Business not found") from None
+
+
+@app.patch("/owner/onboarding/profile")
+async def owner_onboarding_update(
+    body: owner_onboarding.OwnerBusinessProfile,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    try:
+        return await owner_onboarding.update_profile(user["slug"], body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@app.get("/owner/onboarding/authorizations")
+async def owner_channel_authorizations(user: dict = Depends(owner_auth.current_user)):
+    return await channel_authorization.authorizations(user["tenant_id"])
+
+
+@app.post("/owner/knowledge/import-website")
+async def owner_import_website(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user['tenant_id'])
+    try:
+        async with asyncio.timeout(55):
+            result = await ingest.ingest_site(tenant, max_pages=15)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception:
+        raise HTTPException(503, "Website import could not finish. Existing knowledge is retained; retry or upload business information.") from None
+    if not result['chunks']:
+        raise HTTPException(422, "No readable pages were imported. Check robots.txt or upload business information.")
+    return result
+
+
+@app.get("/owner/knowledge")
+async def owner_knowledge_list(user: dict = Depends(owner_auth.current_user)):
+    return await owner_knowledge.documents(user["tenant_id"])
+
+
+@app.post("/owner/knowledge", status_code=201)
+async def owner_knowledge_save(body: owner_knowledge.BusinessDocument,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        return await owner_knowledge.save(user["tenant_id"], body)
+    except ValueError:
+        raise HTTPException(400, "Business document could not be saved") from None
+    except Exception:
+        # Do not disclose document text, model/network diagnostics or DB errors.
+        raise HTTPException(503, "Document processing is unavailable; your saved information is unchanged") from None
+
+
+@app.delete("/owner/knowledge/{document_id}")
+async def owner_knowledge_delete(document_id: str,
+                                 user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    if not await owner_knowledge.remove(user["tenant_id"], document_id):
+        raise HTTPException(404, "Business document not found")
+    return {"ok": True}
+
+
+@app.post("/owner/onboarding/authorizations")
+async def owner_channel_authorization_update(
+    body: channel_authorization.ChannelAuthorization,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    try:
+        return await channel_authorization.record_authorization(
+            user["tenant_id"], user["id"], body,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@app.get("/owner/onboarding/readiness")
+async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user)):
+    status = await owner_onboarding.overview(user["tenant_id"])
+    declarations = await channel_authorization.authorizations(user["tenant_id"])
+    settings = get_settings()
+    checks = {
+        "telephone": status["channels"]["telephone"]["configured"],
+        "call_recording": bool(
+            (settings.voice_recording_enabled and status["channels"].get("website_voice", {}).get("configured"))
+            or (settings.phone_recording_enabled and settings.twilio_account_sid and settings.twilio_auth_token)
+        ),
+        "email_read": bool(settings.inbound_cloudflare_enabled),
+        "email_send": status["channels"]["email"]["configured"],
+        "sms_read": status["channels"]["sms"]["configured"],
+        "sms_send": status["channels"]["sms"]["configured"],
+        "social": status["channels"]["social"]["configured"],
+    }
+    return {
+        "business": status["business"]["name"],
+        "channels": channel_authorization.readiness(declarations, checks),
+        "customer_activation_enabled": False,
+    }
+
+
+@app.post("/owner/invitations", status_code=201)
+async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    try:
+        token = await owner_auth.make_invite(user["tenant_id"], body.email, body.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"invitation_token": token, "invitation_url": owner_auth.invitation_link(token),
+            "expires_in_hours": 24}
+
+
+@app.get("/owner/email-drafts")
+async def owner_drafts(
+    status: Literal["draft", "approved", "discarded", "all"] = "draft",
+    user: dict = Depends(owner_auth.current_user),
+):
+    _email_feature_gate()
+    return await email_drafts.list_drafts(user["tenant_id"], status)
+
+
+@app.patch("/owner/email-drafts/{draft_id}")
+async def owner_edit_draft(
+    draft_id: int, body: EmailDraftRevision,
+    user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    try:
+        row = await email_drafts.revise(user["tenant_id"], draft_id, body.reply_body)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(400, str(exc))
+    if not row:
+        raise HTTPException(404, "Draft not found")
+    return row
+
+
+@app.post("/owner/email-drafts/{draft_id}/discard")
+async def owner_discard_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    row = await email_drafts.discard(user["tenant_id"], draft_id)
+    if not row:
+        raise HTTPException(404, "Draft not found")
+    return row
+
+
+@app.post("/owner/email-drafts/{draft_id}/approve")
+async def owner_approve_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    _email_feature_gate()
+    try:
+        row = await email_drafts.approve(user["tenant_id"], draft_id)
+    except email_drafts.DraftError as exc:
+        raise HTTPException(503, str(exc))
+    if not row:
+        raise HTTPException(409, "Draft unavailable")
+    return row
+
+
+@app.get("/owner/phone-setup")
+async def owner_phone_setup(user: dict = Depends(owner_auth.current_user)):
+    row = await db.pool().fetchrow(
+        "SELECT designated_number,connection,answer_mode,owner_number,status FROM managed_phone_setups WHERE tenant_id=$1",
+        user["tenant_id"])
+    return dict(row) if row else {"status": "not_requested"}
+
+
+@app.put("/owner/phone-setup")
+async def owner_save_phone_setup(body: managed_phone.PhoneSetup, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await managed_phone.save_setup(user["tenant_id"], body)
+
+
+@app.get("/owner/phone-numbers")
+async def owner_phone_numbers(user: dict = Depends(owner_auth.current_user)):
+    rows = await db.pool().fetch(
+        "SELECT e164,enabled,created_at FROM phone_numbers WHERE tenant_id=$1",
+        user["tenant_id"],
+    )
+    return [dict(row) for row in rows]
+
+
+@app.get("/owner/sms-phone")
+async def owner_sms_phone(user: dict = Depends(owner_auth.current_user)):
+    device=await db.pool().fetchrow(
+        "SELECT from_number,last_seen,verified_at,inbound_verified_at FROM sms_devices "
+        "WHERE tenant_id=$1 AND enabled",user["tenant_id"])
+    jobs=await db.pool().fetch(
+        "SELECT recipient,body,status,created_at FROM device_sms_jobs "
+        "WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 20",user["tenant_id"])
+    online=bool(device and device["last_seen"] and
+                (datetime.now(timezone.utc)-device["last_seen"]).total_seconds()<300)
+    return {"paired":bool(device),"online":online,
+            "number":device["from_number"] if device else "",
+            "send_verified":bool(device and device["verified_at"]),
+            "receive_verified":bool(device and device["inbound_verified_at"]),
+            "messages":[dict(row) for row in jobs]}
+
+
+class PhoneSmsTest(BaseModel):
+    model_config = {"extra":"forbid"}
+    acknowledgement: Literal[True]
+    request_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+
+
+@app.post("/owner/sms-phone/test",status_code=202)
+async def owner_sms_phone_test(body: PhoneSmsTest,user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user,"owner")
+    tenant=await _require_tenant(user["slug"])
+    previous=await db.pool().fetchval(
+        "SELECT id FROM device_sms_jobs WHERE tenant_id=$1 AND request_key LIKE 'phone-test:%' "
+        "AND created_at>now()-interval '1 minute' LIMIT 1",user["tenant_id"])
+    if previous:
+        return {"status":"awaiting_phone_result"}
+    try:
+        await device_sms.enqueue(tenant,tenant.get("sms_from") or "",
+            "Trendi Concierge SMS connection test. No reply needed.","phone-test:"+body.request_id)
+    except device_sms.AwaitingReceipt:
+        return {"status":"awaiting_phone_result"}
+    except ValueError as error:
+        raise HTTPException(409,str(error)) from None
+    except device_sms.ReconciliationRequired:
+        raise HTTPException(409,"Previous phone result needs review before another test") from None
+    return {"status":"sent"}
+
+
+@app.get("/owner/phone-calls")
+async def owner_phone_calls(user: dict = Depends(owner_auth.current_user)):
+    rows = await db.pool().fetch(
+        "SELECT call_sid,from_number,to_number,status,started_at,ended_at, "
+        "recording_consent,recording_status "
+        "FROM phone_calls WHERE tenant_id=$1 ORDER BY started_at DESC LIMIT 100",
+        user["tenant_id"],
+    )
+    return [dict(row) for row in rows]
+
+
+@app.get("/owner/phone-calls/{call_id}/transcript")
+async def owner_phone_transcript(call_id: str,user: dict = Depends(owner_auth.current_user)):
+    found=await db.pool().fetchval('SELECT 1 FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2',user['tenant_id'],call_id)
+    if not found:
+        raise HTTPException(404,'Call not found')
+    rows=await db.pool().fetch(
+        "SELECT m.role,m.content,m.created_at FROM phone_calls p "
+        "JOIN conversations c ON c.tenant_id=p.tenant_id AND c.session_id=p.call_sid AND c.channel='phone' "
+        "JOIN messages m ON m.conversation_id=c.id WHERE p.tenant_id=$1 AND p.call_sid=$2 "
+        "AND m.role IN ('user','assistant') ORDER BY m.id LIMIT 200",user['tenant_id'],call_id)
+    return [dict(row) for row in rows]
+
+# ------------------------------------------------------------------ owner social
+# The portal is the identity and approval interface; the Rust service never
+# receives a customer browser's auth token, and no social secrets reach the UI.
+
+class OwnerSocialDraft(BaseModel):
+    content: str = Field(min_length=1, max_length=10000)
+    account_ids: list[str] = Field(min_length=1, max_length=10)
+    link: str = Field(default="", max_length=2000)
+    hashtags: str = Field(default="", max_length=2000)
+    media: list[str] = Field(default_factory=list, max_length=10)
+    options: dict = Field(default_factory=dict)
+
+
+class OwnerSocialCompose(OwnerSocialDraft):
+    video: str | None = Field(default=None, max_length=2048)
+
+
+@app.post("/owner/social/media")
+async def owner_social_media_upload(request: Request, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    base, key = social_bridge._configuration()
+    slug = await social_bridge.ensure_tenant(user)
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > 64 * 1024 * 1024:
+            raise HTTPException(413, "Upload a file smaller than 64 MB")
+    import httpx
+    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
+        result = await client.post(base+f"/v1/customers/{slug}/media", headers={"Authorization":"Bearer "+key,"Content-Type":"application/octet-stream"},content=bytes(content))
+    if result.status_code != 200:
+        raise HTTPException(400, "Media could not be processed; use a JPG/PNG image or MP4/MOV video under 64 MB")
+    return result.json()
+
+
+@app.get("/api/v1/social-media/{token}")
+async def social_media_download(token: str):
+    if len(token)>2048:
+        raise HTTPException(404,"Media unavailable")
+    base, _ = social_bridge._configuration()
+    import httpx
+    async with httpx.AsyncClient(timeout=60,follow_redirects=False) as client:
+        result = await client.get(base+"/public-media/"+token)
+    if result.status_code != 200:
+        raise HTTPException(404,"Media unavailable")
+    return Response(content=result.content,media_type=result.headers.get("content-type","application/octet-stream"),headers={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"})
+
+
+@app.post("/owner/social/compose")
+async def owner_social_compose(body: OwnerSocialCompose,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.compose(user, body.model_dump())
+
+
+class OwnerSocialSchedule(BaseModel):
+    scheduled_at: int = Field(ge=0)
+
+
+@app.get("/owner/social/status")
+async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
+    # No credentials, client IDs, access tokens or backend hostname in the response.
+    providers = {"linkedin_organization": False, "linkedin": False, "mastodon": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "x": False}
+    if settings.social_service_enabled:
+        try:
+            status = await social_bridge.provider_status()
+            providers = {name: status.get(name) is True for name in providers}
+        except HTTPException:
+            pass
+    return {"enabled": bool(settings.social_service_enabled),
+            "customer": user["slug"],
+            "providers": providers,
+            "callback_path": "/owner/social/oauth/callback",
+            "live_publishing": False}
+
+
+@app.post("/owner/social/oauth/renew/{account_id}")
+async def owner_social_oauth_renew(account_id: str,
+                                  user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.renew_social_token(user, account_id)
+
+
+class OwnerOAuthCallback(BaseModel):
+    state: str = Field(min_length=32, max_length=256)
+    code: str = Field(min_length=1, max_length=2048)
+
+
+@app.post("/owner/social/oauth/tiktok/start")
+async def owner_social_tiktok_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_tiktok_oauth(user)
+
+
+@app.post("/owner/social/oauth/tiktok/finish")
+async def owner_social_tiktok_finish(body: OwnerOAuthCallback,
+                                     user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_tiktok_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/tiktok/accounts/{account_id}")
+async def owner_social_tiktok_disconnect(account_id: str,
+                                         user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_tiktok(user, account_id)
+
+
+@app.post("/owner/social/oauth/google/start")
+async def owner_social_google_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_google_oauth(user)
+
+
+@app.post("/owner/social/oauth/google/finish")
+async def owner_social_google_finish(body: OwnerOAuthCallback,
+                                     user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_google_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/google/accounts/{account_id}")
+async def owner_social_google_disconnect(account_id: str,
+                                          user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_google(user, account_id)
+
+
+@app.post("/owner/social/oauth/x/start")
+async def owner_social_x_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_x_oauth(user)
+
+
+@app.post("/owner/social/oauth/x/finish")
+async def owner_social_x_finish(body: OwnerOAuthCallback,
+                                     user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_x_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/x/accounts/{account_id}")
+async def owner_social_x_disconnect(account_id: str,
+                                          user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_x(user, account_id)
+
+
+@app.post("/owner/social/oauth/meta/{network}/start")
+async def owner_social_meta_start(network: str,
+                                  user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.start_meta_oauth(user, network)
+
+
+@app.post("/owner/social/oauth/meta/{network}/finish")
+async def owner_social_meta_finish(network: str, body: OwnerOAuthCallback,
+                                   user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.finish_meta_oauth(user, network, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/meta/{network}/accounts/{account_id}")
+async def owner_social_meta_disconnect(network: str, account_id: str,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if network not in ("facebook", "instagram"):
+        raise HTTPException(404, "Unsupported social network")
+    return await social_bridge.unlink_meta(user, network, account_id)
+
+
+@app.delete("/owner/social/oauth/linkedin/accounts/{account_id}")
+async def owner_social_linkedin_unlink(
+    account_id: str, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.unlink_linkedin(user, account_id)
+
+
+@app.post("/owner/social/oauth/linkedin_organization/start")
+async def owner_social_linkedin_organization_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_linkedin_organization_oauth(user)
+
+
+@app.post("/owner/social/oauth/linkedin_organization/finish")
+async def owner_social_linkedin_organization_finish(body: OwnerOAuthCallback, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_linkedin_organization_oauth(user, body.state, body.code)
+
+
+@app.post("/owner/social/oauth/linkedin/start")
+async def owner_social_linkedin_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_linkedin_oauth(user)
+
+
+@app.post("/owner/social/oauth/linkedin/finish")
+async def owner_social_linkedin_finish(body: OwnerOAuthCallback,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_linkedin_oauth(user, body.state, body.code)
+
+
+@app.post("/owner/social/oauth/mastodon/start")
+async def owner_social_mastodon_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_mastodon_oauth(user)
+
+
+@app.post("/owner/social/oauth/mastodon/finish")
+async def owner_social_mastodon_finish(body: OwnerOAuthCallback,
+                                       user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_mastodon_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/mastodon/accounts/{account_id}")
+async def owner_social_mastodon_disconnect(
+    account_id: str, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_mastodon(user, account_id)
+
+
+@app.get("/owner/social/accounts")
+async def owner_social_accounts(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.accounts(user)
+
+
+@app.get("/owner/social/posts")
+async def owner_social_posts(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.posts(user)
+
+
+@app.post("/owner/social/posts")
+async def owner_social_create(body: OwnerSocialDraft,
+                              user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.create_draft(user, body.content, body.account_ids,
+                                            body.link, body.hashtags, body.media, body.options)
+
+
+@app.post("/owner/social/posts/{post_id}/submit")
+async def owner_social_submit(post_id: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    return await social_bridge.submit_draft(user, post_id)
+
+
+@app.post("/owner/social/posts/{post_id}/approval-request")
+async def owner_social_request_approval(post_id: str, body: OwnerSocialSchedule,
+                                        user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.request_approval(user, post_id, body.scheduled_at)
+
+
+@app.post("/owner/social/approvals/{token}/approve")
+async def owner_social_approve(token: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.decide(user, token, True)
+
+
+@app.post("/owner/social/approvals/{token}/reject")
+async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.decide(user, token, False)
