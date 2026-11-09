@@ -38,7 +38,9 @@ TOOL_SPECS: list[dict] = [
         },
         "voice": True,
         "chat": False,
-        "website_only": True,
+        # Needs a voice session in the tool context to attach the delivery request to.
+        # A telephone call serves one too, so this is no longer website-only.
+        "requires_session": True,
         "available": lambda t: True,
     },
     {
@@ -155,7 +157,7 @@ def voice_tools(tenant: dict, *, website=False) -> list[dict]:
     return [
         {"type": "function", **{k: s[k] for k in ("name", "description", "parameters")}}
         for s in TOOL_SPECS
-        if s["voice"] and s["available"](tenant) and (website or not s.get("website_only"))
+        if s["voice"] and s["available"](tenant) and (website or not s.get("requires_session"))
     ]
 
 

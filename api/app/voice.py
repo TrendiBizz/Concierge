@@ -21,14 +21,28 @@ class VoiceUnavailable(RuntimeError):
     pass
 
 
-def build_session(tenant: dict, *, website=False) -> dict:
-    """Session config the widget sends as its first `session.update` event."""
+COPY_DELIVERY_INSTRUCTIONS = (
+    "\nIf the caller asks for a text copy or recording link, save their contact and permission with capture_lead. Read back the saved recipient and requested format, wait for yes, then use request_conversation_copy. It arranges delivery after the conversation ends; never claim it was already sent. If recording is unavailable, offer saved text instead."
+)
+
+
+def build_session(tenant: dict, *, website=False, copy_delivery=False) -> dict:
+    """Session config the widget sends as its first `session.update` event.
+
+    `copy_delivery` states the capability that actually matters: this channel can
+    deliver a copy after the conversation, which requires a voice session in the
+    tool context. It was previously spelled `website`, a channel name standing in
+    for a capability. The Asterisk telephone path already passed `website=True`,
+    while the Grok SIP path was left without the tool only because it never set
+    that flag -- so a caller on the phone could not be sent a summary. `website`
+    is kept as an alias for the existing widget and Asterisk callers.
+    """
     settings = get_settings()
+    can_deliver = website or copy_delivery
     return {
         "voice": tenant.get("voice") or settings.voice_default,
         "instructions": build_system_prompt(tenant, None, channel="voice") + (
-            "\nIf the caller asks for a text copy or recording link, save their contact and permission with capture_lead. Read back the saved recipient and requested format, wait for yes, then use request_conversation_copy. It arranges delivery after the conversation ends; never claim it was already sent. If recording is unavailable, offer saved text instead."
-            if website else ""),
+            COPY_DELIVERY_INSTRUCTIONS if can_deliver else ""),
         "turn_detection": {"type": "server_vad"},
         "audio": {
             "input": {
@@ -37,7 +51,7 @@ def build_session(tenant: dict, *, website=False) -> dict:
             },
             "output": {"format": {"type": "audio/pcm", "rate": 24000}},
         },
-        "tools": voice_tools(tenant, website=website),
+        "tools": voice_tools(tenant, website=can_deliver),
     }
 
 
