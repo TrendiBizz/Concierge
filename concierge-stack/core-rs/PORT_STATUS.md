@@ -176,3 +176,13 @@ per-tenant lock, re-check inside the transaction, lead/appointment creation, cal
 against the real module with a fixed clock; results, final context and the ordered database/calendar effects match. Date input follows Python 3.13 (`YYYY-MM-DD`,
 `YYYYMMDD`, ISO week dates); non-ASCII digit dates and fully alternative ISO datetime forms return `Unsupported`. Mutation checks found a vector bug (context recorded
 after the run), which is fixed, and 19 mutations are caught.
+
+## Batch 22 (9 November 2026): calendar connection outside the event state machine
+
+`calendar_connection.rs` ports the operator application file check, per-business token paths (CPython `UUID` normalisation), access-token reuse and refresh
+(60-second margin, token file rewritten with the new expiry, every exception path), the owner OAuth start (hashed state, the exact authorization URL with
+`quote_plus` encoding and sorted scopes), finish (single-use state, scope and offline-access checks, token saved, connection enabled), the `OAuthFinish`
+request model, the booking notice (sent once) and the worker loop. Files use a real temporary secret directory and the Google endpoint a fake `httpx` on the
+Python side; 160 token scenarios, 200 finish scenarios, 80 start scenarios (all three roles), 60 notices and 40 worker runs must match results, saved tokens and
+effects. Seventeen mutations caught; the only survivor (`scopes.sort()`) is equivalent because the Rust constant is already sorted. The sync state machine, free/busy
+parsing and event ids were ported in batch 6.

@@ -365,6 +365,7 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             )],
             false,
         ),
+        "OAuthFinish" => (vec![s("state").len(32, 100), s("code").len(1, 4096)], false),
         "OwnerOAuthCallback" => (vec![s("state").len(32, 256), s("code").len(1, 2048)], false),
         _ => return None,
     })

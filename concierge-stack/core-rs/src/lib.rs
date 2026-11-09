@@ -6,6 +6,7 @@ pub mod automation;
 pub mod booking;
 pub mod booking_text;
 pub mod calendar;
+pub mod calendar_connection;
 pub mod campaigns;
 pub mod channel_auth;
 pub mod chat;
