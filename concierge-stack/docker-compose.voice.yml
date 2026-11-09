@@ -44,4 +44,7 @@ services:
     environment:
       LIVEKIT_URL: ws://localhost:7880
     volumes:
+      # The agent runs as uid 10004 (not root). On Linux, make the host folder writable for it once:
+      #   mkdir -p data && sudo chown 10004:10004 data
+      # Docker Desktop on a Mac maps ownership for you.
       - ./data:/data
