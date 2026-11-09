@@ -1,12 +1,5 @@
-2026-11-09 13:47:56,842 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations "HTTP/1.1 201 Created"
-2026-11-09 13:47:56,845 INFO httpx: HTTP Request: GET http://fixture/owner/crm/quotations "HTTP/1.1 200 OK"
-2026-11-09 13:47:56,848 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations "HTTP/1.1 404 Not Found"
-2026-11-09 13:47:56,851 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations/bacd7dad-89be-4edc-b724-9b1b3088e926/status "HTTP/1.1 409 Conflict"
-2026-11-09 13:47:56,853 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations/bacd7dad-89be-4edc-b724-9b1b3088e926/status "HTTP/1.1 403 Forbidden"
-2026-11-09 13:47:56,858 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations/bacd7dad-89be-4edc-b724-9b1b3088e926/status "HTTP/1.1 200 OK"
-2026-11-09 13:47:56,861 INFO httpx: HTTP Request: PUT http://fixture/owner/crm/quotations/bacd7dad-89be-4edc-b724-9b1b3088e926 "HTTP/1.1 409 Conflict"
-2026-11-09 13:47:56,863 INFO httpx: HTTP Request: POST http://fixture/owner/crm/quotations/bacd7dad-89be-4edc-b724-9b1b3088e926/status "HTTP/1.1 409 Conflict"
 PASS same event and two businesses: exactly one enquiry per business
+PASS scoring reload cannot duplicate an ingress owner alert
 PASS owner email and SMS target only that business
 PASS contact consent never creates an unrequested acknowledgement
 PASS declined acknowledgement sends nothing
@@ -44,5 +37,5 @@ PASS human-reviewed email cannot also trigger an automatic answer
 PASS email permission revocation holds work before model or reply
 PASS calendar connection cannot replay existing CRM appointments
 PASS no quotation automatically creates an outbound quote message
-PORTAL_ACCEPTANCE_PASS: 38 checks; actual PostgreSQL/API, fixture Google boundary; zero external deliveries
+PORTAL_ACCEPTANCE_PASS: 39 checks; actual PostgreSQL/API, fixture Google boundary; zero external deliveries
 REMOVED synthetic tenants and all fixture CRM/queue/recording data

@@ -47,6 +47,8 @@ async def _owner_alert(tenant: dict, subject: str, body: str, dedupe: str) -> No
 
 
 async def on_lead_created(tenant: dict, lead: dict) -> None:
+    # Scoring reloads the persisted row, which excludes transient ingress flags.
+    owner_notice_queued = bool(lead.get("_owner_notice_queued"))
     try:
         lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
     except Exception:  # scoring must never stop a lead from being handled
@@ -63,7 +65,7 @@ async def on_lead_created(tenant: dict, lead: dict) -> None:
         log.exception("Could not persist Twenty CRM delivery for lead %s",lead["id"])
 
     contact = lead["phone"] or lead["email"] or "-"
-    if not lead.get("_owner_notice_queued"):
+    if not owner_notice_queued:
         await _owner_alert(
             tenant,
             f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",

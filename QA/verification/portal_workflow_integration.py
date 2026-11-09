@@ -42,6 +42,7 @@ async def main():
         await enquiries.capture(a, 'chat', 'chat-event', 'A wants a quote', conversation_id=ca)
         check('same event and two businesses: exactly one enquiry per business', await db.pool().fetchval("SELECT count(*) FROM leads WHERE tenant_id=ANY($1::uuid[])", [a['id'], b['id']]) == 2)
         owner_rows = await db.pool().fetch('SELECT * FROM outbox WHERE tenant_id=$1', a['id'])
+        check('scoring reload cannot duplicate an ingress owner alert', len(owner_rows) == 2)
         check('owner email and SMS target only that business', {r['to_addr'] for r in owner_rows} == {a['notify_email'], a['notify_phone']})
         check('contact consent never creates an unrequested acknowledgement', not await db.pool().fetchval("SELECT 1 FROM outbox WHERE kind='enquirer_ack'"))
         declined = await acknowledgements.request(a, {'requested': False}, {'conversation_id': ca})

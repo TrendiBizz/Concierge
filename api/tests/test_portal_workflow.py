@@ -80,3 +80,17 @@ def test_website_import_does_not_decode_compressed_pages_twice(monkeypatch):
             assert response.text=='<html>Readable public website</html>'
             assert 'content-encoding' not in response.headers
     asyncio.run(run())
+
+
+def test_ingress_owner_notice_survives_scoring_row_reload(monkeypatch):
+    from app import automation
+    from unittest.mock import AsyncMock
+    lead = {'id': 'lead', 'name': '', 'email': 'owner@example.com', 'phone': '', 'channel': 'chat', 'message': 'test', 'created_at': datetime.now(timezone.utc)}
+    monkeypatch.setattr(automation.scoring, 'apply', AsyncMock(return_value=dict(lead)))
+    monkeypatch.setattr(automation.tasks, 'create_follow_up', AsyncMock())
+    monkeypatch.setattr(automation.events, 'emit', lambda *args, **kwargs: None)
+    monkeypatch.setattr(automation.events, 'queue_twenty', AsyncMock())
+    notice = AsyncMock()
+    monkeypatch.setattr(automation, '_owner_alert', notice)
+    asyncio.run(automation.on_lead_created({'id': 'tenant', 'name': 'Business'}, {**lead, '_owner_notice_queued': True}))
+    notice.assert_not_awaited()
