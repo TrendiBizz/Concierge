@@ -609,3 +609,25 @@ CREATE TABLE IF NOT EXISTS hermes_actions (
     created_at      timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, idempotency_key)
 );
+
+-- Inbound email safety (Phase 1): per-tenant sender policy and an audit trail.
+CREATE TABLE IF NOT EXISTS inbound_sender_rules (
+    id         bigserial PRIMARY KEY,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    pattern    text NOT NULL,
+    action     text NOT NULL CHECK (action IN ('allow', 'block')),
+    created_by text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, pattern, action)
+);
+CREATE TABLE IF NOT EXISTS inbound_audit (
+    id         bigserial PRIMARY KEY,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    draft_id   bigint,
+    action     text NOT NULL,
+    actor      text NOT NULL DEFAULT '',
+    detail     jsonb,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS inbound_audit_tenant_idx
+    ON inbound_audit (tenant_id, created_at DESC);

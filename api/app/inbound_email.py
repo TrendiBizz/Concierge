@@ -6,7 +6,7 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import db, email_drafts, enquiries, convo, tenants
+from . import db, email_drafts, enquiries, convo, inbound_policy, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
@@ -49,6 +49,9 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
                                 conversation_id=conversation_id, email=draft["sender"])
+        await inbound_policy.audit(
+            tenant_id, draft["id"], "received", "cloudflare-worker",
+            {"risk": risk, "flags": flags, "status": draft.get("status")})
         if tenant.get('email_auto_reply') and risk != "high":
             await db.pool().execute(
                 'INSERT INTO email_secretary_jobs(tenant_id,source_key,sender,subject,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',

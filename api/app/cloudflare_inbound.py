@@ -12,7 +12,7 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import channel_authorization, db, email_risk, inbound_email
+from . import channel_authorization, db, email_risk, inbound_email, inbound_policy
 from .config import get_settings
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
@@ -106,6 +106,10 @@ async def handle(request: Request) -> dict:
         # Per-mailbox flood limit and per-sender limit. The sender limit does not
         # reject mail (which would lose it); it quarantines for human review.
         tenant_id = mailbox["tenant_id"]
+        policy = await inbound_policy.rule_for(tenant_id, payload["sender"])
+        if policy == "block":
+            # Accept and drop: never bounce to a possibly spoofed address.
+            return {"accepted": True, "dropped": "blocked"}
         recent = await db.pool().fetchval(
             "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
             "AND created_at > now() - interval '1 hour'", tenant_id)
@@ -123,6 +127,9 @@ async def handle(request: Request) -> dict:
         if sender_recent >= SENDER_HOURLY_LIMIT:
             flags.append("sender_rate_limited")
             risk = "high"
+        if policy == "allow":
+            # A listed sender still gets risk flags, but not quarantine.
+            risk = "medium" if risk == "high" else risk
         draft = await inbound_email.ingest_verified(
             tenant_id, "cloudflare", payload["message_id"],
             payload["sender"], recipient, payload["subject"], payload["text"],
