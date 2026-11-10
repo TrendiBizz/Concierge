@@ -1162,6 +1162,38 @@ ok   every endpoint the page calls exists (38 calls)
 OWNER UI CHECKS PASSED
 ```
 
+## The customer-facing widget is now verified too
+
+The owner portal was checked last round; the **widget** is the other half of the workflow and is what
+a customer actually interacts with on a business's site. Nothing had verified it at all.
+
+```
+served widget  200, 29430 bytes
+sha256         matches api/static/widget.js exactly
+node --check   parses
+endpoints      6, all matching existing routes
+runtime        loads without throwing; registers __ccWidgetLoaded
+WIDGET CHECKS PASSED
+```
+
+The runtime check matters most: the widget is a self-contained IIFE that derives its API base from its
+own `script.src` origin, so a runtime error would take the assistant down on **every site embedding
+it** while the API looked perfectly healthy. Running it against a DOM stub of a realistic host page
+confirms it executes and registers.
+
+All six endpoints it calls exist -- `/api/v1/chat`, `/api/v1/tools/`, `/api/v1/voice/log`,
+`/api/v1/voice/sessions/`, `/api/v1/voice/token`, `/api/v1/widget-config?key=` -- checked with the
+route extractor that caught the bare-prefix bug last round. The `widget-config` response was also
+verified live: 200 with `name`, `greeting`, `voice_enabled`, `accent_color`, `cta_text` and
+`recording_available`.
+
+Kept as `QA/verification/widget_check.mjs`, and confirmed able to fail: injecting one undefined
+reference produced two FAILs and exit code 1, against exit 0 on the healthy widget.
+
+**One error during this work was my harness's.** `globalThis.navigator = {...}` threw because
+`navigator` is a getter-only global in modern Node; it needs `Object.defineProperty`. The widget was
+never the problem.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
