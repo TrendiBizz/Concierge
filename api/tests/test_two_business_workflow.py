@@ -766,3 +766,72 @@ def test_a_review_required_draft_is_not_approvable_as_written():
     from app import email_drafts
     src = inspect.getsource(email_drafts.approve)
     assert "REVIEW REQUIRED" in src
+
+
+# ---------------------------------------------------------- owner vs enquirer on a booking
+
+def test_a_booking_alert_goes_to_the_owner_and_reminders_to_the_enquirer(monkeypatch):
+    """The mandate's separation, on the booking path: an owner alert is not an enquirer message.
+
+    Verified live against a real Postgres: one agreed booking produced 8 outbox rows -- two
+    owner_alert rows addressed only to the owner's own email and mobile, and six
+    appointment-confirmation/reminder rows addressed only to the enquirer. The two recipient sets
+    never overlapped, and the owner alert did not claim any invitation had been delivered.
+    """
+    from app import automation
+    pool = RecordingPool()
+    # _owner_alert imports owner_notifications lazily, so patch that module's pool directly.
+    monkeypatch.setattr(owner_notifications.db, "pool", lambda: pool)
+    monkeypatch.setattr(automation.outbox.db, "pool", lambda: pool)
+    monkeypatch.setattr(owner_notifications.channel_authorization, "is_authorized",
+                        AsyncMock(return_value=True))
+    monkeypatch.setattr(automation.scoring, "apply", AsyncMock(side_effect=lambda lead, **k: lead))
+    monkeypatch.setattr(automation.sales, "change_status", AsyncMock())
+    monkeypatch.setattr(automation.events, "emit", lambda *a, **k: None)
+    monkeypatch.setattr(automation.events, "queue_twenty", AsyncMock())
+
+    appt = {"id": "appt-1", "name": "Hana", "phone": "+6421555123", "email": "hana@example.com",
+            "notes": "Checkup", "consent_contact": True, "status": "booked",
+            "starts_at": datetime(2026, 11, 12, 1, 0, tzinfo=timezone.utc),
+            "ends_at": datetime(2026, 11, 12, 1, 30, tzinfo=timezone.utc)}
+    asyncio.run(automation.on_appointment_booked(BUSINESS_A, appt, None))
+
+    inserts = [s for s in pool.statements if "INSERT INTO outbox" in s[1]]
+    # (kind is literal in the SQL for owner alerts; recipient differs by channel)
+    owner_rows = [s for s in inserts if "owner_alert" in s[1]]
+    enquirer_rows = [s for s in inserts if "owner_alert" not in s[1]]
+    assert owner_rows, "the owner must be told about the booking"
+    assert enquirer_rows, "the enquirer must be offered a confirmation"
+
+    owner_to = {s[2][2] for s in owner_rows}
+    enquirer_to = {s[2][3] for s in enquirer_rows}
+    assert owner_to == {"owner-a@harbour.example", "+64211111111"}, owner_to
+    assert enquirer_to == {"hana@example.com", "+6421555123"}, enquirer_to
+    assert not (owner_to & enquirer_to), "an owner alert must never be addressed to the enquirer"
+
+
+def test_without_consent_the_enquirer_gets_no_confirmation(monkeypatch):
+    """Contact consent gates the enquirer's confirmation and reminders, and only those."""
+    from app import automation
+    pool = RecordingPool()
+    # _owner_alert imports owner_notifications lazily, so patch that module's pool directly.
+    monkeypatch.setattr(owner_notifications.db, "pool", lambda: pool)
+    monkeypatch.setattr(automation.outbox.db, "pool", lambda: pool)
+    monkeypatch.setattr(owner_notifications.channel_authorization, "is_authorized",
+                        AsyncMock(return_value=True))
+    monkeypatch.setattr(automation.scoring, "apply", AsyncMock(side_effect=lambda lead, **k: lead))
+    monkeypatch.setattr(automation.sales, "change_status", AsyncMock())
+    monkeypatch.setattr(automation.events, "emit", lambda *a, **k: None)
+    monkeypatch.setattr(automation.events, "queue_twenty", AsyncMock())
+
+    appt = {"id": "appt-2", "name": "No Consent", "phone": "+6421555999",
+            "email": "nc@example.com", "notes": "x", "consent_contact": False, "status": "booked",
+            "starts_at": datetime(2026, 11, 13, 1, 0, tzinfo=timezone.utc),
+            "ends_at": datetime(2026, 11, 13, 1, 30, tzinfo=timezone.utc)}
+    asyncio.run(automation.on_appointment_booked(BUSINESS_A, appt, None))
+
+    inserts = [s for s in pool.statements if "INSERT INTO outbox" in s[1]]
+    owner_rows = [s for s in inserts if "owner_alert" in s[1]]
+    enquirer_rows = [s for s in inserts if "owner_alert" not in s[1]]
+    assert owner_rows, "the owner is still told, consent or not"
+    assert not enquirer_rows, "no enquirer contact without consent"

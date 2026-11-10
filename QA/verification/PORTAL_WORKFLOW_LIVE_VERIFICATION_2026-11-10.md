@@ -435,6 +435,52 @@ A's draft in status `draft` with its body untouched. B's listing showed 0 drafts
 `REVIEW REQUIRED` draft was refused for approval, and a genuine approval queued exactly one row
 with a repeat queueing none.
 
+## What "invitation requested" actually means, checked at the provider
+
+Reading the live Google event back exposed a distinction worth stating precisely, because it is
+easy to overclaim:
+
+```
+appointment: Concierge controlled workflow test | attendee: admin@trendibizz.com
+invitation_state recorded by Concierge: provider_requested
+  status       : confirmed
+  organizer    : admin@trendibizz.com
+  attendee     : admin@trendibizz.com | responseStatus: needsAction
+```
+
+The event exists and is `confirmed`, with the enquirer recorded as an attendee. The attendee's
+`responseStatus` is `needsAction` -- Google accepted the event but there is **no evidence in this
+data that the invitation email was delivered or read**. That is exactly why the field is named
+`provider_requested` rather than `sent`, and why the customer-facing wording is "the calendar
+provider accepted the event and invitation request".
+
+I am not claiming invitation delivery on the strength of `needsAction`. What is proven is that the
+event is real at the provider, carries the enquirer as an attendee, and that Concierge requests
+`sendUpdates=all` on insert. Whether Google's mail reached the inbox is only observable from the
+recipient's mailbox, which is not something this system can see.
+
+## Owner and enquirer recipients separated on the booking path
+
+The mandate states explicitly that an owner alert is not an enquirer acknowledgement. Verified
+live against a real Postgres -- one agreed booking produced eight outbox rows and the two recipient
+sets never overlapped:
+
+```
+email owner_alert -> owner-a@harbour.example
+sms   owner_alert -> +64211111111
+sms   appt_confirm -> +6421555123
+email appt_confirm -> hana@example.com
+... appt_rem24, appt_rem2 to the enquirer only
+owner recipients  : ['+64211111111', 'owner-a@harbour.example']
+enquirer recipients: ['+6421555123', 'hana@example.com']
+```
+
+With `consent_contact` false, the owner is still told and the enquirer receives **nothing** -- the
+consent gate applies to the enquirer only, which is the correct direction.
+
+Two tests pin this, and the first was confirmed to **fail when the confirmation is deliberately
+addressed to the owner's number** and pass when restored.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -463,7 +509,7 @@ with a repeat queueing none.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **424 passed** (356 pre-existing + 68 in the
+- `PYTHONPATH=api pytest api/tests -q` → **426 passed** (356 pre-existing + 70 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
