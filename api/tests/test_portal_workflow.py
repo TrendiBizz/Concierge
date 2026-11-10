@@ -1,6 +1,6 @@
 """Security and permission boundaries for the complete portal workflow."""
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 import httpx
@@ -94,3 +94,56 @@ def test_ingress_owner_notice_survives_scoring_row_reload(monkeypatch):
     monkeypatch.setattr(automation, '_owner_alert', notice)
     asyncio.run(automation.on_lead_created({'id': 'tenant', 'name': 'Business'}, {**lead, '_owner_notice_queued': True}))
     notice.assert_not_awaited()
+
+
+# ---------------------------------------------------------- worldwide booking window
+
+def test_wide_nz_window_yields_slots_across_the_whole_day():
+    """08:00-23:00 NZ with 30-minute slots must offer 30 slots, last ending at 23:00.
+
+    This window exists so an enquirer in any timezone can book. NZ is UTC+13, the
+    furthest ahead of the major markets, so the window is expressed in NZ wall time
+    and the visitor's own location must never shift it.
+    """
+    tenant={'timezone':'Pacific/Auckland','slot_minutes':30,'min_notice_hours':0,
+            'business_hours':{'fri':[['08:00','23:00']]}}
+    slots=booking.day_slots(tenant,date(2026,11,13),datetime(2026,11,12,tzinfo=timezone.utc),[])
+    nz=booking.ZoneInfo('Pacific/Auckland')
+    local=[x.astimezone(nz).strftime('%H:%M') for x in slots]
+    assert len(slots)==30, local
+    assert local[0]=='08:00' and local[-1]=='22:30', local
+    # the last slot must END by the close, not merely start before it
+    assert (slots[-1]+timedelta(minutes=30)).astimezone(nz).strftime('%H:%M')=='23:00'
+
+
+def test_the_same_slot_is_one_instant_whatever_the_visitor_clock_reads():
+    """A slot offered at 08:00 NZ is a single instant; foreign clocks only relabel it.
+
+    The bug this guards: computing availability in the enquirer's timezone, which would
+    move the business's own hours and hand a New York visitor a different diary.
+    """
+    tenant={'timezone':'Pacific/Auckland','slot_minutes':30,'min_notice_hours':0,
+            'business_hours':{'fri':[['08:00','23:00']]}}
+    slots=booking.day_slots(tenant,date(2026,11,13),datetime(2026,11,12,tzinfo=timezone.utc),[])
+    first=slots[0]
+    nz=booking.ZoneInfo('Pacific/Auckland')
+    assert first.astimezone(nz).strftime('%Y-%m-%d %H:%M')=='2026-11-13 08:00'
+    for tzname in ('America/New_York','America/Los_Angeles','Europe/London','Asia/Tokyo'):
+        # the instant is unchanged; only the label differs
+        assert first.astimezone(booking.ZoneInfo(tzname)).astimezone(timezone.utc)==first
+    # and no slot leaks outside the configured NZ window
+    assert all(s.astimezone(nz).strftime('%H:%M')>='08:00' for s in slots)
+    assert all(s.astimezone(nz).strftime('%H:%M')<='22:30' for s in slots)
+
+
+def test_min_notice_still_excludes_slots_too_soon_under_a_wide_window():
+    """A wide window must not defeat the 2-hour lead time."""
+    tenant={'timezone':'Pacific/Auckland','slot_minutes':30,'min_notice_hours':2,
+            'business_hours':{'fri':[['08:00','23:00']]}}
+    # 'now' is noon NZ on the booking day, so everything before 14:00 must be gone
+    now=datetime(2026,11,13,12,0,tzinfo=booking.ZoneInfo('Pacific/Auckland')).astimezone(timezone.utc)
+    slots=booking.day_slots(tenant,date(2026,11,13),now,[])
+    nz=booking.ZoneInfo('Pacific/Auckland')
+    local=[x.astimezone(nz).strftime('%H:%M') for x in slots]
+    assert local and local[0]=='14:00', local
+    assert '13:30' not in local and '08:00' not in local
