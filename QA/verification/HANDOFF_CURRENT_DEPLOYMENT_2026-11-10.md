@@ -1,3 +1,7 @@
+> **Superseded for current status by `WORKFLOW_STATUS_2026-11-10.md`.** The Rust port is
+> abandoned (10 November 2026); the "356 tests + Rust gate" figures below are historical.
+> The Python API is the product.
+
 # Concierge handoff — 10 November 2026
 
 Read this first for current deployment state. Read

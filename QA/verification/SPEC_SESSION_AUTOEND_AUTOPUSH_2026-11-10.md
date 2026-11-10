@@ -88,10 +88,11 @@ Auto-push to `main` is the destructive part of this design. Guardrails:
 - **Refuse to push if the tree contains anything unexpected.** If `git status`
   shows stages beyond the known set, stop and ask. This is the failure mode that
   silently publishes credentials or large binaries.
-- **Run the gates before committing:** `pytest api/tests -q` and
-  `./scripts/rust-gate.sh`. A red gate must block the push, not be noted in the
-  commit message. The current session had four tests pass against deliberately
-  broken code — a green suite is evidence only if it can fail.
+- **Run the gate before committing:** `pytest api/tests -q`. A red gate must
+  block the push, not be noted in the commit message. The current session had
+  four tests pass against deliberately broken code — a green suite is evidence
+  only if it can fail. The Rust gate was removed on 2026-11-10 when the Rust
+  port was abandoned; `concierge-stack/` is reference only.
 - **Never `docker cp` into a running container** as part of any verification
   step. Use bind mounts. This contaminated production once already.
 
@@ -168,9 +169,9 @@ Evidence, all run in this session:
 
 | Check | Result |
 | --- | --- |
-| New tests | **34 passed** |
-| Full suite | **504 passed** (was 470; +34, no regressions) |
-| Rust gate | `GATE-ALL-OK` |
+| New tests | **33 passed** (34 before the Rust-gate test was removed) |
+| Full suite | **506 passed** (was 470; +tests for the auto-end, no regressions) |
+| Rust gate | removed — Rust port abandoned 2026-11-10 |
 | Excluded paths | now `.gitignore`d, not left to operator memory |
 
 Falsification — each guardrail was broken deliberately and the tests confirmed

@@ -1,3 +1,7 @@
+> **Current status (10 November 2026):** [WORKFLOW_STATUS_2026-11-10.md](QA/verification/WORKFLOW_STATUS_2026-11-10.md).
+> Read that first. The **Rust port is abandoned** — do not continue it and do not treat
+> `scripts/rust-gate.sh` as a requirement; the Python API on `main` is the product.
+
 > Current deployment and continuation (10 November 2026): [HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md](QA/verification/HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md). Read this first for runtime state; it points to the complete product mandate.
 >
 > Seven-step workflow live verification (10 November 2026): [PORTAL_WORKFLOW_LIVE_VERIFICATION_2026-11-10.md](QA/verification/PORTAL_WORKFLOW_LIVE_VERIFICATION_2026-11-10.md). What is implemented/tested/live versus unverified, the Cloudflare 403 explanation, and the two real remaining configuration gaps.

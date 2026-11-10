@@ -23,8 +23,8 @@ optional separate gate and was not touched.
 | --- | --- |
 | Workspace | `/Users/jo/work-staging/concierge-integration` (git worktree) |
 | Branch | `main`, HEAD `75b8d6a`, matches `origin/main` (0/0) — re-verified 2026-11-10 19:12 |
-| Tests | **507 passed** (`PYTHONPATH=api pytest api/tests -q`, 9.85s) — re-run 2026-11-10 19:12 |
-| Rust | `GATE-ALL-OK` (`./scripts/rust-gate.sh`) |
+| Tests | **506 passed** (`PYTHONPATH=api pytest api/tests -q`, 9.13s) — 19:31, after the Rust-gate test was removed with the abandoned port |
+| Rust | **legacy** — Rust port abandoned 2026-11-10; `rust-gate` is not a requirement |
 | Deployed image | `trendi-concierge-api:vps` → `51731df49bd3` |
 | Container matches image | yes — running `main.py` / `booking.py` are byte-identical to HEAD (`d64937cc…`, `a4ad2b2e…`), verified 2026-11-10 19:12 |
 | Rollback tags | `before-sms-throttle-20261110`, `before-clean-rebuild-20261110` → `c69687f6bf10`, `before-calendar-time-tolerance-20261110` |

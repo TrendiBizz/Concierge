@@ -163,24 +163,6 @@ def test_red_test_gate_blocks(monkeypatch, tmp_path):
         mod.run_gates(tmp_path)
 
 
-def test_red_rust_gate_blocks(monkeypatch, tmp_path):
-    calls = {"n": 0}
-
-    class Result:
-        def __init__(self, rc, out=""):
-            self.returncode = rc
-            self.stdout = out
-            self.stderr = ""
-
-    def fake_run(args, **kwargs):
-        calls["n"] += 1
-        return Result(0, "tests ok") if calls["n"] == 1 else Result(1, "gate blew up")
-
-    monkeypatch.setattr(mod, "run", fake_run)
-    with pytest.raises(mod.Refused, match="rust gate FAILED"):
-        mod.run_gates(tmp_path)
-
-
 def test_green_gates_pass(monkeypatch, tmp_path):
     class Result:
         returncode = 0
@@ -188,7 +170,7 @@ def test_green_gates_pass(monkeypatch, tmp_path):
         stderr = ""
 
     monkeypatch.setattr(mod, "run", lambda *a, **k: Result())
-    mod.run_gates(tmp_path)  # must not raise
+    mod.run_gates(tmp_path)  # Python suite green and no Rust gate to run
 
 
 # --------------------------------------------------------------------------

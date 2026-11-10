@@ -70,7 +70,6 @@ ALLOWED_STAGED_FILES = {
 }
 
 GATE_TESTS = ["pytest", "api/tests", "-q"]
-GATE_RUST = "./scripts/rust-gate.sh"
 
 
 class Refused(Exception):
@@ -155,16 +154,16 @@ def check_staged_are_expected(repo: Path) -> None:
 
 
 def run_gates(repo: Path) -> None:
-    """Both gates must pass. A red gate blocks the push."""
+    """The Python suite must pass; a red test gate blocks the push.
+
+    The Rust gate was removed on 2026-11-10 when the Rust port was abandoned;
+    `concierge-stack/` is reference only and is not part of the product.
+    """
+    # Rust port abandoned 2026-11-10: only the Python suite gates a push.
     tests = run(GATE_TESTS, cwd=repo, env_pytest=True)
     if tests.returncode != 0:
         tail = (tests.stdout or tests.stderr).strip().splitlines()[-15:]
         raise Refused("pytest gate FAILED:\n" + "\n".join(tail))
-
-    rust = run([GATE_RUST], cwd=repo)
-    if rust.returncode != 0:
-        tail = (rust.stdout or rust.stderr).strip().splitlines()[-15:]
-        raise Refused("rust gate FAILED:\n" + "\n".join(tail))
 
 
 def current_branch(repo: Path) -> str:
