@@ -13,7 +13,7 @@ def test_classify_virus_is_high():
 def test_classify_spam_thresholds():
     risk, flags = email_scan.classify({"spam_score": 7.5})
     assert risk == "high" and "spam_high" in flags
-    risk, flags = email_scan.classify({"spam_score": 3.5})
+    risk, flags = email_scan.classify({"spam_score": 4.5})
     assert risk == "medium" and "spam_medium" in flags
 
 

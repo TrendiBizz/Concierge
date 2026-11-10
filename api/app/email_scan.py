@@ -14,7 +14,7 @@ from .config import get_settings
 
 MAX_SCAN_BYTES = 200_000
 SPAM_HIGH = 6.0
-SPAM_MEDIUM = 3.0
+SPAM_MEDIUM = 4.0
 
 
 def classify(scan: dict | None) -> tuple[str, list[str]]:

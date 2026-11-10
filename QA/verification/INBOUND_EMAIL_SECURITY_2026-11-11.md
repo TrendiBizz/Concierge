@@ -108,3 +108,20 @@ quarantined row with attacker text, which a human sees and discards or releases.
   verified_by:email-auth}`; the earlier draft (before this rule) was `medium`.
 - Tests: 531 passed. Test draft/lead rows and the temporary DKIM TXT record were
   removed after verification.
+
+## Rspamd + ClamAV content scanning — 2026-11-11 13:05
+
+- Containers added to compose: `rspamd/rspamd` (internal 11333) and
+  `clamav/clamav:stable` (internal 3310, 1.8 GB limit, healthcheck). Both are
+  reachable only on the compose network.
+- `api/app/email_scan.py` posts the raw message to Rspamd `/checkv2` for a spam
+  score and streams it to ClamAV `INSTREAM` for antivirus. Best effort: any
+  scanner failure is ignored and never blocks or hides mail.
+- Risk floors: virus -> high; spam score >= 6 -> high; >= 4 -> medium.
+  (Minimal synthetic messages score ~3, so 4 avoids false positives.)
+- Verified live: a DKIM-signed clean message returned `risk=low, status=draft`
+  (spam 3.1, ClamAV clean); an EICAR message returned `risk=high,
+  status=quarantined` with `virus` + `spam_high`. Tests: 535 passed.
+- Operational note: the Rust sidecar caches negative DNS answers for up to an
+  hour; restart `trendi-email-auth-1` after publishing a DKIM record. Test rows
+  and the temporary DKIM TXT record were removed.
