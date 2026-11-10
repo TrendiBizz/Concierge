@@ -620,6 +620,55 @@ business needs a Google Calendar OAuth consent, which only the account holder ca
 precise, smallest missing input -- not "customer data", just one OAuth authorisation for a second
 mailbox. Everything else about the second business is already verifiable and verified.
 
+## Defect found and fixed: provider time precision stranded bookings in retry
+
+Driving the booking path for the **second** real business surfaced a genuine defect. The
+appointment recorded its time as `2026-11-13 00:30:05.917076+00:00`, and Google returned
+`2026-11-13T00:30:05Z`. The verification step compared them with `!=`, which is false for any
+sub-second difference, so it raised "Calendar event time does not match booking" and the
+appointment was written to `retry`. It would have retried up to ten times and never synced.
+
+Everything else in that verification passed -- status `confirmed`, the attendee present, both
+Concierge markers matching -- so a single over-precise comparison was the whole failure.
+
+**Severity, stated accurately.** The only appointment-creating path is `booking.book`, which builds
+times from `time(0)` on a whole minute, so `starts_at` carries zero microseconds and this was
+**not reachable in production**. The one production appointment synced precisely because its time
+was `21:00:00`. So this was a latent fragility rather than a live outage: one careless INSERT, or a
+future path that derives a time from `now()`, would have stranded every booking. I verified the
+unreachability rather than assuming it -- all slots produced by the real availability path were
+checked and every one had microsecond `0` and second `0`.
+
+Fixed by comparing to the second rather than exactly:
+
+```python
+if abs((actual - expected).total_seconds()) >= 10:
+    raise CalendarUnavailable('Calendar event time does not match booking')
+```
+
+Ten seconds is far tighter than any booking slot, so a genuinely wrong time is still refused; a
+test asserts that 1 minute, 30 minutes and 2 hours apart all fail the tolerance.
+
+**Verified against the real provider after the fix.** The same second-business run then reached
+`synced` with `invitation_state=provider_requested`:
+
+```
+sync WITH calendar -> synced | invitation: provider_requested
+provider GET: 200
+  summary    : Meta review workspace — Meta Client
+  start/end  : 2026-11-13T00:32:30Z -> 2026-11-13T01:02:30Z
+  private    : {'concierge_tenant': 'cd0a7dfb-...', 'concierge_appointment': '1d25ba73-...'}
+cleanup DELETE: 204
+```
+
+The event belonged to the **second** business, not the one already verified, which is the
+two-business booking evidence the objective asked for.
+
+**Provider hygiene.** Two test events were created in the owner's real calendar during this work.
+Both were deleted (HTTP 204) and the calendar was confirmed back at its baseline of exactly one
+event, the genuine production booking. Deletion was matched on the exact appointment id, so the
+production event was never a candidate.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -648,7 +697,7 @@ mailbox. Everything else about the second business is already verifiable and ver
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **445 passed** (356 pre-existing + 89 in the
+- `PYTHONPATH=api pytest api/tests -q` → **449 passed** (356 pre-existing + 93 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
@@ -662,8 +711,8 @@ mailbox. Everything else about the second business is already verifiable and ver
 | | |
 | --- | --- |
 | Commit | `37d0846` for the readiness change; the permissions-panel fix followed. The image is built from the working tree, so the baked label lags the commit — currency is established by file hash, never by the label |
-| Image | `trendi-concierge-api:vps` → `ca80d870d1e1` (previous `3c05e01c5220`) |
-| Rollback images | `before-authz-panel-fix-20261110` → `3c05e01c5220`; `before-booking-readiness-20261110` → `7a16174bc7cc` |
+| Image | `trendi-concierge-api:vps` → `c69687f6bf10` (previous `ca80d870d1e1`) |
+| Rollback images | `before-calendar-time-tolerance-20261110`; `before-authz-panel-fix-20261110` → `3c05e01c5220`; `before-booking-readiness-20261110` → `7a16174bc7cc` |
 | Backup | `/opt/trendi/backups/booking-readiness-20261110` (source-before.tgz, api.env.before, image-before.txt) |
 | Recreate | `api` and `social` together, `--no-deps --force-recreate` |
 | Verified | deployed `owner_onboarding.py` SHA-256 `3aa7ca14…` and `owner.html` SHA-256 `5b08a0e1…` are **byte-identical to HEAD**; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present; the guard is present in the publicly served page |

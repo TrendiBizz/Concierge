@@ -1223,3 +1223,49 @@ def test_overview_reports_the_booking_channel_for_every_business():
     from app import owner_onboarding
     src = inspect.getsource(owner_onboarding.overview)
     assert '"booking": booking_readiness(tenant)' in src
+
+
+# ---------------------------------------------------------- provider time precision
+
+def test_a_provider_truncated_time_still_verifies():
+    """Providers do not round-trip sub-second precision, and an exact compare strands the booking.
+
+    Found while driving the second real business: a stored start of 00:30:05.917076 came back from
+    Google as 00:30:05, so the exact comparison failed, the appointment was marked 'retry', and it
+    would have retried until it exhausted its attempts without ever syncing. The real booking path
+    (booking.book) builds times from whole minutes so this was not reachable in production, but the
+    check was one careless INSERT away from stranding every booking.
+    """
+    from datetime import datetime, timedelta, timezone
+    stored = datetime(2026, 11, 13, 0, 30, 5, 917076, tzinfo=timezone.utc)
+    provider = datetime(2026, 11, 13, 0, 30, 5, tzinfo=timezone.utc)
+    assert provider != stored                      # exact compare would fail
+    assert abs((provider - stored).total_seconds()) < 10   # the tolerance accepts it
+
+
+def test_a_genuinely_wrong_time_is_still_refused():
+    """The tolerance must not be so wide that a real mismatch passes."""
+    from datetime import datetime, timedelta, timezone
+    stored = datetime(2026, 11, 13, 0, 30, tzinfo=timezone.utc)
+    for delta in (timedelta(minutes=1), timedelta(minutes=30), timedelta(hours=2)):
+        assert abs(((stored + delta) - stored).total_seconds()) >= 10
+
+
+def test_the_tolerance_is_applied_to_both_start_and_end():
+    import inspect
+    from app import calendar_connection
+    src = inspect.getsource(calendar_connection.sync_one)
+    assert "for key, expected in (('start', appt['starts_at']), ('end', appt['ends_at']))" in src
+    assert "total_seconds()) >= 10" in src
+    assert "actual != expected" not in src, "the exact comparison is what stranded the booking"
+
+
+def test_the_real_booking_path_produces_whole_minute_times():
+    """Belt and braces: even with the tolerance, slots should stay on whole minutes."""
+    from datetime import date, datetime, timezone
+    tenant = {**BUSINESS_A, "business_hours": {"wed": [["09:00", "17:00"]]}}
+    slots = booking.day_slots(tenant, date(2026, 11, 18),
+                              datetime(2026, 11, 17, tzinfo=timezone.utc), [])
+    assert slots, "expected slots for a configured weekday"
+    assert {s.microsecond for s in slots} == {0}, "slots must not carry sub-second precision"
+    assert {s.second for s in slots} == {0}

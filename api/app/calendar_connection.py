@@ -229,7 +229,12 @@ async def sync_one(appointment_id):
                     raise CalendarUnavailable('Calendar event or invitation could not be verified')
                 for key, expected in (('start', appt['starts_at']), ('end', appt['ends_at'])):
                     actual = datetime.fromisoformat(result[key]['dateTime'].replace('Z', '+00:00'))
-                    if actual != expected:
+                    # Compare to the second, not to the microsecond. Providers do not round-trip
+                    # sub-second precision: Google returned 00:30:05 for a stored 00:30:05.917076,
+                    # so an exact comparison failed every time and the appointment was stuck in
+                    # 'retry' until it exhausted its attempts. The 10-second window is far tighter
+                    # than any booking slot, so a genuinely wrong time is still caught.
+                    if abs((actual - expected).total_seconds()) >= 10:
                         raise CalendarUnavailable('Calendar event time does not match booking')
                 await conn.execute("UPDATE appointments SET calendar_state='synced',calendar_event_id=$2,calendar_error='',calendar_synced_at=now(),invitation_state='provider_requested' WHERE id=$1", appointment_id, remote_id)
             except (CalendarUnavailable, httpx.HTTPError, ValueError, KeyError):
