@@ -160,3 +160,26 @@ provider setup".
 
 Secrets: `stripe.key` and `cloudflare.key` are stored under `/opt/trendi/shared`,
 mode 600; rotate them after setup.
+
+
+## Email intake — live 2026-11-11 12:22
+
+Owner decision: move email intake to Cloudflare (accepting the MX migration away from Jellyfish).
+
+- Cloudflare Email Routing enabled; MX now `route1/2/3.mx.cloudflare.net`
+  (old Jellyfish MX backed up before deletion). SPF updated to include
+  `_spf.mx.cloudflare.net`.
+- Rules: `admin@trendibizz.com` -> Worker `concierge-inbound-worker`;
+  catch-all -> `kiwi18@gmail.com` (destination verified).
+- Worker posts to **`https://concierge.trendibizz.com/api/v1/inbound/cloudflare`**
+  (the gateway routes that path on the owner host, not the chat host) with a
+  browser UA; then forwards the original to Gmail.
+- End-to-end proof (external Gmail -> admin@): worker tail logged
+  `concierge inbound 200 {"accepted":true,"draft_id":6}`, a CRM draft and lead
+  appeared, and the forwarded copy arrived in Gmail.
+- Earlier failure: worker pointed at the chat host, which does not route the
+  inbound path (404); the worker forwarded anyway, so the email reached Gmail but
+  no CRM record was created.
+- Test rows (draft/lead/conversation/case) cleaned.
+- Site disclosure updated: "Phone and SMS channels are enabled after provider
+  setup and testing; email is live."
