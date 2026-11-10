@@ -323,6 +323,42 @@ differed correctly. But that run also wrote to production, so the test as writte
 reused. Any future attempt must override the database URL *before* settings are first read (or
 run against a separate container), never by mutating the environment after the cache is warm.
 
+## Two-business end-to-end now passes, safely
+
+After the incident above I fixed the test properly rather than abandoning it: `run_twobiz.sh`
+exports `DATABASE_URL` **before** Python starts, and both the launcher and the script itself refuse
+to proceed unless settings report the throwaway database. Re-run against that database, with the
+real schema loaded:
+
+```
+target: postgresql://***@postgres:5432/concierge_twobiz_verify
+confirmed throwaway target
+TENANT A harbour-dental      Pacific/Auckland
+TENANT B southern-plumbing   America/Chicago
+STEP 2  case A = email:hana@example.com | case B = phone:+13125550199
+STEP 6  harbour-dental     first=inserted replay=deduped
+STEP 6  southern-plumbing  first=inserted replay=deduped
+STEP 6  timelines A=1 B=1, cross-tenant read returned []
+STEP 4  each owner reached only their own two destinations
+STEP 5  ask waits for confirmation; ack addressed to the enquirer and owned by A
+STEP 7b quote total = 28750 | A sees 1, B sees 0
+STEP 7b reviewed -> v 2 ; stale replay refused 409
+STEP 7  A slots = 12 Pacific/Auckland | B slots = 12 America/Chicago
+READY   emptying B's hours flipped B only: B open_days = 0 reason set = True | A open_days = 5
+
+ALL TWO-BUSINESS END-TO-END CHECKS PASSED
+```
+
+Confirmed afterwards that production held exactly its three real tenants while the two test
+businesses existed only in the throwaway database, so the safety gate worked.
+
+One assertion of mine was wrong rather than the code: I first expected `ready` to be True for the
+business with open hours, but `ready` means *enabled AND usable* and booking is disabled for both,
+so `ready` is False for both by design. The per-business discriminator is `reason` and `open_days`,
+which moved for B alone. I corrected the test, not the implementation.
+
+The harness is preserved at `QA/verification/twobiz/` with a README explaining the failure mode.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
