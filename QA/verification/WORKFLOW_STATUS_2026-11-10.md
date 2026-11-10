@@ -105,3 +105,32 @@ probe so no external message was sent:
 
 Nothing else is code-blocking for the live business. The earlier "second business
 OAuth" blocker is void because `trendi-meta-review` is test data.
+
+
+## Full site recheck — 2026-11-11 09:05
+
+Verified against production, not source:
+
+- **Public site**: 60 internal URLs crawled from `trendibizz.com` and
+  `/concierge` — all 200, no broken links. Home, `/concierge`, owner portal and
+  CRM all 200.
+- **Widget**: served `widget.js` (29,430 bytes) loads and registers without
+  throwing; `widget-config` 200 with the live tenant config; chat/voice already
+  live-verified.
+- **Owner portal**: served page (82,082 bytes) — all referenced ids exist, script
+  parses and loads without throwing, every refresh function defined.
+- **Admin UI**: private page parses and loads cleanly (fetched over loopback).
+- **Gateway**: all **96** API routes reach the application through the gateway —
+  no 404 at the edge.
+- **API**: `healthz` 200. Deployed source equals HEAD except `asterisk_bridge.py`,
+  which only the (stopped) phone bridge uses; the bridge container mounts the
+  repaired file from the release directory, which matches HEAD.
+- **Calendar**: 0 live events in November after cleanup.
+- **Database**: no pending/failed outbox rows, no orphaned calendar tokens.
+
+Leftover **test data removed** during the recheck: a booked/synced test
+appointment still on the live calendar (`Concierge controlled workflow test`),
+a cancelled test appointment with queued reminders, two `@example.com` leads and
+their conversations/cases, a stray verification chat conversation, and stale
+owner-alert SMS rows. The appointment/cancellation path in the API does cancel
+pending reminders; the leftovers came from direct-DB probes that bypassed it.
