@@ -1055,6 +1055,38 @@ produced a false result:
 - I then confirmed it can actually fail, by pointing it at a prefix where every route 404s, rather
   than trusting a green result. An audit that cannot fail proves nothing.
 
+## The gateway audit now covers all 94 routes, including router-mounted ones
+
+The first version of the audit only saw routes declared with `@app.get(...)`-style decorators in
+double quotes, which understated coverage. Rewritten to pair each `@router` path with **its own
+module's** prefix, it now checks every route the application serves:
+
+```
+checked 94 routes across https://concierge.trendibizz.com and https://chat.trendibizz.com
+OK: every app route reaches the application (no 404 at the edge)
+```
+
+That is a much stronger statement than the earlier 17-route sample. Owner routes are included, and
+the `/owner/*` wildcard covers all 73 of them -- none slips past it (a route would have to start with
+`/owner` but not `/owner/` to do so, and none does).
+
+The only `/api/v1/*` routes outside gateway coverage remain the three inactive `/api/v1/phone/twilio/*`
+ones, already verified as deliberately dormant.
+
+**Three attempts at this script were wrong, and each would have produced a confident false result.**
+Recorded because the pattern matters more than the script:
+
+1. It matched only double-quoted routes, silently missing single-quoted ones (`mobile_connections`,
+   `hermes_ops`).
+2. It cross-multiplied every router route against every prefix, inventing paths like
+   `/owner/email-secretary/twilio/{connection_id}` and then reporting them **blocked**.
+3. It appended a `health-probe-placeholder` segment to each prefix, which produced three false
+   "blocked" results for paths that never existed.
+
+The working version keeps the route list in a separate tested module (`gateway_route_list.py`) so the
+bash script contains no fragile quoting. Both files are syntax-checked, and the audit was confirmed
+to **fail** (exit 1) against a deliberately wrong prefix, so a green result means something.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
