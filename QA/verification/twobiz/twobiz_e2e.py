@@ -142,6 +142,50 @@ async def main():
           "reason set =", bool(rb2["reason"]), "| A open_days =", ra2["open_days"],
           "reason =", repr(ra2["reason"]))
 
+
+    # --- channel boundary: per-business voice gating and independent daily limits
+    from app import voice, channel_authorization as cauth
+
+    # Neither business has voice enabled yet: both must refuse, and neither refusal may leak state.
+    await tenants.update("harbour-dental", {"voice_enabled": False})
+    await tenants.update("southern-plumbing", {"voice_enabled": False})
+    A = await tenants.get_by_slug("harbour-dental")
+    B = await tenants.get_by_slug("southern-plumbing")
+    for t in (A, B):
+        try:
+            await voice.mint_token(t)
+            raise AssertionError(f"{t['slug']}: voice minted while disabled")
+        except voice.VoiceUnavailable as exc:
+            assert "disabled" in str(exc).lower(), exc
+    print("VOICE   both businesses refused a token while voice was disabled")
+
+    # Enable A only. A must succeed; B must still refuse.
+    await tenants.update("harbour-dental", {"voice_enabled": True})
+    A = await tenants.get_by_slug("harbour-dental")
+    B = await tenants.get_by_slug("southern-plumbing")
+    minted = await voice.mint_token(A)
+    assert minted.get("token") and minted.get("url", "").startswith("wss://")
+    print("VOICE   A minted a real token, url =", minted["url"])
+    try:
+        await voice.mint_token(B)
+        raise AssertionError("B minted while disabled")
+    except voice.VoiceUnavailable:
+        print("VOICE   B still refused after A was enabled")
+
+    # Independent daily quota: exhaust A's, and B's counter must be untouched.
+    await pool.execute("UPDATE tenants SET voice_daily_limit=2 WHERE id=$1", A["id"])
+    A = await tenants.get_by_slug("harbour-dental")
+    await voice.mint_token(A)   # second token
+    try:
+        await voice.mint_token(A)   # third, over the limit of 2
+        raise AssertionError("A exceeded its daily limit")
+    except voice.VoiceUnavailable as exc:
+        assert "limit" in str(exc).lower(), exc
+    used_a = await pool.fetchval("SELECT count(*) FROM voice_tokens WHERE tenant_id=$1", A["id"])
+    used_b = await pool.fetchval("SELECT count(*) FROM voice_tokens WHERE tenant_id=$1", B["id"])
+    assert used_a == 2 and used_b == 0, (used_a, used_b)
+    print("VOICE   A daily limit enforced (tokens =", used_a, "); B counter untouched (", used_b, ")")
+
     print()
     print("ALL TWO-BUSINESS END-TO-END CHECKS PASSED")
 

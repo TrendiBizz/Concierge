@@ -389,6 +389,26 @@ remote event ids cannot collide across tenants. Three tests now pin this, and
 `test_a_business_without_a_calendar_cannot_sync_into_another_businesss` was confirmed to **fail
 when the refusal guard is replaced by a fallback calendar** and pass when restored.
 
+## Two-business harness extended to the channel boundary
+
+The harness now also drives the per-business voice gate, which is where a metered resource could
+leak between businesses:
+
+```
+VOICE   both businesses refused a token while voice was disabled
+VOICE   A minted a real token, url = wss://api.x.ai/v1/realtime
+VOICE   B still refused after A was enabled
+VOICE   A daily limit enforced (tokens = 2 ); B counter untouched ( 0 )
+```
+
+Enabling voice for A let A mint a genuine xAI token while B stayed refused, and exhausting A's
+daily limit did not consume a single unit of B's quota. The counters live per tenant, so one
+business cannot spend another's allowance.
+
+A side note recorded for accuracy: my earlier legitimate voice probes against the real tenant
+consumed **1 of its 200** daily tokens, which is ordinary usage rather than damage. All six
+voice_tokens rows belong to that real tenant; none leaked to the test businesses.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
