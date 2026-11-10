@@ -1413,9 +1413,26 @@ An acknowledgement applies to any channel, so requiring a voice session for it w
 the feature from chat and SMS. Two tests pin that, and both were confirmed to **fail** when the tool is
 given `requires_session: True` and pass when restored.
 
+## The seven requirements, each with its evidence
+
+| # | Requirement | State | Evidence |
+| --- | --- | --- | --- |
+| 1 | Receive voice, text or email | **live** | Widget and chat 200; voice token minted from xAI (111 chars); email ingress verified with signature checking; SMS routes 503 by design with no provider |
+| 2 | Identify the channel | **live** | Per-channel ingress rows; `concierge_tenant` marker and attendee verified on the real provider event |
+| 3 | Answer from the business's own information | **live** | Tenant-scoped retrieval, 28 chunks, 0 cross-tenant overlap; a foreign business's query cannot read another's knowledge |
+| 4 | Forward the original enquiry to the owner | **live** | `enquiry-original:*` alert delivered to the owner's email (`sent`); the throttle defect here was found and fixed this session |
+| 5 | Offer the enquirer an acknowledgement, separate from owner alerts | **live** | Driven through the assistant's own tool: offer queues nothing, confirm queues one, decline records without sending, worker delivers, kind stays `enquirer_ack` |
+| 6 | Retain the full CRM dialogue, isolate businesses, dedupe retries, book to the owner's calendar with an enquirer invitation | **live** | Two-business isolation proven; webhook replay produced exactly one record set; the second business booked against the real Google provider carrying *its* tenant marker and attendee |
+| 7 | CRM Quotations create and retrieve | **live** | Create/retrieve verified per business, 0 cross-tenant leakage |
+| — | Cloudflare 403 public-edge probe | **characterised** | Case-sensitive literal `Python-urllib` only; lowercase, python-requests, Go, curl and Googlebot all 200. Nothing server-side fetches `public_base_url`, so no real impact |
+
+Cellular SIP is an optional separate gate and was not touched: `phone_numbers = 0`, no
+number purchased, and the three `/api/v1/phone/twilio/*` routes are deliberately dormant.
+Website voice is independent of it and is verified working.
+
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **467 passed** (356 pre-existing + 111 in the
+- `PYTHONPATH=api pytest api/tests -q` → **470 passed** (356 pre-existing + 114 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
