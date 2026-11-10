@@ -131,13 +131,31 @@ and 5 are separate optional gates.
    would be wrong twice over: it sets one session rather than the default, and it
    writes into state DSH owns.
 
-   Nothing was changed. To finish this, the options are (a) use the UI's default-mode
-   control, which needs no code, or (b) confirm the config key that feeds
-   `sandboxPolicy.defaultMode` so it can be set in `~/.dsh/cordis.patch.yml`. Option
-   (a) is recommended: it is the supported path, and it cannot corrupt session state.
-2. **Automatically end long sessions and run commit/push/handoff.** Not built. Needs
-   two decisions: the trigger (turn count, context size, or elapsed time) and whether
-   pushing to `main` is automatic or waits for review.
+   **DONE 2026-11-10.** Option (b) as written was wrong: no `sandboxPolicy.defaultMode`
+   key exists anywhere in the harness. The real mechanism is `defaultPreset` on the
+   loader entry whose id is `permission` (`@deepseek-ai/dsh-permission-presets`).
+   Applied to `~/.dsh/profiles/web/cordis.patch.yml`:
+
+   ```yaml
+   - id: permission
+     name: "@deepseek-ai/dsh-permission-presets"
+     config:
+       defaultPreset: workspace-write
+   ```
+
+   Verified by `dsh --profile web --dump-config`: the entry is marked
+   `patched by …/cordis.patch.yml` with `defaultPreset: workspace-write`, and no
+   patch warnings. The UI route is the *same* write, not an alternative — the
+   General settings row mutates namespace `permission`, path `["defaultPreset"]`.
+   `defaultPreset` is consulted only for a genuinely fresh session
+   (`!seeded`), so existing sessions keep their pinned knobs and cannot be
+   rewritten. Backup: `cordis.patch.yml.bak-20261110-150553-preperms`.
+   Takes effect for sessions created after the web profile restarts.
+2. **Automatically end long sessions and run commit/push/handoff.** Still not built,
+   but **decided**: trigger is context size, push is automatic to `origin/main`.
+   Full design including the `contextPressure` vs lifetime-`tokenUsage` trap, push
+   guardrails, and acceptance criteria:
+   `SPEC_SESSION_AUTOEND_AUTOPUSH_2026-11-10.md` (this directory).
 
 ## Working notes for the next session
 
