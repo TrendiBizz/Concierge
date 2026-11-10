@@ -160,9 +160,56 @@ cleanup, and a quotation visible to one business and not the other). The local
 
 ## Completed this session (2026-11-10, next session)
 
-**Opening hours for `trendi-oauth-staging` — DONE.** Set to Mon–Fri 09:00–17:00,
-closed weekends (the same table the other two businesses use), written through
-`tenants.update`, not raw SQL, so it passed the app's own validation.
+**`native_booking` is ON and a real booking was proven end to end.** The live
+tenant now takes bookings automatically, which is the point of the site: the
+exchange is driven by the assistant, not by a person handling contacts.
+
+Enabled through `owner_onboarding.set_native_booking(...)` — the same call the
+owner portal makes — not raw SQL, so the acknowledgement gate was exercised:
+
+- `enabled=True, acknowledgement=False` → **refused** (gate works)
+- `enabled=True, acknowledgement=True` → `ready: True`
+
+Booking window widened to **Mon–Fri 08:00–23:00 Pacific/Auckland** so more of the
+world's working day is covered. 30 slots/day, first 08:00, last 22:30 ending
+exactly at 23:00.
+
+**A real booking, then cleaned up.** Driven exactly as the assistant's tool
+drives it, against production and the real Google Calendar:
+
+| Step | Result |
+| --- | --- |
+| `book()` without `confirmed` | refused, `needs_confirmation: True`, read-back text returned |
+| `book()` with `confirmed=true` | `ok: True`, `calendar_state: synced` |
+| `sync_one()` | `synced`, `invitation_state: provider_requested` |
+| cancellation | `calendar_state: cancelled` |
+| real calendar re-check | **0 live matching events** |
+| leftover test conversations | **0** |
+
+The test appointment was `ZZ Automation Proof` at
+`automation-proof@example.com` — the `.example` TLD cannot receive mail, so no
+real invitation reached anyone.
+
+**The confirmation guard needs a `conversation_id`, and that is worth knowing.**
+`book()` only accepts `confirmed=true` when the pending read-back state stored on
+the conversation matches the request exactly:
+
+```python
+pending = await convo.get_pending_booking(conversation_id) if conversation_id else None
+if not (args.get("confirmed") is True and pending == key):
+```
+
+With no conversation this can never succeed, so any automated caller must
+establish the conversation *before* the first `book()` call. This was found the
+hard way, by a probe that passed `conversation_id: None` and appeared to be
+refused forever.
+
+**Timezones needed no change.** `booking.py` already computes in the tenant's
+timezone and stores UTC, so an enquirer's location never shifts the diary. Three
+regression tests now lock that in, each falsified first by substituting a
+visitor's timezone for the tenant's — all three went red.
+
+**Opening hours for `trendi-oauth-staging` — DONE** (earlier the same day).
 
 | | before | after |
 | --- | --- | --- |
