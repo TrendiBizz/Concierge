@@ -1383,9 +1383,39 @@ was corrected to say that, and to name the single remaining blocker accurately: 
 consent** for `meta-review@trendibizz.com`. An outdated statement in a verification report is itself a
 defect, since a reader would act on it.
 
+## Step 5 driven through the assistant's own tool, end to end
+
+The acknowledgement was previously verified by calling the module directly. That leaves a gap: the
+model reaches it through `tools.run_tool`, and that dispatch path has its own availability gate. Driven
+the way the assistant actually does it, against a real Postgres:
+
+```
+1. offer      -> needs_confirmation True | queued: 0
+2. confirmed  -> queued | to hana@example.com
+3. declined   -> declined | queued: 1   (the second enquirer's refusal queued nothing)
+4. delivered  -> sent | to hana@example.com
+5. separate   -> kind is enquirer_ack, not owner_alert
+```
+
+So the whole promise holds through the real interface: offering queues nothing, confirming queues
+exactly one, declining records the refusal without sending, the outbox worker delivers it, and it stays
+a distinct kind from an owner alert.
+
+**The two delivery tools are also confirmed non-interchangeable**, which matters because their names
+are adjacent:
+
+| tool | channels | requires session | delivers |
+| --- | --- | --- | --- |
+| `request_enquiry_acknowledgement` | voice **and** chat | no | a thank-you to the enquirer |
+| `request_conversation_copy` | voice only | **yes** | the dialogue or recording |
+
+An acknowledgement applies to any channel, so requiring a voice session for it would silently remove
+the feature from chat and SMS. Two tests pin that, and both were confirmed to **fail** when the tool is
+given `requires_session: True` and pass when restored.
+
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **464 passed** (356 pre-existing + 108 in the
+- `PYTHONPATH=api pytest api/tests -q` → **467 passed** (356 pre-existing + 111 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

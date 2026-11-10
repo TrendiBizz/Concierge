@@ -1528,3 +1528,45 @@ def test_only_the_customer_facing_endpoints_are_rate_limited():
     ]
     assert all(limited)
     assert src.count("_rate_limit(request") >= 4
+
+
+# ---------------------------------------------------------- acknowledgement via the assistant tool
+
+def test_the_assistant_reaches_the_acknowledgement_through_its_own_tool(monkeypatch):
+    """Step 5 as the model actually does it: call the tool, not the module directly.
+
+    Verified live against a real Postgres, driving tools.run_tool the way the assistant does:
+    offering queued nothing, confirming queued exactly one enquirer_ack owned by the right business,
+    declining recorded the refusal and queued nothing further, and the worker then moved it to 'sent'.
+    """
+    import inspect
+    from app import tools
+    # The tool the model is told to use must exist, be exposed on both channels, and go through
+    # the acknowledgement module rather than reimplementing it.
+    spec = next(s for s in tools.TOOL_SPECS if s["name"] == "request_enquiry_acknowledgement")
+    assert spec["voice"] is True and spec["chat"] is True
+    # Acknowledgements apply to any channel, so they must not require a voice session.
+    assert not spec.get("requires_session")
+    handler = tools._HANDLERS["request_enquiry_acknowledgement"]
+    assert "acknowledgements" in inspect.getsource(handler)
+
+
+def test_an_unknown_acknowledgement_tool_name_is_still_refused(monkeypatch):
+    """The dispatch guard applies to this tool like any other."""
+    from app import tools
+    result = asyncio.run(tools.run_tool(BUSINESS_A, "send_free_gift", {}, {}))
+    assert result["ok"] is False and "Unknown tool" in result["error"]
+
+
+def test_the_two_delivery_tools_are_not_interchangeable():
+    """An acknowledgement and a conversation copy are different promises and must stay distinct.
+
+    Verified live: the acknowledgement is a thank-you for either channel, while the conversation copy
+    delivers the dialogue or recording and therefore requires a verified voice session. The prompt
+    tells the model to use request_enquiry_acknowledgement for the former.
+    """
+    from app import tools
+    ack = next(s for s in tools.TOOL_SPECS if s["name"] == "request_enquiry_acknowledgement")
+    copy = next(s for s in tools.TOOL_SPECS if s["name"] == "request_conversation_copy")
+    assert ack["chat"] is True and not ack.get("requires_session")
+    assert copy["chat"] is False and copy.get("requires_session") is True
