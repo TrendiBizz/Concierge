@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import struct
 import uuid
 
@@ -224,7 +225,7 @@ async def register(route, call_id):
     return tenant
 
 
-async def finish(tenant, call_id, conversation, status):
+async def finish(tenant, call_id, conversation, status, record_session=None):
     async with db.pool().acquire() as c:
         async with c.transaction():
             row = await c.fetchrow('SELECT ended_at FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2 FOR UPDATE', tenant['id'], call_id)
@@ -234,13 +235,30 @@ async def finish(tenant, call_id, conversation, status):
             text = '\n'.join(r['content'] for r in turns)
             if text:
                 lead = await c.fetchrow('UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *', tenant['id'], conversation, text[-1000:])
+                # Forward the voicemail as a private recording link when consent and
+                # a recording exist, then close with the CRM note -- the same shape
+                # the website-voice path uses, so the owner receives the audio, not
+                # only the transcript.
+                tail = ''
+                if record_session and record_session.get('recording_consent'):
+                    has_recording = await c.fetchval(
+                        'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
+                        tenant['id'], record_session['id'], conversation)
+                    if has_recording:
+                        token = secrets.token_urlsafe(32)
+                        await c.execute(
+                            'INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) VALUES($1,$2,$3)',
+                            voice_records.digest(token), record_session['id'], tenant['id'])
+                        tail += '\n\nRecording (private link expires in 24 hours): ' + \
+                            get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
+                tail += '\n\nThe complete enquiry is saved in your Concierge CRM.'
                 owner = await c.fetchval('SELECT owner_number FROM managed_phone_setups WHERE tenant_id=$1', tenant['id'])
                 if owner:
                     await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,dedupe_key) VALUES($1,'owner_alert','sms',$2,$3,$4) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], owner, f"{tenant['name']} — new phone message:\n{text[:1100]}", call_id+':owner')
+                                    tenant['id'], owner, f"{tenant['name']} — new phone message:\n{text[:1100]}{tail}", call_id+':owner')
                 if tenant.get('notify_email'):
                     await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'owner_alert','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000], call_id+':owner-email')
+                                    tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000] + tail, call_id+':owner-email')
                 if lead:
                     await events.queue_twenty(tenant, 'voice.completed', call_id, {'lead': dict(lead)}, connection=c)
             await c.execute('UPDATE phone_calls SET status=$3,ended_at=now() WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status)
@@ -345,7 +363,7 @@ async def handle(reader, writer, route, networks):
                         await voice_records.store_audio(record_session, body, 'audio/wav')
                     except Exception:
                         log.exception('Telephone recording could not be saved')
-                await finish(tenant, call_id, conversation, status)
+                await finish(tenant, call_id, conversation, status, record_session)
                 if record_session:
                     request = await db.pool().fetchval('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 RETURNING delivery_request', record_session['id'])
                     await voice_records.complete_delivery(record_session, tenant, request, {'ok':True})
