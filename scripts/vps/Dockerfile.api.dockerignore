@@ -2,3 +2,12 @@
 !api/app/**
 !api/static/**
 !scripts/vps/api-requirements.lock
+
+# Never build macOS AppleDouble resource forks into the image. They appear when a source tree is
+# transferred with macOS tar/scp (the archive carries a ._<name> sidecar per file), and once present
+# they are copied in alongside the real modules. They are inert -- Python never imports them, and
+# every one carries the AppleDouble magic 00051607 -- but they made the running image's /srv/app
+# differ from the host source in a way that looked like drift, and would make a clean rebuild
+# produce a different image from the one serving traffic. The running image carries 179 of them.
+**/._*
+**/.DS_Store

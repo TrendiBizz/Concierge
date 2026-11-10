@@ -877,6 +877,42 @@ stray `._*` beside a real file has never been imported. But a release tree that 
 match its source is a maintenance hazard, and a later "why does the host differ?" investigation would
 have cost far more than the check did.
 
+## The running image carried 179 AppleDouble artifacts, and the build now excludes them
+
+Comparing the host source against the image's own filesystem showed the image contains files the
+source does not:
+
+```
+/srv/app     175 AppleDouble files
+/srv/static    4
+total        179
+```
+
+All were inert -- magic `00051607`, not importable, normal imports unaffected -- but they matter for
+two reasons. They make the image differ from its source in a way that reads as drift, and a clean
+rebuild would have produced a **different image** from the one serving traffic, so the two could not
+be compared for equality at all.
+
+They came from `tar`/`scp` transfers of a macOS source tree in earlier sessions, where each file
+gains a `._<name>` sidecar carrying extended attributes. My own local tree is clean (zero such
+files), so this was inherited rather than introduced here.
+
+**The fix is at build time, and was verified rather than assumed.** `.dockerignore` now excludes
+`**/._*` and `**/.DS_Store`. Because that file uses allow-list patterns (`**` then `!api/app/**`),
+the exclusion needed checking: I planted an artifact in the source, built, and confirmed the image
+contained none:
+
+```
+plant api/app/._test_artifact.py -> docker build -> ls /srv/app | grep -c '^._' -> 0
+```
+
+Both the planted artifact and the throwaway test image were removed afterwards.
+
+**Verified after the file-content check, not before.** Restricting the comparison to real modules
+showed host source and image content are identical for all 62 files -- the build is faithful. The
+container's own filesystem also matched its image exactly, so no code had been edited inside the
+running container. The artifact problem was clutter and rebuild-fidelity, not incorrect code.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
