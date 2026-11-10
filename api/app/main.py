@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import casetimeline, hermes_orchestrator, provider_readiness
@@ -1218,6 +1218,11 @@ class EmailDraftRevision(BaseModel):
     reply_body: str = Field(min_length=1, max_length=10000)
 
 
+class SenderRule(BaseModel):
+    pattern: str = Field(min_length=3, max_length=320)
+    action: Literal["allow", "block"]
+
+
 def _email_feature_gate():
     if not settings.email_drafts_enabled:
         raise HTTPException(status_code=503, detail="Email draft workflow is disabled")
@@ -1907,6 +1912,7 @@ async def owner_discard_draft(draft_id: int, user: dict = Depends(owner_auth.cur
     row = await email_drafts.discard(user["tenant_id"], draft_id)
     if not row:
         raise HTTPException(404, "Draft not found")
+    await inbound_policy.audit(user["tenant_id"], draft_id, "discarded", user.get("email", ""))
     return row
 
 
@@ -1920,18 +1926,51 @@ async def owner_approve_draft(draft_id: int, user: dict = Depends(owner_auth.cur
         raise HTTPException(503, str(exc))
     if not row:
         raise HTTPException(409, "Draft unavailable")
+    await inbound_policy.audit(user["tenant_id"], draft_id, "approved", user.get("email", ""))
     return row
 
 
 @app.post("/owner/email-drafts/{draft_id}/release")
 async def owner_release_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
-    """Release a quarantined draft into the normal review queue (human action)."""
-    owner_auth.require_role(user, "editor")
+    """Release a quarantined draft. Owner only: a second pair of eyes on high risk."""
+    owner_auth.require_role(user, "owner")
     _email_feature_gate()
     row = await email_drafts.release(user["tenant_id"], draft_id)
     if not row:
         raise HTTPException(404, "No quarantined draft")
+    await inbound_policy.audit(user["tenant_id"], draft_id, "released", user.get("email", ""))
     return row
+
+
+@app.get("/owner/email-sender-rules")
+async def owner_sender_rules(user: dict = Depends(owner_auth.current_user)):
+    _email_feature_gate()
+    return await inbound_policy.list_rules(user["tenant_id"])
+
+
+@app.post("/owner/email-sender-rules", status_code=201)
+async def owner_add_sender_rule(body: SenderRule, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    try:
+        row = await inbound_policy.add_rule(
+            user["tenant_id"], body.pattern, body.action, user.get("email", ""))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await inbound_policy.audit(user["tenant_id"], None, "rule_added", user.get("email", ""),
+                               {"pattern": body.pattern, "action": body.action})
+    return row
+
+
+@app.delete("/owner/email-sender-rules/{rule_id}")
+async def owner_remove_sender_rule(rule_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    if not await inbound_policy.remove_rule(user["tenant_id"], rule_id):
+        raise HTTPException(404, "Rule not found")
+    await inbound_policy.audit(user["tenant_id"], None, "rule_removed", user.get("email", ""),
+                               {"rule_id": rule_id})
+    return {"removed": True}
 
 
 @app.get("/owner/phone-setup")

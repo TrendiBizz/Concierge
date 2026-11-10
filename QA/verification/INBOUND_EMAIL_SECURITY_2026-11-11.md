@@ -60,3 +60,23 @@ model, call a tool, book, send, pay, or change its rules.
 
 There is no path from an email to an automated side effect. The worst case is a
 quarantined row with attacker text, which a human sees and discards or releases.
+
+## Phase 1 implemented — 2026-11-11 12:45
+
+- **Sender policy per tenant** (`inbound_sender_rules`): exact address or `@domain`,
+  `allow`/`block`. Block wins. A blocked sender is accepted and **dropped without a
+  bounce** (no backscatter to a spoofed address); an allowed sender has high-risk
+  quarantine capped at `medium` but still gets full flags and human review.
+- **Audit trail** (`inbound_audit`): `received`, `released`, `approved`,
+  `discarded`, `rule_added`, `rule_removed`, with actor and timestamp.
+- **Two-person release**: quarantine release is **owner-only**; editors can edit
+  only after release, and approval is owner-only.
+- **Portal**: allowed/blocked sender UI; quarantined drafts show risk, flags and a
+  release action; links in the untrusted body are **defanged** (`hxxp(s)://`) and
+  never rendered as clickable.
+- **Verified live**: blocked probe returned `{"accepted":true,"dropped":"blocked"}`
+  with no CRM row; allowed probe with `dmarc=fail` + private-IP link produced
+  `risk=medium, status=draft`; receipt recorded in the audit table.
+- **Tests**: 527 passed (4 new policy tests).
+- **Not done / next**: Rspamd + ClamAV content scanning (optional, VPS-side);
+  moving inbound to a provider that authenticates SPF/DKIM/DMARC (Phase 2).

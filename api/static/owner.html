@@ -109,7 +109,12 @@ A configured channel still needs Trendi's verification before it is activated.</
 <h2>Email drafts awaiting review</h2>
 <p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
 <button type="button" id="refresh">Refresh</button>
-<div id="drafts"></div><h3>Automatic email replies</h3><p>Queued means awaiting delivery, not received. Held or failed work requires owner review before retrying.</p><div id="email-jobs"></div><button id="email-jobs-refresh" class="secondary" type="button">Refresh email reply status</button>
+<div id="drafts"></div>
+<h3>Allowed and blocked senders</h3>
+<p class="muted">An email address or @domain. Blocked senders are dropped without a reply. Allowed senders skip quarantine but are still reviewed by a person.</p>
+<div class="row"><input id="sender-rule-pattern" maxlength="320" placeholder="email@example.com or @domain" aria-label="Sender address or domain"><select id="sender-rule-action" aria-label="Sender rule action"><option value="block">Block</option><option value="allow">Allow</option></select><button id="sender-rule-add" type="button">Add rule</button></div>
+<div id="sender-rules"></div>
+<h3>Automatic email replies</h3><p>Queued means awaiting delivery, not received. Held or failed work requires owner review before retrying.</p><div id="email-jobs"></div><button id="email-jobs-refresh" class="secondary" type="button">Refresh email reply status</button>
 </section>
 <section id="social-panel" class="panel" hidden>
 <h2>Social accounts and drafts</h2>
@@ -894,10 +899,11 @@ async function refreshSocial(){
 
 async function refresh(){
  const generation=sessionGeneration;
- const [drafts,numbers,calls,phoneSms]=await Promise.all([
+ const [drafts,numbers,calls,phoneSms,senderRules]=await Promise.all([
    request("/owner/email-drafts?status=all").catch(error=>({error:error.message})),
    request("/owner/phone-numbers"),request("/owner/phone-calls"),
-   request("/owner/sms-phone").catch(error=>({error:error.message}))
+   request("/owner/sms-phone").catch(error=>({error:error.message})),
+   request("/owner/email-sender-rules").catch(error=>({error:error.message}))
  ]);
  assertSession(generation);
  clear($("numbers"));clear($("calls"));clear($("drafts"));
@@ -938,7 +944,7 @@ async function refresh(){
      item.appendChild(node("p","Security: "+draft.risk+" risk"+(flags.length?" — "+flags.join(", "):""),"muted"));
    }
    item.appendChild(node("strong","Incoming (untrusted)"));
-   item.appendChild(node("pre",draft.inbound_body));
+   item.appendChild(node("pre",defang(draft.inbound_body)));
    if(draft.status==="quarantined"){
      item.appendChild(node("p","Quarantined: this message was flagged as high risk. Release only after you are satisfied the sender is legitimate.","muted"));
      if(currentRole!=="viewer"){
@@ -983,6 +989,20 @@ async function refresh(){
    $("drafts").appendChild(item);
  }
 }
+const rulesHost=$("sender-rules");clear(rulesHost);
+ if(Array.isArray(senderRules)){
+   for(const rule of senderRules){
+     const item=node("div","","item");item.appendChild(node("span",rule.action.toUpperCase()+" — "+rule.pattern));
+     const remove=node("button","Remove","danger");
+     remove.addEventListener("click",async()=>{try{await request("/owner/email-sender-rules/"+rule.id,"DELETE");await refresh();message("Rule removed.");}catch(error){message(error.message,true);}});
+     item.appendChild(remove);rulesHost.appendChild(item);
+   }
+   if(!senderRules.length)rulesHost.appendChild(node("p","No sender rules.","muted"));
+ }else rulesHost.appendChild(node("p",senderRules.error||"Sender rules unavailable.","muted"));
+$("sender-rule-add").addEventListener("click",async()=>{
+   try{await request("/owner/email-sender-rules","POST",{pattern:$("sender-rule-pattern").value,action:$("sender-rule-action").value});await refresh();message("Sender rule saved.");}
+   catch(error){message(error.message,true);}
+ });
 $("sms-phone-refresh").addEventListener("click",()=>refresh().catch(error=>message(error.message,true)));
 $("invite-form").addEventListener("submit",async event=>{
  event.preventDefault();
