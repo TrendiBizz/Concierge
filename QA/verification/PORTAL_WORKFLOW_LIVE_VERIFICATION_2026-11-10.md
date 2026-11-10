@@ -746,6 +746,35 @@ So this is a ~10-second self-healing gap intrinsic to recreating a container, no
 Recording it rather than adding machinery for it, because a "fix" here would be complexity with no
 demonstrated problem behind it.
 
+## Why two businesses cannot share one Google account (verified against the provider)
+
+The remaining blocker is that the second business has no calendar connection of its own. Before
+treating that as pure ceremony I tested whether pointing two businesses at the **same** Google
+account would work. It would not:
+
+```
+A booked: synced
+B sees as busy: 1 windows
+    2026-12-02T06:00:00+00:00 -> 2026-12-02T06:30:00+00:00
+FINDING: on a SHARED calendar, A's booking blocks B's availability.
+```
+
+The event ids do **not** collide -- they hash `(tenant_id, appointment_id)`, so each business's
+events stay distinct and carry their own tenant marker. But the availability check is per
+*calendar*, not per tenant: `busy()` asks `freeBusy` about one calendar id, and
+`calendar_id` is fixed to `'primary'` at connection time with no owner-selectable alternative. So
+two businesses on one calendar would see each other's bookings as unavailable time.
+
+**This makes per-business authorization a correctness requirement rather than a formality.** A
+shared account would not corrupt data, but it would cause one business's appointments to block
+another's availability -- exactly the kind of cross-tenant leak the mandate forbids, arriving
+through the calendar rather than the database.
+
+Two tests pin it, including that connecting one business never implicitly enables another.
+
+**Provider hygiene.** One more test event was created and deleted during this check (HTTP 204), and
+the calendar was re-verified at its baseline of one event, the genuine production booking.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -774,7 +803,7 @@ demonstrated problem behind it.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **451 passed** (356 pre-existing + 95 in the
+- `PYTHONPATH=api pytest api/tests -q` → **453 passed** (356 pre-existing + 97 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

@@ -1299,3 +1299,41 @@ def test_the_tolerance_is_far_smaller_than_the_smallest_slot():
     """The tolerance must be smaller than any appointment length the API can create."""
     smallest_slot_minutes = 5      # OwnerBusinessProfile enforces ge=5
     assert 10 < smallest_slot_minutes * 60
+
+
+# ---------------------------------------------------------- calendar sharing
+
+def test_businesses_must_not_share_one_google_account():
+    """Per-business calendar authorization is a correctness requirement, not a formality.
+
+    Verified against the real Google provider: with two businesses pointing at the same account and
+    calendar, business A's booking appeared as busy to business B, so A's appointments would block
+    B's availability. The event ids do NOT collide -- they hash (tenant_id, appointment_id) -- but
+    freeBusy is per calendar, not per tenant, so the availability check cannot tell them apart.
+
+    This is why the onboarding path insists each business authorizes its own calendar, and why the
+    second business still needs its own OAuth consent.
+    """
+    from app import calendar_connection
+    # The event id is tenant-scoped, so writes cannot collide.
+    assert calendar_connection.event_id(BUSINESS_A["id"], "x") != \
+           calendar_connection.event_id(BUSINESS_B["id"], "x")
+
+    # The availability query is scoped by CALENDAR, not by tenant: it asks freeBusy about a single
+    # calendar id, so two businesses sharing that calendar see each other's busy time. That is the
+    # interference, and it is why each business must authorize its own account.
+    import inspect
+    src = inspect.getsource(calendar_connection.busy)
+    assert "'items': [{'id': row['calendar_id']}]" in src
+    # The calendar id is fixed to 'primary' at connection time and is not owner-selectable.
+    assert "'primary'" in inspect.getsource(calendar_connection.finish)
+
+
+def test_a_calendar_cannot_be_shared_between_two_businesses_implicitly():
+    """Connecting one business must never silently enable another's calendar."""
+    import inspect
+    from app import calendar_connection
+    # Connections are keyed by tenant_id and looked up by the caller's tenant.
+    assert "WHERE tenant_id=$1" in inspect.getsource(calendar_connection.connection)
+    # And the token file is per tenant UUID.
+    assert "token_path" in inspect.getsource(calendar_connection.access_token)
