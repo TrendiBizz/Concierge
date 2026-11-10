@@ -1087,6 +1087,42 @@ The working version keeps the route list in a separate tested module (`gateway_r
 bash script contains no fragile quoting. Both files are syntax-checked, and the audit was confirmed
 to **fail** (exit 1) against a deliberately wrong prefix, so a green result means something.
 
+## The owner portal page itself is now checked, not just its routes
+
+Every API route was verified, but the portal is a single 62 KB inline script and nothing checked that
+it parses, that its element references resolve, or that it loads. A typo in one handler would take the
+whole page down while every API-level test still passed.
+
+Checked against the **live served page**, covering all four failure modes:
+
+```
+ok   every referenced element id exists
+ok   application script parses
+ok   application script loads without throwing
+ok   all portal refresh functions are defined
+OWNER UI CHECKS PASSED
+```
+
+99 element ids are referenced and all 99 exist in the markup -- the dangling-reference class that
+would throw at runtime. The script was then actually executed against a DOM stub, and all ten portal
+functions (`refresh`, `refreshCRM`, `refreshOnboarding`, `refreshQuotes`, `refreshCalendar`,
+`refreshChannelAuthorizations`, `refreshKnowledge`, `refreshEmailJobs`, `refreshSocial`, `message`)
+resolve as functions.
+
+**Kept as `QA/verification/owner_ui_check.mjs`**, and confirmed able to fail: injecting a single
+dangling id reference produced two FAILs (the reference check and the resulting runtime null error)
+and exit code 1, against exit 0 on the healthy page.
+
+**Two errors during this work were my stub's, not the page's.** The first run threw
+`$(...).reset is not a function` because my mock element lacked the form method that a real `<form>`
+has; the second threw on `location.hash.slice(1)` because my stub had no `hash`. Both were fixed in
+the harness. Worth recording because the instinct on seeing a throw is to suspect the page, and here
+the page was correct twice.
+
+A third finding was also not a defect: calling `refresh()` unauthenticated throws
+`Bearer authentication required`, which is the designed behaviour. The page loads into a login form
+and only calls `refresh()` after authentication, so that path is unreachable in normal use.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
