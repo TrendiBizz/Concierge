@@ -39,7 +39,7 @@ only gate.
 | 6 | Retain CRM dialogue, isolate businesses, dedupe retries, calendar + invitation | **live** | Two-business isolation and webhook replay dedupe proven in the throwaway database; live tenant messages persisted; bookings re-proven 19:25 (see below). |
 | 7 | CRM Quotations create and retrieve | **live** | Create/retrieve verified per business with 0 cross-tenant leakage (2026-11-10 15:01 report). Not re-run today because it writes to production. |
 | — | Cloudflare 403 on an automated probe | **characterised** | Only the case-sensitive literal `Python-urllib` user agent is refused; browser user agent, curl, Go and Googlebot get 200. Browser experience is normal (the 19:27 chat used a browser UA through the public edge). |
-| — | Optional cellular telephone | **in progress** | Asterisk adapter (`api/app/asterisk_bridge.py`, `scripts/asterisk/`) verified with synthetic legs against Asterisk 20.6 and live Grok on 9 Nov. A Telnyx SIP connection `Trendi` now exists (active, IP connection). No real number, no real call, no delivered receipt yet. |
+| — | Optional cellular telephone | **in progress** | Final agreed design is `PHONE_WORKFLOW_SPEC_2026-11-10.md` (star-code forward → Telnyx SIP → Asterisk → Grok; consent-gated recording; text/email/return-call confirmation; CRM capture + owner forward as voicemail/text/email). Adapter verified with synthetic legs against Asterisk 20.6 + live Grok on 9 Nov; Telnyx `Trendi` connection exists. The owner voicemail link was missing from the phone path and is fixed this session. No real number/call/receipt yet. |
 
 ## Owner-alert throttle — re-found broken and fixed, 2026-11-10 19:37
 
