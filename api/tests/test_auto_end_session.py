@@ -301,3 +301,20 @@ def test_cli_missing_args_exits_two():
         capture_output=True, text=True, check=False,
     )
     assert out.returncode == 2
+
+
+def test_trigger_stages_the_workspace_before_commit(monkeypatch, tmp_path):
+    """The end sequence must `git add -A` first, or an auto-end never commits
+    unstaged work (the original build forgot the stage step)."""
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run", lambda args, cwd: (calls.append(args) or Result()))
+    monkeypatch.setattr(mod, "commit_and_push", lambda repo, msg, dry_run: {"committed": False, "reason": "stub"})
+
+    rc = mod.main(["--repo", str(tmp_path), "--pressure", "90", "--window", "100", "--json"])
+    assert rc == 0
+    assert ["git", "add", "-A"] in calls, "auto-end must stage before committing"

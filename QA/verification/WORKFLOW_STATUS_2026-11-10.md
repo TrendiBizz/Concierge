@@ -23,7 +23,7 @@ only gate.
 | Tests | `PYTHONPATH=api pytest api/tests -q` — **506 passed**, 9.13s, run 2026-11-10 19:31 |
 | Deployed image | `trendi-concierge-api:vps` → `51731df49bd3`; `healthz` 200 |
 | Source vs deployment | running `/srv/app/main.py` and `booking.py` **byte-identical** to HEAD (verified 19:12) |
-| Auto-commit safety net | launchd `com.trendibizz.concierge-checkpoint` runs `scripts/commit-checkpoint.py` every 5 minutes; log at `~/Library/Logs/concierge-commit-checkpoint.log` |
+| Auto-commit safety net | launchd `com.trendibizz.concierge-checkpoint` runs `scripts/commit-checkpoint.py` every 5 minutes; log at `~/Library/Logs/concierge-commit-checkpoint.log`. `scripts/auto-end-session.py` now stages the workspace (`git add -A`) before its gates/commit/push (that step was missing from the first build). |
 | Live businesses | `trendi-oauth-staging` (real: 28 chunks, calendar, hours 08:00–23:00 Mon–Fri) |
 | Test-only tenant | `trendi-meta-review` — **fake review emails created during testing; not a customer, not outstanding work** |
 
@@ -81,8 +81,9 @@ probe so no external message was sent:
    Asterisk AudioSocket adapter, then a real forwarded call and owner receipt.
    Optional and separate from website voice.
 3. **A real enquirer acknowledgement** — needs a real person's consent.
-4. **Quotations live re-run** — only if a fresh production write is wanted; the
-   implementation is already verified.
+4. **Quotations live re-run** — done 2026-11-10 20:00: create/retrieve math and
+   tenant scoping re-verified in a rolled-back transaction (2 × $100.00 + 15% tax
+   → subtotal 20000¢ / tax 3000¢ / total 23000¢; cross-tenant count 0).
 5. **Rust housekeeping** — close the draft Rust PR if desired. Not engineering work.
 
 Nothing else is code-blocking for the live business. The earlier "second business

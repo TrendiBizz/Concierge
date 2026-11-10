@@ -37,6 +37,7 @@ DEFAULT_THRESHOLD = 0.80
 # the handoff records repeated instructions not to commit them.
 EXCLUDED_PREFIXES = (
     "QA/verification/HERMES_",
+    "QA/verification/HANDOFF_HERMES_",
     "office-shots/",
     "tiktok-review/",
 )
@@ -243,6 +244,16 @@ def main(argv: list[str] | None = None) -> int:
             result.update(ended=False, reason="below threshold")
             emit(result, args.json)
             return 0
+
+        # Stage the workspace before committing. The end sequence is "git add -A,
+        # commit, push" per the spec; the guardrails in commit_and_push refuse
+        # anything excluded or outside the allowlist AFTER this stage, so a stray
+        # credential or binary still blocks the push rather than reaching main.
+        stage = run(["git", "add", "-A"], cwd=repo)
+        if stage.returncode != 0:
+            result.update(ended=False, refused=True, reason="git add failed: " + (stage.stderr or stage.stdout).strip())
+            emit(result, args.json)
+            return 1
 
         message = args.message or (
             f"Auto-end at {fraction:.0%} context pressure (threshold {args.threshold:.0%})"
