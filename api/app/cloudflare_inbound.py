@@ -12,11 +12,16 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import channel_authorization, db, inbound_email
+from . import channel_authorization, db, email_risk, inbound_email
 from .config import get_settings
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 MAX_BYTES = 30000
+REQUIRED_FIELDS = {"message_id", "recipient", "sender", "subject", "text"}
+OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments"}
+AUTH_KEYS = {"spf", "dkim", "dmarc", "authentication_results", "reply_to", "content_type"}
+MAILBOX_HOURLY_LIMIT = 60
+SENDER_HOURLY_LIMIT = 10
 
 
 def normalize_recipient(address: str) -> str:
@@ -68,13 +73,28 @@ async def handle(request: Request) -> dict:
         payload = json.loads(body)
         if not isinstance(payload, dict):
             raise ValueError("Invalid payload")
-        if set(payload) != {"message_id", "recipient", "sender", "subject", "text"}:
+        if not REQUIRED_FIELDS <= set(payload) <= REQUIRED_FIELDS | OPTIONAL_FIELDS:
             raise ValueError("Invalid fields")
         recipient = normalize_recipient(payload["recipient"])
         if not all(isinstance(payload[k], str) for k in ("message_id", "sender", "subject", "text")):
             raise ValueError("Invalid field types")
         if len(payload["sender"]) > 320 or len(payload["subject"]) > 250:
             raise ValueError("Invalid fields")
+        auth = payload.get("auth")
+        if auth is not None:
+            if not isinstance(auth, dict) or len(auth) > 10:
+                raise ValueError("Invalid auth results")
+            auth = {k: v[:500] for k, v in auth.items()
+                    if k in AUTH_KEYS and isinstance(v, str)}
+        reply_to = payload.get("reply_to")
+        if reply_to is not None and (not isinstance(reply_to, str) or len(reply_to) > 320):
+            raise ValueError("Invalid reply-to")
+        size = payload.get("size")
+        if size is not None and (not isinstance(size, int) or size < 0 or size > 10_000_000):
+            raise ValueError("Invalid size")
+        has_attachments = payload.get("has_attachments")
+        if has_attachments is not None and not isinstance(has_attachments, bool):
+            raise ValueError("Invalid attachment flag")
         mailbox = await db.pool().fetchrow(
             "SELECT tenant_id FROM inbound_mailboxes WHERE recipient=$1 AND provider='cloudflare' AND enabled",
             recipient,
@@ -83,9 +103,30 @@ async def handle(request: Request) -> dict:
             raise HTTPException(404, "Unknown mailbox")
         if not await channel_authorization.is_authorized(mailbox["tenant_id"], "email_read"):
             raise HTTPException(403, "Business has not authorized inbound email")
+        # Per-mailbox flood limit and per-sender limit. The sender limit does not
+        # reject mail (which would lose it); it quarantines for human review.
+        tenant_id = mailbox["tenant_id"]
+        recent = await db.pool().fetchval(
+            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
+            "AND created_at > now() - interval '1 hour'", tenant_id)
+        if recent >= MAILBOX_HOURLY_LIMIT:
+            raise HTTPException(429, "Too many inbound emails")
+        sender_recent = await db.pool().fetchval(
+            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
+            "AND lower(sender)=lower($2) AND created_at > now() - interval '1 hour'",
+            tenant_id, payload["sender"])
+        assessment = email_risk.assess(
+            auth, payload["sender"], reply_to, payload["subject"], payload["text"],
+            size=size, has_attachments=bool(has_attachments))
+        flags = list(assessment["flags"])
+        risk = assessment["risk"]
+        if sender_recent >= SENDER_HOURLY_LIMIT:
+            flags.append("sender_rate_limited")
+            risk = "high"
         draft = await inbound_email.ingest_verified(
-            mailbox["tenant_id"], "cloudflare", payload["message_id"],
+            tenant_id, "cloudflare", payload["message_id"],
             payload["sender"], recipient, payload["subject"], payload["text"],
+            auth=auth, risk=risk, flags=flags,
         )
     except (ValueError, TypeError, inbound_email.InboundError) as exc:
         raise HTTPException(400, "Invalid email payload") from exc

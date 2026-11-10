@@ -11,6 +11,24 @@
 //
 // The payload must be exactly {message_id, recipient, sender, subject, text}.
 
+function authFrom(raw, headers) {
+  // These are hints for the owner-facing risk label, never an authorisation.
+  // The API treats every message as untrusted regardless of these values.
+  const lower = raw.toLowerCase();
+  const one = (key) => {
+    const match = lower.match(new RegExp(key + "=([a-z]+)"));
+    return match ? match[1] : "";
+  };
+  return {
+    spf: one("spf"),
+    dkim: one("dkim"),
+    dmarc: one("dmarc"),
+    authentication_results: (headers.get("authentication-results") || "").slice(0, 500),
+    reply_to: (headers.get("reply-to") || "").slice(0, 320),
+    content_type: (headers.get("content-type") || "").slice(0, 200),
+  };
+}
+
 function textFromRaw(raw) {
   // Minimal text/plain extraction. For HTML-only mail, strip tags as a fallback.
   const idx = raw.indexOf("text/plain");
@@ -37,12 +55,17 @@ async function hmacHex(secret, value) {
 export default {
   async email(message, env, ctx) {
     const raw = await new Response(message.raw).text();
+    const auth = authFrom(raw, message.headers);
     const payload = JSON.stringify({
       message_id: message.headers.get("message-id") || crypto.randomUUID(),
       recipient: (message.to || "").toLowerCase(),
       sender: message.from || "",
       subject: message.headers.get("subject") || "",
       text: textFromRaw(raw),
+      reply_to: auth.reply_to,
+      size: raw.length,
+      has_attachments: /content-disposition:\s*attachment/i.test(raw),
+      auth,
     });
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = await hmacHex(env.CONCIERGE_INBOUND_SECRET, timestamp + "." + payload);

@@ -1877,7 +1877,7 @@ async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.curren
 
 @app.get("/owner/email-drafts")
 async def owner_drafts(
-    status: Literal["draft", "approved", "discarded", "all"] = "draft",
+    status: Literal["draft", "approved", "discarded", "quarantined", "all"] = "draft",
     user: dict = Depends(owner_auth.current_user),
 ):
     _email_feature_gate()
@@ -1920,6 +1920,17 @@ async def owner_approve_draft(draft_id: int, user: dict = Depends(owner_auth.cur
         raise HTTPException(503, str(exc))
     if not row:
         raise HTTPException(409, "Draft unavailable")
+    return row
+
+
+@app.post("/owner/email-drafts/{draft_id}/release")
+async def owner_release_draft(draft_id: int, user: dict = Depends(owner_auth.current_user)):
+    """Release a quarantined draft into the normal review queue (human action)."""
+    owner_auth.require_role(user, "editor")
+    _email_feature_gate()
+    row = await email_drafts.release(user["tenant_id"], draft_id)
+    if not row:
+        raise HTTPException(404, "No quarantined draft")
     return row
 
 

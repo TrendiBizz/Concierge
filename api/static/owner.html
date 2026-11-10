@@ -895,7 +895,7 @@ async function refreshSocial(){
 async function refresh(){
  const generation=sessionGeneration;
  const [drafts,numbers,calls,phoneSms]=await Promise.all([
-   request("/owner/email-drafts?status=draft").catch(error=>({error:error.message})),
+   request("/owner/email-drafts?status=all").catch(error=>({error:error.message})),
    request("/owner/phone-numbers"),request("/owner/phone-calls"),
    request("/owner/sms-phone").catch(error=>({error:error.message}))
  ]);
@@ -927,13 +927,32 @@ async function refresh(){
     call.appendChild(view);call.appendChild(transcript);$("calls").appendChild(call);
  }if(!calls.length)$("calls").appendChild(node("p","No calls yet.","muted"));}
  if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
- if(!drafts.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
- for(const draft of drafts){
+ const pending=drafts.filter(d=>["draft","quarantined"].includes(d.status));
+ if(!pending.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
+ for(const draft of pending){
    const item=node("article","","item");
    item.appendChild(node("h3","#"+draft.id+" — "+draft.subject));
    item.appendChild(node("p","From: "+draft.sender));
+   if(draft.risk&&draft.risk!=="low"){
+     const flags=Array.isArray(draft.flags)?draft.flags.filter(Boolean):[];
+     item.appendChild(node("p","Security: "+draft.risk+" risk"+(flags.length?" — "+flags.join(", "):""),"muted"));
+   }
    item.appendChild(node("strong","Incoming (untrusted)"));
    item.appendChild(node("pre",draft.inbound_body));
+   if(draft.status==="quarantined"){
+     item.appendChild(node("p","Quarantined: this message was flagged as high risk. Release only after you are satisfied the sender is legitimate.","muted"));
+     if(currentRole!=="viewer"){
+       const release=node("button","Release for review");
+       release.addEventListener("click",async()=>{
+         if(!confirm("Release this quarantined email into the review queue?"))return;
+         try{await request("/owner/email-drafts/"+draft.id+"/release","POST");await refresh();message("Released for review.");}
+         catch(error){message(error.message,true);}
+       });
+       item.appendChild(release);
+     }
+     $("drafts").appendChild(item);
+     continue;
+   }
    if(currentRole!=="viewer"){
      const edit=node("textarea",draft.reply_body);edit.value=draft.reply_body;
      edit.setAttribute("aria-label","Proposed reply for draft "+draft.id);
