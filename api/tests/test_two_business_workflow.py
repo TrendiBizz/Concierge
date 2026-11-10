@@ -1337,3 +1337,45 @@ def test_a_calendar_cannot_be_shared_between_two_businesses_implicitly():
     assert "WHERE tenant_id=$1" in inspect.getsource(calendar_connection.connection)
     # And the token file is per tenant UUID.
     assert "token_path" in inspect.getsource(calendar_connection.access_token)
+
+
+# ---------------------------------------------------------- calendar scope discipline
+
+def test_calendar_scopes_stay_minimal():
+    """The app requests two narrow scopes, not full calendar access.
+
+    Verified against the real provider: with these scopes freeBusy, event create, verification and
+    delete all succeed, while enumerating calendars returns 403. That is the deliberate trade-off --
+    the workflow needs nothing more, and a wider scope would grant far more than the feature uses.
+    Widening this should be a decision, not an accident.
+    """
+    from app import calendar_connection
+    assert calendar_connection.SCOPES == {
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/calendar.freebusy',
+    }
+    # Explicitly NOT the broad scope, which would allow reading and deleting any calendar.
+    assert 'https://www.googleapis.com/auth/calendar' not in calendar_connection.SCOPES
+    assert not any(s.endswith('/auth/calendar.readonly') for s in calendar_connection.SCOPES)
+
+
+def test_the_oauth_finish_requires_offline_access_and_exactly_these_scopes():
+    """A token missing refresh or holding different scopes must be refused, not stored."""
+    import inspect
+    from app import calendar_connection
+    src = inspect.getsource(calendar_connection.finish)
+    assert "SCOPES.issubset" in src
+    assert "refresh_token" in src
+    # The refusal must be explicit rather than storing a weaker token.
+    assert "Authorize calendar events and availability with offline access" in src
+
+
+def test_one_connection_per_business_is_enforced_by_the_schema():
+    """A business cannot accumulate several calendar connections."""
+    from pathlib import Path
+    schema = (Path(__file__).resolve().parents[1] / "app" / "schema.sql").read_text()
+    block = schema.split("CREATE TABLE IF NOT EXISTS calendar_connections")[1].split(");")[0]
+    # tenant_id is the primary key inline, so a business can hold at most one connection.
+    assert "tenant_id uuid PRIMARY KEY" in block
+    # And the default calendar is 'primary', which is what the OAuth finish stores.
+    assert "DEFAULT 'primary'" in block

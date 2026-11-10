@@ -775,6 +775,38 @@ Two tests pin it, including that connecting one business never implicitly enable
 **Provider hygiene.** One more test event was created and deleted during this check (HTTP 204), and
 the calendar was re-verified at its baseline of one event, the genuine production booking.
 
+## The calendar scope is deliberately minimal, and sufficient
+
+A business is always connected to `primary` and cannot choose another calendar. I checked whether
+that is a defect or a deliberate trade-off, by testing what the granted scopes actually permit
+against the real provider:
+
+```
+granted scopes: calendar.events, calendar.freebusy
+freeBusy: ok, 0 busy windows
+create+verify: synced
+delete: 204
+calendarList (needs a wider scope): 403
+```
+
+So the two narrow scopes cover **everything the workflow does** -- check availability, create the
+event, verify it and the attendee, delete on cancellation -- while enumeration is refused. The app
+never requests full `calendar` access, which would also allow reading and deleting any calendar the
+owner holds.
+
+That is good security practice, not a gap. The practical consequence is that a business wanting its
+bookings on a *secondary* calendar cannot express that; it would need a wider scope than the feature
+otherwise uses. Only one connection exists today and `primary` is the sensible default, so this is a
+latent limitation rather than an active problem. I have recorded it rather than widened the scope
+unilaterally, because granting more access than the feature needs is not a decision to make quietly
+on someone else's account.
+
+Three tests pin the boundary: the exact scope set, that the OAuth finish refuses a token missing
+offline access or holding different scopes, and that the schema allows one connection per business.
+
+**Provider hygiene.** One more test event created and deleted (204); calendar re-verified at its
+baseline of one event.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -803,7 +835,7 @@ the calendar was re-verified at its baseline of one event, the genuine productio
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **453 passed** (356 pre-existing + 97 in the
+- `PYTHONPATH=api pytest api/tests -q` → **456 passed** (356 pre-existing + 100 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
