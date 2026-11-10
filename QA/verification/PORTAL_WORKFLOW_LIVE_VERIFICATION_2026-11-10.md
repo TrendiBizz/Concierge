@@ -359,6 +359,36 @@ which moved for B alone. I corrected the test, not the implementation.
 
 The harness is preserved at `QA/verification/twobiz/` with a README explaining the failure mode.
 
+## Calendar isolation verified against the real provider boundary
+
+The mandate's isolation requirement covers calendars, so I checked the enforcement rather than the
+storage, using the throwaway database and the safety gate from the incident above.
+
+Only `trendi-oauth-staging` holds a credential file; the other two tenants hold none. Credential
+files are one per tenant UUID, mode `600`:
+
+```
+dir: /run/concierge-calendar
+  0a3e7155-2f19-4527-bee1-f2dec7b676c7.json 620 600
+  google-app.json                           225 600
+```
+
+With business A connected and business B not, syncing one of **B's** appointments did not reach a
+provider at all -- it was refused and recorded:
+
+```
+A connected: True
+B connected: False (expect False)
+B appointment after sync: unconnected | Connect the owner calendar
+event_id A != B: True
+B token refused: CalendarUnavailable Reconnect the business calendar
+```
+
+So an unconnected business cannot have its booking written into another business's calendar, and
+remote event ids cannot collide across tenants. Three tests now pin this, and
+`test_a_business_without_a_calendar_cannot_sync_into_another_businesss` was confirmed to **fail
+when the refusal guard is replaced by a fallback calendar** and pass when restored.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -387,7 +417,7 @@ The harness is preserved at `QA/verification/twobiz/` with a README explaining t
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **414 passed** (356 pre-existing + 58 in the
+- `PYTHONPATH=api pytest api/tests -q` → **417 passed** (356 pre-existing + 61 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

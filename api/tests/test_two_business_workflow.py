@@ -601,3 +601,70 @@ def test_chat_exposes_no_booking_tools_because_it_retrieves_knowledge_itself():
     assert "search_knowledge" not in chat
     voice = {t["name"] for t in tools.voice_tools({**BUSINESS_A, "native_booking": True}, website=True)}
     assert "search_knowledge" in voice
+
+
+# ---------------------------------------------------------- calendar isolation
+
+def test_a_business_without_a_calendar_cannot_sync_into_another_businesss(monkeypatch):
+    """An unconnected business's appointment must be refused, not written to someone else's calendar.
+
+    Verified live against a real Postgres and the real Google provider: with only business A
+    connected, syncing one of B's appointments produced calendar_state 'unconnected' and the error
+    'Connect the owner calendar', and no provider call was made for B at all.
+    """
+    from app import calendar_connection
+    # ONE pool instance: the appointment it returns is the same object the UPDATE is recorded on.
+    # Creating a second pool here would leave the assertions inspecting an unused recorder.
+    appt = {"id": "appt-b", "tenant_id": BUSINESS_B["id"], "calendar_sync_requested": True,
+            "calendar_state": "pending", "status": "booked"}
+    pool = ConnPool(appt)
+    monkeypatch.setattr(calendar_connection.db, "pool", lambda: pool)
+    # connection() returns None -> this tenant has no calendar.
+    monkeypatch.setattr(calendar_connection, "connection", AsyncMock(return_value=None))
+    request = AsyncMock()
+    monkeypatch.setattr(calendar_connection, "request", request)
+
+    asyncio.run(calendar_connection.sync_one("appt-b"))
+
+    # No provider request may be attempted for a business that has no calendar.
+    request.assert_not_awaited()
+    updates = [s for s in pool.statements if "UPDATE appointments" in s[1]]
+    assert updates, "the refusal must be recorded on the appointment"
+    assert "unconnected" in updates[0][1]
+
+
+class ConnPool(RecordingPool):
+    """A pool whose FOR UPDATE fetch returns the appointment under test."""
+
+    def __init__(self, appt):
+        super().__init__()
+        self.appt = appt
+
+    async def fetchrow(self, sql, *args):
+        self.statements.append(("fetchrow", " ".join(sql.split()), args))
+        if "FROM appointments" in sql:
+            return self.appt
+        return None
+
+
+def test_calendar_credentials_are_stored_per_tenant(monkeypatch):
+    """Token files are keyed by tenant UUID, so one business's token file cannot serve another."""
+    from pathlib import Path
+    from app import calendar_connection
+    monkeypatch.setattr(calendar_connection, "secret_directory", lambda: Path("/tmp/x"))
+    a = calendar_connection.token_path(BUSINESS_A["id"])
+    b = calendar_connection.token_path(BUSINESS_B["id"])
+    assert str(a).endswith(str(BUSINESS_A["id"]) + ".json")
+    assert str(b).endswith(str(BUSINESS_B["id"]) + ".json")
+    assert str(a) != str(b)
+
+
+def test_a_business_with_no_token_file_cannot_obtain_an_access_token(monkeypatch):
+    """A missing credential is an explicit refusal, never a silent empty token."""
+    from app import calendar_connection
+    from pathlib import Path
+    monkeypatch.setattr(calendar_connection, "token_path", lambda tid: Path("/nonexistent/none.json"))
+    with pytest.raises(Exception) as exc:
+        asyncio.run(calendar_connection.access_token(BUSINESS_B["id"]))
+    assert "calendar" in str(exc.value).lower()
+
