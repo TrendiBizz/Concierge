@@ -10,11 +10,18 @@ import re
 import sys
 
 
-def render(rows, bridge_host):
+def render(rows, bridge_host, public_ip=None):
     if not re.fullmatch(r'[a-zA-Z0-9.-]+', bridge_host):
         raise ValueError('Invalid private bridge hostname')
     contexts=['[general]', 'static=yes', 'writeprotect=yes', '[default]', 'exten => _.,1,Hangup(21)']
     pjsip=['[global]', 'type=global', 'endpoint_identifier_order=ip', '[transport-udp]', 'type=transport', 'protocol=udp', 'bind=0.0.0.0:5060']
+    if public_ip:
+        # Advertise the host's public address in SDP/Via, and treat the private
+        # container network as local; without this Telnyx would be told to send
+        # media to 172.30.91.2 and hear nothing.
+        pjsip += ['external_media_address=' + public_ip,
+                  'external_signaling_address=' + public_ip,
+                  'local_net=172.30.91.0/29']
     ports=set();numbers=set();slugs=set();groups={}
     for row in rows:
         slug,number,port=row['tenant'],row['number'],row['port']
@@ -41,13 +48,18 @@ def render(rows, bridge_host):
             contexts.append(f"exten => {row['number']},1,Goto(business-{row['tenant']},s,1)")
         contexts.append('exten => _.,1,Hangup(21)')
         pjsip += [f'[{trunk}]','type=endpoint',f'context={trunk}','disallow=all','allow=ulaw,alaw','direct_media=no',
+                  'rtp_symmetric=yes','force_rport=yes','rewrite_contact=yes',
                   f'[{trunk}-identify]','type=identify',f'endpoint={trunk}',f'match={source}']
     return '\n'.join(contexts)+'\n','\n'.join(pjsip)+'\n'
 
 
 if __name__=='__main__':
     rows=json.loads(Path(sys.argv[1]).read_text())
-    extensions,pjsip=render(rows,sys.argv[3] if len(sys.argv)>3 else 'bridge')
+    extensions,pjsip=render(rows,sys.argv[3] if len(sys.argv)>3 else 'bridge',
+                            sys.argv[4] if len(sys.argv)>4 else None)
     target=Path(sys.argv[2]);target.mkdir(parents=True,exist_ok=True)
     (target/'extensions.conf').write_text(extensions)
     (target/'pjsip.conf').write_text(pjsip)
+    # Restrict media to a small published range instead of the 10000-20000
+    # default, so the public firewall/port mapping stays tight.
+    (target/'rtp.conf').write_text('[general]\nrtpstart=10000\nrtpend=10099\n')

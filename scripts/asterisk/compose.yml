@@ -4,9 +4,13 @@ services:
   pbx:
     build: .
     restart: unless-stopped
+    ports:
+      - "5060:5060/udp"
+      - "10000-10099:10000-10099/udp"
     volumes:
       - ./generated/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./generated/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./generated/rtp.conf:/etc/asterisk/rtp.conf:ro
     networks:
       phone:
         ipv4_address: 172.30.91.2
@@ -24,7 +28,6 @@ services:
     networks: [phone, concierge]
 networks:
   phone:
-    internal: true
     ipam:
       config:
         - subnet: 172.30.91.0/29
