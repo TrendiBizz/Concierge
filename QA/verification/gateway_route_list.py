@@ -13,7 +13,7 @@ import re
 import sys
 
 DECORATOR = re.compile(
-    r'@(app|router)\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)["\']'
+    r'@(app|router)\.(get|post|put|patch|delete)\(\s*["\']([^"\']*)["\']'
 )
 PREFIX = re.compile(r'APIRouter\(prefix=["\']([^"\']+)["\']')
 

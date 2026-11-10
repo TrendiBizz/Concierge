@@ -64,5 +64,23 @@ try {
   check('application script loads without throwing', false, e.constructor.name + ': ' + e.message);
 }
 
+// 4. Every endpoint the page calls must exist in the API. A call to a missing route is a button
+//    that cannot work, and it is invisible from the page side alone.
+if (process.argv[3]) {
+  const { execFileSync } = await import('node:child_process');
+  const { dirname, resolve } = await import('node:path');
+  const listScript = resolve(dirname(new URL(import.meta.url).pathname), 'gateway_route_list.py');
+  const routes = new Set(execFileSync('python3', [listScript, process.argv[3]], { encoding: 'utf8' })
+    .split('\n').map(s => s.trim()).filter(Boolean));
+  const called = [...new Set([...app.matchAll(/request\(\s*"([^"]+)"/g)].map(m => m[1]))];
+  const unmatched = called.filter(c => {
+    const base = c.split('?')[0];
+    const variants = new Set([base, base.replace(/\/$/, ''), base + '/', base.replace(/\/$/, '') + '/{x}']);
+    if ([...routes].some(r => variants.has(r))) return false;
+    return ![...routes].some(r => r.startsWith(base.replace(/\/$/, '') + '/') && r.includes('{'));
+  });
+  check(`every endpoint the page calls exists (${called.length} calls)`, unmatched.length === 0, unmatched.join(', '));
+}
+
 console.log(failures === 0 ? '\nOWNER UI CHECKS PASSED' : `\nOWNER UI CHECKS FAILED (${failures})`);
 process.exit(failures === 0 ? 0 : 1);

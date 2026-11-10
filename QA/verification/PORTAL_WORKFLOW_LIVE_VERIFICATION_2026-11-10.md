@@ -1123,6 +1123,45 @@ A third finding was also not a defect: calling `refresh()` unauthenticated throw
 `Bearer authentication required`, which is the designed behaviour. The page loads into a login form
 and only calls `refresh()` after authentication, so that path is unreachable in normal use.
 
+## The route list was missing bare-prefix routes
+
+The portal page calls 38 endpoints. Checking each against the API showed one unmatched:
+`/owner/calendar`. That looked like a broken button. It was not -- it was a blind spot in my own
+route extractor.
+
+`@router.get('')` declares the router's prefix **itself** as the route, so `calendar_connection` and
+`quotations` each define a bare route at their prefix. My regex required at least one character
+between the quotes and therefore dropped them silently:
+
+```
+@router.get('')   in calendar_connection.py  ->  /owner/calendar
+@router.get('')   in quotations.py           ->  /owner/crm/quotations   (also POST)
+```
+
+Fixed to allow an empty path, the route count went **94 -> 96**, and both routes work when probed
+directly (401, meaning they exist and require authentication). Re-running the match, all 38 portal
+calls resolve:
+
+```
+portal calls: 38   matched: 38   unmatched: 0
+```
+
+This is the same failure mode as rounds 22, 24 and 25: the tool reported nothing and I almost read
+that as the system being wrong. The page was correct; the extractor was incomplete.
+
+The endpoint check is now part of `owner_ui_check.mjs`, so a portal call to a missing route is caught
+automatically. Confirmed able to fail: rewriting one call to `/owner/ONBOARDING-TYPO` produces a FAIL
+and exit code 1, against exit 0 on the healthy page.
+
+```
+ok   every referenced element id exists
+ok   application script parses
+ok   application script loads without throwing
+ok   all portal refresh functions are defined
+ok   every endpoint the page calls exists (38 calls)
+OWNER UI CHECKS PASSED
+```
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
