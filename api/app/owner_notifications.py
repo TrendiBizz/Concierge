@@ -24,6 +24,24 @@ async def queue(tenant, subject, body, dedupe, *, lead_id=None, connection=None)
     if phone and tenant.get('sms_enabled') and await channel_authorization.is_authorized(tenant['id'], 'sms_send'):
         destinations.append(('sms', phone))
     for channel, recipient in destinations:
+        # Coalesce rapid alerts for the same lead on the same channel.
+        #
+        # Deduplication alone cannot do this: the caller's key includes the message text, so that two
+        # genuinely different enquiries are not collapsed. The consequence is one alert per
+        # conversation turn -- a 30-turn enquiry produced 54 texts to the owner. Suppressing a recent
+        # UNDELIVERED alert for the same lead keeps the owner informed without turning a conversation
+        # into a stream of messages. The earlier row still goes out, carrying the dialogue as it stood;
+        # anything after the interval is queued normally, so no enquiry is ever silently dropped.
+        if lead_id is not None:
+            interval = get_settings().owner_alert_min_interval_seconds
+            if interval > 0:
+                recent = await runner.fetchval(
+                    "SELECT 1 FROM outbox WHERE tenant_id=$1 AND kind='owner_alert' AND channel=$2 "
+                    "AND lead_id=$3 AND created_at > now() - make_interval(secs => $4) "
+                    "AND status IN ('queued','sending') LIMIT 1",
+                    tenant['id'], channel, lead_id, interval)
+                if recent:
+                    continue
         await runner.execute(
             "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key,lead_id) "
             "VALUES($1,'owner_alert',$2,$3,$4,$5,$6,$7) "

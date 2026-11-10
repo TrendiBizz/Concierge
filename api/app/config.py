@@ -109,6 +109,13 @@ class Settings(BaseSettings):
     campaign_email_per_hour: int = 60
     campaign_sms_per_hour: int = 20     # keep low: a phone-SIM gateway is not built for bulk
 
+    # Owner-alert throttle. A conversation produces one alert per turn, because the dedupe key
+    # includes the message text so that genuinely distinct enquiries are not collapsed. Without a
+    # limit a normal back-and-forth texts the owner once per exchange -- one test enquiry produced 54
+    # alerts, which reached the owner's phone as a stream of near-identical texts. This coalesces
+    # rapid alerts for the same lead, per channel, while leaving distinct enquiries alone.
+    owner_alert_min_interval_seconds: int = 300
+
     # Response-time alerts
     sla_poll_seconds: int = 60
     digest_poll_seconds: int = 300

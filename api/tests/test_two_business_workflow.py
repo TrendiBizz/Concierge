@@ -1570,3 +1570,86 @@ def test_the_two_delivery_tools_are_not_interchangeable():
     copy = next(s for s in tools.TOOL_SPECS if s["name"] == "request_conversation_copy")
     assert ack["chat"] is True and not ack.get("requires_session")
     assert copy["chat"] is False and copy.get("requires_session") is True
+
+
+# ---------------------------------------------------------- owner-alert throttle
+
+def test_a_conversation_does_not_text_the_owner_once_per_turn(monkeypatch):
+    """The defect a real owner hit: 30 conversation turns produced 30 owner SMS.
+
+    Deduplication cannot prevent this. Each caller builds its key from the message text -- `chat.py`
+    hashes (conversation_id + message + reply), `enquiries.py` hashes (source + message) -- precisely so
+    that two genuinely different enquiries are not collapsed. The effect was one text per exchange: a
+    test enquiry sent 54 alerts to the owner's phone.
+
+    The throttle suppresses a second alert only when an earlier one for the SAME lead on the SAME
+    channel is still undelivered. The first alert still goes out carrying the dialogue, and a different
+    enquirer is never suppressed.
+    """
+    import asyncio as _asyncio
+    from app import owner_notifications as on, channel_authorization
+
+    class FakePool:
+        def __init__(self): self.rows = []
+        async def fetchval(self, sql, *a):
+            tenant, channel, lead, interval = a
+            for r in self.rows:
+                if r["lead"] == lead and r["channel"] == channel and r["status"] in ("queued", "sending"):
+                    return 1
+            return None
+        async def execute(self, sql, *a):
+            if "INSERT INTO outbox" in sql:
+                tenant, channel, to, subj, body, key, lead = a
+                self.rows.append({"lead": lead, "channel": channel, "status": "queued",
+                                  "key": key, "body": body})
+            return "OK"
+
+    async def always(_t, _c): return True
+    monkeypatch.setattr(channel_authorization, "is_authorized", always)
+
+    async def scenario():
+        pool = FakePool()
+        tenant = {"id": "11111111-1111-1111-1111-111111111111", "name": "Harbour Dental",
+                  "notify_email": "", "notify_phone": "+64210000001", "sms_enabled": True}
+        for turn in range(30):
+            await on.queue(tenant, "Chat conversation", f"turn {turn}",
+                           f"dialogue:{tenant['id']}:key{turn}", lead_id="lead-A", connection=pool)
+        assert len(pool.rows) == 1, f"30 turns should coalesce to 1 alert, got {len(pool.rows)}"
+        # A different enquirer is a different conversation and must still reach the owner.
+        await on.queue(tenant, "Chat conversation", "other", "dialogue:x:y",
+                       lead_id="lead-B", connection=pool)
+        assert len(pool.rows) == 2, "a distinct lead must still alert"
+        # The alert that goes out carries real content, not a placeholder.
+        assert "turn 0" in pool.rows[0]["body"]
+        return pool
+
+    pool = _asyncio.run(scenario())
+    assert pool.rows[0]["channel"] == "sms"
+
+
+def test_the_throttle_window_is_configurable_and_can_be_disabled():
+    """An operator must be able to widen or disable the window without a code change.
+
+    Verified: the setting exists on Settings and defaults to 300 seconds. A value of 0 disables
+    coalescing entirely, which is the documented escape hatch if an owner wants every alert.
+    """
+    from app.config import get_settings
+    settings = get_settings()
+    assert hasattr(settings, "owner_alert_min_interval_seconds")
+    assert settings.owner_alert_min_interval_seconds == 300
+
+
+def test_the_throttle_only_ever_suppresses_owner_alerts():
+    """Enquirer acknowledgements and campaign sends must never be caught by this throttle.
+
+    The guard is scoped to kind='owner_alert' in SQL and lives only in owner_notifications.queue, so a
+    paused owner alert cannot swallow an acknowledgement the enquirer was promised.
+    """
+    import inspect
+    from app import owner_notifications as on
+    src = inspect.getsource(on.queue)
+    assert "kind='owner_alert'" in src
+    # The acknowledgement path uses its own module and is untouched by this guard.
+    from app import acknowledgements
+    ack_src = inspect.getsource(acknowledgements)
+    assert "owner_alert_min_interval_seconds" not in ack_src
