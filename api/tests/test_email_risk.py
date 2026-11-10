@@ -46,8 +46,22 @@ def test_oversized_is_high_risk():
     assert "oversized" in result["flags"]
 
 
-def test_clean_authenticated_message_is_low_risk():
-    result = email_risk.assess({"dmarc": "pass", "spf": "pass", "dkim": "pass"},
-                               "a@example.com", "a@example.com", "hi", "hello")
+def test_verified_message_is_low_risk():
+    result = email_risk.assess(
+        {"dmarc": "pass", "spf": "pass", "dkim": "pass", "verified_by": "email-auth"},
+        "a@example.com", "a@example.com", "hi", "hello")
     assert result["risk"] == "low"
-    assert result["flags"] == []
+
+
+def test_unverified_pass_hint_is_only_medium():
+    result = email_risk.assess({"dmarc": "pass", "spf": "pass", "dkim": "pass"},
+                               "a@example.com", None, "hi", "hello")
+    assert result["risk"] == "medium"
+    assert "unverified_sender" in result["flags"]
+
+
+def test_verified_pass_beats_failing_spf_hint():
+    result = email_risk.assess(
+        {"dmarc": "pass", "spf": "fail", "dkim": "pass", "verified_by": "email-auth"},
+        "a@example.com", None, "hi", "hello")
+    assert result["risk"] == "low"

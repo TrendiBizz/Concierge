@@ -98,3 +98,13 @@ quarantined row with attacker text, which a human sees and discards or releases.
   `dkim=none`. `dkimpy` verified the same message independently.
 - Built and deployed as `trendi-email-auth:vps` in compose; API image rebuilt
   with `email_auth.py`; tests 529 passed.
+
+### Verified verdicts now gate risk
+
+- Only `verified_by=email-auth` (the sidecar) may lower risk. Header hints alone
+  stay `medium` (`unverified_sender`); a hint of `dmarc=fail` still quarantines.
+- End-to-end signed probe (raw message + deliberately failing header hints)
+  returned `risk=low, status=draft` with `{spf:fail, dkim:pass, dmarc:pass,
+  verified_by:email-auth}`; the earlier draft (before this rule) was `medium`.
+- Tests: 531 passed. Test draft/lead rows and the temporary DKIM TXT record were
+  removed after verification.

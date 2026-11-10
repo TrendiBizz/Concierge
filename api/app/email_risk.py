@@ -44,18 +44,29 @@ def assess(auth: dict | None, sender: str, reply_to: str | None,
     dmarc = _auth_value(auth, "dmarc")
     flags: list[str] = []
     risk = "low"
+    # Header hints are advisory. Only the Rust sidecar's cryptographic verdict
+    # (verified_by) may lower the risk; otherwise a forged header could do it.
+    verified = _auth_value(auth, "verified_by") == "email-auth"
 
-    if not any((spf, dkim, dmarc)):
+    if verified:
+        if dmarc == "pass":
+            risk = "low"
+        elif dmarc == "fail":
+            flags.append("dmarc_fail")
+            risk = "high"
+        else:
+            flags.append("unverified_sender")
+            risk = "medium"
+        if spf == "fail" or dkim == "fail":
+            flags.append("auth_fail")
+    else:
         flags.append("unverified_sender")
-        risk = _max(risk, "medium")
-    if dmarc == "fail":
-        flags.append("dmarc_fail")
-        risk = "high"
-    elif spf == "fail" or dkim == "fail":
-        flags.append("auth_fail")
-        risk = _max(risk, "medium")
-    elif dmarc and dmarc != "pass":
-        risk = _max(risk, "medium")
+        risk = "medium"
+        if dmarc == "fail":
+            flags.append("dmarc_fail")
+            risk = "high"
+        elif spf == "fail" or dkim == "fail":
+            flags.append("auth_fail")
 
     reply_domain = _domain(reply_to or "")
     sender_domain = _domain(sender)
