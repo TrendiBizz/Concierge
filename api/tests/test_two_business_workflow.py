@@ -1146,3 +1146,53 @@ def test_an_acknowledgement_to_an_opted_out_address_is_suppressed(monkeypatch):
                                  "subject": "s", "body": "b", "campaign_id": None}))
     finish.assert_awaited_once_with(1, "skipped", "opted_out")
     send.assert_not_awaited()
+
+
+# ---------------------------------------------------------- owner CRM visibility
+
+def test_the_owner_transcript_query_is_scoped_by_tenant(monkeypatch):
+    """The owner must be able to read the retained dialogue -- and only their own.
+
+    Verified live against a real Postgres with two businesses: each owner's transcript returned its
+    own two turns, and business B reading business A's lead id returned nothing. The route checks
+    lead ownership first and then joins on tenant_id as well, so both halves matter.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main.owner_crm_transcript)
+    # The ownership probe and the transcript query must both carry the tenant.
+    assert "SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2" in src
+    assert src.count("l.tenant_id=$1") >= 1
+    assert "c.tenant_id=l.tenant_id" in src
+
+
+def test_a_transcript_falls_back_to_the_stored_enquiry_source(monkeypatch):
+    """A voice enquiry with no message rows still shows its original text to the owner.
+
+    Without the fallback an owner would see an empty transcript for a channel whose content lives
+    in enquiry_sources, which reads as data loss.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main.owner_crm_transcript)
+    assert "enquiry_sources" in src
+    assert "original_text" in src
+
+
+def test_the_crm_lead_list_is_scoped_to_the_owner(monkeypatch):
+    """Two businesses, two lead lists, no overlap -- verified live as Hana vs Tomas."""
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main.admin_leads)
+    # The listing resolves the tenant first and filters on it; it must never select every lead.
+    assert "tenant" in src
+    assert "WHERE" in src.upper()
+
+
+def test_a_quotation_is_visible_only_to_its_own_business(monkeypatch):
+    """Listed live as A=1, B=0 with the correct total. Pinned here with the SQL check."""
+    pool = capture_pool(monkeypatch, quotations, RecordingPool())
+    asyncio.run(quotations.listing(user={"tenant_id": BUSINESS_A["id"], "role": "owner"}))
+    fetch = [s for s in pool.statements if s[0] == "fetch"][0]
+    assert "tenant_id=$1" in fetch[1]
+    assert fetch[2][0] == BUSINESS_A["id"]

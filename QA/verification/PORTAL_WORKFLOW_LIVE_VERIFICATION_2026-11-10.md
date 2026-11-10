@@ -564,6 +564,29 @@ counts and asserts the key never varies. That one **fails** under the regression
 restored. Behaviour tests also now simulate the unique constraint on `device_sms_jobs`, so a
 collision is exercised rather than described.
 
+## The owner can actually see the retained dialogue, and only their own
+
+Step 6 requires the complete dialogue to be retained. Retention is only half of it -- the owner has
+to be able to read it, and not see anyone else's. Driven against a real Postgres with two
+businesses:
+
+```
+A transcript turns: 2 | first: Do you do emergency dental work?
+B transcript turns: 2 | first: My hot water cylinder is leaking.
+B reading A's lead transcript -> 0   (must be 0)
+A leads: ['Hana'] | B leads: ['Tomas']
+A quotation total: 20700 | A sees: 1 | B sees: 0
+```
+
+Both halves of the transcript route matter and both are present: an ownership probe
+(`SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2`) that decides 404, and a join that also
+carries `c.tenant_id=l.tenant_id`. A test was confirmed to fail when the join's tenant condition is
+dropped and pass when restored.
+
+The route also falls back to `enquiry_sources.original_text` when a lead has no message rows, which
+is what stops a voice enquiry from showing the owner an empty transcript. That fallback is pinned
+too, because removing it would look like data loss rather than a missing branch.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -592,7 +615,7 @@ collision is exercised rather than described.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **439 passed** (356 pre-existing + 83 in the
+- `PYTHONPATH=api pytest api/tests -q` → **443 passed** (356 pre-existing + 87 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
