@@ -22,7 +22,7 @@ optional separate gate and was not touched.
 | | |
 | --- | --- |
 | Workspace | `/Users/jo/work-staging/concierge-integration` (git worktree) |
-| Branch | `main`, HEAD `02f4fd8`, matches `origin/main` (0/0) |
+| Branch | `main`, HEAD `12d244e`, matches `origin/main` (0/0) |
 | Tests | **470 passed** (`PYTHONPATH=api pytest api/tests -q`) |
 | Rust | `GATE-ALL-OK` (`./scripts/rust-gate.sh`) |
 | Deployed image | `trendi-concierge-api:vps` → `51731df49bd3` |
