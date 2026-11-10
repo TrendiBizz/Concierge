@@ -1222,6 +1222,39 @@ restored.
 That is the third test of mine this session that passed against deliberately broken code. The only
 reason any of them were caught is that I try to falsify each one before trusting it.
 
+## The admin dashboard is checked, and its absence from the gateway is deliberate
+
+`/admin-ui` exists in the API but is not in the gateway, so it 404s publicly. That is **correct, not a
+gap**: the README documents it for the local stack (`127.0.0.1:8793/admin-ui`) for the office
+dashboard, and the VPS exposes only `127.0.0.1:8080`. Verified rather than assumed:
+
+```
+api container   /admin-ui       200   (served)
+                /admin/tenants  401   (admin token required)
+via gateway     404                    (not routed, as intended)
+```
+
+The page is admin-only and holds no data -- it asks for the admin token and calls `/admin/*` -- so
+keeping it off the public edge is the right call rather than an oversight.
+
+Checked for integrity the same way as the other pages:
+
+```
+ok   every referenced element id resolves (25 refs, 20 static, 29 runtime)
+ok   admin script parses
+ok   admin script loads without throwing
+ADMIN UI CHECKS PASSED
+```
+
+**The first version of that check reported four false positives.** It flagged `f_business_hours`,
+`f_lead_value`, `f_sla_min_score` and `f_sla_minutes` as dangling, but this page builds most of its
+form elements at runtime with `el("input", { id: "f_lead_value", ... })`, so those ids exist by the
+time anything looks them up. Collecting ids the script *creates* took the unresolved count to zero.
+A naive check here would have produced a confident, wrong defect report.
+
+Kept as `QA/verification/admin_ui_check.mjs` and confirmed able to fail: injecting one dangling
+reference produces a FAIL and exit code 1, against exit 0 on the healthy page.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
