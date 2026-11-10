@@ -1023,6 +1023,38 @@ No live customer impact: `managed_phone_setups` and `mobile_forwarding_connectio
 so nothing was using the route. But the feature was silently dead at the edge, and would have
 presented as a carrier integration that "does not work" with the API looking correct.
 
+## The gateway now exposes every route the application serves
+
+Round 23 fixed one blocked route. Rather than assume that was the only one, I enumerated every
+`/api/v1/*` route the app defines and probed each through the gateway:
+
+```
+checked 17 /api/v1 routes across concierge.trendibizz.com and chat.trendibizz.com
+OK: every app route reaches the application (no 404 at the edge)
+```
+
+A 404 at the edge is the signature of a blocked path; any other status (401, 403, 405, 422, 429,
+503) means the request reached the application, which is what matters. Three routes are deliberately
+absent: `/api/v1/phone/twilio/*`. Those are inactive by design -- `phone_voice_provider=grok`,
+`phone_relay.configured()` is False and no Twilio auth token is set -- and the *current* telephone
+path, `/api/v1/phone/xai/*`, is exposed and reachable (422 without a valid payload).
+
+Owner-facing routes were checked the same way: `/owner-ui` 200 and every `/owner/*` route 401
+(exists, authentication required), never 404.
+
+**The check is kept as a script**, `QA/verification/gateway_route_audit.sh`, because this class of
+defect is invisible from either side alone: the API looks correct and the gateway looks correct, and
+only the gap between them is wrong.
+
+Two things about it were fixed during the writing, both worth noting because each would have
+produced a false result:
+
+- It first reported `/api/v1/chat -> 404`. That was a routing decision, not a blocked feature: the
+  gateway routes by **host**, and chat-facing paths live on `chat.trendibizz.com` while the rest live
+  on the portal host. Probing the wrong host manufactures a 404. The script is now host-aware.
+- I then confirmed it can actually fail, by pointing it at a prefix where every route 404s, rather
+  than trusting a green result. An audit that cannot fail proves nothing.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
