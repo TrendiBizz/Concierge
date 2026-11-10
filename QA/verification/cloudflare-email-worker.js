@@ -58,6 +58,12 @@ export default {
     // A rejected email is returned to the sender rather than silently dropped.
     if (!response.ok) {
       message.setReject("Concierge could not accept this message");
+      return;
+    }
+    // Keep the owner's normal inbox working: forward the original after the CRM
+    // copy is stored. A forward failure must never lose the CRM record.
+    if (env.FORWARD_TO) {
+      try { await message.forward(env.FORWARD_TO); } catch (e) { /* CRM copy already stored */ }
     }
   },
 };
