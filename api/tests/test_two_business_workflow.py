@@ -1269,3 +1269,33 @@ def test_the_real_booking_path_produces_whole_minute_times():
     assert slots, "expected slots for a configured weekday"
     assert {s.microsecond for s in slots} == {0}, "slots must not carry sub-second precision"
     assert {s.second for s in slots} == {0}
+
+
+def test_the_tolerance_does_not_accept_a_real_time_mismatch():
+    """Widening a comparison is only safe if a genuine mismatch still fails.
+
+    Confirmed against the real Google provider on the deployed image: after moving the stored
+    appointment 30 minutes without moving the provider event, the sync was refused and the
+    appointment went to 'retry'. The sub-second case and the wrong-time case must stay distinct.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    def accepted(actual, expected, tolerance=10):
+        return abs((actual - expected).total_seconds()) < tolerance
+
+    expected = datetime(2026, 11, 25, 4, 0, tzinfo=timezone.utc)
+    # Sub-second truncation: accepted.
+    assert accepted(datetime(2026, 11, 25, 4, 0, 0, 917076, tzinfo=timezone.utc),
+                    datetime(2026, 11, 25, 4, 0, tzinfo=timezone.utc))
+    assert accepted(expected, expected)
+    # Real mismatches: refused.
+    for delta in (timedelta(seconds=30), timedelta(minutes=1), timedelta(minutes=30),
+                  timedelta(hours=2), timedelta(days=1)):
+        assert not accepted(expected + delta, expected), delta
+        assert not accepted(expected - delta, expected), delta
+
+
+def test_the_tolerance_is_far_smaller_than_the_smallest_slot():
+    """The tolerance must be smaller than any appointment length the API can create."""
+    smallest_slot_minutes = 5      # OwnerBusinessProfile enforces ge=5
+    assert 10 < smallest_slot_minutes * 60

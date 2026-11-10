@@ -669,6 +669,37 @@ Both were deleted (HTTP 204) and the calendar was confirmed back at its baseline
 event, the genuine production booking. Deletion was matched on the exact appointment id, so the
 production event was never a candidate.
 
+## The deployment was proved, and the tolerance proved safe
+
+A source fix is not a working system, so the **deployed image** was driven against the real Google
+provider with exactly the input that had failed:
+
+```
+stored start: 2026-11-24T03:07:05.917076+00:00
+DEPLOYED sync -> synced | invitation: provider_requested
+provider returned: 2026-11-24T03:07:05Z   (truncated, as expected)
+cleanup DELETE: 204
+```
+
+Then the more important question: does widening the comparison hide a real error? Tested against the
+same provider by moving the stored appointment 30 minutes **without** moving the provider event:
+
+```
+initial sync: synced
+after a 30-minute mismatch -> retry | Calendar synchronization pending; retry scheduled
+```
+
+So a genuine mismatch is still refused. The tolerance is 10 seconds, smaller than the 5-minute
+minimum appointment length the API permits, so no real slot could ever be masked. Two tests pin both
+directions: sub-second drift accepted, 30 seconds through a day refused.
+
+I also swept the codebase for the same class of bug rather than waiting to trip over it again: there
+are no other datetime equality comparisons anywhere, and the calendar check was the only instance.
+
+**Provider hygiene.** Three test events passed through the owner's real calendar across rounds 13
+and 14. All three were deleted (HTTP 204 each) and the calendar re-checked at its baseline of one
+event, the genuine production booking.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -697,7 +728,7 @@ production event was never a candidate.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **449 passed** (356 pre-existing + 93 in the
+- `PYTHONPATH=api pytest api/tests -q` → **451 passed** (356 pre-existing + 95 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
