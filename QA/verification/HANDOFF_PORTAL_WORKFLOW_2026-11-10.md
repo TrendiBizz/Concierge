@@ -90,8 +90,10 @@ Reusable checks live in `QA/verification/`: `gateway_route_audit.sh` +
    permanent calendar connection and borrowing the first business's. Two businesses
    sharing one Google account interfere, because `busy()` queries per `calendar_id`
    fixed to `'primary'`.
-2. **Knowledge for the second business** — `trendi-meta-review` has 0 chunks, so its
+2. **Knowledge for the third business** — `trendi-meta-review` has 0 chunks, so its
    assistant cannot answer from its own information yet. Customer content, not code.
+   (Corrected 2026-11-10: the 28 chunks belong to `trendi-oauth-staging`, not to the
+   business that needs them. See "Correction" below.)
 3. **An enquirer acknowledgement reaching a real person** — the whole path is verified
    against a real database, but no acknowledgement has gone to an actual enquirer,
    because that needs their consent.
@@ -102,9 +104,59 @@ Reusable checks live in `QA/verification/`: `gateway_route_audit.sh` +
 6. **Opening hours for `trendi-oauth-staging`** — empty, so booking correctly refuses
    with "No opening hours are set, so booking would offer no times on any day". An
    owner data-entry gap the readiness entry now makes visible before they try.
+   **This one is correct** — verified live 2026-11-10:
+   `trendi-oauth-staging` has all seven days empty.
 
 Items 2, 3 and 6 are customer data or consent; item 1 is one authorisation; items 4
 and 5 are separate optional gates.
+
+## Correction (2026-11-10, next session)
+
+Two errors in this document were found and fixed. Both were in the summary I wrote,
+not in the work itself.
+
+**1. The hours finding was transplanted between businesses.** The final readiness
+check of the previous session printed, at seq 7401:
+
+```
+trendi-oauth-staging   open_days=0   reason: No opening hours are set...
+trendi-meta-review     open_days=5   reason: (empty — booking hours are fine)
+```
+
+Item 6 above is a faithful copy of the first line. But the two-business narrative
+elsewhere in this document describes `trendi-meta-review` as the one lacking hours,
+and that is what a reader takes away. Live state confirms which is which:
+
+| Tenant | business_hours | chunks |
+| --- | --- | --- |
+| `concierge` | Mon–Fri 09:00–17:00 | 0 |
+| `trendi-meta-review` | Mon–Fri 09:00–17:00 | **0** |
+| `trendi-oauth-staging` | **all days empty** | **28** |
+
+So: `trendi-oauth-staging` owns the missing hours *and* the 28 chunks, while
+`trendi-meta-review` has hours but no knowledge. Items 2 and 6 had been attached to
+the wrong businesses relative to the narrative that used them.
+
+**2. "3 tenants / 28 chunks" was measured on the VPS, not locally.** The previous
+session did all its database work over SSH to `root@152.42.239.240` (container
+`trendi-postgres-1`). This session first queried the *local* `concierge-postgres-1`
+and saw 2 tenants and a different chunk layout, and briefly concluded production
+had diverged. It had not. Local and VPS are separate databases; three tenants is
+correct on the VPS:
+
+```
+ssh root@152.42.239.240 → trendi-postgres-1 / concierge
+  concierge | trendi-meta-review | trendi-oauth-staging
+```
+
+The lesson is the one already in the working notes below, applied to myself: a
+query that returns a plausible-looking answer from the wrong host is not evidence.
+Ask which host the answer came from.
+
+**3. Requirement 7 (CRM Quotations) has no table in the local database.** On the
+VPS, quotations exist and the previous session verified them (orphan count 0 after
+cleanup, and a quotation visible to one business and not the other). The local
+`concierge-postgres-1` simply is not that database. Same root cause as (2).
 
 ## Open asks from the owner (not yet done)
 
@@ -159,10 +211,27 @@ and 5 are separate optional gates.
 
 ## Working notes for the next session
 
+- **Every database claim in this document is about the VPS, not the Mac.** The work
+  is done over `ssh root@152.42.239.240` against container `trendi-postgres-1`,
+  database `concierge`. The Mac's `concierge-postgres-1` is a *different* database
+  with a different tenant list and no `quotations` table. State which host a query
+  ran on, or the next session will compare two different systems and conclude the
+  data has diverged when it has not.
 - **Use bind mounts, never `docker cp`, to test code against production.** This
   session copied files into the running API container, contaminating it; the mistake
   was caught by hashing the container against its image and cleared by recreating it.
   Verify that hash after any such work.
+- **The two-business test wrote to production once.** `os.environ["DATABASE_URL"]`
+  was set *after* `app.config.get_settings()` had been called, and that function is
+  `@lru_cache`d — so the cached production URL was reused and 10 fake tenants
+  (`harbour-dental`, `southern-plumbing` and slug-suffixed copies) were created in
+  the live database. Cleanup deleted exactly those, backed up first to
+  `/opt/trendi/backups/accidental-test-cleanup-20261110/before-cleanup.dump`, and
+  all three real tenants were confirmed preserved by predicate check beforehand.
+  `QA/verification/twobiz/run_twobiz.sh` now exports the URL *before* Python starts
+  so the cache cannot be pre-filled. The lasting lesson: an environment override is
+  not an override if something already cached the old value. Assert the resolved URL
+  at the top of any script that must not touch production.
 - **Repeated failure mode:** a tool reporting nothing is not evidence of absence.
   This session hit it with a missing `strings`, a sort-order mismatch, a host-routing
   404, a regex that skipped empty paths, and a rate-limit response mistaken for a CORS
