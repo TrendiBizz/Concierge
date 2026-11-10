@@ -807,6 +807,45 @@ offline access or holding different scopes, and that the schema allows one conne
 **Provider hygiene.** One more test event created and deleted (204); calendar re-verified at its
 baseline of one event.
 
+## The rollback was drilled, not assumed
+
+Every deployment this session was made "with rollback available", but that only means a tagged
+image existed. An untested rollback is a claim rather than a capability, so I drilled it end to end
+on production.
+
+Backed up first: `image-before.txt`, `api.env.before`, and a full `pg_dump` of the concierge
+database (271 KB) to `/opt/trendi/backups/rollback-drill-20261110`.
+
+Then rolled back to `before-calendar-time-tolerance-20261110` and confirmed the older code was
+genuinely running:
+
+```
+AFTER rollback: tolerance present: False | exact compare present: True
+healthz 200 | owner-ui 200
+```
+
+Data survived the rollback, which is what the handoff claimed but had not demonstrated:
+
+```
+tenants=3  chunks=28  appointments=1  leads=7  quotations=1  calendar_connections=1
+```
+
+Then restored the fixed image and confirmed recovery:
+
+```
+tolerance present: True
+app/calendar_connection.py sha256 866432f4…  (matches HEAD exactly)
+chat status 200 | owner-ui 200 | api healthy
+```
+
+**One thing the drill caught.** Restoring by re-tagging is easy to get wrong: my first attempt left
+`:vps` pointing at `ca80d870d1e1`, the *pre-fix* image, which would have silently reverted production
+while appearing to succeed. I detected it by running `grep` inside each image to see which one
+contained the fix, rather than trusting the tag. Restoring by explicit image id fixed it.
+
+Worth recording because the failure mode is quiet: a wrong tag still deploys, still reports healthy,
+and still serves traffic -- it just runs the old code.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
