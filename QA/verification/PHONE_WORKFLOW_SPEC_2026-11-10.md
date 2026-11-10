@@ -74,3 +74,43 @@ the default.
 - The supplier's SIP signalling range for `source_cidr` and media ranges for the
   firewall.
 - Stable per-minute pricing.
+
+
+## Supplier requirement — inbound voice trunk (exact)
+
+Our side is fixed: public host `152.42.239.240`, SIP over **UDP 5060**
+(Asterisk 20 / PJSIP), media **UDP 10000-10099**, inbound only (no outbound
+calling yet). We authenticate the carrier by IP, so we need the signalling IPs.
+
+The replacement supplier must provide:
+
+1. **One inbound voice DID**, E.164. New Zealand preferred (local forwarding
+   rates); a US number is acceptable for testing only.
+2. **SIP trunk** delivering inbound calls to `sip:<DID>@152.42.239.240:5060`
+   over UDP, with IP authentication/allowlist of `152.42.239.240`. Registration
+   with username/password is a fallback (a small renderer change on our side).
+3. **All signalling IP ranges** (primary and failover proxies) for our
+   `identify`/`match` allowlist.
+4. **All media IP ranges** so the firewall allows RTP.
+5. **Codecs**: G.711 µ-law (PCMU) and A-law (PCMA) mandatory, G.722 optional.
+   G.729 not needed.
+6. **Caller ID preserved** — the original caller's number in the From /
+   P-Asserted-Identity, because calls are forwarded from the owner's mobile.
+7. **E.164 number format** for the called number (DNIS) in the Request-URI and
+   To header, e.g. `+6421...`.
+8. **Concurrency**: at least 3 simultaneous inbound calls.
+9. **Accepts PSTN-forwarded calls** (from the owner's mobile star codes) and
+   passes the original caller's number through.
+10. **Portal or API** to assign/change numbers, set the trunk destination and
+    view call records.
+11. **Commercials**: month-to-month, published per-minute inbound rate, monthly
+    number fee, written rate stability (no sudden plan changes — the reason the
+    previous supplier was cancelled). No minimum term.
+12. **Test**: a live DID callable the same day, and the ability to change the
+    destination during testing.
+
+Not required: outbound calling, E911, fax, or carrier-side recording (we record
+on our side, consent-gated).
+
+Optional separate requirement: two-way **SMS** on the same or a companion number
+(SIP MESSAGE or HTTP API); specify separately if offered.
