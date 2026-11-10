@@ -90,15 +90,39 @@ Owner SMS is gated on that business's own `sms_send` authorization, so saving a
 number is never treated as permission to text it. A website-only business still
 receives the owner email.
 
-### 5. Optional acknowledgement, separate from the owner alert — implemented, tested, unit-verified
+### 5. Optional acknowledgement, separate from the owner alert — implemented, tested, live
 
-Distinct outbox kinds (`enquirer_ack` vs `owner_alert`), addressed to the enquirer
-and never to the owner. The send path requires: an explicit request, a named
-channel and recipient, a **read-back confirmation**, and that business's channel
-authorization. Declining is recorded as declined and queues nothing.
+Distinct outbox kinds (`enquirer_ack` vs `owner_alert`), addressed to the enquirer and never to the
+owner. The send path requires an explicit request, a named channel and recipient, a read-back
+**confirmation**, and that business's channel authorization. Declining is recorded as declined and
+queues nothing.
 
-Not live-verified: no acknowledgement was actually sent, because sending to a real
-enquirer needs consent that this run did not have.
+Driven through the real code against a real Postgres, including delivery by the actual worker:
+
+```
+1. first ask        -> needs_confirmation True | queued rows: 0
+2. confirmed        -> queued | recipient hana@example.com
+   queued: [('926f2753', 'email', 'hana@example.com', 'pending')]
+3. repeat confirm   -> enquirer_ack rows: 1   (must be 1)
+4. after worker     -> sent
+5. after takeover   -> skipped | human_takeover
+6. after revocation -> skipped | channel_authorization_missing
+```
+
+So the acknowledgement is genuinely deliverable, is deduplicated against a repeat confirmation, and
+is suppressed at delivery time by both human takeover and a revoked permission. `enquirer_ack` is
+deliberately absent from `OWNER_KINDS`, which is what subjects it to the consent, opt-out and
+takeover gauntlet that owner alerts are exempt from.
+
+Still **not** verified: that a real enquirer received one, since that needs a real person's consent
+and mailbox. What is proven is that the system queues, delivers and suppresses it correctly.
+
+**A diagnosis worth recording.** My first run showed the acknowledgement being `sent` after a
+takeover, which looked like a missing guard. It was not: `set_takeover()` can only pause a case that
+**exists**, and my probe paused `email:takeover@example.com` with no such case row. The update
+matched nothing, `is_paused_for()` correctly returned False, and sending was the right outcome. I
+added the `reconcile()` step that real traffic performs and the guard then behaved exactly as
+documented. The lesson is in the test docstring so the next reader does not "fix" a non-bug.
 
 ### 6. CRM retention, isolation, retry deduplication — implemented, tested, live
 
@@ -568,7 +592,7 @@ collision is exercised rather than described.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **435 passed** (356 pre-existing + 79 in the
+- `PYTHONPATH=api pytest api/tests -q` → **439 passed** (356 pre-existing + 83 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

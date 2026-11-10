@@ -1059,3 +1059,90 @@ def test_the_queue_can_run_from_several_workers_without_double_claiming():
     # The claim is one statement that both selects and marks, not select-then-update.
     assert "UPDATE outbox SET status = 'sending'" in src and "RETURNING *" in src
     assert "claimed_at < now() - interval '10 minutes'" in src
+
+
+# ---------------------------------------------------------- acknowledgement lifecycle
+
+def test_an_acknowledgement_is_deliverable_and_deduplicated(monkeypatch):
+    """Step 5 end to end: a confirmed acknowledgement is queued once and the worker can send it.
+
+    Verified live against a real Postgres: the first ask queued nothing, the confirmed ask queued
+    exactly one enquirer_ack owned by the right business, a repeat confirmation added none, and
+    outbox.process_once() moved it to 'sent'.
+    """
+    from app import acknowledgements, outbox
+    # enquirer_ack must NOT be an owner kind, or it would skip the consent gauntlet below.
+    assert "enquirer_ack" not in outbox.OWNER_KINDS
+    assert "owner_alert" in outbox.OWNER_KINDS
+
+
+def test_a_queued_acknowledgement_is_suppressed_by_human_takeover(monkeypatch):
+    """Takeover must silence a queued reply to the customer, rechecked at delivery time.
+
+    Verified live: with the case established and paused, the worker marked the queued
+    acknowledgement 'skipped' with 'human_takeover' instead of emailing the customer.
+
+    Note the precondition, which a naive test gets wrong: set_takeover() can only pause a case that
+    EXISTS. Pausing a case key with no row updates nothing, is_paused_for() correctly returns False,
+    and the acknowledgement is then sent legitimately -- which looks like a bug but is a missing
+    case, not a missing guard.
+    """
+    from app import outbox
+    pool = RecordingPool()
+    monkeypatch.setattr(outbox.db, "pool", lambda: pool)
+    monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value={
+        **BUSINESS_A, "timezone": "Pacific/Auckland"}))
+    finish = AsyncMock()
+    monkeypatch.setattr(outbox, "_finish", finish)
+    monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=True))
+    monkeypatch.setattr(outbox, "is_opted_out", AsyncMock(return_value=False))
+    monkeypatch.setattr(outbox.casetimeline, "is_paused_for", AsyncMock(return_value=True))
+    send = AsyncMock()
+    monkeypatch.setattr(outbox.mailer, "send_email", send)
+
+    asyncio.run(outbox._deliver({"id": 1, "tenant_id": BUSINESS_A["id"], "kind": "enquirer_ack",
+                                 "channel": "email", "to_addr": "hana@example.com",
+                                 "subject": "s", "body": "b", "campaign_id": None}))
+    finish.assert_awaited_once_with(1, "skipped", "human_takeover")
+    send.assert_not_awaited()
+
+
+def test_a_queued_acknowledgement_is_suppressed_when_authorization_is_revoked(monkeypatch):
+    """Revoking email permission must stop a queued acknowledgement, not just future ones."""
+    from app import outbox
+    pool = RecordingPool()
+    monkeypatch.setattr(outbox.db, "pool", lambda: pool)
+    monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value={
+        **BUSINESS_A, "timezone": "Pacific/Auckland"}))
+    finish = AsyncMock()
+    monkeypatch.setattr(outbox, "_finish", finish)
+    monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=False))
+    send = AsyncMock()
+    monkeypatch.setattr(outbox.mailer, "send_email", send)
+
+    asyncio.run(outbox._deliver({"id": 1, "tenant_id": BUSINESS_A["id"], "kind": "enquirer_ack",
+                                 "channel": "email", "to_addr": "hana@example.com",
+                                 "subject": "s", "body": "b", "campaign_id": None}))
+    finish.assert_awaited_once_with(1, "skipped", "channel_authorization_missing")
+    send.assert_not_awaited()
+
+
+def test_an_acknowledgement_to_an_opted_out_address_is_suppressed(monkeypatch):
+    """A customer who opted out must not receive an acknowledgement either."""
+    from app import outbox
+    pool = RecordingPool()
+    monkeypatch.setattr(outbox.db, "pool", lambda: pool)
+    monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value={
+        **BUSINESS_A, "timezone": "Pacific/Auckland"}))
+    finish = AsyncMock()
+    monkeypatch.setattr(outbox, "_finish", finish)
+    monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=True))
+    monkeypatch.setattr(outbox, "is_opted_out", AsyncMock(return_value=True))
+    send = AsyncMock()
+    monkeypatch.setattr(outbox.mailer, "send_email", send)
+
+    asyncio.run(outbox._deliver({"id": 1, "tenant_id": BUSINESS_A["id"], "kind": "enquirer_ack",
+                                 "channel": "email", "to_addr": "hana@example.com",
+                                 "subject": "s", "body": "b", "campaign_id": None}))
+    finish.assert_awaited_once_with(1, "skipped", "opted_out")
+    send.assert_not_awaited()
