@@ -102,3 +102,5 @@ Python venv with `api/requirements-dev.txt`; Postgres 16 + pgvector via apt; fas
 `DATABASE_URL=postgresql://postgres@127.0.0.1:55432/concierge ADMIN_TOKEN=... XAI_API_KEY=test
 LLM_BASE_URL=<mock>/v1 XAI_CLIENT_SECRETS_URL=<mock>/v1/realtime/client_secrets
 XAI_REALTIME_URL=ws://127.0.0.1:8097/v1/realtime PUBLIC_BASE_URL=http://127.0.0.1:8000`.
+
+Read `QA/verification/HANDOFF_PORTAL_WORKFLOW_2026-11-10.md` for the portal workflow verification session: the five defects found and fixed, the verification stack, and what remains.
