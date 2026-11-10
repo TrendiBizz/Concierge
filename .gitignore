@@ -24,3 +24,10 @@ node_modules/
 
 # Private, pre-cutover rollback archive; never commit.
 .migration-rollback/
+
+# Session scratch output that must never be committed. Enforced here rather
+# than by operator memory, because a handoff note is not a guardrail; the
+# auto-end tool refuses these paths as a second layer.
+QA/verification/HERMES_*
+office-shots/
+tiktok-review/

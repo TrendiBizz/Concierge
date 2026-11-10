@@ -1,7 +1,8 @@
 # Spec — session auto-end and auto-push
 
-Status: **decided, not built.** Companion to `HANDOFF_PORTAL_WORKFLOW_2026-11-10.md`
-§"Open asks from the owner", item 2.
+Status: **BUILT 2026-11-10.** Implementation: `scripts/auto-end-session.py`.
+Tests: `api/tests/test_auto_end_session.py` (34). Companion to
+`HANDOFF_PORTAL_WORKFLOW_2026-11-10.md` §"Open asks from the owner", item 2.
 
 Owner decisions (2026-11-10):
 
@@ -157,3 +158,48 @@ Existing sessions, including the long-running one, keep their pinned knobs.
 - The excluded paths never appear in a commit.
 - A rejected push stops without force and reports.
 - Existing sessions are untouched.
+
+## 8. Build record (2026-11-10)
+
+Implementation `scripts/auto-end-session.py`, tests
+`api/tests/test_auto_end_session.py`.
+
+Evidence, all run in this session:
+
+| Check | Result |
+| --- | --- |
+| New tests | **34 passed** |
+| Full suite | **504 passed** (was 470; +34, no regressions) |
+| Rust gate | `GATE-ALL-OK` |
+| Excluded paths | now `.gitignore`d, not left to operator memory |
+
+Falsification — each guardrail was broken deliberately and the tests confirmed
+red, because a test that cannot fail proves nothing:
+
+| Broken | Tests that went red |
+| --- | --- |
+| `excluded()` returns False | 7 |
+| `run_gates()` returns early | 2 |
+| Rejected-push check disabled | 1 |
+
+End-to-end against a throwaway repo with a **real bare remote**:
+
+1. Below threshold — no commit, HEAD unchanged.
+2. Excluded `HERMES_*` staged — refused, exit 1, HEAD unchanged.
+3. Red gate (no tests collected) — refused, **nothing pushed**.
+4. Green gate — committed `ffda562` and pushed; remote confirmed at the same
+   SHA, `HERMES_*` absent from the remote tree.
+5. Remote advanced behind us — push rejected, exit 1, **no force**, the new file
+   absent from the remote.
+
+Honest limitation found in case 5: the local commit is created *before* the push
+attempt, so a rejected push leaves a local commit that is not on origin. This is
+deliberate — the work stays recoverable and nothing false is published — but it
+means a rejected push needs a human to reconcile, not an automatic retry. The
+tool never retries and never forces.
+
+Not wired to fire automatically: the tool is invoked with an explicit occupancy
+reading. Hooking it to a live `agent/turn-stopping` signal is the remaining
+integration step and is deliberately left manual until the trigger is observed
+on real sessions, since an unattended auto-push to `main` is the destructive
+half of this design.
