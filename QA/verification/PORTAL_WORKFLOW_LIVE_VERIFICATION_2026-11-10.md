@@ -1322,29 +1322,66 @@ the regression that would give every visitor one shared budget -- and pass when 
 
 ## What is genuinely NOT verified, and why
 
-1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
-   (28 chunks) and a calendar. The other two tenants have no knowledge, no calendar
-   and no enabled channels. Live two-business isolation was therefore proven on the
-   *mechanism* (per-tenant SQL scoping, 0 retrieval overlap, 0 cross-tenant
-   quotations) and on a two-business *harness*, but not by driving two rich live
-   businesses end to end. This needs real customer configuration, not code.
-2. **Booking on the live tenant is blocked by its own empty business hours.**
-   `trendi-oauth-staging` has `{"mon": [], "tue": [], …}`. Availability therefore
-   returns no slots — correctly. With hours set, the same code returns 16 slots a
-   day. The system **refuses** to enable booking in this state with the message
-   "No opening hours are set, so booking would offer no times on any day", and
-   `native_booking` stayed `false` after the attempt. This is a data-entry gap for
-   the owner, not a defect; the guard is doing its job. The readiness entry added
-   above now makes that reason visible *before* the owner tries.
-3. **Inbound SMS end to end.** No SMS provider is configured; the routes return 503
-   by design. The paired device is currently online (`last_seen` seconds old) but has
-   `inbound_verified_at = NULL`, so inbound SMS has never been proven. Outbound owner
-   SMS rows are honestly left `awaiting_receipt` or `failed` with
-   "Phone did not confirm send; reconcile before retry" rather than being marked sent.
-   Owner **email** delivery is reliable and reached `sent` on every attempt.
-4. **Real carrier telephone calls.** Unchanged and still optional. `phone_numbers = 0`,
-   no SIP mapping, no number purchased. Website voice is unaffected by this.
-5. **Enquirer acknowledgement actually sent**, for consent reasons above.
+Re-checked against production at this point in the work, because the earlier version of this list
+went stale: it still said only one business was configured, which rounds 12 and 13 superseded.
+
+1. **A second business with its own calendar connection.** Two businesses have real owner accounts
+   (`trendi-oauth-staging`, `trendi-meta-review`) and two have usable business hours (`concierge`,
+   `trendi-meta-review`), but only `trendi-oauth-staging` holds a calendar credential. The
+   two-business booking path was therefore proven against the real Google provider by borrowing that
+   credential transiently in a throwaway database, not by a second permanent connection. Making it
+   permanent needs **one Google OAuth consent** for `meta-review@trendibizz.com`, which only the
+   account holder can grant. This is now the single outstanding item.
+2. **Business knowledge for the second business.** `trendi-meta-review` has 0 knowledge chunks, so its
+   assistant cannot yet answer from its own information. That is customer content to be supplied, not
+   a code gap -- the upload path is verified and isolation between businesses is proven.
+3. **Inbound SMS end to end.** No SMS provider is configured, so the routes return 503 by design. The
+   paired device is online but has `inbound_verified_at = NULL`, meaning inbound SMS has never been
+   proven. Outbound owner SMS is honestly left `awaiting_receipt` or `failed` with "Phone did not
+   confirm send; reconcile before retry" rather than marked sent. Owner **email** reached `sent` on
+   every attempt.
+4. **Real carrier telephone calls.** Unchanged and optional. `phone_numbers = 0`, no SIP mapping, no
+   number purchased. The three `/api/v1/phone/twilio/*` routes are deliberately dormant. Website
+   voice is unaffected and verified working.
+5. **An enquirer acknowledgement reaching a real person.** The queue, delivery, deduplication and
+   suppression are all verified against a real Postgres, but no acknowledgement has been sent to an
+   actual enquirer, because that needs a real person's consent.
+
+Items 2, 3 and 5 are customer data or consent rather than code. Item 1 is one authorisation.
+
+## The second business's booking path was re-proven, not just recorded once
+
+The two-business booking evidence came from round 13, in a throwaway database that no longer exists.
+A claim resting on a past log is weaker than one that reproduces, so it was re-run against the real
+Google provider:
+
+```
+SECOND BUSINESS: Meta review workspace | tz America/Chicago | open days: 5
+available slots: 16
+sync -> synced | invitation: provider_requested
+provider: Meta review workspace — Second Biz Client | 2026-11-17T15:00:00Z
+  tenant marker matches B: True
+  attendee: ['second@example.com']
+cleanup DELETE: 204
+```
+
+The second business offered 16 slots computed from **its own** Chicago hours, the event synced, and the
+provider recorded that business's tenant marker and the correct attendee -- not the first business's.
+The test event was then deleted, and the calendar re-checked at its baseline of one event.
+
+**The report's own "not verified" list was also stale**, still claiming only one business was
+configured. Re-checked against production:
+
+| tenant | knowledge | calendar | owner | business hours |
+| --- | --- | --- | --- | --- |
+| `concierge` | 0 | 0 | – | 5 weekdays |
+| `trendi-meta-review` | 0 | 0 | yes | 5 weekdays |
+| `trendi-oauth-staging` | 28 | 1 | yes | none set |
+
+So two businesses have real owner accounts, two have usable hours, and one has a calendar. The list
+was corrected to say that, and to name the single remaining blocker accurately: **one Google OAuth
+consent** for `meta-review@trendibizz.com`. An outdated statement in a verification report is itself a
+defect, since a reader would act on it.
 
 ## Test and gate state
 
