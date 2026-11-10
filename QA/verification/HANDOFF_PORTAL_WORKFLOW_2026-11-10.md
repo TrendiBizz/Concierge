@@ -22,11 +22,11 @@ optional separate gate and was not touched.
 | | |
 | --- | --- |
 | Workspace | `/Users/jo/work-staging/concierge-integration` (git worktree) |
-| Branch | `main`, HEAD `12d244e`, matches `origin/main` (0/0) |
-| Tests | **470 passed** (`PYTHONPATH=api pytest api/tests -q`) |
+| Branch | `main`, HEAD `75b8d6a`, matches `origin/main` (0/0) — re-verified 2026-11-10 19:12 |
+| Tests | **507 passed** (`PYTHONPATH=api pytest api/tests -q`, 9.85s) — re-run 2026-11-10 19:12 |
 | Rust | `GATE-ALL-OK` (`./scripts/rust-gate.sh`) |
 | Deployed image | `trendi-concierge-api:vps` → `51731df49bd3` |
-| Container matches image | yes — verified by hashing `/srv/app/**/*.py` both sides (`153a9382…`) |
+| Container matches image | yes — running `main.py` / `booking.py` are byte-identical to HEAD (`d64937cc…`, `a4ad2b2e…`), verified 2026-11-10 19:12 |
 | Rollback tags | `before-sms-throttle-20261110`, `before-clean-rebuild-20261110` → `c69687f6bf10`, `before-calendar-time-tolerance-20261110` |
 | Backups | `/opt/trendi/backups/sms-throttle-20261110`, `.../clean-image-rebuild-20261110`, `.../rollback-drill-20261110` |
 
@@ -35,6 +35,15 @@ Production tenants (3): `concierge` (archived prototype), `trendi-oauth-staging`
 hours), `trendi-meta-review` (Meta review workspace, owner
 `meta-review@trendibizz.com`, 5 weekdays 09:00–17:00, no calendar, no knowledge).
 One appointment, one quotation.
+
+## Session continuity
+
+The DSH session that performed this work was lost on 2026-11-10 when `~/.dsh` was
+deleted during a crash/reinstall (last activity 17:23). No code or documentation was
+lost: the work was committed and pushed. This document and `main` at `75b8d6a` are the
+complete record. From a fresh DSH session at 19:12 the following was re-verified:
+507 tests green, local `main` == `origin/main`, and the running container's
+`main.py` / `booking.py` byte-identical to HEAD.
 
 ## The five defects found and fixed
 
@@ -288,10 +297,12 @@ businesses have no calendar credential at all.
    (`!seeded`), so existing sessions keep their pinned knobs and cannot be
    rewritten. Backup: `cordis.patch.yml.bak-20261110-150553-preperms`.
    Takes effect for sessions created after the web profile restarts.
-2. **Automatically end long sessions and run commit/push/handoff.** Still not built,
-   but **decided**: trigger is context size, push is automatic to `origin/main`.
-   Full design including the `contextPressure` vs lifetime-`tokenUsage` trap, push
-   guardrails, and acceptance criteria:
+2. **Automatically end long sessions and run commit/push/handoff.** **BUILT 2026-11-10**
+   (commit `145b9f2`): `scripts/auto-end-session.py` with 34 tests in
+   `api/tests/test_auto_end_session.py`. Trigger is context size; push is automatic to
+   `origin/main`; gates and staged-path guardrails fail closed. The handoff document
+   itself is still written by the agent, not the script. Full design including the
+   `contextPressure` vs lifetime-`tokenUsage` trap and acceptance criteria:
    `SPEC_SESSION_AUTOEND_AUTOPUSH_2026-11-10.md` (this directory).
 
 ## Working notes for the next session
