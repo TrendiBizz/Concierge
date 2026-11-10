@@ -984,6 +984,45 @@ The lesson is specific: on this host, "the tool reported nothing" and "the thing
 different claims, and a container without `strings` will silently look like a binary with no
 features.
 
+## Defect found and fixed: the gateway blocked a route the API serves
+
+Verifying the services I had never checked produced a real one. Comparing the running gateway config
+with source showed a single missing path:
+
+```
+source   path /owner-ui /owner/* ... /api/v1/phone/managed/*
+running  path /owner-ui /owner/* ... /api/v1/voice/recordings/shared/*
+                                             ^-- /api/v1/phone/managed/* absent
+```
+
+The API **does** serve that route (`managed_phone.router`, included in `main.py`), so the carrier
+webhook for the paired-phone transport was unreachable from the internet. Proven both ways rather
+than inferred from the config text:
+
+```
+public edge   POST /api/v1/phone/managed/twilio/1  ->  404   (never reached the app)
+api container same path                            ->  503   (reached it; relay not configured)
+```
+
+404 versus 503 is the whole finding: the edge refused it, the application was ready for it. The path
+was present in committed source (`2fad80f`) and in HEAD, but the release copy on the host predated it.
+
+**Fixed and verified.** Backed up both the release copy and the running config, validated the
+corrected file *before* applying it (`caddy validate` -> "Valid configuration"), then swapped it in
+and recreated the gateway. A `caddy reload` failed first with "connection refused" on port 2019 --
+expected, since the config sets `admin off` deliberately, so a restart is the correct path rather
+than a workaround.
+
+```
+after:  POST /api/v1/phone/managed/twilio/1  ->  503   (now reaches the application)
+        /owner-ui                            ->  200   (unaffected)
+        gateway config vs source              ->  identical
+```
+
+No live customer impact: `managed_phone_setups` and `mobile_forwarding_connections` are both empty,
+so nothing was using the route. But the feature was silently dead at the edge, and would have
+presented as a carrier integration that "does not work" with the API looking correct.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
