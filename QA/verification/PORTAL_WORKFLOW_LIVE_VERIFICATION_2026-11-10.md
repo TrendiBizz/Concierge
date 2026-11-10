@@ -700,6 +700,52 @@ are no other datetime equality comparisons anywhere, and the calendar check was 
 and 14. All three were deleted (HTTP 204 each) and the calendar re-checked at its baseline of one
 event, the genuine production booking.
 
+## The Cloudflare 403, characterised precisely
+
+The earlier report called this "user-agent specific". It is narrower than that, and the distinction
+matters for anyone integrating:
+
+| User agent | Result |
+| --- | --- |
+| `Python-urllib/3.13` | **403 (error 1010)** |
+| `python-urllib/3.13` (lowercase `p`) | 200 |
+| `Python-urllib` / `Python-urllib/3` / `Python-urllib/9.9` | **403** |
+| `python-requests/2.31` | 200 |
+| `Go-http-client/1.1` | 200 |
+| `curl/8.0` | 200 |
+| `Mozilla/5.0 (compatible; Googlebot/2.1)` | 200 |
+
+It is not a general non-browser block: `python-requests`, Go, curl and Googlebot all pass. It
+matches the **case-sensitive literal `Python-urllib`** in the user agent, which is the signature of
+a Cloudflare WAF custom rule rather than a managed default.
+
+**Does it affect anything real?** No. `public_base_url` is only printed or used to build URLs
+(`owner_notifications`, the CLI demo output, shared-recording links); nothing server-side fetches
+its own public host. The one external service that posts to us, the paired phone connector,
+identifies as `TrendiPhoneConnector/1.0` and is not matched. So this is a WAF policy to be aware of
+for future server-side integrations, not an active fault.
+
+## A transient I created, and correctly did not "fix"
+
+Reading the gateway log while investigating showed repeated 502s on `/api/v1/device-sms/poll` from
+the phone connector. It looked like an outage. It was not:
+
+```
+4 errors at 23:17    4 at 23:45    4 at 23:54    4 at 00:48    4 at 01:00
+distinct messages: 15x "lookup api ... server misbehaving"
+                    5x "dial tcp 172.18.0.6:8000: connect: connection refused"
+```
+
+Every cluster is exactly four errors and every timestamp is a container recreation **I** performed
+during this session. The connector polls roughly every three seconds, so each restart costs about
+four failed polls. Confirmed benign: the device's `last_seen` was 0.3 seconds old when checked, so
+it resumes automatically, and there were **zero** gateway errors in the five minutes following the
+last deploy.
+
+So this is a ~10-second self-healing gap intrinsic to recreating a container, not a fault to fix.
+Recording it rather than adding machinery for it, because a "fix" here would be complexity with no
+demonstrated problem behind it.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
