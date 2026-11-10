@@ -512,6 +512,34 @@ merely restates the implementation. I rewrote it to supply a hostile `tenant_id`
 arguments and assert it is ignored; it now **fails** under that regression and passes when scoping
 is taken from context.
 
+## Delivery idempotency: a re-claim must not text the customer twice
+
+`outbox.process_once()` reclaims rows left in `sending` for over 10 minutes, to recover from a
+worker that died mid-send. If a worker died *after* the SMS actually went out but before recording
+it, that reclaim would re-deliver. The guard is the `request_key`, derived from the outbox row id,
+which collides on `(tenant_id, request_key)` in `device_sms_jobs` instead of queueing a second text.
+
+Verified live against a real Postgres:
+
+```
+jobs after first enqueue: 1
+jobs after re-claim with same key: 1 (must still be 1)
+jobs after a different key: 2 (must be 2)
+changed content refused: SMS identity or content changed; review required
+historical replay refused: Historical SMS requires owner review
+```
+
+**Three tests of mine were worthless and I only found out by trying to break them.** My first
+attempts asserted that the source *contains* `ON CONFLICT(tenant_id,request_key)` and that
+`_deliver` mentions a key derived from the row id. Under a deliberate regression -- appending the
+attempt number to the key, which defeats the dedupe completely -- those tests still passed. They
+restated the implementation instead of exercising it.
+
+The version that works drives `outbox._deliver` three times for the same row with different attempt
+counts and asserts the key never varies. That one **fails** under the regression and passes when
+restored. Behaviour tests also now simulate the unique constraint on `device_sms_jobs`, so a
+collision is exercised rather than described.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -540,7 +568,7 @@ is taken from context.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **430 passed** (356 pre-existing + 74 in the
+- `PYTHONPATH=api pytest api/tests -q` → **435 passed** (356 pre-existing + 79 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
