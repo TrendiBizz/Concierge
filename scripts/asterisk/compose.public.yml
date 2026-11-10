@@ -1,0 +1,14 @@
+# Public SIP termination override. Use only on the host that terminates a real
+# carrier trunk:
+#   docker compose -f compose.yml -f compose.public.yml ... up -d
+# The base file keeps the phone network internal with no published ports; this
+# override publishes SIP and the bounded RTP range and allows egress to the
+# carrier's media/signalling networks.
+services:
+  pbx:
+    ports:
+      - "5060:5060/udp"
+      - "10000-10099:10000-10099/udp"
+networks:
+  phone:
+    internal: false

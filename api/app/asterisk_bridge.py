@@ -253,6 +253,9 @@ async def finish(tenant, call_id, conversation, status, record_session=None):
                             get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
                 tail += '\n\nThe complete enquiry is saved in your Concierge CRM.'
                 owner = await c.fetchval('SELECT owner_number FROM managed_phone_setups WHERE tenant_id=$1', tenant['id'])
+                # The managed-setup row is optional; without this fallback a real
+                # call would notify only by email and silently skip the owner SMS.
+                owner = owner or tenant.get('notify_phone')
                 if owner:
                     await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,dedupe_key) VALUES($1,'owner_alert','sms',$2,$3,$4) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
                                     tenant['id'], owner, f"{tenant['name']} — new phone message:\n{text[:1100]}{tail}", call_id+':owner')
