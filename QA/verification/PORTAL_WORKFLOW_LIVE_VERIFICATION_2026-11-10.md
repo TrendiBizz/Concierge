@@ -1194,6 +1194,34 @@ reference produced two FAILs and exit code 1, against exit 0 on the healthy widg
 `navigator` is a getter-only global in modern Node; it needs `Object.defineProperty`. The widget was
 never the problem.
 
+## The owner's calendar feed is verified, and two of my own checks were wrong
+
+The `.ics` feed is how an owner subscribes to their appointments from Google, Apple or Outlook. It had
+never been checked. Verified live at origin and through the gateway:
+
+```
+origin     200, 712 bytes
+gateway    200, 712 bytes   (the path a real calendar client uses)
+structure  BEGIN:VCALENDAR / VERSION:2.0 / PRODID / 1 VEVENT, all components closed
+```
+
+**Two errors of mine were caught before they became findings.** My first three attempts to fetch the
+feed returned 404 and looked like a broken subscription. They were token-extraction failures --
+`psql` formatting leaked into the token string, giving 24 and then 56 characters for a 32-character
+token. Fetching from inside the container, where the application itself supplies the token, returned
+200 immediately. The feed was never broken.
+
+Then my *test* for the feed could not fail. It asserted `"END:VCALENDAR" in text`, and when I
+replaced the closing component with a comment that merely mentioned it, the test still passed. I had
+also injected that "regression" into the wrong place -- the line is appended at the end of `build()`,
+not listed at the top -- so my first negative test ran against unmodified code and proved nothing.
+Tightened to structural checks (`lines[0]`, `lines[-1]`, matching BEGIN/END counts, no comment lines)
+and re-verified with a genuine injection: it now **fails** on a malformed feed and passes when
+restored.
+
+That is the third test of mine this session that passed against deliberately broken code. The only
+reason any of them were caught is that I try to falsify each one before trusting it.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -1222,7 +1250,7 @@ never the problem.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **456 passed** (356 pre-existing + 100 in the
+- `PYTHONPATH=api pytest api/tests -q` → **458 passed** (356 pre-existing + 102 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

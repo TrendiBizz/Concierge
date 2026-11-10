@@ -1379,3 +1379,46 @@ def test_one_connection_per_business_is_enforced_by_the_schema():
     assert "tenant_id uuid PRIMARY KEY" in block
     # And the default calendar is 'primary', which is what the OAuth finish stores.
     assert "DEFAULT 'primary'" in block
+
+
+# ---------------------------------------------------------- calendar feed
+
+def test_the_ics_feed_is_structurally_valid():
+    """The owner subscribes to this feed, so a malformed file breaks their calendar silently.
+
+    Verified live against production: the feed returned 200 with 712 bytes, valid VCALENDAR
+    framing, VERSION:2.0, a PRODID, exactly one VEVENT with matching BEGIN/END, and the real
+    appointment inside it.
+    """
+    from app import ical
+    feed = ical.build(BUSINESS_A, [
+        {"id": "appt-1", "starts_at": datetime(2026, 11, 12, 1, 0, tzinfo=timezone.utc),
+         "ends_at": datetime(2026, 11, 12, 1, 30, tzinfo=timezone.utc),
+         "name": "Hana", "notes": "Checkup", "phone": "+6421555123", "email": "hana@example.com"},
+    ])
+    text = feed if isinstance(feed, str) else feed.decode()
+    # Check COMPONENT STRUCTURE, not substring presence. An earlier version asserted
+    # `"END:VCALENDAR" in text`, which still passed when the closing line was replaced by a comment
+    # that merely mentioned it -- a test that could not fail.
+    lines = [l.strip() for l in text.replace("\r\n", "\n").split("\n") if l.strip()]
+    assert lines[0] == "BEGIN:VCALENDAR", lines[0]
+    assert lines[-1] == "END:VCALENDAR", lines[-1]
+    assert "VERSION:2.0" in lines
+    # Every VTODO/VEVENT/VCALENDAR opened must be closed by a matching component line.
+    events_open = lines.count("BEGIN:VEVENT")
+    events_close = lines.count("END:VEVENT")
+    assert events_open >= 1 and events_open == events_close, (events_open, events_close)
+    for line in lines:
+        assert not line.startswith("#"), f"comment leaked into the feed: {line}"
+
+
+def test_the_ics_feed_refuses_an_unknown_token():
+    """An unknown token must 404, not emit an empty or shared calendar."""
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main.calendar_feed)
+    assert "Unknown calendar" in src
+    # The lookup is by token, and each tenant's token is unique in the schema.
+    from pathlib import Path
+    schema = (Path(__file__).resolve().parents[1] / "app" / "schema.sql").read_text()
+    assert "calendar_token_idx" in schema and "UNIQUE" in schema
