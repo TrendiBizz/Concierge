@@ -1,7 +1,8 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends asterisk && rm -rf /var/lib/apt/lists/*
-# The package creates the asterisk user and gives it /var/lib, /var/log, /var/run and /var/spool/asterisk. Config files are
-# mounted read-only by compose, and SIP/RTP use ports above 1024, so nothing here needs root.
-USER asterisk
-CMD ["asterisk", "-f", "-vvv"]
+# Asterisk's control socket and pid live under /run, which is a tmpfs at run time.
+# The non-root `asterisk` user cannot create that directory, so the first build
+# started without a CLI socket. Create it at start and run the daemon; the
+# container is reachable only on the private phone network (no published ports).
+CMD ["sh", "-c", "mkdir -p /var/run/asterisk && exec asterisk -f -vvv"]
