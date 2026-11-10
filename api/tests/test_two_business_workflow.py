@@ -1583,7 +1583,8 @@ def test_a_conversation_does_not_text_the_owner_once_per_turn(monkeypatch):
     test enquiry sent 54 alerts to the owner's phone.
 
     The throttle suppresses a second alert only when an earlier one for the SAME lead on the SAME
-    channel is still undelivered. The first alert still goes out carrying the dialogue, and a different
+    channel is still undelivered (`pending`, `sending` or `awaiting_receipt` — the real outbox states;
+    the first version matched a `queued` state that never exists, so it silently did nothing). The first alert still goes out carrying the dialogue, and a different
     enquirer is never suppressed.
     """
     import asyncio as _asyncio
@@ -1594,13 +1595,13 @@ def test_a_conversation_does_not_text_the_owner_once_per_turn(monkeypatch):
         async def fetchval(self, sql, *a):
             tenant, channel, lead, interval = a
             for r in self.rows:
-                if r["lead"] == lead and r["channel"] == channel and r["status"] in ("queued", "sending"):
+                if r["lead"] == lead and r["channel"] == channel and r["status"] in ("pending", "sending", "awaiting_receipt"):
                     return 1
             return None
         async def execute(self, sql, *a):
             if "INSERT INTO outbox" in sql:
                 tenant, channel, to, subj, body, key, lead = a
-                self.rows.append({"lead": lead, "channel": channel, "status": "queued",
+                self.rows.append({"lead": lead, "channel": channel, "status": "pending",
                                   "key": key, "body": body})
             return "OK"
 
@@ -1637,6 +1638,25 @@ def test_the_throttle_window_is_configurable_and_can_be_disabled():
     settings = get_settings()
     assert hasattr(settings, "owner_alert_min_interval_seconds")
     assert settings.owner_alert_min_interval_seconds == 300
+
+
+def test_the_throttle_matches_the_real_outbox_initial_state():
+    """Regression: the first throttle matched status IN ('queued','sending'), but outbox rows are
+    created with the schema default 'pending', so the guard never fired in production. A fake pool
+    that used the invented status made the test pass while the real queue still sent one SMS per
+    turn. Pin the state names to the schema so the false friend cannot come back.
+    """
+    import inspect
+    import re
+    from pathlib import Path
+    from app import owner_notifications as on
+
+    src = inspect.getsource(on.queue)
+    schema = (Path(__file__).resolve().parent.parent / "app" / "schema.sql").read_text()
+    assert re.search(r"status\s+text\s+NOT NULL DEFAULT 'pending'", schema)
+    assert "'pending'" in src, "throttle must match the schema's initial status"
+    for state in ("'sending'", "'awaiting_receipt'"):
+        assert state in src
 
 
 def test_the_throttle_only_ever_suppresses_owner_alerts():

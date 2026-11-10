@@ -35,10 +35,14 @@ async def queue(tenant, subject, body, dedupe, *, lead_id=None, connection=None)
         if lead_id is not None:
             interval = get_settings().owner_alert_min_interval_seconds
             if interval > 0:
+                # The initial outbox status is the schema default 'pending' (not 'queued').
+                # A first version of this guard matched only ('queued','sending'), so it never
+                # fired in production and a 30-turn conversation still queued 30 alerts per
+                # channel. Treat every undelivered state as in-flight.
                 recent = await runner.fetchval(
                     "SELECT 1 FROM outbox WHERE tenant_id=$1 AND kind='owner_alert' AND channel=$2 "
                     "AND lead_id=$3 AND created_at > now() - make_interval(secs => $4) "
-                    "AND status IN ('queued','sending') LIMIT 1",
+                    "AND status IN ('pending','sending','awaiting_receipt') LIMIT 1",
                     tenant['id'], channel, lead_id, interval)
                 if recent:
                     continue
