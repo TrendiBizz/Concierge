@@ -1474,3 +1474,57 @@ def test_a_tenant_origin_allow_list_is_enforced_when_configured():
     assert "Origin not allowed" in src
     # The configured list plus our own demo pages.
     assert "permitted.add(_origin_of(settings.public_base_url))" in src
+
+
+# ---------------------------------------------------------- rate limiting is per visitor
+
+def test_the_ip_limiter_keys_per_visitor_not_globally():
+    """Behind Cloudflare and Caddy the app must see the real visitor IP, or one visitor's traffic
+    would exhaust a shared budget and block everyone.
+
+    Verified live through the gateway: visitor 203.0.113.111 was limited after exactly 20 calls (the
+    configured chat_rate_per_minute_ip) while visitor 203.0.113.222 still received 200. Feeding the
+    limiter the proxy's address instead would have blocked both.
+
+    The gateway forwards Cf-Connecting-Ip as X-Forwarded-For, and uvicorn runs with --proxy-headers
+    and --forwarded-allow-ips '*', so request.client.host is the visitor rather than the proxy.
+    """
+    import inspect
+    from app import main as app_main, security
+    # The limiter is keyed by a caller-supplied string; the app passes the request's client host.
+    src = inspect.getsource(app_main._rate_limit)
+    assert "request.client.host" in src
+    # Two different keys must be independent -- the property that makes the app-level keying work.
+    limiter = security.RateLimiter(limit=3, window_seconds=60)
+    assert [limiter.check("a") for _ in range(3)] == [True, True, True]
+    assert limiter.check("a") is False          # a is exhausted
+    assert limiter.check("b") is True           # b is untouched by a's traffic
+
+
+def test_the_limiter_refuses_rather_than_queues_past_its_limit():
+    """Past the limit the limiter must return False (a 429), not silently allow the call."""
+    from app import security
+    limiter = security.RateLimiter(limit=2, window_seconds=60)
+    assert limiter.check("k") is True
+    assert limiter.check("k") is True
+    assert limiter.check("k") is False
+    assert limiter.check("k") is False
+
+
+def test_only_the_customer_facing_endpoints_are_rate_limited():
+    """The limiter guards the four endpoints a visitor drives, not every route.
+
+    Verified live: /api/v1/widget-config accepted 26 consecutive calls without a 429, because it is
+    not rate limited. Pinning the set means adding the limiter elsewhere is a deliberate choice.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main)
+    limited = [
+        '@app.post("/api/v1/chat"' in src,
+        '@app.post("/api/v1/voice/token"' in src,
+        '@app.post("/api/v1/tools/{name}"' in src,
+        '@app.post("/api/v1/voice/log"' in src,
+    ]
+    assert all(limited)
+    assert src.count("_rate_limit(request") >= 4

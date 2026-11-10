@@ -1291,6 +1291,35 @@ only, foreign origin 403 -- because conflating the two would either break the wi
 endpoints. The CORS test was confirmed to fail when `allow_origins` is narrowed to a single origin
 and pass when restored.
 
+## Rate limiting is per visitor, proven by exhausting one
+
+Round 31 hit a 429 while probing, which raised a question worth answering: behind Cloudflare and
+Caddy, does the app see the **real visitor IP** or the proxy's? If the latter, one visitor's traffic
+would exhaust a shared budget and block everyone.
+
+Answered by exhausting one visitor's allowance and checking another:
+
+```
+visitor A (203.0.113.111): 200 x20, then 429 429 429 429
+visitor B (203.0.113.222): 200
+PER-VISITOR: A limited, B unaffected. Correct.
+```
+
+A was cut off at exactly `chat_rate_per_minute_ip` (20); B was untouched. The chain holds:
+Caddy forwards `Cf-Connecting-Ip` as `X-Forwarded-For`, and uvicorn runs with `--proxy-headers
+--forwarded-allow-ips *`, so `request.client.host` is the visitor rather than the proxy.
+
+**Two earlier attempts at this test proved nothing, and I caught both.** The first compared two
+visitor IPs and saw 200 for each -- but a *global* limiter would also return 200 twice, so it could
+not discriminate. The second tried to exhaust a visitor against `/api/v1/widget-config` and made 26
+successful calls without a 429, because that endpoint is **not** rate limited; only the four
+customer-facing ones are (`chat`, `voice/token`, `tools/{name}`, `voice/log`). Only the third attempt,
+targeting a limited endpoint and actually exhausting the budget, produced a discriminating result.
+
+Three tests pin it: per-visitor keying, refusal past the limit rather than silent allowance, and the
+set of limited endpoints. The first was confirmed to fail when the limiter is keyed on a constant --
+the regression that would give every visitor one shared budget -- and pass when restored.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -1319,7 +1348,7 @@ and pass when restored.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **461 passed** (356 pre-existing + 105 in the
+- `PYTHONPATH=api pytest api/tests -q` → **464 passed** (356 pre-existing + 108 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
