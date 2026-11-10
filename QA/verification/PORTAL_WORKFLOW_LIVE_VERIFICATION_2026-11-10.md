@@ -409,6 +409,32 @@ A side note recorded for accuracy: my earlier legitimate voice probes against th
 consumed **1 of its 200** daily tokens, which is ordinary usage rather than damage. All six
 voice_tokens rows belong to that real tenant; none leaked to the test businesses.
 
+## Knowledge and email-draft isolation, verified against real SQL
+
+Two more destructive surfaces were checked on the throwaway database, because both can destroy or
+leak a business's own data when scoping is wrong.
+
+**Business knowledge.** Two businesses were given documents with the *same title*, so the derived
+document id is identical -- the case where a missing tenant filter would let one business delete
+another's knowledge:
+
+```
+doc A: e397731993415212 | doc B: e397731993415212 | same id: True
+A documents: 1 | B documents: 1
+A removed: True
+after A removes -> A documents: 0 | B documents: 1 (B must still be 1)
+B content intact: 'Opening hours\n\nWe open at 8am.'
+```
+
+A's delete removed only A's chunks, and B's content survived intact. `test_removing_a_document_
+cannot_touch_another_businesss_same_titled_document` was confirmed to **fail when the tenant
+filter is removed from the DELETE** and pass when restored.
+
+**Email drafts.** B's attempts to revise, discard or approve A's draft all returned `None` and left
+A's draft in status `draft` with its body untouched. B's listing showed 0 drafts against A's 1. A
+`REVIEW REQUIRED` draft was refused for approval, and a genuine approval queued exactly one row
+with a repeat queueing none.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -437,7 +463,7 @@ voice_tokens rows belong to that real tenant; none leaked to the test businesses
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **417 passed** (356 pre-existing + 61 in the
+- `PYTHONPATH=api pytest api/tests -q` → **424 passed** (356 pre-existing + 68 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

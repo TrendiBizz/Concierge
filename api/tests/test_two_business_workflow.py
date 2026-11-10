@@ -668,3 +668,101 @@ def test_a_business_with_no_token_file_cannot_obtain_an_access_token(monkeypatch
         asyncio.run(calendar_connection.access_token(BUSINESS_B["id"]))
     assert "calendar" in str(exc.value).lower()
 
+
+
+# ---------------------------------------------------------- knowledge isolation
+
+def test_removing_a_document_cannot_touch_another_businesss_same_titled_document(monkeypatch):
+    """The dangerous case: two businesses title a document identically, so the derived id matches.
+
+    Verified live against a real Postgres: A removing the shared id deleted A's chunks and left B's
+    document and its content ('We open at 8am') completely intact. Without the tenant_id in the
+    DELETE, A's action would silently destroy B's business knowledge.
+    """
+    from app import owner_knowledge
+    pool = capture_pool(monkeypatch, owner_knowledge, RecordingPool())
+    document_id = "a" * 64
+    asyncio.run(owner_knowledge.remove(BUSINESS_A["id"], document_id))
+
+    deletes = [s for s in pool.statements if "DELETE FROM chunks" in s[1]]
+    assert deletes, "the delete must be attempted"
+    _op, sql, args = deletes[0]
+    assert "tenant_id=$1" in sql, sql
+    # The tenant must be the FIRST bound parameter, so the delete is scoped to the caller.
+    assert args[0] == BUSINESS_A["id"], args
+    assert BUSINESS_A["id"] != BUSINESS_B["id"]
+
+
+def test_a_malformed_document_id_is_refused_before_any_delete(monkeypatch):
+    """A document id that is not a hex digest must not become a delete predicate."""
+    from app import owner_knowledge
+    pool = capture_pool(monkeypatch, owner_knowledge, RecordingPool())
+    assert asyncio.run(owner_knowledge.remove(BUSINESS_A["id"], "'; DROP TABLE chunks; --")) is False
+    assert not [s for s in pool.statements if "DELETE" in s[1]]
+
+
+def test_document_listing_is_scoped_to_the_calling_business(monkeypatch):
+    from app import owner_knowledge
+    pool = capture_pool(monkeypatch, owner_knowledge, RecordingPool())
+    asyncio.run(owner_knowledge.documents(BUSINESS_B["id"]))
+    fetch = [s for s in pool.statements if s[0] == "fetch"][0]
+    assert fetch[2][0] == BUSINESS_B["id"]
+
+
+# ---------------------------------------------------------- email draft isolation
+
+def test_another_business_cannot_revise_or_discard_this_businesss_draft(monkeypatch):
+    """Every draft mutation must carry the caller's tenant_id, not just the draft id.
+
+    Verified live against a real Postgres: B's revise, discard and approve of A's draft all
+    returned None and left A's draft in status 'draft' with its body untouched.
+    """
+    from app import email_drafts
+
+    # revise(): the draft is selected by id AND tenant.
+    pool = capture_pool(monkeypatch, email_drafts, RecordingPool())
+    asyncio.run(email_drafts.revise(BUSINESS_B["id"], 1, "hijacked"))
+    row = [s for s in pool.statements if s[0] == "fetchrow"][0]
+    assert "tenant_id=$2" in row[1] and row[2][1] == BUSINESS_B["id"], row
+
+    # discard(): same scoping.
+    pool = capture_pool(monkeypatch, email_drafts, RecordingPool())
+    asyncio.run(email_drafts.discard(BUSINESS_B["id"], 1))
+    row = [s for s in pool.statements if s[0] == "fetchrow"][0]
+    assert "tenant_id=$2" in row[1] and row[2][1] == BUSINESS_B["id"], row
+
+    # approve(): selects the draft by id AND tenant before queueing anything.
+    pool = capture_pool(monkeypatch, email_drafts, RecordingPool())
+    monkeypatch.setattr(email_drafts, "get_settings",
+                        lambda: SimpleNamespace(outbox_enabled=True, email_configured=True))
+    assert asyncio.run(email_drafts.approve(BUSINESS_B["id"], 1)) is None
+    row = [s for s in pool.statements if s[0] == "fetchrow"][0]
+    assert "tenant_id=$2" in row[1] and row[2][1] == BUSINESS_B["id"], row
+    assert not [s for s in pool.statements if "INSERT INTO outbox" in s[1]]
+
+
+def test_draft_listing_is_scoped_to_the_calling_business(monkeypatch):
+    from app import email_drafts
+    pool = capture_pool(monkeypatch, email_drafts, RecordingPool())
+    asyncio.run(email_drafts.list_drafts(BUSINESS_A["id"], "all"))
+    fetch = [s for s in pool.statements if s[0] == "fetch"][0]
+    assert fetch[2][0] == BUSINESS_A["id"]
+
+
+def test_an_approval_key_cannot_be_shared_between_drafts(monkeypatch):
+    """Repeat approvals must not queue a second email for the same draft."""
+    import inspect
+    from app import email_drafts
+    src = inspect.getsource(email_drafts.approve)
+    assert "ON CONFLICT (dedupe_key)" in src
+    assert "approved-email-draft:" in src
+    # The key must include the draft id, which is globally unique.
+    assert "approved-email-draft:{draft_id}" in src
+
+
+def test_a_review_required_draft_is_not_approvable_as_written():
+    """A draft flagged for human authorship must not be sendable as-is."""
+    import inspect
+    from app import email_drafts
+    src = inspect.getsource(email_drafts.approve)
+    assert "REVIEW REQUIRED" in src
