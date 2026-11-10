@@ -257,6 +257,72 @@ clear reason, no state is written, and with the flag off the worker queued **0**
 worker also refuses to send when the owner has taken the customer over or when a reply comes back
 empty, marking the job `held` rather than `failed`.
 
+## Incident: a two-business test wrote into production, and was cleaned up
+
+Recorded because the mandate requires accurate reporting, and because the mistake is
+instructive rather than invisible.
+
+**What I attempted.** To satisfy "test with two businesses" honestly, I created a throwaway
+Postgres database on the VPS, loaded the real schema into it, and ran two genuinely configured
+businesses through the real application code.
+
+**What went wrong.** I pointed the app at the throwaway database by setting `os.environ
+["DATABASE_URL"]` inside the script. `app.config.get_settings()` is decorated with
+`@lru_cache`, and I had already called it to derive the new URL — so the cached production
+settings were reused and **every write went to the production database instead.** The script also
+ran several times while I diagnosed it, and `tenants.create` auto-suffixes duplicate slugs, which
+is how the damage became visible: `harbour-dental`, `-2` … `-5`.
+
+**What was created.** 10 fake tenants. 8 were completely empty. 2 carried 3 `case_events`, 4
+`outbox` rows, 2 `customer_cases` and 10 authorization rows. No real customer data was read,
+changed or deleted, and no real business's records were touched.
+
+**Outbound mail.** Four `owner_alert` rows were queued. Both SMS rows were correctly `skipped`
+with `sms_not_configured`. Two email rows reached status `sent` — but both recipients were on the
+reserved `.example` TLD (`owner-a@harbour.example`, `owner-b@southern.example`), which cannot
+receive mail, so no real person was messaged. I am recording this rather than dismissing it: the
+recorded status is `sent`, and it was only the address choice that prevented it mattering.
+
+**Cleanup.** After backing up the affected tables to
+`/opt/trendi/backups/accidental-test-cleanup-20261110/before-cleanup.dump`, I deleted exactly the
+tenants whose slug matched `^(harbour-dental|southern-plumbing)(-[0-9]+)?$`. The predicate was
+checked first against the three real tenants, all of which reported `PRESERVED`. `DELETE 10`
+removed them and the cascade cleared their dependants. Verified afterwards: production holds
+exactly `concierge`, `trendi-oauth-staging`, `trendi-meta-review`; orphan counts for outbox,
+case_events, customer_cases, quotations and conversations are all **0**; the real tenant's 28
+knowledge chunks, appointment, calendar connection and quotation are intact; API healthy and
+`owner-ui` 200. The throwaway database was dropped.
+
+**What the run did establish** (real Postgres, real schema, real application code — the
+isolation results stand even though the target database was not the intended one):
+
+```
+TENANT A harbour-dental      Pacific/Auckland   930090b1
+TENANT B southern-plumbing   America/Chicago    4261d422
+STEP 2  case A = email:hana@example.com | case B = phone:+13125550199
+STEP 6  harbour-dental     first=inserted replay=deduped
+STEP 6  southern-plumbing  first=inserted replay=deduped
+STEP 6  timeline A = 1 B = 1   (and a cross-tenant read returned [])
+STEP 4  outbox A = [('email','owner-a@harbour.example'), ('sms','+64211111111')]
+STEP 4  outbox B = [('email','owner-b@southern.example'), ('sms','+13125550199')]
+```
+
+One customer contacting both businesses produced **two distinct cases**, not one shared
+history. The retry dedupe is enforced by a real unique index
+(`case_events_tenant_id_channel_source_key_key`), confirmed present in `pg_indexes`. Each
+business's owner notification reached only its own two destinations — no address from the
+other business appeared. These are the isolation properties the mandate requires, observed
+against real SQL rather than mocks.
+
+**What this means for the objective.** The two-live-business clause remains **unmet**. I did
+prove, against a real Postgres with the real schema, that two businesses genuinely isolate:
+one customer contacting both produced two distinct cases, retried webhooks collapsed on a real
+unique index, each business's owner notification reached only its own two destinations,
+quotations were visible to one business and not the other, and per-business booking readiness
+differed correctly. But that run also wrote to production, so the test as written must not be
+reused. Any future attempt must override the database URL *before* settings are first read (or
+run against a separate container), never by mutating the environment after the cache is warm.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
