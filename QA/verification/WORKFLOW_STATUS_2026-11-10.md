@@ -34,12 +34,27 @@ only gate.
 | 1 | Receive voice, text or email | **live** | Text re-verified 19:27 via `https://chat.trendibizz.com/api/v1/chat`: HTTP 200, answer drawn from the business's own manual (USD $400/month, 3-month minimum, NZ GST). Voice token re-verified 19:28: HTTP 200, xAI realtime WSS plus ephemeral token and the full tool set. Email ingress verified earlier with signature checking. |
 | 2 | Identify the channel | **live** | Per-channel ingress rows; tenant marker and attendee verified on the real Google event. |
 | 3 | Answer from the business's own information | **live** | 28 tenant-scoped chunks; text answer above quoted only that content; cross-tenant retrieval isolation proven in the throwaway database. |
-| 4 | Forward the original enquiry to the owner | **live** | `enquiry-original:*` owner alerts delivered to `admin@trendibizz.com`; outbox shows `sent`. Owner SMS remains `awaiting_receipt` from the device, not claimed as delivered. |
+| 4 | Forward the original enquiry to the owner | **live** | `enquiry-original:*` owner alerts delivered to `admin@trendibizz.com`; outbox shows `sent`. Owner SMS goes through the self-hosted device. The owner-alert throttle was re-found broken (see below) and fixed + redeployed 2026-11-10 19:37. |
 | 5 | Optional enquirer acknowledgement, separate from owner alerts | **live (DB-verified)** | Offer queues nothing, confirm queues exactly one, decline queues nothing, kind stays `enquirer_ack`. No real person has received one yet — needs their consent. |
 | 6 | Retain CRM dialogue, isolate businesses, dedupe retries, calendar + invitation | **live** | Two-business isolation and webhook replay dedupe proven in the throwaway database; live tenant messages persisted; bookings re-proven 19:25 (see below). |
 | 7 | CRM Quotations create and retrieve | **live** | Create/retrieve verified per business with 0 cross-tenant leakage (2026-11-10 15:01 report). Not re-run today because it writes to production. |
 | — | Cloudflare 403 on an automated probe | **characterised** | Only the case-sensitive literal `Python-urllib` user agent is refused; browser user agent, curl, Go and Googlebot get 200. Browser experience is normal (the 19:27 chat used a browser UA through the public edge). |
 | — | Optional cellular telephone | **in progress** | Asterisk adapter (`api/app/asterisk_bridge.py`, `scripts/asterisk/`) verified with synthetic legs against Asterisk 20.6 and live Grok on 9 Nov. A Telnyx SIP connection `Trendi` now exists (active, IP connection). No real number, no real call, no delivered receipt yet. |
+
+## Owner-alert throttle — re-found broken and fixed, 2026-11-10 19:37
+
+The "54 owner SMS in one conversation" fix had a false friend: its SQL matched
+`status IN ('queued','sending')`, but `outbox` rows are created with the schema
+default `'pending'`, so the guard never fired in production. A rolled-back live
+probe with the real schema queued **60 rows** for 30 turns (30 email + 30 SMS).
+
+Fixed in `api/app/owner_notifications.py` to treat every undelivered state
+(`pending`/`sending`/`awaiting_receipt`) as in-flight, with a regression test that
+pins the status list to `schema.sql` (commit `a27f5ec`). Re-verified against the
+real schema and, after deployment, with the deployed module: **30 turns → 2 owner
+alerts** (one per channel). Rollback image
+`trendi-concierge-api:before-owner-alert-throttle-fix-20261110`; source backup
+`/opt/trendi/backups/sms-throttle-fix-20261110/`.
 
 ## Live booking re-check — 2026-11-10 19:25
 
