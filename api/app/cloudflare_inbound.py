@@ -12,13 +12,13 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import channel_authorization, db, email_risk, inbound_email, inbound_policy
+from . import channel_authorization, db, email_auth, email_risk, inbound_email, inbound_policy
 from .config import get_settings
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
-MAX_BYTES = 30000
+MAX_BYTES = 800_000
 REQUIRED_FIELDS = {"message_id", "recipient", "sender", "subject", "text"}
-OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments"}
+OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments", "raw_b64"}
 AUTH_KEYS = {"spf", "dkim", "dmarc", "authentication_results", "reply_to", "content_type"}
 MAILBOX_HOURLY_LIMIT = 60
 SENDER_HOURLY_LIMIT = 10
@@ -95,6 +95,10 @@ async def handle(request: Request) -> dict:
         has_attachments = payload.get("has_attachments")
         if has_attachments is not None and not isinstance(has_attachments, bool):
             raise ValueError("Invalid attachment flag")
+        raw_b64 = payload.get("raw_b64")
+        if raw_b64 is not None and (not isinstance(raw_b64, str)
+                                    or len(raw_b64) > email_auth.MAX_RAW_B64):
+            raise ValueError("Invalid raw message")
         mailbox = await db.pool().fetchrow(
             "SELECT tenant_id FROM inbound_mailboxes WHERE recipient=$1 AND provider='cloudflare' AND enabled",
             recipient,
@@ -110,6 +114,12 @@ async def handle(request: Request) -> dict:
         if policy == "block":
             # Accept and drop: never bounce to a possibly spoofed address.
             return {"accepted": True, "dropped": "blocked"}
+        # Cryptographic DKIM + DMARC alignment from the Rust sidecar. Failures
+        # fall back to the header hints; they never block ingestion.
+        if raw_b64:
+            verified = await email_auth.verify(raw_b64)
+            if verified:
+                auth = email_auth.merge(auth, verified)
         recent = await db.pool().fetchval(
             "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
             "AND created_at > now() - interval '1 hour'", tenant_id)

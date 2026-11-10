@@ -1,0 +1,11 @@
+/Users/jo/work-staging/concierge-integration/services/email-auth/target/debug/deps/ed25519_dalek-1ee0b2dc68ea34b4.d: /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/lib.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/constants.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/errors.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signature.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signing.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/verifying.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/hazmat.rs
+
+/Users/jo/work-staging/concierge-integration/services/email-auth/target/debug/deps/libed25519_dalek-1ee0b2dc68ea34b4.rmeta: /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/lib.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/constants.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/errors.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signature.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signing.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/verifying.rs /Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/hazmat.rs
+
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/lib.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/constants.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/errors.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signature.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/signing.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/verifying.rs:
+/Users/jo/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ed25519-dalek-3.0.0/src/hazmat.rs:

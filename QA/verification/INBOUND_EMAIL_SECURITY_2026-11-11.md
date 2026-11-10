@@ -80,3 +80,21 @@ quarantined row with attacker text, which a human sees and discards or releases.
 - **Tests**: 527 passed (4 new policy tests).
 - **Not done / next**: Rspamd + ClamAV content scanning (optional, VPS-side);
   moving inbound to a provider that authenticates SPF/DKIM/DMARC (Phase 2).
+
+## Rust email-auth sidecar — 2026-11-11 13:00
+
+- New Rust service `services/email-auth` (mail-auth 0.15, rust-crypto + hickory DNS)
+  verifies DKIM signatures of the **raw** message and applies DMARC alignment
+  against the `From` domain. Endpoint: `POST /verify {raw_b64}` -> `{dkim,
+  dmarc, from, signatures}`; `GET /healthz`.
+- The Cloudflare Worker now sends the raw message (base64, capped at 200 KB)
+  alongside the text; the API calls the sidecar at `EMAIL_AUTH_URL`
+  (`http://email-auth:8090/verify`) with a 3-second timeout and merges the
+  verified verdict over the untrusted header hints. Failures fall back; mail is
+  never blocked by the sidecar.
+- Verified locally against a DKIM-signed message for `trendibizz.com`
+  (selector `conciergetest`, TXT published in Cloudflare): `dkim=pass`,
+  `dmarc=pass`, `from=test@trendibizz.com`; an unsigned message returned
+  `dkim=none`. `dkimpy` verified the same message independently.
+- Built and deployed as `trendi-email-auth:vps` in compose; API image rebuilt
+  with `email_auth.py`; tests 529 passed.

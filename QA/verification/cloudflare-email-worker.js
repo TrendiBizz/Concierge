@@ -54,19 +54,31 @@ async function hmacHex(secret, value) {
 
 export default {
   async email(message, env, ctx) {
-    const raw = await new Response(message.raw).text();
+    const buffer = await new Response(message.raw).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const raw = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     const auth = authFrom(raw, message.headers);
-    const payload = JSON.stringify({
+    const body = {
       message_id: message.headers.get("message-id") || crypto.randomUUID(),
       recipient: (message.to || "").toLowerCase(),
       sender: message.from || "",
       subject: message.headers.get("subject") || "",
       text: textFromRaw(raw),
       reply_to: auth.reply_to,
-      size: raw.length,
+      size: bytes.length,
       has_attachments: /content-disposition:\s*attachment/i.test(raw),
       auth,
-    });
+    };
+    // The raw message lets the Rust sidecar verify DKIM/DMARC cryptographically.
+    // Cap it so a huge message cannot exhaust the API or the sidecar.
+    if (bytes.length <= 200000) {
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      }
+      body.raw_b64 = btoa(binary);
+    }
+    const payload = JSON.stringify(body);
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = await hmacHex(env.CONCIERGE_INBOUND_SECRET, timestamp + "." + payload);
     let accepted = false;
