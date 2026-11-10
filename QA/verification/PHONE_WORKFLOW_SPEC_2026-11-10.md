@@ -47,3 +47,30 @@ Activation is: real Telnyx DID → swap the route + `phone_numbers` row → set
 `source_cidr` to Telnyx's SIP signalling range → publish SIP/RTP. The Asterisk
 Dockerfile needed `/var/run/asterisk` created at start (the non-root build had no
 CLI socket); fixed 2026-11-10.
+
+
+## 2026-11-10 update — Telnyx cancelled, stack parked
+
+Telnyx was cancelled after a sudden pricing change; the `+1 916 270 1051` number
+was never called. Activation was removed from production (`phone_numbers`,
+`phone_enabled`, `managed_phone_setups`), the pbx/bridge containers were stopped,
+and the public SIP/RTP ports therefore close. The Asterisk stack itself is
+installed and verified and is **carrier-agnostic**.
+
+Safety: the base `compose.yml` keeps the phone network internal with no published
+ports; `compose.public.yml` is the explicit override that publishes UDP 5060 and
+10000-10099 and allows egress to the carrier. Two latent issues were fixed while
+parking it: owner SMS now falls back to `tenant.notify_phone` when no managed-phone
+row exists (previously only the email sent), and the public ports are no longer
+the default.
+
+### What a replacement SIP supplier must provide
+
+- An inbound voice DID (an NZ number keeps forwarding rates local).
+- SIP trunk with IP authentication (allowlist `152.42.239.240`) or registration
+  credentials — the renderer currently emits IP-auth endpoints; registration is a
+  small addition once the supplier is chosen.
+- UDP 5060 with G711U/G711A; G722/G729 optional.
+- The supplier's SIP signalling range for `source_cidr` and media ranges for the
+  firewall.
+- Stable per-minute pricing.
