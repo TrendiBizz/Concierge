@@ -846,6 +846,37 @@ contained the fix, rather than trusting the tag. Restoring by explicit image id 
 Worth recording because the failure mode is quiet: a wrong tag still deploys, still reports healthy,
 and still serves traffic -- it just runs the old code.
 
+## The release tree was verified against HEAD, and cleaned of transfer artifacts
+
+An image hash matching HEAD does not prove the *source tree* on the host does, and that tree is what
+a future rebuild would compile. Compared file by file, all 62 application modules are byte-identical
+to HEAD:
+
+```
+VPS   api/app/*.py  ->  62 files
+local api/app/*.py  ->  62 files
+diff (matched by hash and name) -> IDENTICAL
+```
+
+**The first comparison was misleading, and worth recording.** A naive `find | xargs sha256sum |
+sha256sum` gave different aggregate hashes, because the VPS held 252 extra `._*` files -- AppleDouble
+resource forks created by macOS `tar`/`scp`. That is 124 files under `api/` against 62 real ones,
+which is exactly the kind of discrepancy that looks like drift and is not.
+
+I did not delete them on that basis alone. Each was checked first: every one carried the AppleDouble
+magic `00051607`, and **every one had a real sibling** (`._booking.py` beside `booking.py`), zero
+exceptions. The exact path list was saved to `appledouble-list.txt` before deletion, then removed by
+that list rather than by a fresh `find`, so the operation could not race a changed filesystem.
+
+Afterwards: 0 `._*` files remain, all 62 real modules are still present, the tree still matches HEAD
+exactly, and both services are healthy with `healthz` 200. About 1 MB of confusing clutter is gone
+from the production host.
+
+This was tidiness rather than a fault -- the container is built from `api/app` and `api/static`, and a
+stray `._*` beside a real file has never been imported. But a release tree that does not obviously
+match its source is a maintenance hazard, and a later "why does the host differ?" investigation would
+have cost far more than the check did.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
