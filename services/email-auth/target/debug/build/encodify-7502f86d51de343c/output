@@ -1,8 +1,0 @@
-cargo::rustc-check-cfg=cfg(encodify_scalar)
-cargo::rustc-check-cfg=cfg(encodify_no_avx2)
-cargo::rustc-check-cfg=cfg(encodify_neon)
-cargo::rustc-check-cfg=cfg(encodify_x86)
-cargo::rustc-check-cfg=cfg(encodify_simd)
-cargo::rerun-if-changed=build.rs
-cargo::rustc-cfg=encodify_neon
-cargo::rustc-cfg=encodify_simd
