@@ -1255,6 +1255,42 @@ A naive check here would have produced a confident, wrong defect report.
 Kept as `QA/verification/admin_ui_check.mjs` and confirmed able to fail: injecting one dangling
 reference produces a FAIL and exit code 1, against exit 0 on the healthy page.
 
+## The widget can actually call from a client's site, which two false readings obscured
+
+A widget embedded on a business's site is a **cross-origin** caller. If that is blocked, every site
+embedding it silently shows no assistant while the API looks healthy. Two of my own measurements
+muddied this before the real answer emerged.
+
+**Misreading one: a 403 that was correct.** Requesting `widget-config` with
+`Origin: https://client.example.com` returned 403. That looked like the end-to-end blocker. It is the
+designed behaviour: a tenant that has configured `allowed_origins` refuses other sites, and this
+tenant allows `trendibizz.com`. The guard reads `if allowed and origin`, so a tenant with no list
+configured skips the check entirely.
+
+**Misreading two: "no CORS headers".** Inspecting response headers showed none, which would break
+cross-origin fetch. But I was reading a **429 rate-limit response**, which the CORS middleware does
+not decorate. Waiting out the limit and re-requesting gave the truth:
+
+```
+HTTP/2 200
+access-control-allow-origin: *
+```
+
+Wildcard is deliberate and documented in the middleware: these endpoints authenticate with the
+tenant's public key in the request body, never cookies, so wildcard CORS carries no session risk.
+Verified end to end:
+
+```
+Origin: https://trendibizz.com   200  + access-control-allow-origin: *
+no Origin                        200
+Origin: https://client.example.com  403  "Origin not allowed"   (tenant allow-list)
+```
+
+Three tests pin the boundary, including that the **owner** APIs are the opposite case -- same-origin
+only, foreign origin 403 -- because conflating the two would either break the widget or expose owner
+endpoints. The CORS test was confirmed to fail when `allow_origins` is narrowed to a single origin
+and pass when restored.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -1283,7 +1319,7 @@ reference produces a FAIL and exit code 1, against exit 0 on the healthy page.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **458 passed** (356 pre-existing + 102 in the
+- `PYTHONPATH=api pytest api/tests -q` → **461 passed** (356 pre-existing + 105 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

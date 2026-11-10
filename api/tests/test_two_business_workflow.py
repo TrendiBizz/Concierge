@@ -1422,3 +1422,55 @@ def test_the_ics_feed_refuses_an_unknown_token():
     from pathlib import Path
     schema = (Path(__file__).resolve().parents[1] / "app" / "schema.sql").read_text()
     assert "calendar_token_idx" in schema and "UNIQUE" in schema
+
+
+# ---------------------------------------------------------- widget cross-origin access
+
+def test_the_widget_endpoints_allow_cross_origin_requests():
+    """A widget embedded on a client's site is a cross-origin caller, so CORS must permit it.
+
+    Verified live: /api/v1/widget-config on the chat host returns `access-control-allow-origin: *`
+    with 200 for an allowed tenant origin. Wildcard is safe here because these endpoints authenticate
+    with the tenant's public key in the request body, never cookies -- the middleware comment says so
+    explicitly.
+
+    Worth pinning because the failure is invisible from the server side: the endpoint answers
+    correctly and a browser silently discards the response, so the assistant simply never appears.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main)
+    assert 'allow_origins=["*"]' in src
+    # The allowed methods and headers the widget actually uses.
+    assert '"Content-Type"' in src and '"X-Voice-Session-Token"' in src
+    assert '"GET", "POST"' in src and '"OPTIONS"' in src
+
+
+def test_owner_apis_are_not_cross_origin_accessible():
+    """The owner portal is same-origin only, which is the opposite rule and must stay that way.
+
+    Verified live: an owner path with a foreign Origin returns 403, while the public widget endpoints
+    allow any origin. Conflating the two would either break the widget or expose owner APIs.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main.owner_boundary)
+    assert 'path == "/owner-ui"' in src
+    assert 'path.startswith("/owner/")' in src
+    assert "403" in src
+
+
+def test_a_tenant_origin_allow_list_is_enforced_when_configured():
+    """A tenant that has set allowed_origins must reject a different site's origin.
+
+    Verified live: the tenant allows trendibizz.com, so Origin: https://client.example.com returns
+    403 "Origin not allowed". An unconfigured tenant skips the check, which is why the condition is
+    `if allowed and origin` rather than `if origin`.
+    """
+    import inspect
+    from app import main as app_main
+    src = inspect.getsource(app_main._tenant_for)
+    assert "if allowed and origin:" in src
+    assert "Origin not allowed" in src
+    # The configured list plus our own demo pages.
+    assert "permitted.add(_origin_of(settings.public_base_url))" in src
