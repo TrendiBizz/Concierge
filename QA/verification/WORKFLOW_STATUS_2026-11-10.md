@@ -74,9 +74,13 @@ probe so no external message was sent:
 
 ## What actually remains
 
-1. **Real inbound SMS** — no provider configured; routes return 503 by design. The
-   paired device is online but `inbound_verified_at` is NULL. Needs a provider and
-   a real inbound test. Optional for the website workflow.
+1. **Real inbound SMS** — the paired device is online and polling. Live readiness
+   is confirmed (device enabled, `sms_read` authorized, `sms_transport=device`,
+   `sms_from` matching). The `/api/v1/device-sms/inbound` route now has 7 route
+   tests (device token, exact-line check, duplicate suppression, `sms_read` gate,
+   reply queue, `inbound_verified_at` write). The only missing step is one **real**
+   SMS from another phone; `inbound_verified_at` intentionally stays NULL until
+   that happens. No carrier provider is needed — the paired phone is the transport.
 2. **Real telephone call** — a genuine number on the Telnyx trunk routed to the
    Asterisk AudioSocket adapter, then a real forwarded call and owner receipt.
    Optional and separate from website voice.
