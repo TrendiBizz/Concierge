@@ -3,6 +3,8 @@
 Inbound messages are supplied by an authenticated operator. Provider webhooks are a
 separate integration and must authenticate provider signatures before calling this layer.
 """
+import json
+
 from . import db, llm
 from .config import get_settings
 from .contact import is_email
@@ -60,7 +62,9 @@ async def propose(tenant: dict, sender: str, subject: str, inbound_body: str) ->
 
 
 async def create(tenant_id, sender: str, subject: str, inbound_body: str,
-                 reply_body: str, source_id: str = "") -> dict:
+                 reply_body: str, source_id: str = "", auth: dict | None = None,
+                 risk: str | None = None, flags: list | None = None,
+                 status: str = "draft") -> dict:
     sender = _address(sender)
     if not inbound_body.strip() or not reply_body.strip():
         raise DraftError("Inbound email and proposed reply are both required")
@@ -69,13 +73,17 @@ async def create(tenant_id, sender: str, subject: str, inbound_body: str,
     row = await db.pool().fetchrow(
         """
         INSERT INTO email_drafts
-            (tenant_id, source_id, sender, subject, inbound_body, reply_body)
-        VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6)
+            (tenant_id, source_id, sender, subject, inbound_body, reply_body,
+             auth, risk, flags, status)
+        VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6,
+                $7::jsonb, $8, $9::jsonb, $10)
         ON CONFLICT (tenant_id, source_id) WHERE source_id IS NOT NULL
         DO UPDATE SET source_id = EXCLUDED.source_id
         RETURNING *
         """,
         tenant_id, source_id, sender, subject, inbound_body[:20000], reply_body[:10000],
+        json.dumps(auth) if auth is not None else None, risk,
+        json.dumps(flags) if flags is not None else None, status,
     )
     return dict(row)
 
@@ -140,3 +148,13 @@ async def approve(tenant_id, draft_id: int) -> dict | None:
                 draft_id, tenant_id,
             )
             return dict(updated)
+
+
+async def release(tenant_id, draft_id: int) -> dict | None:
+    """Move a quarantined draft into the normal review queue. Owner action only."""
+    row = await db.pool().fetchrow(
+        "UPDATE email_drafts SET status='draft', updated_at=now() "
+        "WHERE id=$1 AND tenant_id=$2 AND status='quarantined' RETURNING *",
+        draft_id, tenant_id,
+    )
+    return dict(row) if row else None

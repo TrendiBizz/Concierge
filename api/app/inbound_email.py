@@ -17,7 +17,8 @@ class InboundError(ValueError):
 
 async def ingest_verified(tenant_id, provider: str, message_id: str,
                           sender: str, recipient: str, subject: str,
-                          text_body: str) -> dict:
+                          text_body: str, auth: dict | None = None,
+                          risk: str = "low", flags: list | None = None) -> dict:
     """Persist an untrusted email as a non-sending human-review draft.
 
     Tenant identity must come from a private recipient mapping, not user input.
@@ -37,15 +38,18 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
     key = provider + ":" + hashlib.sha256(message_id.encode()).hexdigest()
     try:
         # No model call: an untrusted message must never command the assistant.
+        # High-risk messages are quarantined until a human releases them.
         draft = await email_drafts.create(
             tenant_id, sender, subject, text_body,
             "REVIEW REQUIRED — write a verified response before approval.", key,
+            auth=auth, risk=risk, flags=flags,
+            status="quarantined" if risk == "high" else "draft",
         )
         tenant = await tenants.get_by_id(tenant_id)
         conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
                                 conversation_id=conversation_id, email=draft["sender"])
-        if tenant.get('email_auto_reply'):
+        if tenant.get('email_auto_reply') and risk != "high":
             await db.pool().execute(
                 'INSERT INTO email_secretary_jobs(tenant_id,source_key,sender,subject,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
                 tenant_id, key, draft['sender'], subject[:250], text_body)

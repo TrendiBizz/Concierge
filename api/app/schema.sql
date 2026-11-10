@@ -273,11 +273,17 @@ CREATE TABLE IF NOT EXISTS email_drafts (
     inbound_body  text NOT NULL,
     reply_body    text NOT NULL,
     status        text NOT NULL DEFAULT 'draft'
-                  CHECK (status IN ('draft', 'approved', 'discarded')),
+                  CHECK (status IN ('draft', 'approved', 'discarded', 'quarantined')),
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
     approved_at   timestamptz
 );
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS auth jsonb;
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS risk text;
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS flags jsonb;
+ALTER TABLE email_drafts DROP CONSTRAINT IF EXISTS email_drafts_status_check;
+ALTER TABLE email_drafts ADD CONSTRAINT email_drafts_status_check
+    CHECK (status IN ('draft', 'approved', 'discarded', 'quarantined'));
 CREATE UNIQUE INDEX IF NOT EXISTS email_drafts_source_idx
     ON email_drafts (tenant_id, source_id) WHERE source_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS email_drafts_inbox_idx
