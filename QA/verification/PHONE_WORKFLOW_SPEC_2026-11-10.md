@@ -25,7 +25,7 @@ rest is our system.
 | --- | --- |
 | Carrier star-code forwarding | owner/carrier action; destination = the Telnyx DID |
 | Telnyx DID + SIP trunk → Asterisk | **pending**: buy/port a number and route it; Telnyx connection `Trendi` exists (active, IP connection) |
-| Asterisk → AudioSocket → Grok | **built + verified** (Asterisk 20.6 + live Grok, two synthetic legs, 9 Nov) |
+| Asterisk → AudioSocket → Grok | **installed on the VPS 2026-11-10**: Asterisk 20.6 with endpoint `concierge-ingress-1`, exact-DID dialplan and `app/chan/res_audiosocket` running; the bridge listens on 9510; a local originate through `s@business-trendi-oauth-staging` created a `phone_calls` row, conversation and lead and reached Grok with no bridge error. Test rows removed. |
 | Consent-gated recording | **built** (`set_call_recording`; consent required; WAV stored via `voice_records.store_audio`) |
 | Confirmation: text / email | **built** (`request_enquiry_acknowledgement` email\|sms; `request_conversation_copy` text\|recording link) |
 | Confirmation: return call | **built** (Grok asks, saves the callback preference into the lead) |
@@ -40,5 +40,10 @@ rest is our system.
    telephone authorization, and set the owner delivery number/email.
 3. Run one real forwarded call end to end and confirm the owner receipt.
 
-Everything above the "activation" line is implemented; the bridge is not yet
-deployed because there is no number/trunk to terminate yet.
+Everything above the "activation" line is implemented. The pbx + bridge containers
+are running on the VPS on the private phone network (no public SIP ports yet);
+the placeholder route/DID used for the local test was removed after verification.
+Activation is: real Telnyx DID → swap the route + `phone_numbers` row → set
+`source_cidr` to Telnyx's SIP signalling range → publish SIP/RTP. The Asterisk
+Dockerfile needed `/var/run/asterisk` created at start (the non-root build had no
+CLI socket); fixed 2026-11-10.
