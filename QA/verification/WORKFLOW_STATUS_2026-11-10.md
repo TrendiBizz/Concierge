@@ -31,7 +31,7 @@ only gate.
 
 | # | Step | Status | Evidence |
 |---|---|---|---|
-| 1 | Receive voice, text or email | **live** | Text re-verified 19:27 via `https://chat.trendibizz.com/api/v1/chat`: HTTP 200, answer drawn from the business's own manual (USD $400/month, 3-month minimum, NZ GST). Voice token re-verified 19:28: HTTP 200, xAI realtime WSS plus ephemeral token and the full tool set. Email ingress verified earlier with signature checking. |
+| 1 | Receive voice, text or email | **live** | Text re-verified 19:27 via `https://chat.trendibizz.com/api/v1/chat`: HTTP 200, answer drawn from the business's own manual (USD $400/month, 3-month minimum, NZ GST). Voice token re-verified 19:28: HTTP 200, xAI realtime WSS plus ephemeral token and the full tool set. Email re-verified live 2026-11-11: a correctly signed `POST /api/v1/inbound/cloudflare` was accepted (200), created a non-sending review draft (`email_drafts`), a CRM lead and a unified customer case; no email was sent and the probe rows were removed. |
 | 2 | Identify the channel | **live** | Per-channel ingress rows; tenant marker and attendee verified on the real Google event. |
 | 3 | Answer from the business's own information | **live** | 28 tenant-scoped chunks; text answer above quoted only that content; cross-tenant retrieval isolation proven in the throwaway database. |
 | 4 | Forward the original enquiry to the owner | **live** | `enquiry-original:*` owner alerts delivered to `admin@trendibizz.com`; outbox shows `sent`. Owner SMS goes through the self-hosted device. The owner-alert throttle was re-found broken (see below) and fixed + redeployed 2026-11-10 19:37. |
@@ -71,6 +71,16 @@ probe so no external message was sent:
 | Google event | present with attendee `recheck-20261110@example.com` and the correct tenant marker |
 | cancellation | `calendar_state: cancelled`; live event count for the day = **0** (Google returns the cancelled event as a tombstone on GET-by-id, which is why a 404 assertion is the wrong check) |
 | cleanup | 0 test conversations, 0 leads, 0 appointments, 0 new outbox rows |
+
+## Update — 2026-11-11 08:50
+
+- **Inbound email re-verified live.** Signed Cloudflare ingress → HTTP 200, draft
+  `email_drafts` row, CRM lead + customer case, no auto-send. Test rows removed.
+- **Owner notification config restored.** `notify_email` had been blanked during an
+  earlier phone test and never restored; it is `admin@trendibizz.com` again
+  (`notify_phone` = `+64278817368`).
+- **Deployed API matches HEAD on the throttle fix**: running
+  `owner_notifications.py` hash `d0cf88b8…` equals the repo at `a27f5ec`.
 
 ## What actually remains
 
