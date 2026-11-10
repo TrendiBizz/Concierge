@@ -94,30 +94,34 @@ Reusable checks live in `QA/verification/`: `gateway_route_audit.sh` +
 
 ## What remains
 
-1. **One Google OAuth consent** for `meta-review@trendibizz.com`. Only the account
-   holder can grant it, and it is the difference between a second business having a
-   permanent calendar connection and borrowing the first business's. Two businesses
-   sharing one Google account interfere, because `busy()` queries per `calendar_id`
-   fixed to `'primary'`.
-2. **Knowledge for the third business** — `trendi-meta-review` has 0 chunks, so its
-   assistant cannot answer from its own information yet. Customer content, not code.
-   (Corrected 2026-11-10: the 28 chunks belong to `trendi-oauth-staging`, not to the
-   business that needs them. See "Correction" below.)
+1. **Google calendar OAuth — solved for the live tenant.** `trendi-oauth-staging`
+   has its own calendar connection and token; availability, event creation,
+   invitation request and cancellation were re-proven live on 2026-11-10 19:25.
+   `trendi-meta-review` is a **throwaway test tenant** (fake review emails created
+   during testing); it is not a real business and its missing consent/knowledge
+   are not outstanding work.
+2. **Knowledge for `trendi-meta-review`** — moot for the same reason: it is test
+   data, not a customer. The 28 chunks belong to `trendi-oauth-staging`.
 3. **An enquirer acknowledgement reaching a real person** — the whole path is verified
    against a real database, but no acknowledgement has gone to an actual enquirer,
    because that needs their consent.
 4. **Inbound SMS end to end** — no provider configured, routes return 503 by design.
    The device is online but `inbound_verified_at` is NULL. Owner **email** reached
    `sent` on every attempt.
-5. **Cellular SIP / real carrier calls** — optional and untouched. `phone_numbers = 0`.
-6. **Opening hours for `trendi-oauth-staging`** — empty, so booking correctly refuses
-   with "No opening hours are set, so booking would offer no times on any day". An
-   owner data-entry gap the readiness entry now makes visible before they try.
-   **This one is correct** — verified live 2026-11-10:
-   `trendi-oauth-staging` has all seven days empty.
+5. **Cellular SIP / real carrier calls — in progress.** The verified path is the
+   local Asterisk adapter: `api/app/asterisk_bridge.py` plus `scripts/asterisk/`
+   (AudioSocket → Grok realtime; proven 9 Nov against Asterisk 20.6 and live Grok
+   with two synthetic legs). A Telnyx SIP connection `Trendi` now exists
+   (ID `3089849419311351801`, active, IP connection, webhook empty) as the carrier
+   side. xAI's SIP route is a separate option: it still reports **0 registered
+   numbers** and `XAI_SIP_CONNECTIONS` is `{}`. Next step is a real Telnyx number
+   terminated on the Asterisk trunk with dialplan → AudioSocket, then a genuine
+   forwarded call and owner delivery receipt (nothing has been purchased or dialed).
+6. **Opening hours for `trendi-oauth-staging` — DONE.** Five weekdays,
+   08:00–23:00 Pacific/Auckland, verified live; readiness reason is empty.
 
-Items 2, 3 and 6 are customer data or consent; item 1 is one authorisation; items 4
-and 5 are separate optional gates.
+Items 3 and 4 need real consent or a provider; item 5 is the active optional gate.
+
 
 ## Correction (2026-11-10, next session)
 
