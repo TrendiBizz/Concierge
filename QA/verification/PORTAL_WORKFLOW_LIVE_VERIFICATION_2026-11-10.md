@@ -913,6 +913,40 @@ showed host source and image content are identical for all 62 files -- the build
 container's own filesystem also matched its image exactly, so no code had been edited inside the
 running container. The artifact problem was clutter and rebuild-fidelity, not incorrect code.
 
+## The clean rebuild is deployed, so image and source now agree exactly
+
+Last round added the `.dockerignore` exclusion but left the running image unchanged, which meant the
+deployment still could not be compared with a clean build. Rebuilt and deployed, with a rollback tag
+and backup taken first:
+
+```
+new image artifact count        : 0      (was 179)
+new image real modules          : 62
+host source vs image content    : 62 files, diff empty  (no extra files)
+running container artifacts     : 0
+healthz                         : 200
+```
+
+The comparison is now meaningful in a way it was not before: because the image no longer carries
+files the source does not, `diff` on the two file listings is **empty**. Previously the same check
+could only ever report "62 real files match, plus 179 the source does not have".
+
+**Behaviour verified after the rebuild**, not assumed from a healthy container:
+
+```
+chat          200, grounded reply ("I am not sure of a full subscription inclusion list...")
+voice token   200, 111-character token minted from xAI
+owner-ui      200 public
+```
+
+All three channels the mandate cares about still work on the rebuilt image.
+
+| | |
+| --- | --- |
+| Image | `trendi-concierge-api:vps` -> `0c00f37b7b4d` |
+| Rollback | `before-clean-rebuild-20261110` -> `c69687f6bf10` |
+| Backup | `/opt/trendi/backups/clean-image-rebuild-20261110` |
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -955,8 +989,8 @@ running container. The artifact problem was clutter and rebuild-fidelity, not in
 | | |
 | --- | --- |
 | Commit | `37d0846` for the readiness change; the permissions-panel fix followed. The image is built from the working tree, so the baked label lags the commit — currency is established by file hash, never by the label |
-| Image | `trendi-concierge-api:vps` → `c69687f6bf10` (previous `ca80d870d1e1`) |
-| Rollback images | `before-calendar-time-tolerance-20261110`; `before-authz-panel-fix-20261110` → `3c05e01c5220`; `before-booking-readiness-20261110` → `7a16174bc7cc` |
+| Image | `trendi-concierge-api:vps` → `0c00f37b7b4d` (clean rebuild; previous `c69687f6bf10`) |
+| Rollback images | `before-clean-rebuild-20261110` → `c69687f6bf10`; `before-calendar-time-tolerance-20261110`; `before-authz-panel-fix-20261110` → `3c05e01c5220`; `before-booking-readiness-20261110` → `7a16174bc7cc` |
 | Backup | `/opt/trendi/backups/booking-readiness-20261110` (source-before.tgz, api.env.before, image-before.txt) |
 | Recreate | `api` and `social` together, `--no-deps --force-recreate` |
 | Verified | deployed `owner_onboarding.py` SHA-256 `3aa7ca14…` and `owner.html` SHA-256 `5b08a0e1…` are **byte-identical to HEAD**; `healthz` 200; public owner UI 200; live chat 200; `channels.booking` present; the guard is present in the publicly served page |
