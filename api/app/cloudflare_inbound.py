@@ -12,7 +12,7 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import channel_authorization, db, email_auth, email_risk, inbound_email, inbound_policy
+from . import channel_authorization, db, email_auth, email_risk, email_scan, inbound_email, inbound_policy
 from .config import get_settings
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
@@ -116,10 +116,15 @@ async def handle(request: Request) -> dict:
             return {"accepted": True, "dropped": "blocked"}
         # Cryptographic DKIM + DMARC alignment from the Rust sidecar. Failures
         # fall back to the header hints; they never block ingestion.
+        scan_flags: list[str] = []
+        scan_risk = "low"
         if raw_b64:
             verified = await email_auth.verify(raw_b64)
             if verified:
                 auth = email_auth.merge(auth, verified)
+            scanned = await email_scan.scan(raw_b64)
+            if scanned:
+                scan_risk, scan_flags = email_scan.classify(scanned)
         recent = await db.pool().fetchval(
             "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
             "AND created_at > now() - interval '1 hour'", tenant_id)
@@ -132,8 +137,11 @@ async def handle(request: Request) -> dict:
         assessment = email_risk.assess(
             auth, payload["sender"], reply_to, payload["subject"], payload["text"],
             size=size, has_attachments=bool(has_attachments))
-        flags = list(assessment["flags"])
+        flags = list(assessment["flags"]) + scan_flags
         risk = assessment["risk"]
+        order = {"low": 0, "medium": 1, "high": 2}
+        if order.get(scan_risk, 0) > order.get(risk, 0):
+            risk = scan_risk
         if sender_recent >= SENDER_HOURLY_LIMIT:
             flags.append("sender_rate_limited")
             risk = "high"
