@@ -108,12 +108,33 @@ and 5 are separate optional gates.
 
 ## Open asks from the owner (not yet done)
 
-1. **Persist full-access permissions across sessions.** Confirmed the cause is real:
-   the sandbox mode is per-session and not carried into new ones. DSH exposes
-   `sandboxPolicy.defaultMode` and the permission UI describes "the default permission
-   mode for new sessions", so a durable setting exists, but the exact configuration
-   surface was **not** established and nothing was changed — writing an unverified
-   security setting into `~/.dsh/` would be worse than leaving it.
+1. **Persist full-access permissions across sessions.** The cause is now established
+   with evidence rather than guessed.
+
+   DSH records the sandbox mode as **per-session state**, not as global configuration.
+   Each session file under `~/.dsh/storages/session_projcache/sessions/*.json` carries
+   its own row:
+
+   ```
+   <session>  record.rows.sandboxMode = {"ver":1,"seq":3335,"val":"danger-full-access"}
+   ```
+
+   and a case-sensitive search for `sandboxMode` across `~/.dsh/` finds it **only** in
+   those per-session files — nothing global, nothing in `cordis.patch.yml`, and
+   `dsh dump-config` resolves no sandbox key at all. That is exactly why the choice
+   resets: a new session starts with no row and falls back to the deployment default.
+
+   So the fix is not to edit a config value that is merely unset; it is to give DSH a
+   **default for new sessions**. The permission UI describes exactly that setting
+   ("Choose the default permission mode for new sessions"), which means the supported
+   route is that control, not hand-editing session JSON. Hand-editing session files
+   would be wrong twice over: it sets one session rather than the default, and it
+   writes into state DSH owns.
+
+   Nothing was changed. To finish this, the options are (a) use the UI's default-mode
+   control, which needs no code, or (b) confirm the config key that feeds
+   `sandboxPolicy.defaultMode` so it can be set in `~/.dsh/cordis.patch.yml`. Option
+   (a) is recommended: it is the supported path, and it cannot corrupt session state.
 2. **Automatically end long sessions and run commit/push/handoff.** Not built. Needs
    two decisions: the trigger (turn count, context size, or elapsed time) and whether
    pushing to `main` is automatic or waits for review.
