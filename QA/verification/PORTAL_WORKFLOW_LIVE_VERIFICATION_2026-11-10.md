@@ -481,6 +481,37 @@ consent gate applies to the enquirer only, which is the correct direction.
 Two tests pin this, and the first was confirmed to **fail when the confirmation is deliberately
 addressed to the owner's number** and pass when restored.
 
+## Voice answers from the business's own knowledge, and cannot read another's
+
+Voice loads business knowledge differently from chat, and that difference is worth stating because
+it is where a subtle leak would live. Chat, SMS and email get a `<website_information>` block
+assembled by retrieval *before* the model runs. Voice gets **no injected block** -- its prompt
+instead instructs the model to call `search_knowledge`. So for voice, that tool is the only
+knowledge path, which makes its tenant scoping the whole isolation guarantee.
+
+Verified live against a real Postgres with two businesses holding distinct facts:
+
+```
+A knowledge chunks: 1 | B knowledge chunks: 1
+A voice lookup mentions: Harbour Dental is open 9am to 5pm Monday to Friday
+B voice lookup mentions: Southern Plumbing charges a callout fee of $89
+A searching B's wording -> Harbour Dental hours ... 9am to 5pm
+voice prompt has <website_information> block: False
+voice prompt tells the model to call search_knowledge: True
+chat prompt has <website_information> block: True
+```
+
+A searching with B's exact wording ("callout fee $89 weekends") still returned only A's own
+knowledge, so the query text cannot steer retrieval across businesses. `_search_knowledge` passes
+`tenant["id"]` from the request context, never anything the model supplies.
+
+**A test I had to strengthen.** My first version asserted only that retrieval was called with the
+calling business -- but a mocked `retrieve` ignores its arguments, so the test passed even when I
+deliberately weakened the scoping to `args.get("tenant_id") or tenant["id"]`. That is a test that
+merely restates the implementation. I rewrote it to supply a hostile `tenant_id` in the tool
+arguments and assert it is ignored; it now **fails** under that regression and passes when scoping
+is taken from context.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -509,7 +540,7 @@ addressed to the owner's number** and pass when restored.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **426 passed** (356 pre-existing + 70 in the
+- `PYTHONPATH=api pytest api/tests -q` → **430 passed** (356 pre-existing + 74 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two
