@@ -226,6 +226,37 @@ Verified against the **live served page** after deploying: the function extracte
 throwing. Two regression tests pin it; one was confirmed to **fail against the old code**, so
 it is a real guard rather than a tautology.
 
+## Tool gating verified live, and now pinned by tests
+
+Website voice was exercised for real: `POST /api/v1/voice/token` returned **200** with a live xAI
+token (111 chars), the `wss://api.x.ai/v1/realtime` URL, voice `ara`, and the tool set
+`request_enquiry_acknowledgement`, `request_conversation_copy`, `capture_lead`, `search_knowledge`.
+Website voice therefore works without any carrier SIP involvement, as the mandate states.
+
+Booking tools are correctly **absent** while `native_booking` is false, and appear the moment it is
+true. Hiding a tool from the model is not a control, so the important check is server-side, and it
+holds -- verified against production:
+
+```
+native_booking = False
+check_availability   -> {"ok": false, "error": "Unknown tool: check_availability"}
+book_appointment     -> {"ok": false, "error": "Unknown tool: book_appointment"}
+```
+
+With booking enabled **in memory only** (no production state written), the same tools return real
+availability (12 slots for 2026-11-12, Pacific/Auckland) and `book_appointment` still refuses
+without confirmation, returning a read-back sentence instead of creating anything.
+
+Nothing in the suite covered the server-side refusal, so it was unprotected against regression.
+Five tests now pin it, and `test_a_disabled_tool_is_refused_even_if_the_model_calls_it` was
+confirmed to **fail when the availability check is removed from `run_tool`** and pass when
+restored.
+
+Email auto-reply was checked the same way: enabling without acknowledgement is refused with a
+clear reason, no state is written, and with the flag off the worker queued **0** reply rows. The
+worker also refuses to send when the owner has taken the customer over or when a reply comes back
+empty, marking the job `held` rather than `failed`.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -254,7 +285,7 @@ it is a real guard rather than a tautology.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **409 passed** (356 pre-existing + 53 in the
+- `PYTHONPATH=api pytest api/tests -q` → **414 passed** (356 pre-existing + 58 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

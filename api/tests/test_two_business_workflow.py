@@ -535,3 +535,69 @@ def test_authorizable_channels_and_readiness_keys_are_known_to_differ():
         SimpleNamespace(website_verified_tenants="", xai_api_key="k", effective_llm_key="k"))
     assert "call_recording" not in readiness
     assert "email_read" not in readiness
+
+
+# ---------------------------------------------------------- server-side tool gating
+
+def test_booking_tools_are_hidden_until_booking_is_enabled():
+    """The model must not be offered a booking tool the owner has not enabled."""
+    from app import tools
+    off = {**BUSINESS_A, "native_booking": False}
+    on = {**BUSINESS_A, "native_booking": True}
+    voice_off = {t["name"] for t in tools.voice_tools(off, website=True)}
+    voice_on = {t["name"] for t in tools.voice_tools(on, website=True)}
+    assert "check_availability" not in voice_off and "book_appointment" not in voice_off
+    assert "check_availability" in voice_on and "book_appointment" in voice_on
+
+
+def test_a_disabled_tool_is_refused_even_if_the_model_calls_it():
+    """Hiding a tool from the model is not a control; refusing it server-side is.
+
+    Verified live against production, and pinned here because nothing else covers it: with
+    native_booking false, run_tool refuses both booking tools rather than booking anyway.
+    """
+    from app import tools
+    off = {**BUSINESS_A, "native_booking": False}
+    for name, args in (("check_availability", {"date": "2026-11-12"}),
+                       ("book_appointment", {"start": "2026-11-12 14:00", "name": "X",
+                                             "email": "x@example.com"})):
+        result = asyncio.run(tools.run_tool(off, name, args, {"channel": "voice"}))
+        assert result["ok"] is False
+        assert "Unknown tool" in result["error"]
+
+
+def test_an_enabled_booking_tool_still_demands_a_read_back(monkeypatch):
+    """Enabling booking must not let the assistant create an appointment without confirmation."""
+    from app import tools
+    on = {**BUSINESS_A, "native_booking": True}
+    # Stub only the slot lookup; the read-back guard itself is the behaviour under test.
+    monkeypatch.setattr(booking, "_slots_on", AsyncMock(return_value=[
+        datetime(2026, 11, 12, 1, 0, tzinfo=timezone.utc)]))
+    monkeypatch.setattr(booking.convo, "get_pending_booking", AsyncMock(return_value=None))
+    monkeypatch.setattr(booking.convo, "set_pending_booking", AsyncMock())
+    result = asyncio.run(tools.run_tool(
+        on, "book_appointment",
+        {"start": "2026-11-12 14:00", "name": "Verify", "email": "v@example.com"},
+        {"channel": "voice", "conversation_id": "c1"}))
+    assert result["ok"] is False
+    assert result.get("needs_confirmation") is True
+    assert "Verify" in result["read_back"]
+
+
+def test_an_unknown_tool_name_is_refused():
+    from app import tools
+    result = asyncio.run(tools.run_tool(BUSINESS_A, "transfer_all_funds", {}, {}))
+    assert result["ok"] is False and "Unknown tool" in result["error"]
+
+
+def test_chat_exposes_no_booking_tools_because_it_retrieves_knowledge_itself():
+    """search_knowledge is voice-only by design: chat.py injects the hits into the prompt directly.
+
+    Pinned so a future reader does not 'fix' the missing tool and give chat two competing sources
+    of business knowledge.
+    """
+    from app import tools
+    chat = {t["function"]["name"] for t in tools.chat_tools({**BUSINESS_A, "native_booking": True})}
+    assert "search_knowledge" not in chat
+    voice = {t["name"] for t in tools.voice_tools({**BUSINESS_A, "native_booking": True}, website=True)}
+    assert "search_knowledge" in voice
