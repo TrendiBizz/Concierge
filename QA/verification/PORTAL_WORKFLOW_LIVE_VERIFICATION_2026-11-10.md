@@ -587,6 +587,39 @@ The route also falls back to `enquiry_sources.original_text` when a lead has no 
 is what stops a voice enquiry from showing the owner an empty transcript. That fallback is pinned
 too, because removing it would look like data loss rather than a missing branch.
 
+## Two real production businesses, checked live and read-only
+
+I had been treating "two businesses" as blocked on inventing customer data. Inspecting production
+again showed that assumption was wrong: there are **two genuine owner accounts**, not one.
+
+```
+trendi-oauth-staging  Trendi Concierge        owner admin@trendibizz.com      28 chunks, 1 calendar
+trendi-meta-review    Meta review workspace   owner meta-review@trendibizz.com 0 chunks, 0 calendars
+```
+
+Isolation between them, read live with no writes:
+
+```
+A booking open_days: 0 | B booking open_days: 5
+A notify: admin@trendibizz.com | B notify: (none)
+trendi-oauth-staging   {"chunks":28,"leads":7,"conversations":19,"cases":1,"events":1,"appointments":1,"quotations":1,"outbox":22}
+trendi-meta-review     {"chunks":0,"leads":0,"conversations":0,"cases":0,"events":0,"appointments":0,"quotations":0,"outbox":0}
+A quotations visible: 1 | B quotations visible: 0
+A knowledge hits: 5 | B knowledge hits: 0
+overlap between the two real businesses: 0 (expect 0)
+```
+
+The readiness difference is the strongest signal here. It is not a default and not a cache:
+`trendi-meta-review` genuinely has weekdays `09:00-17:00` configured while `trendi-oauth-staging`
+has every weekday empty, so the two businesses report `open_days` 5 and 0 respectively. Pinned by
+a test so a future caching change cannot make one business look configured because another is.
+
+**What is still blocked, and exactly why.** Booking and calendar verification for the second real
+business needs a Google Calendar OAuth consent, which only the account holder can grant:
+`trendi-meta-review` has **0 calendar connections** while `trendi-oauth-staging` has 1. That is the
+precise, smallest missing input -- not "customer data", just one OAuth authorisation for a second
+mailbox. Everything else about the second business is already verifiable and verified.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
@@ -615,7 +648,7 @@ too, because removing it would look like data loss rather than a missing branch.
 
 ## Test and gate state
 
-- `PYTHONPATH=api pytest api/tests -q` → **443 passed** (356 pre-existing + 87 in the
+- `PYTHONPATH=api pytest api/tests -q` → **445 passed** (356 pre-existing + 89 in the
   new workflow file).
 - `scripts/rust-gate.sh` → **GATE-ALL-OK** across all four crates.
 - New file `api/tests/test_two_business_workflow.py` runs the seven steps for two

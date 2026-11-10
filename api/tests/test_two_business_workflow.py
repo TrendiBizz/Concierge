@@ -1196,3 +1196,30 @@ def test_a_quotation_is_visible_only_to_its_own_business(monkeypatch):
     fetch = [s for s in pool.statements if s[0] == "fetch"][0]
     assert "tenant_id=$1" in fetch[1]
     assert fetch[2][0] == BUSINESS_A["id"]
+
+
+# ---------------------------------------------------------- readiness is per business
+
+def test_readiness_reflects_each_businesss_own_hours_not_a_shared_default():
+    """Production holds two real businesses whose hours genuinely differ.
+
+    Read live (read-only) from production: trendi-meta-review has weekdays 09:00-17:00 and reports
+    open_days 5, while trendi-oauth-staging has every weekday empty and reports open_days 0. If
+    readiness were computed from a shared default or cached across tenants, both would read the
+    same. Pinned here so a future caching change cannot quietly make one business look configured
+    because another is.
+    """
+    configured = {**BUSINESS_A}
+    empty = {**BUSINESS_B, "business_hours": {d: [] for d in ("mon", "tue", "wed", "thu", "fri")}}
+    assert owner_onboarding.booking_readiness(configured)["open_days"] == 5
+    assert owner_onboarding.booking_readiness(empty)["open_days"] == 0
+    assert owner_onboarding.booking_readiness(empty)["reason"]
+    assert owner_onboarding.booking_readiness(configured)["reason"] == ""
+
+
+def test_overview_reports_the_booking_channel_for_every_business():
+    """The owner portal reads channels.booking; it must be present, not conditionally omitted."""
+    import inspect
+    from app import owner_onboarding
+    src = inspect.getsource(owner_onboarding.overview)
+    assert '"booking": booking_readiness(tenant)' in src
