@@ -134,3 +134,29 @@ a cancelled test appointment with queued reminders, two `@example.com` leads and
 their conversations/cases, a stray verification chat conversation, and stale
 owner-alert SMS rows. The appointment/cancellation path in the API does cancel
 pending reminders; the leftovers came from direct-DB probes that bypassed it.
+
+
+## Commerce and email — 2026-11-11 12:00
+
+**Concierge is now purchasable in Stripe (same account as SEO).**
+- Product `prod_VbDBA4M8fb9UiN` "Trendi Concierge" with prices
+  `price_1Ua0lK…` (USD 400/month) and `price_1Ua0ln…` (USD 4,080/year).
+- Monthly Payment Link: `https://buy.stripe.com/fZu28s5Cv2URctqgHm04800`
+- Yearly Payment Link created (`5kQkE0ib2UR50Y4YE04801`) but deliberately **not
+  exposed**: the site's own policy is that yearly is only offered after the first
+  three months, so it stays an emailed link.
+- Site wiring: `products.js` `concierge.monthly.stripeLink` now holds the monthly
+  link; `/pricing` has a "Subscribe — USD $400/month" button; `/concierge`'s
+  monthly plan button resolves to Stripe at runtime. Verified: link 200, pages 200,
+  products.js served with the link.
+- Also fixed `/pricing` to show **USD $400/month** instead of "Quoted on enquiry".
+
+**Email: kept on the existing host (owner decision).** Cloudflare Email Routing was
+**not enabled**, so the Jellyfish MX records are unchanged and `admin@trendibizz.com`
+continues to deliver normally. The Concierge inbound Email Worker is deployed
+(`concierge-inbound-worker`) but has no routing rule; it is ready if email intake is
+ever switched on. The email channel therefore stays disclosed as "enabled after
+provider setup".
+
+Secrets: `stripe.key` and `cloudflare.key` are stored under `/opt/trendi/shared`,
+mode 600; rotate them after setup.
