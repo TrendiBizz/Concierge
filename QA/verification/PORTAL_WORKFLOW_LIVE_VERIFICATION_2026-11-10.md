@@ -947,6 +947,43 @@ All three channels the mandate cares about still work on the rebuilt image.
 | Rollback | `before-clean-rebuild-20261110` -> `c69687f6bf10` |
 | Backup | `/opt/trendi/backups/clean-image-rebuild-20261110` |
 
+## The social service was investigated for staleness and found current
+
+Only the API image had been verified against its source. The social service is recreated on every
+API deploy, so I checked whether its compiled Rust binary was stale -- and the timing looked bad:
+
+```
+social image created         2026-11-08 19:47
+source commits after that     3   (touching concierge-stack/social-service/)
+  cd9ee9e  meta_publish.rs             26 insertions
+  6b86e56  x.rs, x_publish.rs, LinkedIn Pages OAuth, publisher   1032 insertions
+  908ca02  composer, adapters, Google Business publish
+```
+
+Over a thousand lines added to that crate after the image was built. That is exactly the shape of
+the stale-API incident this handoff opens with.
+
+**It is not stale.** The deployed binary contains the features those commits added:
+
+```
+urn:li:organization   1 match in the deployed binary   (LinkedIn Pages, from 6b86e56)
+x.com                 4 matches                        (X publishing, from 6b86e56)
+x_publish             1 match
+```
+
+And it answers the endpoints the current source defines: `/health` returns `{"ok":true}` and
+`/v1/oauth/providers` returns 401 (exists, auth required). Both are features of the newer commits.
+
+**I nearly reported a false finding, twice.** My first search used `strings`, which is not installed
+in that container -- the "0 matches" it produced looked like evidence of absence and was actually a
+missing tool. My second attempt used `od -c | grep`, whose character spacing cannot match a
+contiguous pattern, and returned 0 again for the same reason. Only extracting the binary and
+searching it with `grep -a` gave a trustworthy answer, and it reversed the conclusion.
+
+The lesson is specific: on this host, "the tool reported nothing" and "the thing is not there" are
+different claims, and a container without `strings` will silently look like a binary with no
+features.
+
 ## What is genuinely NOT verified, and why
 
 1. **A second fully-configured business.** Only `trendi-oauth-staging` has knowledge
