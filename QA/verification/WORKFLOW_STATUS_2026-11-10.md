@@ -74,13 +74,16 @@ probe so no external message was sent:
 
 ## What actually remains
 
-1. **Real inbound SMS** — the paired device is online and polling. Live readiness
-   is confirmed (device enabled, `sms_read` authorized, `sms_transport=device`,
-   `sms_from` matching). The `/api/v1/device-sms/inbound` route now has 7 route
-   tests (device token, exact-line check, duplicate suppression, `sms_read` gate,
-   reply queue, `inbound_verified_at` write). The only missing step is one **real**
-   SMS from another phone; `inbound_verified_at` intentionally stays NULL until
-   that happens. No carrier provider is needed — the paired phone is the transport.
+1. **Real inbound SMS — needs a dedicated business number, not the personal phone.**
+   The only transport today is the paired phone, and `sms_from` is the owner's
+   personal mobile, so an inbound test means texting the owner's own number. The
+   route itself is covered by 7 tests (`/api/v1/device-sms/inbound`: device token,
+   exact-line check, duplicate suppression, `sms_read` gate, reply queue,
+   `inbound_verified_at` write) and live readiness is confirmed (device online,
+   `sms_read` authorized). It is **not product-ready without a dedicated SMS
+   number**, which is blocked on the same supplier decision as the SIP trunk. Do
+   not chase the personal-number test unless the mobile is intended to be the
+   business line.
 2. **Real telephone call** — a genuine number on the Telnyx trunk routed to the
    Asterisk AudioSocket adapter, then a real forwarded call and owner receipt.
    Optional and separate from website voice.
