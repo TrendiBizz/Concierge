@@ -158,6 +158,44 @@ VPS, quotations exist and the previous session verified them (orphan count 0 aft
 cleanup, and a quotation visible to one business and not the other). The local
 `concierge-postgres-1` simply is not that database. Same root cause as (2).
 
+## Completed this session (2026-11-10, next session)
+
+**Opening hours for `trendi-oauth-staging` — DONE.** Set to Mon–Fri 09:00–17:00,
+closed weekends (the same table the other two businesses use), written through
+`tenants.update`, not raw SQL, so it passed the app's own validation.
+
+| | before | after |
+| --- | --- | --- |
+| `open_days` | 0 | **5** |
+| readiness reason | "No opening hours are set…" | `''` (cleared) |
+| `native_booking` | false | false (**deliberately unchanged**) |
+
+Verified twice: once by the writing script's own read-back, then again by an
+independent SQL query, because a script confirming its own write is not evidence.
+
+Backup of the `tenants` table taken first, to
+`/opt/trendi/backups/hours-write-20261110/tenants-before.dump`.
+
+**Orphaned Google tokens — cleaned.** `calendar_connections` has **no token
+column**; tokens are files in `/run/concierge-calendar/<tenant-uuid>.json`. The
+10 fake tenants deleted after the accidental production write had their DB rows
+cascade away, but **their token files did not** — so 8 credential files remained
+for tenants that no longer exist. Moved (not deleted) to
+`/opt/trendi/backups/orphan-calendar-tokens-20261110/`. The directory now holds
+exactly `0a3e7155….json` (`trendi-oauth-staging`) and `google-app.json`.
+
+**Which businesses actually have a calendar, verified:**
+
+| Tenant | Google token |
+| --- | --- |
+| `trendi-oauth-staging` | **yes** — refresh token + calendar scope |
+| `concierge` | no |
+| `trendi-meta-review` | no |
+
+This is why the OAuth item is not merely a formality: `finish()` writes that file
+only after a real Google redirect as the account holder. Two of the three
+businesses have no calendar credential at all.
+
 ## Open asks from the owner (not yet done)
 
 1. **Persist full-access permissions across sessions.** The cause is now established
