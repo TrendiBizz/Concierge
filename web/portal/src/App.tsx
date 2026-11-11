@@ -859,31 +859,127 @@ function Bookings({token}: {token: string}) {
   const api = useApi(token);
   const [calendar, setCalendar] = useState<{configured?: boolean; connected?: boolean; provider?: string}>({});
   const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
+  const [role, setRole] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [slot, setSlot] = useState(30);
+  const [hours, setHours] = useState<Record<string, {start: string; end: string; open: boolean}>>({
+    mon: {start: '09:00', end: '17:00', open: true}, tue: {start: '09:00', end: '17:00', open: true},
+    wed: {start: '09:00', end: '17:00', open: true}, thu: {start: '09:00', end: '17:00', open: true},
+    fri: {start: '09:00', end: '17:00', open: true}, sat: {start: '09:00', end: '17:00', open: false},
+    sun: {start: '09:00', end: '17:00', open: false},
+  });
+  const [ack, setAck] = useState(false);
   const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const days: Array<[string, string]> = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']];
 
-  useEffect(() => {
-    Promise.all([api('/owner/calendar'), api('/owner/crm')]).then(([cal, crm]) => {
+  async function load() {
+    try {
+      const [cal, crm, onboarding, me] = await Promise.all([
+        api('/owner/calendar'), api('/owner/crm'), api('/owner/onboarding'), api('/owner/me')]);
       setCalendar(cal as {configured?: boolean; connected?: boolean; provider?: string});
       setAppointments(((crm as {appointments?: Record<string, unknown>[]}).appointments || []));
-    }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load bookings'));
-  }, [token]);
+      const business = (onboarding as {business?: Record<string, unknown>}).business || {};
+      setEnabled(Boolean(business.native_booking));
+      setSlot(Number(business.slot_minutes) || 30);
+      const saved = (business.business_hours || {}) as Record<string, string[][]>;
+      setHours((current) => {
+        const next = {...current};
+        for (const [key] of days) {
+          const windows = saved[key];
+          if (Array.isArray(windows) && windows[0]) {
+            next[key] = {start: windows[0][0], end: windows[0][1], open: true};
+          } else if (saved && Object.keys(saved).length) {
+            next[key] = {...next[key], open: false};
+          }
+        }
+        return next;
+      });
+      setRole((me as {role: string}).role);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load bookings'); }
+  }
+  useEffect(() => { load(); }, [token]);
 
-  async function connect() {
+  async function connectCalendar() {
+    if (role !== 'owner') { setStatus('Only the business owner can connect the calendar.'); return; }
+    const popup = window.open('about:blank', 'concierge-social-oauth', 'width=620,height=760');
+    if (!popup) { setStatus('Allow popups for this page to connect Google Calendar.'); return; }
     try {
-      const result = await api('/owner/calendar/start', 'POST') as {authorization_url?: string};
-      if (result.authorization_url) window.location.href = result.authorization_url;
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Calendar connection unavailable'); }
+      const start = await api('/owner/calendar/start', 'POST') as {authorization_url: string; state: string};
+      const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('concierge-social-oauth:' + start.state) : null;
+      let finished = false;
+      const finish = async (data: {state?: string; code?: string; error?: string}) => {
+        if (finished || !data || data.state !== start.state) return;
+        finished = true;
+        channel?.close();
+        try { popup.close(); } catch { /* ignore */ }
+        if (data.error || !data.code) { setStatus('Calendar authorization was cancelled.'); return; }
+        try {
+          await api('/owner/calendar/finish', 'POST', {state: data.state, code: data.code});
+          setStatus('Google Calendar connected.');
+          await load();
+        } catch (e) { setStatus(e instanceof Error ? e.message : 'Calendar connection failed'); }
+      };
+      if (channel) channel.onmessage = (event) => { void finish(event.data); };
+      window.addEventListener('message', (event) => {
+        if (event.origin === location.origin && event.data?.type === 'concierge-social-oauth') void finish(event.data);
+      });
+      popup.location.href = start.authorization_url;
+      setStatus('Continue in the Google window.');
+    } catch (e) {
+      try { popup.close(); } catch { /* ignore */ }
+      setStatus(e instanceof Error ? e.message : 'Calendar connection unavailable');
+    }
+  }
+
+  async function saveBooking() {
+    setBusy(true); setStatus('');
+    try {
+      const businessHours: Record<string, string[][]> = {};
+      for (const [key] of days) if (hours[key]?.open) businessHours[key] = [[hours[key].start, hours[key].end]];
+      await api('/owner/onboarding/profile', 'PATCH', {slot_minutes: Number(slot), business_hours: businessHours});
+      if (enabled && !ack) throw new Error('Tick the acknowledgement before enabling booking.');
+      await api('/owner/onboarding/native-booking', 'POST', {enabled, acknowledgement: ack});
+      setStatus(enabled ? 'Booking enabled with these hours.' : 'Booking disabled.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save booking settings'); }
+    setBusy(false);
   }
 
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Bookings</Heading>
-      <p>Appointments booked by Concierge, with the enquiry and confirmation kept together.</p>
+      <p>Connect the business calendar and choose when Concierge may book appointments.</p>
       <Card>
-        <Heading level={2}>Calendar</Heading>
-        <p>{calendar.connected ? 'Connected to ' + (calendar.provider || 'your calendar') + '.' : calendar.configured ? 'Calendar connection is available but not connected.' : 'Calendar connection is awaiting Trendi setup.'}</p>
-        {calendar.configured && !calendar.connected ? <Button label="Connect Google Calendar" variant="primary" onClick={connect} /> : null}
+        <Heading level={2}>Google Calendar</Heading>
+        <p>{calendar.connected ? 'Connected.' : calendar.configured ? 'Ready to connect this business’s calendar.' : 'Calendar connection is awaiting Trendi setup.'}</p>
+        {calendar.configured && !calendar.connected ? <Button label="Connect Google Calendar" variant="primary" onClick={connectCalendar} /> : null}
+        {calendar.connected ? <Button label="Disconnect" variant="ghost" onClick={async () => { try { await api('/owner/calendar', 'DELETE'); await load(); setStatus('Calendar disconnected.'); } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not disconnect'); } }} /> : null}
       </Card>
+
+      <Card>
+        <Heading level={2}>Booking rules</Heading>
+        <label style={{display: 'block', margin: '8px 0'}}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Allow Concierge to book agreed appointments
+        </label>
+        <label style={{display: 'block', margin: '8px 0'}}>
+          Appointment length (minutes)
+          <input type="number" min={5} max={240} value={slot} onChange={(e) => setSlot(Number(e.target.value) || 30)} style={{display: 'block', padding: 8}} />
+        </label>
+        <p><strong>Opening hours</strong></p>
+        {days.map(([key, label]) => (
+          <div key={key} style={{display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0', flexWrap: 'wrap'}}>
+            <label style={{minWidth: 90}}><input type="checkbox" checked={hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], open: e.target.checked}})} /> {label}</label>
+            <input aria-label={label + ' start'} type="time" value={hours[key].start} disabled={!hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], start: e.target.value}})} />
+            <input aria-label={label + ' end'} type="time" value={hours[key].end} disabled={!hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], end: e.target.value}})} />
+          </div>
+        ))}
+        <label style={{display: 'block', margin: '10px 0'}}>
+          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> The hours and rules are correct, and Concierge may book appointments.
+        </label>
+        <Button label={busy ? 'Saving…' : 'Save booking settings'} variant="primary" onClick={saveBooking} />
+      </Card>
+
       <Heading level={2}>Appointments</Heading>
       {appointments.length ? appointments.map((appointment, index) => (
         <Card key={index}>
