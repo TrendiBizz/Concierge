@@ -23,7 +23,7 @@ def main() -> None:
     }).encode()
     request = urllib.request.Request(
         "https://api.indexnow.org/indexnow", data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"})
+        headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "TrendiIndexNow/1.0"})
     with urllib.request.urlopen(request, timeout=30) as response:
         print(response.status, len(urls), "urls submitted")
 
