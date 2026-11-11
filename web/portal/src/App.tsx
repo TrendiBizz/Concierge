@@ -13,6 +13,8 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {Banner} from '@astryxdesign/core/Banner';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
+import {AppShell} from '@astryxdesign/core/AppShell';
+import {SideNav, SideNavSection, SideNavItem} from '@astryxdesign/core/SideNav';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -98,7 +100,7 @@ function TranslationNote({locale}: {locale: string}) {
   );
 }
 
-function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr, mode, setMode}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string; mode: string; setMode: (v: string) => void}) {
+function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr, mode, setMode, showTabs = true, layout, setLayout}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string; mode: string; setMode: (v: string) => void; showTabs?: boolean; layout: string; setLayout: (v: string) => void}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
@@ -114,7 +116,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
           <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
             {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
-          <TabList value={tab} onChange={setTab}>
+          {showTabs ? <TabList value={tab} onChange={setTab}>
             <Tab value="home" label={tr('Home')} />
             <Tab value="setup" label={tr('Setup')} />
             <Tab value="designs" label={tr('Designs')} />
@@ -124,7 +126,8 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
             <Tab value="crm" label={tr('Enquiries')} />
             <Tab value="social" label={tr('Social')} />
             <Tab value="media" label={tr('Marketing media')} />
-          </TabList>
+          </TabList> : null}
+          <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
           {onInstall ? <Button label={tr('Install app')} variant="secondary" onClick={onInstall} /> : null}
           <Button label={tr('Sign out')} variant="ghost" onClick={onSignOut} />
         </div>
@@ -617,6 +620,8 @@ function Shell() {
   const [navStrings, setNavStrings] = useState<Record<string, string>>({});
   const [copyStrings, setCopyStrings] = useState<Record<string, string>>({});
   const [mode, setModeState] = useState(() => localStorage.getItem('concierge.mode') || 'system');
+  const [layout, setLayoutState] = useState(() => new URLSearchParams(location.search).get('layout') || localStorage.getItem('concierge.layout') || 'tabs');
+  function setLayout(value: string) { setLayoutState(value); localStorage.setItem('concierge.layout', value); }
   function setMode(value: string) { setModeState(value); localStorage.setItem('concierge.mode', value); }
   const tr = (key: string) => navStrings[key] || key;
   useDomTranslation(locale, copyStrings);
@@ -671,15 +676,46 @@ function Shell() {
     );
   }
 
+  const content = (
+    <>
+      <TranslationNote locale={locale} />
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+    </>
+  );
+  const header = (
+    <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} mode={mode} setMode={setMode} showTabs={layout === 'tabs'} layout={layout} setLayout={setLayout} />
+  );
+  const sidebar = (
+    <SideNav>
+      <SideNavSection title={tr('Workspace')}>
+        <SideNavItem label={tr('Home')} isSelected={tab === 'home'} onClick={() => setTab('home')} />
+        <SideNavItem label={tr('Setup')} isSelected={tab === 'setup'} onClick={() => setTab('setup')} />
+      </SideNavSection>
+      <SideNavSection title={tr('Customers')}>
+        <SideNavItem label={tr('Enquiries')} isSelected={tab === 'crm'} onClick={() => setTab('crm')} />
+        <SideNavItem label={tr('Bookings')} isSelected={tab === 'bookings'} onClick={() => setTab('bookings')} />
+      </SideNavSection>
+      <SideNavSection title={tr('Revenue')}>
+        <SideNavItem label={tr('Quotes')} isSelected={tab === 'quotes'} onClick={() => setTab('quotes')} />
+        <SideNavItem label={tr('Reports')} isSelected={tab === 'reports'} onClick={() => setTab('reports')} />
+      </SideNavSection>
+      <SideNavSection title={tr('Marketing')}>
+        <SideNavItem label={tr('Social')} isSelected={tab === 'social'} onClick={() => setTab('social')} />
+        <SideNavItem label={tr('Marketing media')} isSelected={tab === 'media'} onClick={() => setTab('media')} />
+        <SideNavItem label={tr('Designs')} isSelected={tab === 'designs'} onClick={() => setTab('designs')} />
+      </SideNavSection>
+    </SideNav>
+  );
+
   return (
     <Theme theme={theme} mode={mode as 'light' | 'dark' | 'system'}>
     <NotifyProvider>
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-    <div>
-      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} mode={mode} setMode={setMode} />
-      <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
-    </div>
+    {layout === 'sidebar' ? (
+      <AppShell topNav={header} sideNav={sidebar} mobileNav={{hasToggle: true}} contentPadding={0} height="auto">{content}</AppShell>
+    ) : (
+      <div>{header}{content}</div>
+    )}
     </InternationalizationProvider>
     </NotifyProvider>
     </Theme>
