@@ -23,6 +23,23 @@ services:
       CF_EMAIL: ${CF_EMAIL:-}
     mem_limit: 512m
     cpus: 1
+  # DKIM/DMARC sidecar. The api reaches it at EMAIL_AUTH_URL (http://email-auth:8090).
+  # This service ran on the VPS but was missing from this file, so a plain
+  # `compose up` would have treated it as an orphan and removed it, breaking
+  # inbound verification. Keep it declared here.
+  email-auth:
+    build:
+      context: ../../services/email-auth
+    image: trendi-email-auth:vps
+    restart: unless-stopped
+    expose: ["8090"]
+    mem_limit: 256m
+    cpus: 1
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8090/healthz]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   api:
     build:
