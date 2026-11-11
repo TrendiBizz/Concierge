@@ -83,3 +83,9 @@ presence is needed before Astryx Native stabilises.
   the other 28 are labelled in-product: automated translation, not reviewed by
   a native speaker, with a mailto feedback link.
 - Verified in French: full French copy plus the feedback note.
+
+
+## Public homepage switcher
+- 30 languages on the homepage via `/site-i18n.js` + `/site-i18n.json`, generated
+  with Cloudflare AI; feedback mailto shown. Internal pages still English.
+- Afrikaans portal corrections applied from owner review.

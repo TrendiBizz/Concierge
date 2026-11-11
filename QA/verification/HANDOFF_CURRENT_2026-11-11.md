@@ -263,3 +263,12 @@
 - Language selector shows all 30; a yellow note appears for machine-translated
   locales inviting corrections (mailto admin@trendibizz.com). English/Afrikaans
   reviewed; the rest marked automated.
+
+
+## Public-site language switcher — 2026-11-11
+- `trendibizz.com` homepage now has a floating 🌐 Language selector (bottom-left)
+  with 30 languages, self-hosted translations (`/site-i18n.json`) and a feedback
+  note. No Google scripts and no CSP weakening.
+- Scope: homepage only; internal marketing pages remain English for now.
+- Verified: `?lang=fr` and `?lang=af` translate the homepage in headless Chrome.
+- Afrikaans portal translations applied from the owner's review.
