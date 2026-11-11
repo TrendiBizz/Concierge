@@ -225,6 +225,62 @@ async def register(route, call_id):
     return tenant
 
 
+
+async def prepare(route, call_id):
+    """Create the call records and the Grok session for one route. Shared by the
+    Python bridge and the internal voice shell."""
+    tenant = await register(route, call_id)
+    conversation = await convo.get_or_create(tenant, call_id, 'phone', None, None)
+    await enquiries.capture(tenant, 'phone', call_id, 'Inbound telephone enquiry', conversation_id=conversation)
+    capability = await voice_records.start(tenant, call_id, channel='phone')
+    record_session = await voice_records.authenticate(capability['id'], capability['token'])
+    session = voice.build_session(tenant, website=True)
+    for direction in ('input', 'output'):
+        session['audio'][direction]['format'] = {'type': 'audio/pcm', 'rate': 8000}
+    session['instructions'] = build_system_prompt(tenant, None, channel='phone') + (
+        '\nYou are this business\'s automated Grok receptionist. Greet the caller with this business name. '
+        'Disclose transcription. Ask permission to record the message. No audio is recorded before consent. '
+        'Only after an explicit yes, call set_call_recording with enabled=true and confirmed=true. '
+        'If unavailable or declined, take a text message without recording. '
+        'If permission is withdrawn, call set_call_recording with enabled=false; it discards captured audio. '
+        'Ask whether they want a text copy, recording link, or callback. Save callback preference in their enquiry. '
+        'For a copy, capture their contact and permission, read back destination and format, wait for yes, then request_conversation_copy. '
+        'Collect their message and callback details. Never claim a text was sent without a confirmed result. '
+        'When finished, say goodbye then call end_call. Do not end with an open question.')
+    session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
+                             'parameters':{'type':'object','properties':{},'additionalProperties':False}})
+    session['tools'].append({'type':'function','name':'set_call_recording',
+        'description':'Start recording only after explicit caller consent. Disable to discard audio if consent is withdrawn.',
+        'parameters':{'type':'object','properties':{'enabled':{'type':'boolean'},'confirmed':{'type':'boolean'}},
+                      'required':['enabled','confirmed'],'additionalProperties':False}})
+    return {'tenant': tenant, 'conversation': conversation,
+            'record_session': record_session, 'session': session}
+
+
+async def run_phone_tool(tenant, record_session, conversation, call_id, name, args, recording=None):
+    """Authorise and run one telephone tool. The Rust shell passes recording=None:
+    it owns the audio buffer and applies the consent result itself."""
+    if not await channel_authorization.is_authorized(tenant['id'], 'telephone'):
+        raise ValueError('Business telephone authorization revoked')
+    if name == 'set_call_recording':
+        if args.get('enabled') is False:
+            if recording is not None:
+                recording.discard()
+            record_session['recording_consent'] = False
+        elif args.get('enabled') is True and args.get('confirmed') is True:
+            if not (get_settings().voice_recording_enabled and await channel_authorization.is_authorized(tenant['id'], 'call_recording')):
+                return {'ok':False, 'error':'Recording is unavailable; take a text message.'}
+            if recording is not None:
+                recording.start()
+            record_session['recording_consent'] = True
+        else:
+            return {'ok':False, 'error':'Ask for explicit recording permission first.'}
+        await db.pool().execute('UPDATE voice_sessions SET recording_consent=$2 WHERE id=$1', record_session['id'], record_session['recording_consent'])
+        return {'ok':True, 'recording':record_session['recording_consent']}
+    return await run_tool(tenant, name, args, {'voice_session':record_session, 'conversation_id':conversation, 'session_id':call_id,
+                                              'channel':'phone', 'sender_phone':None})
+
+
 async def finish(tenant, call_id, conversation, status, record_session=None):
     async with db.pool().acquire() as c:
         async with c.transaction():
@@ -279,30 +335,11 @@ async def handle(reader, writer, route, networks):
         if kind != 1 or len(body) != 16:
             raise ValueError('Expected AudioSocket call UUID')
         call_id = 'ast:'+str(uuid.UUID(bytes=body))
-        tenant = await register(route, call_id)
-        conversation = await convo.get_or_create(tenant, call_id, 'phone', None, None)
-        await enquiries.capture(tenant, 'phone', call_id, 'Inbound telephone enquiry', conversation_id=conversation)
-        capability = await voice_records.start(tenant, call_id, channel='phone')
-        record_session = await voice_records.authenticate(capability['id'], capability['token'])
-        session = voice.build_session(tenant, website=True)
-        for direction in ('input', 'output'):
-            session['audio'][direction]['format'] = {'type': 'audio/pcm', 'rate': 8000}
-        session['instructions'] = build_system_prompt(tenant, None, channel='phone') + (
-            '\nYou are this business\'s automated Grok receptionist. Greet the caller with this business name. '
-            'Disclose transcription. Ask permission to record the message. No audio is recorded before consent. '
-            'Only after an explicit yes, call set_call_recording with enabled=true and confirmed=true. '
-            'If unavailable or declined, take a text message without recording. '
-            'If permission is withdrawn, call set_call_recording with enabled=false; it discards captured audio. '
-            'Ask whether they want a text copy, recording link, or callback. Save callback preference in their enquiry. '
-            'For a copy, capture their contact and permission, read back destination and format, wait for yes, then request_conversation_copy. '
-            'Collect their message and callback details. Never claim a text was sent without a confirmed result. '
-            'When finished, say goodbye then call end_call. Do not end with an open question.')
-        session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
-                                 'parameters':{'type':'object','properties':{},'additionalProperties':False}})
-        session['tools'].append({'type':'function','name':'set_call_recording',
-            'description':'Start recording only after explicit caller consent. Disable to discard audio if consent is withdrawn.',
-            'parameters':{'type':'object','properties':{'enabled':{'type':'boolean'},'confirmed':{'type':'boolean'}},
-                          'required':['enabled','confirmed'],'additionalProperties':False}})
+        prepared = await prepare(route, call_id)
+        tenant = prepared['tenant']
+        conversation = prepared['conversation']
+        record_session = prepared['record_session']
+        session = prepared['session']
         message_ids = {}
         async def transcript(role, text, item_id):
             key = (role, item_id)
@@ -315,23 +352,7 @@ async def handle(reader, writer, route, networks):
                 if item_id:
                     message_ids[key] = ident
         async def tool(name, args):
-            if not await channel_authorization.is_authorized(tenant['id'], 'telephone'):
-                raise ValueError('Business telephone authorization revoked')
-            if name == 'set_call_recording':
-                if args.get('enabled') is False:
-                    recording.discard()
-                    record_session['recording_consent'] = False
-                elif args.get('enabled') is True and args.get('confirmed') is True:
-                    if not (get_settings().voice_recording_enabled and await channel_authorization.is_authorized(tenant['id'], 'call_recording')):
-                        return {'ok':False, 'error':'Recording is unavailable; take a text message.'}
-                    recording.start()
-                    record_session['recording_consent'] = True
-                else:
-                    return {'ok':False, 'error':'Ask for explicit recording permission first.'}
-                await db.pool().execute('UPDATE voice_sessions SET recording_consent=$2 WHERE id=$1', record_session['id'], record_session['recording_consent'])
-                return {'ok':True, 'recording':record_session['recording_consent']}
-            return await run_tool(tenant, name, args, {'voice_session':record_session, 'conversation_id':conversation, 'session_id':call_id,
-                                                      'channel':'phone', 'sender_phone':None})
+            return await run_phone_tool(tenant, record_session, conversation, call_id, name, args, recording)
         async def monitor():
             while True:
                 await asyncio.sleep(5)
