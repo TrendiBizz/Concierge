@@ -263,6 +263,8 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
                     translated = next(iter(translated.values()))
                 for source in missing:
                     value = str(translated.get(source, source))
+                    if not value or value == source:
+                        continue
                     found[source] = value
                     await db.pool().execute(
                         "INSERT INTO ui_translation_cache(locale,source,translated) VALUES($1,$2,$3) "
@@ -273,11 +275,13 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
         if still:
             try:
                 found.update(await _google_translate(still, locale))
-                for source, value in found.items():
-                    if source in still:
-                        await db.pool().execute(
-                            "INSERT INTO ui_translation_cache(locale,source,translated) VALUES($1,$2,$3) "
-                            "ON CONFLICT (locale,source) DO NOTHING", locale, source, value)
+                for source in still:
+                    value = found.get(source, source)
+                    if not value or value == source:
+                        continue
+                    await db.pool().execute(
+                        "INSERT INTO ui_translation_cache(locale,source,translated) VALUES($1,$2,$3) "
+                        "ON CONFLICT (locale,source) DO NOTHING", locale, source, value)
             except Exception:
                 log.exception("google translation fallback failed")
         for source in missing:
