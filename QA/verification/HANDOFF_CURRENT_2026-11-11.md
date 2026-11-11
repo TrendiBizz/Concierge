@@ -217,3 +217,16 @@
   check (`schedule-df99a8a8-0abe-4b82-a9d9-e9cbf8a06c8e`).
 - Interim: PWA icons (192/512/maskable/apple), install prompt in the header,
   offline shell. Manifest and icons verified 200.
+
+
+## Quotes delivery + CAD completion — 2026-11-11
+- Quotes: public token page `/quote/{token}` (branded), customer accept/decline,
+  owner "Send to customer" queues an email with the link (verified: send 200,
+  outbox row `quotation` pending). Public accept tested: status accepted.
+  Print/PDF and sign-off unchanged.
+- CAD: Designs tab with upload/list, Online3DViewer for IFC/GLB/OBJ/STL/3DM,
+  IFC takeoff via ifcopenshell (wall/opening quantities), and a **customer
+  upload link** `/upload/{token}` (7 days). Verified: link created, page 200,
+  public upload 201, takeoff 200 with note; designs dirs owned by uid 10001.
+- Gateway routes added: `/quote/*`, `/upload/*`, `/api/v1/public-design/*`.
+- Astryx audit written at `QA/verification/ASTRYX_AUDIT_2026-11-11.md`.

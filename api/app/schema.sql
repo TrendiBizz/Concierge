@@ -724,3 +724,11 @@ ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declined_at timestamptz;
 UPDATE quotations SET public_token = replace(gen_random_uuid()::text, '-', '') WHERE public_token IS NULL;
 ALTER TABLE quotations ALTER COLUMN public_token SET DEFAULT replace(gen_random_uuid()::text, '-', '');
 CREATE UNIQUE INDEX IF NOT EXISTS quotations_public_token_idx ON quotations (public_token);
+
+CREATE TABLE IF NOT EXISTS design_links (
+    token text PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    created_by text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL
+);

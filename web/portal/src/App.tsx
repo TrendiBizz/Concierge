@@ -1019,6 +1019,7 @@ function Designs({token}: {token: string}) {
   const [viewName, setViewName] = useState('');
   const [busy, setBusy] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const [link, setLink] = useState('');
 
   async function load() {
     try { setDesigns(await api('/owner/designs') as Design[]); }
@@ -1084,6 +1085,20 @@ function Designs({token}: {token: string}) {
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Designs and CAD</Heading>
       <p>Upload plans or 3D models, view them, and read wall areas from IFC models for cladding quotes.</p>
+      <Card>
+        <Heading level={2}>Customer upload link</Heading>
+        <p>Send this to a customer so they can upload their own plans. It expires in 7 days.</p>
+        <Button label="Create upload link" variant="secondary" onClick={async () => {
+          try {
+            const result = await api('/owner/designs/link', 'POST') as {url: string};
+            const url = location.origin + result.url;
+            setLink(url);
+            navigator.clipboard?.writeText(url);
+            setStatus('Upload link created and copied.');
+          } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not create the link'); }
+        }} />
+        {link ? <p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null}
+      </Card>
       <Card>
         <Heading level={2}>Upload a design</Heading>
         <input type="file" accept=".pdf,.dwg,.dxf,.ifc,.glb,.gltf,.obj,.stl,.3dm,.step,.stp" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); }} />
