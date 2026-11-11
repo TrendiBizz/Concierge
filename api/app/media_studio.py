@@ -50,13 +50,14 @@ class ImageRequest(BaseModel):
     kicker: str = Field(default="", max_length=60)
     before_label: str = Field(default="BEFORE", max_length=30)
     after_label: str = Field(default="AFTER", max_length=30)
-    photos: list[str] = Field(default_factory=list, max_length=6)
+    photos: list[str] = Field(default_factory=list, max_length=20)
 
 
 class VideoRequest(BaseModel):
     format: Literal["square", "portrait", "story"] = "portrait"
     headline: str = Field(default="", max_length=200)
-    photos: list[str] = Field(default_factory=list, min_length=1, max_length=8)
+    photos: list[str] = Field(default_factory=list, min_length=1, max_length=20)
+    music: str | None = Field(default=None, max_length=35_000_000)
 
 
 class AiRequest(BaseModel):
@@ -82,8 +83,8 @@ async def _render(path: str, payload: dict) -> bytes:
 def _photos(values: list[str]) -> list[str]:
     cleaned = []
     for value in values:
-        if not value.startswith("data:image/") or len(value) > 8_000_000:
-            raise HTTPException(400, "Photos must be image uploads under 8 MB each")
+        if not value.startswith("data:image/") or len(value) > 25_000_000:
+            raise HTTPException(400, "Photos must be image uploads under 25 MB each")
         cleaned.append(value)
     return cleaned
 
@@ -160,7 +161,7 @@ async def video(body: VideoRequest, user=Depends(owner_auth.current_user)):
     brand = _brand_payload(await _brand(user["tenant_id"]))
     content = await _render("/render/video", {
         "format": body.format, "brand": brand, "photos": _photos(body.photos),
-        "text": {"headline": body.headline},
+        "music": body.music, "text": {"headline": body.headline},
     })
     return await _store(user["tenant_id"], "video", "video", body.headline, body.format,
                         content, "video/mp4", user.get("email", ""))
@@ -181,6 +182,29 @@ async def assets(user=Depends(owner_auth.current_user)):
         "SELECT id,kind,template,prompt,format,content_type,created_at FROM media_assets "
         "WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 100", user["tenant_id"])
     return [dict(row) for row in rows]
+
+
+@router.post("/assets/{asset_id}/to-social")
+async def to_social(asset_id: UUID, user=Depends(owner_auth.current_user)):
+    """Copy a finished asset into the social media library so the composer can use it."""
+    owner_auth.require_role(user, "editor")
+    row = await db.pool().fetchrow(
+        "SELECT content_type,storage_path FROM media_assets WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], asset_id)
+    if not row or not Path(row["storage_path"]).is_file():
+        raise HTTPException(404, "Media not found")
+    from . import social_bridge
+    base, key = social_bridge._configuration()
+    slug = await social_bridge.ensure_tenant(user)
+    data = Path(row["storage_path"]).read_bytes()
+    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
+        result = await client.post(
+            base + f"/v1/customers/{slug}/media",
+            headers={"Authorization": "Bearer " + key, "Content-Type": "application/octet-stream"},
+            content=data)
+    if result.status_code != 200:
+        raise HTTPException(502, "Social media upload failed")
+    return result.json()
 
 
 @router.get("/assets/{asset_id}/file")

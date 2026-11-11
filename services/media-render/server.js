@@ -106,7 +106,7 @@ async function renderImage(body) {
   const template = TEMPLATES[body.template];
   if (!template) throw Object.assign(new Error('Unknown template'), { status: 400 });
   const brand = body.brand || {};
-  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 6);
+  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 20);
   const element = template(brand, photos, body.text || {}, [W, H]);
   const svg = await satori(element, { width: W, height: H, fonts: FONTS });
   return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
@@ -127,33 +127,53 @@ function run(command, args, options) {
   });
 }
 
+function audioFile(value, dir) {
+  const match = /^data:audio\/([a-z0-9.+-]+);base64,(.*)$/i.exec(value || '');
+  if (!match) throw Object.assign(new Error('Music must be an audio upload'), { status: 400 });
+  const ext = { mpeg: 'mp3', 'mp3': 'mp3', mp4: 'm4a', 'x-m4a': 'm4a', wav: 'wav', 'x-wav': 'wav', ogg: 'ogg', webm: 'webm' }[match[1].toLowerCase()] || 'mp3';
+  const file = path.join(dir, `music.${ext}`);
+  fs.writeFileSync(file, Buffer.from(match[2], 'base64'));
+  return file;
+}
+
 async function renderVideo(body) {
   const [W, H] = FORMATS[body.format] || FORMATS.portrait;
-  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 8);
+  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 20);
   if (!photos.length) throw Object.assign(new Error('At least one photo is required'), { status: 400 });
+  const clip = 3, transition = 0.5;
+  const total = photos.length * clip - (photos.length - 1) * transition;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-video-'));
   try {
-    const list = [];
-    photos.forEach((photo, i) => {
+    const files = photos.map((photo, i) => {
       const file = path.join(dir, `${i}.jpg`);
       decodePhoto(photo, file);
-      list.push(`file '${file}'`, 'duration 3');
+      return file;
     });
-    list.push(`file '${path.join(dir, `${photos.length - 1}.jpg`)}'`);
-    fs.writeFileSync(path.join(dir, 'list.txt'), list.join('\n'));
     const titleFile = path.join(dir, 'title.txt');
     fs.writeFileSync(titleFile, String((body.text || {}).headline || '').replace(/[\r\n]+/g, ' '));
+    const music = body.music ? audioFile(body.music, dir) : '';
+    const args = [];
+    files.forEach((file) => args.push('-loop', '1', '-t', String(clip), '-i', file));
+    if (music) args.push('-i', music);
+
+    const parts = files.map((_, i) => `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p[v${i}]`);
+    let last = 'v0';
+    for (let i = 1; i < files.length; i++) {
+      const offset = (i * (clip - transition)).toFixed(2);
+      parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
+      last = `x${i}`;
+    }
+    parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:textfile=${titleFile}:fontcolor=white:fontsize=${Math.round(W / 16)}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=h-(text_h*2.2)[vout]`);
+    if (music) {
+      parts.push(`[${files.length}:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
+    }
+    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
+    if (music) args.push('-map', '[a]', '-shortest');
+    else args.push('-an');
     const out = path.join(dir, 'out.mp4');
-    const vf = [
-      `scale=${W}:${H}:force_original_aspect_ratio=increase`,
-      `crop=${W}:${H}`,
-      'setsar=1',
-      'format=yuv420p',
-      `drawtext=fontfile=${FONT_BOLD}:textfile=${titleFile}:fontcolor=white:fontsize=${Math.round(W / 16)}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=h-(text_h*2.2)`,
-    ].join(',');
-    await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', path.join(dir, 'list.txt'),
-      '-vf', vf, '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { timeout: 180000 });
+    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
+    await run('ffmpeg', ['-y', ...args], { timeout: 240000 });
     return fs.readFileSync(out);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -186,7 +206,7 @@ const server = http.createServer((req, res) => {
   const chunks = [];
   req.on('data', (chunk) => {
     size += chunk.length;
-    if (size > 24 * 1024 * 1024) { req.destroy(); return; }
+    if (size > 100 * 1024 * 1024) { req.destroy(); return; }
     chunks.push(chunk);
   });
   req.on('end', async () => {

@@ -97,12 +97,13 @@ A configured channel still needs Trendi's verification before it is activated.</
 </div>
 <label for="media-headline">Headline</label><input id="media-headline" maxlength="240" placeholder="Nu-Wall re-cladding in Auckland">
 <label for="media-subline">Subline or bullets (one per line)</label><textarea id="media-subline" maxlength="600"></textarea>
-<label for="media-photos">Photos (up to 6)</label><input id="media-photos" type="file" accept="image/*" multiple>
+<label for="media-photos">Photos (up to 20; large phone photos are resized automatically)</label><input id="media-photos" type="file" accept="image/*" multiple>
 <button type="button" id="media-image">Generate image</button>
 
 <h3>Short video</h3>
 <label for="media-video-headline">Headline</label><input id="media-video-headline" maxlength="200">
-<label for="media-video-photos">Photos (up to 8)</label><input id="media-video-photos" type="file" accept="image/*" multiple>
+<label for="media-video-photos">Photos (up to 20)</label><input id="media-video-photos" type="file" accept="image/*" multiple>
+<label for="media-music">Background music (optional, MP3/M4A/WAV)</label><input id="media-music" type="file" accept="audio/*">
 <button type="button" id="media-video">Generate video</button>
 
 <h3>AI image</h3>
@@ -1053,12 +1054,36 @@ $("invite-form").addEventListener("submit",async event=>{
 
 
 function mediaData(file){
-  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.readAsDataURL(file);});
+  return new Promise((resolve,reject)=>{
+    if(!file.type.startsWith("image/")){
+      const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.readAsDataURL(file);return;
+    }
+    const image=new Image();const url=URL.createObjectURL(file);
+    image.onload=()=>{
+      const max=2048;const scale=Math.min(1,max/Math.max(image.width,image.height));
+      const canvas=document.createElement("canvas");canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);
+      canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);resolve(canvas.toDataURL("image/jpeg",0.86));
+    };
+    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read "+file.name));};
+    image.src=url;
+  });
 }
 async function mediaPhotos(id,limit){
   const input=$(id); const files=input&&input.files?Array.from(input.files):[];
   if(files.length>limit)throw new Error("Use at most "+limit+" photos");
   return Promise.all(files.map(mediaData));
+}
+async function attachToSocial(id){
+  try{
+    const response=await fetch("/owner/media/assets/"+encodeURIComponent(id)+"/to-social",{method:"POST",headers:{Authorization:"Bearer "+bearer},cache:"no-store"});
+    if(!response.ok)return null;
+    const upload=await response.json();
+    socialUpload=upload;
+    const status=$("social-upload-status"); if(status)status.textContent="Ready in your social composer: "+(upload.kind||"media");
+    const panel=$("social-panel"); if(panel)panel.hidden=false;
+    return upload;
+  }catch(e){return null;}
 }
 async function refreshMedia(){
   const statusEl=$("media-status"); if(!statusEl)return;
@@ -1099,8 +1124,9 @@ async function generateMediaImage(){
   const statusEl=$("media-status"); statusEl.textContent="Rendering image…";
   try{
     const photos=await mediaPhotos("media-photos",6);
-    await request("/owner/media/image","POST",{template:$("media-template").value,format:$("media-format").value,headline:$("media-headline").value.trim(),subline:$("media-subline").value.trim(),photos});
-    statusEl.textContent="Image ready."; await refreshMedia();
+    const asset=await request("/owner/media/image","POST",{template:$("media-template").value,format:$("media-format").value,headline:$("media-headline").value.trim(),subline:$("media-subline").value.trim(),photos});
+    await attachToSocial(asset.id);
+    statusEl.textContent="Image ready and added to your social composer."; await refreshMedia();
   }catch(e){statusEl.textContent=e.message;}
 }
 async function generateMediaVideo(){
@@ -1108,15 +1134,18 @@ async function generateMediaVideo(){
   try{
     const photos=await mediaPhotos("media-video-photos",8);
     if(!photos.length)throw new Error("Choose at least one photo");
-    await request("/owner/media/video","POST",{format:"portrait",headline:$("media-video-headline").value.trim(),photos});
-    statusEl.textContent="Video ready."; await refreshMedia();
+    const musicInput=$("media-music");const music=musicInput&&musicInput.files&&musicInput.files[0]?await mediaData(musicInput.files[0]):undefined;
+    const asset=await request("/owner/media/video","POST",{format:"portrait",headline:$("media-video-headline").value.trim(),photos,music});
+    await attachToSocial(asset.id);
+    statusEl.textContent="Video ready and added to your social composer."; await refreshMedia();
   }catch(e){statusEl.textContent=e.message;}
 }
 async function generateMediaAi(){
   const statusEl=$("media-status"); statusEl.textContent="Generating AI image…";
   try{
-    await request("/owner/media/ai-image","POST",{prompt:$("media-ai-prompt").value.trim()});
-    statusEl.textContent="AI image ready."; await refreshMedia();
+    const asset=await request("/owner/media/ai-image","POST",{prompt:$("media-ai-prompt").value.trim()});
+    await attachToSocial(asset.id);
+    statusEl.textContent="AI image ready and added to your social composer."; await refreshMedia();
   }catch(e){statusEl.textContent=e.message;}
 }
 document.addEventListener("DOMContentLoaded",()=>{
