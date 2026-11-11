@@ -40,7 +40,7 @@ class Transcript(BaseModel):
 
 class Tool(BaseModel):
     tenant_id: str
-    record_session_id: int
+    record_session_id: str
     conversation_id: str
     call_id: str = Field(max_length=120)
     name: str = Field(max_length=80)
@@ -49,7 +49,7 @@ class Tool(BaseModel):
 
 class Monitor(BaseModel):
     tenant_id: str
-    record_session_id: int
+    record_session_id: str
 
 
 class Finish(BaseModel):
@@ -57,11 +57,11 @@ class Finish(BaseModel):
     call_id: str = Field(max_length=120)
     conversation_id: str
     status: str = Field(max_length=40)
-    record_session_id: int | None = None
+    record_session_id: str | None = None
 
 
 class Recording(BaseModel):
-    record_session_id: int
+    record_session_id: str
     wav_b64: str
 
 
