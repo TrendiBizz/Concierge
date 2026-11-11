@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     inbound_cloudflare_enabled: bool = False
     email_auth_url: str = ""
     internal_token: str = ""  # loopback-only voice shell API
+    reply_domain: str = "trendibizz.com"
+    cloudflare_email: str = ""
+    cloudflare_api_key: str = ""
+    cloudflare_zone_id: str = ""
+    cloudflare_worker_name: str = "concierge-inbound-worker"
     rspamd_url: str = ""
     clamav_host: str = ""
     clamav_port: int = 3310  # no public ingestion until authorized

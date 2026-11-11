@@ -669,3 +669,7 @@ CREATE TABLE IF NOT EXISTS product_stock_movements (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS product_stock_movements_idx ON product_stock_movements (tenant_id, product_id, created_at DESC);
+
+-- Per-tenant reply address: replies to owner alerts come back into that tenant's CRM.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reply_address text;
+CREATE UNIQUE INDEX IF NOT EXISTS tenants_reply_address_idx ON tenants (reply_address) WHERE reply_address IS NOT NULL;
