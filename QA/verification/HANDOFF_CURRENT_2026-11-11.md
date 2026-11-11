@@ -125,3 +125,16 @@
 - PWA: manifest + service worker at `/studio/manifest.webmanifest` and
   `/studio/sw.js`; app is installable. Document title follows the tenant brand.
 - Remaining from the objective: internal admin console, branding in emails/PDFs.
+
+
+## Branding + documents — 2026-11-11 (goal round 2)
+- Branded quotation print view: `/owner/crm/quotations/{id}/print` (owner auth),
+  uses the tenant logo, name, accent, contact, lines and totals; the portal has a
+  **Print / PDF** button (browser Print → Save as PDF).
+- Owner alert emails now carry a tenant signature (name + website) and the
+  tenant Reply-To address.
+- Widget branding: `/api/v1/widget-logo?key=…` serves the tenant logo; widget
+  config returns `logo_url` and the chat header renders it. Chat host route added.
+- Verified: print view 200 with brand/line/total; widget logo 200 image/png.
+- Remaining: verify the existing `/admin-ui` internal console, email From-name
+  branding, social accounts for Pukeko (external OAuth).
