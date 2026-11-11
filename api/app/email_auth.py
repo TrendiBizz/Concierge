@@ -37,5 +37,9 @@ def merge(auth: dict | None, verified: dict) -> dict:
             merged[key] = value
     if verified.get("from"):
         merged["verified_from"] = verified["from"]
+    # A passing signature whose d= domain aligns with From authenticates the
+    # sender even when the domain publishes no DMARC record. Kept separate from
+    # the dmarc label so `dmarc=none` is not read as "not authenticated".
+    merged["aligned"] = "yes" if verified.get("aligned") else "no"
     merged["verified_by"] = "email-auth"
     return merged

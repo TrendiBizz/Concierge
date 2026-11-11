@@ -65,3 +65,31 @@ def test_verified_pass_beats_failing_spf_hint():
         {"dmarc": "pass", "spf": "fail", "dkim": "pass", "verified_by": "email-auth"},
         "a@example.com", None, "hi", "hello")
     assert result["risk"] == "low"
+
+
+def test_verified_aligned_dkim_without_dmarc_record_is_low():
+    # The reported bug: a genuine reply whose domain publishes no DMARC record
+    # (dmarc=none) was flagged unverified_sender/medium even though its DKIM
+    # signature passed and aligned with the From domain.
+    result = email_risk.assess(
+        {"dkim": "pass", "dmarc": "none", "aligned": "yes", "verified_by": "email-auth"},
+        "conrad@pukeko.example", None, "Re: kitchen plans", "thanks")
+    assert result["risk"] == "low"
+    assert "unverified_sender" not in result["flags"]
+
+
+def test_verified_unaligned_dkim_is_medium_with_its_own_flag():
+    result = email_risk.assess(
+        {"dkim": "pass", "dmarc": "none", "aligned": "no", "verified_by": "email-auth"},
+        "conrad@pukeko.example", None, "hi", "hello")
+    assert result["risk"] == "medium"
+    assert "dkim_unaligned" in result["flags"]
+    assert "unverified_sender" not in result["flags"]
+
+
+def test_sidecar_failure_is_reported_as_verification_unavailable():
+    result = email_risk.assess(
+        {"dkim": "pass", "dmarc": "pass", "verification_failed": "yes"},
+        "a@example.com", None, "hi", "hello")
+    assert result["risk"] == "medium"
+    assert "verification_unavailable" in result["flags"]

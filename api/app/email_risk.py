@@ -47,13 +47,30 @@ def assess(auth: dict | None, sender: str, reply_to: str | None,
     # Header hints are advisory. Only the Rust sidecar's cryptographic verdict
     # (verified_by) may lower the risk; otherwise a forged header could do it.
     verified = _auth_value(auth, "verified_by") == "email-auth"
+    if _auth_value(auth, "verification_failed") == "yes":
+        # The raw message arrived but the sidecar could not verify it (down,
+        # timeout, oversized). Header hints are all we have, so stay medium and
+        # say so explicitly rather than reporting a plain "sender unverified".
+        flags.append("verification_unavailable")
 
     if verified:
-        if dmarc == "pass":
-            risk = "low"
-        elif dmarc == "fail":
+        aligned = _auth_value(auth, "aligned") in ("yes", "true", "1")
+        if dmarc == "fail":
             flags.append("dmarc_fail")
             risk = "high"
+        elif dmarc == "pass" or aligned:
+            # A passing signature aligned with From authenticates the sender even
+            # when the domain publishes no DMARC record (dmarc=none), which is the
+            # normal case for small-business mail. Reporting that as
+            # unverified_sender was the bug: dkim=pass + dmarc=none came back
+            # medium with a "sender not verified" label.
+            risk = "low"
+        elif dkim == "pass":
+            # Signature verified but its d= domain is not the From domain: the
+            # message really did travel through that signer, but nothing
+            # authenticates the From address itself.
+            flags.append("dkim_unaligned")
+            risk = "medium"
         else:
             flags.append("unverified_sender")
             risk = "medium"

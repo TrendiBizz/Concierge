@@ -28,6 +28,11 @@ struct VerifyResponse {
     dkim: String,
     dmarc: String,
     from: String,
+    /// True only when a passing signature's `d=` domain aligns with the `From`
+    /// domain. The API trusts this, not the raw `dmarc` label, so an aligned
+    /// DKIM pass is reported as verified even when the domain publishes no
+    /// DMARC record (where DMARC itself would evaluate to `none`).
+    aligned: bool,
     signatures: Vec<SignatureOut>,
     error: Option<String>,
 }
@@ -37,6 +42,7 @@ fn failure(message: &str) -> VerifyResponse {
         dkim: "none".into(),
         dmarc: "none".into(),
         from: String::new(),
+        aligned: false,
         signatures: Vec::new(),
         error: Some(message.into()),
     }
@@ -76,12 +82,35 @@ async fn verify(State(state): State<AppState>, Json(req): Json<VerifyRequest>) -
     }
 
     let from = message.first_from_address().to_string();
+    let (dkim, dmarc, aligned) = verdict(&signatures, &from);
+
+    Json(VerifyResponse {
+        dkim: dkim.into(),
+        dmarc: dmarc.into(),
+        from,
+        aligned,
+        signatures,
+        error: None,
+    })
+}
+
+/// DKIM and DMARC verdicts relative to the `From` address.
+///
+/// `aligned` is what the API trusts: a passing signature whose `d=` domain is
+/// the From domain (or a parent of it) authenticates that address. DMARC itself
+/// evaluates to `none` when the domain publishes no record, which is common for
+/// small-business mail and is not evidence of anything; the API treats
+/// `aligned` as the authentication signal and uses `dmarc` only to detect a
+/// genuine policy failure.
+fn verdict(signatures: &[SignatureOut], from: &str) -> (&'static str, &'static str, bool) {
     let from_domain = from.rsplit('@').next().unwrap_or("").to_ascii_lowercase();
-    let aligned = signatures.iter().any(|signature| {
-        signature.result == "pass"
-            && (signature.domain == from_domain
-                || from_domain.ends_with(&format!(".{}", signature.domain)))
-    });
+    let aligned = !from_domain.is_empty()
+        && signatures.iter().any(|signature| {
+            signature.result == "pass"
+                && (signature.domain == from_domain
+                    || from_domain.ends_with(&format!(".{}", signature.domain)))
+        });
+    let any_pass = signatures.iter().any(|signature| signature.result == "pass");
     let dkim = if any_pass {
         "pass"
     } else if signatures.is_empty() {
@@ -96,14 +125,7 @@ async fn verify(State(state): State<AppState>, Json(req): Json<VerifyRequest>) -
     } else {
         "fail"
     };
-
-    Json(VerifyResponse {
-        dkim: dkim.into(),
-        dmarc: dmarc.into(),
-        from,
-        signatures,
-        error: None,
-    })
+    (dkim, dmarc, aligned)
 }
 
 #[tokio::main]
@@ -124,4 +146,53 @@ async fn main() {
         .expect("bind");
     println!("email-auth listening on {port}");
     axum::serve(listener, app).await.expect("serve");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sig(domain: &str, result: &str) -> SignatureOut {
+        SignatureOut { domain: domain.into(), result: result.into() }
+    }
+
+    #[test]
+    fn aligned_pass_is_dmarc_pass() {
+        let (dkim, dmarc, aligned) =
+            verdict(&[sig("pukeko.example", "pass")], "conrad@pukeko.example");
+        assert_eq!((dkim, dmarc, aligned), ("pass", "pass", true));
+    }
+
+    #[test]
+    fn subdomain_from_relaxes_to_parent_signature() {
+        let (_, dmarc, aligned) =
+            verdict(&[sig("example.com", "pass")], "conrad@mail.example.com");
+        assert_eq!((dmarc, aligned), ("pass", true));
+    }
+
+    #[test]
+    fn unaligned_pass_is_dkim_pass_dmarc_fail() {
+        let (dkim, dmarc, aligned) =
+            verdict(&[sig("esp.example", "pass")], "conrad@pukeko.example");
+        assert_eq!((dkim, dmarc, aligned), ("pass", "fail", false));
+    }
+
+    #[test]
+    fn unsigned_message_is_none() {
+        let (dkim, dmarc, aligned) = verdict(&[], "conrad@pukeko.example");
+        assert_eq!((dkim, dmarc, aligned), ("none", "none", false));
+    }
+
+    #[test]
+    fn failing_signature_only_is_fail() {
+        let (dkim, dmarc, _) =
+            verdict(&[sig("pukeko.example", "fail")], "conrad@pukeko.example");
+        assert_eq!((dkim, dmarc), ("fail", "fail"));
+    }
+
+    #[test]
+    fn missing_from_is_never_aligned() {
+        let (_, dmarc, aligned) = verdict(&[sig("", "pass")], "");
+        assert_eq!((dmarc, aligned), ("fail", false));
+    }
 }

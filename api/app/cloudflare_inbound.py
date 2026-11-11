@@ -126,6 +126,9 @@ async def handle(request: Request) -> dict:
             verified = await email_auth.verify(raw_b64)
             if verified:
                 auth = email_auth.merge(auth, verified)
+            else:
+                auth = dict(auth or {})
+                auth["verification_failed"] = "yes"
             scanned = await email_scan.scan(raw_b64)
             if scanned:
                 scan_risk, scan_flags = email_scan.classify(scanned)

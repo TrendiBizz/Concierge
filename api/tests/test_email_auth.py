@@ -21,3 +21,12 @@ def test_verify_disabled_without_url():
         assert asyncio.run(email_auth.verify("abc")) is None
     finally:
         settings.email_auth_url = previous
+
+
+def test_merge_records_alignment():
+    merged = email_auth.merge({}, {"dkim": "pass", "dmarc": "none",
+                                   "from": "a@b.test", "aligned": True})
+    assert merged["aligned"] == "yes"
+    unaligned = email_auth.merge({}, {"dkim": "pass", "dmarc": "fail",
+                                      "from": "a@b.test", "aligned": False})
+    assert unaligned["aligned"] == "no"
