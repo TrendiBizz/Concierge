@@ -47,7 +47,7 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 </form></details>
 </section>
 <section id="app-panel" hidden>
-<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#media-panel">Marketing media</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
+<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
 <section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
 <section class="panel" id="quotations-panel"><h2>Quotations</h2><p>Prepare a draft linked to an enquiry. Review prices and tax before marking it reviewed. Quotes are never sent automatically.</p>
@@ -77,17 +77,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="submit">Save business setup</button><button id="website-import" type="button" class="secondary">Import website knowledge</button><p id="website-import-status" aria-live="polite"></p>
 </form>
 </section>
-<section class="panel" id="media-panel">
-<h2>Marketing media</h2>
-<p class="muted">Generate stills and short clips for your social drafts on a private Studio host. Media is queued, reviewed here, and only used in content you approve. Nothing is published automatically.</p>
-<form id="media-form">
-<div class="row"><div><label for="media-kind">Type</label><select id="media-kind"><option value="still">Still image</option><option value="clip">Short clip</option></select></div><div><label for="media-count">Number of stills</label><input id="media-count" type="number" min="1" max="12" value="1"></div></div>
-<label for="media-prompt">Brief or prompt</label><textarea id="media-prompt" maxlength="2000" placeholder="A Pukeko re-cladding project on an Auckland villa, morning light, clean finished result" required></textarea>
-<button type="submit">Queue media</button>
-</form>
-<p class="muted" id="media-status" aria-live="polite"></p>
-<div id="media-list"></div>
-</section>
+
 <section class="panel" id="knowledge-panel">
 <h2>Business information</h2><p class="muted">Add the FAQs, services, opening hours and price lists Concierge should use for your business. This information belongs only to your workspace. Saving the same document title replaces that document.</p>
 <form id="knowledge-form"><label for="knowledge-title">Document title</label><input id="knowledge-title" required maxlength="120" placeholder="Business information">
@@ -229,7 +219,7 @@ async function signIn(slug,email,password){
  $("login-panel").hidden=true;$("app-panel").hidden=false;
  $("invite-panel").hidden=user.role!=="owner";
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
+ const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message("Your business workspace is ready. Choose what to set up below.");
@@ -1026,47 +1016,7 @@ $("invite-form").addEventListener("submit",async event=>{
  }catch(error){message(error.message,true);}
 });
 
-async function refreshMedia(){
-  const statusEl=$("media-status"), list=$("media-list");
-  if(!statusEl||!list)return;
-  try{
-    const state=await request("/owner/media/status");
-    if(!state.configured){ statusEl.textContent=state.detail||"Marketing media is not connected yet."; list.textContent=""; return; }
-    statusEl.textContent="Studio "+(state.version||"")+" on "+(state.platform||"host")+" · "+(state.engine||"");
-    const jobs=await request("/owner/media/jobs");
-    list.textContent="";
-    for(const job of jobs){
-      const box=document.createElement("article"); box.className="card";
-      const h=document.createElement("h3"); h.textContent=job.title||("Marketing "+job.kind); box.appendChild(h);
-      const meta=document.createElement("p"); meta.className="muted";
-      meta.textContent="Status: "+job.status+(job.error?" · "+job.error:""); box.appendChild(meta);
-      if(job.prompt){ const p=document.createElement("p"); p.textContent=job.prompt; box.appendChild(p); }
-      for(const path of (job.outputs||[])){
-        const b=document.createElement("button"); b.type="button"; b.className="secondary"; b.textContent="Open "+(path.split("/").pop()||"media");
-        b.addEventListener("click",()=>openMedia(job.id,path)); box.appendChild(b);
-      }
-      list.appendChild(box);
-    }
-    if(!jobs.length){ const p=document.createElement("p"); p.className="muted"; p.textContent="No media queued yet."; list.appendChild(p); }
-  }catch(e){ statusEl.textContent=e.message; }
-}
-async function openMedia(id,path){
-  const response=await fetch("/owner/media/jobs/"+encodeURIComponent(id)+"/file?path="+encodeURIComponent(path),{headers:{Authorization:"Bearer "+bearer},cache:"no-store"});
-  if(!response.ok){ alert("Media is not available yet."); return; }
-  const blob=await response.blob(); const url=URL.createObjectURL(blob);
-  window.open(url,"_blank","noopener"); setTimeout(()=>URL.revokeObjectURL(url),60000);
-}
-async function queueMedia(ev){
-  ev.preventDefault();
-  const statusEl=$("media-status");
-  statusEl.textContent="Queueing…";
-  try{
-    await request("/owner/media/jobs","POST",{kind:$("media-kind").value,prompt:$("media-prompt").value.trim(),count:Number($("media-count").value)||1});
-    statusEl.textContent="Queued. The Studio host renders it; refresh in a moment.";
-    await refreshMedia();
-  }catch(e){ statusEl.textContent=e.message; }
-}
-document.addEventListener("DOMContentLoaded",()=>{const form=$("media-form"); if(form)form.addEventListener("submit",queueMedia);});
+
 </script>
 </body>
 </html>

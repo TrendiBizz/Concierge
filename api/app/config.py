@@ -98,8 +98,6 @@ class Settings(BaseSettings):
     email_auth_url: str = ""
     internal_token: str = ""  # loopback-only voice shell API
     designs_dir: str = "/data/designs"
-    studio_url: str = ""
-    studio_key: str = ""
     reply_domain: str = "trendibizz.com"
     cloudflare_email: str = ""
     cloudflare_api_key: str = ""
