@@ -138,3 +138,15 @@
 - Verified: print view 200 with brand/line/total; widget logo 200 image/png.
 - Remaining: verify the existing `/admin-ui` internal console, email From-name
   branding, social accounts for Pukeko (external OAuth).
+
+
+## Goal round 2 verification
+- Email branding: owner-alert From display name is the tenant name; body carries
+  the tenant signature (name + website); Reply-To is the tenant reply address.
+- Branded quote print view verified (brand, line, total). Widget logo endpoint
+  verified (200 image/png) and chat header renders it.
+- Admin console exists internally at http://127.0.0.1:8000/admin-ui (admin token);
+  `/admin/tenants` returns 200. It is not publicly exposed.
+- Health 200, studio 200; 548 tests pass.
+- Still open: social content calendar view, richer admin console, Pukeko social
+  accounts (external OAuth).

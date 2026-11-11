@@ -1,6 +1,7 @@
 import asyncio
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr
 
 from .config import get_settings
 
@@ -9,10 +10,10 @@ class EmailNotConfigured(RuntimeError):
     pass
 
 
-def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None) -> None:
+def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None, from_name: str | None = None) -> None:
     s = get_settings()
     msg = EmailMessage()
-    msg["From"] = s.smtp_from
+    msg["From"] = formataddr((from_name, s.smtp_from)) if from_name else s.smtp_from
     msg["To"] = to_addr
     msg["Subject"] = subject
     for name, value in (headers or {}).items():
@@ -36,7 +37,7 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
             pass
 
 
-async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None) -> None:
+async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None, from_name: str | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
-    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers)
+    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name)
