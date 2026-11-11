@@ -620,7 +620,7 @@ function Shell() {
   const [navStrings, setNavStrings] = useState<Record<string, string>>({});
   const [copyStrings, setCopyStrings] = useState<Record<string, string>>({});
   const [mode, setModeState] = useState(() => localStorage.getItem('concierge.mode') || 'system');
-  const [layout, setLayoutState] = useState(() => new URLSearchParams(location.search).get('layout') || localStorage.getItem('concierge.layout') || 'tabs');
+  const [layout, setLayoutState] = useState(() => new URLSearchParams(location.search).get('layout') || localStorage.getItem('concierge.layout') || 'sidebar');
   function setLayout(value: string) { setLayoutState(value); localStorage.setItem('concierge.layout', value); }
   function setMode(value: string) { setModeState(value); localStorage.setItem('concierge.mode', value); }
   const tr = (key: string) => navStrings[key] || key;
