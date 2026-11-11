@@ -250,3 +250,10 @@
 - Verified French login renders "ID d'entreprise / Courriel / Mot de passe /
   Se connecter".
 - Product copy (page content) still English; next: full copy translation.
+
+
+## Full copy localisation — 2026-11-11
+- All 30 locales; machine translation of 133 UI strings + 24 nav/login strings;
+  runtime text layer for the portal copy; RTL; selector on login and header.
+- English reviewed; Afrikaans review CSV at
+  `QA/verification/AFRIKAANS_REVIEW.csv`; other 28 machine-only.

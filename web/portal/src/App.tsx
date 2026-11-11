@@ -13,6 +13,7 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
 import UI_STRINGS from './i18n/strings.json';
+import UI_TEXT from './i18n/ui.json';
 
 const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./locales/*.json');
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
@@ -1159,6 +1160,40 @@ function Designs({token}: {token: string}) {
   );
 }
 
+
+function useDomTranslation(locale: string) {
+  useEffect(() => {
+    if (locale === 'en') return;
+    const dictionary = (UI_TEXT as Record<string, Record<string, string>>)[locale] || {};
+    const translate = () => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const parent = node.parentElement;
+        if (!parent || ['SCRIPT', 'STYLE', 'CODE', 'TEXTAREA', 'INPUT'].includes(parent.tagName)) continue;
+        const value = node.nodeValue || '';
+        const trimmed = value.trim();
+        const translated = dictionary[trimmed];
+        if (translated && translated !== trimmed) node.nodeValue = value.replace(trimmed, translated);
+      }
+      document.querySelectorAll('[placeholder], [aria-label], [title]').forEach((element) => {
+        for (const attribute of ['placeholder', 'aria-label', 'title']) {
+          const value = element.getAttribute(attribute);
+          if (value && dictionary[value.trim()]) element.setAttribute(attribute, dictionary[value.trim()]);
+        }
+      });
+    };
+    translate();
+    let timer: number | undefined;
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(translate, 60);
+    });
+    observer.observe(document.body, {childList: true, subtree: true, characterData: true});
+    return () => { observer.disconnect(); window.clearTimeout(timer); };
+  }, [locale]);
+}
+
 function Shell() {
   const [token, setToken] = useState('');
   const [tab, setTab] = useState('home');
@@ -1167,6 +1202,7 @@ function Shell() {
   const [locale, setLocaleState] = useState(initialLocale);
   const [catalog, setCatalog] = useState<Record<string, string>>(en);
   const tr = (key: string) => UI[locale]?.[key] || key;
+  useDomTranslation(locale);
   function setLocale(value: string) { setLocaleState(value); localStorage.setItem('concierge.locale', value); }
   useEffect(() => {
     const loader = localeLoaders['./locales/' + locale + '.json'];

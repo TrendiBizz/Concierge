@@ -55,3 +55,14 @@ presence is needed before Astryx Native stabilises.
   review before selling as fully localised).
 - Product page copy beyond the nav/login labels is still English; translating the
   full portal copy is the remaining content task.
+
+
+## Final localisation state — 2026-11-11
+- All 30 locales enabled and loaded dynamically.
+- Full portal copy (133 extracted strings + 24 nav/login strings) is translated
+  for every locale through a runtime text layer; dynamic/interpolated values
+  (names, dates, amounts) are left alone.
+- **Human review:** English (source) and Afrikaans (owner review file
+  `QA/verification/AFRIKAANS_REVIEW.csv`). The other 28 locales are
+  machine-translated and must be reviewed before being sold as fully localised.
+- Verified: French login renders the full copy in French.
