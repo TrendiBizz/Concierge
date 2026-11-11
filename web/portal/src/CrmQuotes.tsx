@@ -109,6 +109,8 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingSignoff, setPendingSignoff] = useState<Quote | null>(null);
+  const [brief, setBrief] = useState('');
+  const [draftNote, setDraftNote] = useState('');
 
   async function load() {
     try {
@@ -125,6 +127,30 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
     const product = products.find((item) => item.id === id);
     if (!product) return;
     setLines([...lines, {description: product.name, quantity: '1', price: (product.sale_price_cents / 100).toFixed(2)}]);
+  }
+
+  async function draftWithAi() {
+    setBusy(true); setStatus(''); setDraftNote('');
+    try {
+      const result = await api('/owner/crm/quotations/draft', 'POST', {
+        lead_id: leadId || null,
+        brief,
+        currency: 'NZD',
+        tax_basis_points: Math.round(tax * 100),
+      }) as {title: string; notes: string; lines: Array<{description: string; quantity: string | number; unit_price_cents: number}>; warnings?: string[]; source: string};
+      setTitle(result.title);
+      setNotes(result.notes || '');
+      setLines(result.lines.map((line) => ({
+        description: line.description,
+        quantity: String(line.quantity),
+        price: (line.unit_price_cents / 100).toFixed(2),
+      })));
+      const warning = (result.warnings || []).join(' ');
+      setDraftNote(warning || (result.source === 'model'
+        ? 'AI draft using your catalogue and enquiry. Check every line, price and quantity before saving.'
+        : 'Drafted from the measured takeoff. Check every line before saving.'));
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not draft the quotation'); }
+    setBusy(false);
   }
 
   async function save() {
@@ -189,6 +215,9 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
           </label>
           <TextInput label="Title" value={title} onChange={setTitle} />
           <TextInput label="Tax %" value={String(tax)} onChange={(v) => setTax(Number(v) || 0)} />
+          <TextArea label="What is the job? (for the AI draft)" value={brief} onChange={setBrief} rows={3} />
+          <Button label={busy ? 'Drafting…' : 'Draft with AI'} variant="secondary" onClick={draftWithAi} />
+          {draftNote ? <p role="note"><em>{draftNote}</em></p> : null}
           <label style={{display: 'block', margin: '8px 0'}}>
             Add from product catalogue
             <select value="" onChange={(e) => addProduct(e.target.value)} style={{display: 'block', width: '100%', padding: 8}}>

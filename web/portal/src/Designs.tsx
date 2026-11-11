@@ -6,9 +6,18 @@ import {Badge} from '@astryxdesign/core/Badge';
 
 type Design = {id: string; filename: string; size_bytes: number; status: string; summary?: Record<string, unknown> | null; created_at: string};
 
+function money(cents: number, currency: string) {
+  return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: currency || 'USD'}).format((cents || 0) / 100);
+}
+
 export default function Designs({token}: {token: string}) {
-  async function api(path: string, method = "GET") {
-    const response = await fetch(path, {method, headers: {Accept: "application/json", Authorization: "Bearer " + token}, cache: "no-store"});
+  async function api(path: string, method = "GET", body?: unknown) {
+    const response = await fetch(path, {
+      method,
+      headers: {Accept: "application/json", ...(body === undefined ? {} : {"Content-Type": "application/json"}), Authorization: "Bearer " + token},
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || "Request failed");
     return data;
@@ -20,6 +29,7 @@ export default function Designs({token}: {token: string}) {
   const [busy, setBusy] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
   const [link, setLink] = useState('');
+  const [draft, setDraft] = useState<{title: string; currency: string; source: string; warnings?: string[]; lines: Array<{description: string; quantity: string; unit_price_cents: number; amount_cents: number}>; subtotal_cents: number; total_cents: number} | null>(null);
 
   async function load() {
     try { setDesigns(await api('/owner/designs') as Design[]); }
@@ -81,6 +91,16 @@ export default function Designs({token}: {token: string}) {
     setBusy(false);
   }
 
+  async function quoteFromTakeoff(design: Design) {
+    setBusy(true); setStatus('Drafting a quotation from the measured areas…'); setDraft(null);
+    try {
+      const result = await api('/owner/crm/quotations/draft', 'POST', {design_id: design.id, currency: 'NZD'}) as NonNullable<typeof draft>;
+      setDraft(result);
+      setStatus((result.warnings || []).join(' ') || 'Draft ready. Open Quotes to edit and save it.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not draft a quotation'); }
+    setBusy(false);
+  }
+
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Designs and CAD</Heading>
@@ -112,11 +132,24 @@ export default function Designs({token}: {token: string}) {
             <Button label="View" variant="secondary" onClick={() => open(design)} />
             <Button label="Download" variant="ghost" onClick={() => open(design, true)} />
             {design.filename.toLowerCase().endsWith('.ifc') ? <Button label="IFC takeoff" variant="primary" onClick={() => takeoff(design)} /> : null}
+            {design.summary ? <Button label="Draft quote" variant="secondary" onClick={() => quoteFromTakeoff(design)} /> : null}
             {design.summary ? <p>{String((design.summary as Record<string, unknown>).gross_wall_area_m2 ?? '')} m² gross · {String((design.summary as Record<string, unknown>).net_cladding_area_m2 ?? '')} m² cladding</p> : null}
           </Card>
         ))}
         {!designs.length ? <p>No designs uploaded yet.</p> : null}
       </div>
+      {draft ? (
+        <Card>
+          <Heading level={2}>{draft.title}</Heading>
+          <p>Drafted from the IFC takeoff ({draft.source === 'model' ? 'AI, catalogue prices' : 'measured areas'}). Nothing is saved yet — open Quotes to edit and save it.</p>
+          <ul>
+            {draft.lines.map((line, index) => (
+              <li key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, draft.currency)} = {money(line.amount_cents, draft.currency)}</li>
+            ))}
+          </ul>
+          <p><strong>Subtotal {money(draft.subtotal_cents, draft.currency)} · Total {money(draft.total_cents, draft.currency)}</strong></p>
+        </Card>
+      ) : null}
       {viewUrl ? <Card><Heading level={2}>{viewName}</Heading><div ref={viewerRef} style={{height: 520, width: '100%'}} /><Button label="Close viewer" variant="ghost" onClick={() => { setViewUrl(''); setViewName(''); }} /></Card> : null}
       {status ? <p role="status">{status}</p> : null}
     </div>
