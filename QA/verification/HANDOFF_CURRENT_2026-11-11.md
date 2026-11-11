@@ -150,3 +150,18 @@
 - Health 200, studio 200; 548 tests pass.
 - Still open: social content calendar view, richer admin console, Pukeko social
   accounts (external OAuth).
+
+
+## Goal completion evidence — 2026-11-11 (round 3)
+- Social composer now has a **content calendar** (month grid, posts by scheduled
+  or created date).
+- Internal admin console: Astryx `#admin` route with admin-token gate, tenant
+  list, counts and backup list; `/admin/status` returns 200 including the latest
+  58 MB backup. Existing `/admin-ui` remains available internally.
+- All tenant emails now send with the tenant name as the From display name;
+  owner alerts also carry the tenant signature and Reply-To.
+- Backups are group-readable by the API (root:999, 640) so admin status can list
+  them; backup script updated.
+- Verified: health 200, studio 200, admin status 200, 548 tests pass.
+- External/operational only: Pukeko has no connected social accounts yet; social
+  live publishing stays disabled until the operator enables it.
