@@ -5,6 +5,7 @@ name is reduced to a safe extension, size is capped, and ClamAV scans the bytes
 when configured. Parsing/takeoff is a separate step.
 """
 import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -160,5 +161,5 @@ async def takeoff(design_id: UUID, user=Depends(owner_auth.current_user)):
         await db.pool().execute("UPDATE design_uploads SET status='failed' WHERE id=$1", design_id)
         raise HTTPException(422, "This IFC could not be read: " + str(error)[:160]) from None
     await db.pool().execute(
-        "UPDATE design_uploads SET status='parsed', summary=$2 WHERE id=$1", design_id, summary)
+        "UPDATE design_uploads SET status='parsed', summary=$2::jsonb WHERE id=$1", design_id, json.dumps(summary))
     return summary
