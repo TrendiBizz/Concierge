@@ -66,3 +66,13 @@ presence is needed before Astryx Native stabilises.
   `QA/verification/AFRIKAANS_REVIEW.csv`). The other 28 locales are
   machine-translated and must be reviewed before being sold as fully localised.
 - Verified: French login renders the full copy in French.
+
+
+## Afrikaans review applied — 2026-11-11
+- Owner-supplied corrections applied to all 24 nav/login and 133 UI strings.
+- Three entries were adjusted from the supplied sheet because they looked like
+  typos: "Review and sign off" -> "Hersien en teken af" (not "Herfris"),
+  "Refresh" -> "Verfris" (not "erfris"); "Tenants" was kept as "Huurders"
+  (owner's wording, though "Tenante"/"Kliënte" may read better).
+- Only English and Afrikaans are exposed; the other 28 locales remain hidden
+  until reviewed.
