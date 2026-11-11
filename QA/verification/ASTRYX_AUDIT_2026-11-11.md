@@ -54,3 +54,15 @@ denser CRM/quotes UI.
     and social providers store plain text; adopt only with HTML sanitising.
   - **charts / vega / lab** — bootstrap placeholders; do not use.
   - **native** — canary Apple-only; PWA remains the mobile option.
+
+
+## Components and lazy loading — 2026-11-11
+- Added **Table** for CRM enquiries and quotations, **Dialog** for owner sign-off,
+  **Badge** statuses, **ProgressBar** media quotas, **Banner** translation note,
+  and a **light/dark/system** toggle using `Theme mode`.
+- Lazy loading: `Home` (recharts) is a separate 363 KB chunk; locale catalogs and
+  per-locale nav/copy strings are dynamic. Main entry is ~589 KB, 3D viewer
+  ~919 KB lazy. Next route-level split: Media, Designs, Social.
+- Still not adopted: Tabs/AppShell/SideNav (nav is still a wrapped button bar),
+  Toast (inline status remains), DatePicker (text schedule field), Richtext
+  (plain-text backend/social APIs).

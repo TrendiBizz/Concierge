@@ -311,3 +311,12 @@
 - Added Astryx Badge (statuses), ProgressBar (media quotas), Banner (translation
   feedback); re-audit notes Table/Dialog/Toast/Tabs/DatePicker/Richtext as next
   candidates, charts/vega/lab/native still placeholders/canary.
+
+
+## Bundle, Table, Dialog and dark mode — 2026-11-11
+- Main entry ~589 KB; Home/recharts lazy 363 KB; 3D viewer 919 KB lazy;
+  locale catalogs and translations dynamic.
+- CRM and quotes use Astryx Table; sign-off uses Dialog; status Badges;
+  media quotas use ProgressBar; translation notice uses Banner; header has a
+  light/dark/system selector.
+- Verified headless: dashboard, Enquiries and Quotes tables render with no errors.

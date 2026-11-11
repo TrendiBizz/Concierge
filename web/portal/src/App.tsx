@@ -13,6 +13,9 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {Badge} from '@astryxdesign/core/Badge';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
 import {Banner} from '@astryxdesign/core/Banner';
+import {Table, proportional} from '@astryxdesign/core/Table';
+import type {TableColumn} from '@astryxdesign/core/Table';
+import {Dialog} from '@astryxdesign/core/Dialog';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -117,7 +120,7 @@ function TranslationNote({locale}: {locale: string}) {
   );
 }
 
-function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
+function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr, mode, setMode}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string; mode: string; setMode: (v: string) => void}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
@@ -127,6 +130,9 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
           <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>Powered by Trendi</span>
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
+          <select aria-label="Colour mode" value={mode} onChange={(e) => setMode(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
+            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+          </select>
           <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
             {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
@@ -696,25 +702,27 @@ function Crm({token}: {token: string}) {
       <Heading level={1}>CRM and enquiries</Heading>
       <p>Every enquiry from chat, email, SMS and phone lands here, with the conversation and next step.</p>
       <TextInput label="Search enquiries" value={query} onChange={setQuery} />
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))'}}>
-        {shown.map((lead) => (
-          <Card key={lead.id}>
-            <Heading level={2}>{lead.name || lead.email || lead.phone || 'Enquiry'}</Heading>
-            <p>{lead.channel} · <Badge label={lead.status} variant={lead.status === 'new' ? 'info' : 'neutral'} /> · {new Date(lead.created_at).toLocaleString()}</p>
-            <p>{[lead.email, lead.phone].filter(Boolean).join(' · ')}</p>
-            {lead.message ? <p style={{whiteSpace: 'pre-wrap'}}>{lead.message}</p> : null}
-            <Button label="Conversation" variant="secondary" onClick={() => transcript(lead.id)} />
-            {transcripts[lead.id] ? (
-              <div>
-                {transcripts[lead.id].length ? transcripts[lead.id].map((turn, index) => (
-                  <p key={index}><strong>{turn.role === 'user' ? 'Customer' : 'Concierge'}:</strong> {turn.content}</p>
-                )) : <p>No saved transcript.</p>}
-              </div>
-            ) : null}
-          </Card>
-        ))}
-        {!shown.length ? <p>No enquiries yet. Connected channels will capture them here.</p> : null}
-      </div>
+      <Table
+        data={shown as unknown as Record<string, unknown>[]}
+        idKey="id"
+        density="compact"
+        columns={[
+          {key: 'name', header: 'Enquiry', width: proportional(1, {minWidth: 140}), renderCell: (row) => <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>},
+          {key: 'channel', header: 'Channel', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.channel || '')},
+          {key: 'status', header: 'Status', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Badge label={String(row.status || '')} variant={row.status === 'new' ? 'info' : 'neutral'} />},
+          {key: 'created_at', header: 'Received', width: proportional(1, {minWidth: 150}), renderCell: (row) => new Date(String(row.created_at)).toLocaleString()},
+          {key: 'id', header: '', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Button label="Conversation" variant="secondary" onClick={() => transcript(String(row.id))} />},
+        ] as TableColumn<Record<string, unknown>>[]}
+      />
+      {!shown.length ? <p>No enquiries yet. Connected channels will capture them here.</p> : null}
+      {Object.entries(transcripts).map(([id, turns]) => (
+        <Card key={id}>
+          <Heading level={2}>Conversation</Heading>
+          {turns.length ? turns.map((turn, index) => (
+            <p key={index}><strong>{turn.role === 'user' ? 'Customer' : 'Concierge'}:</strong> {turn.content}</p>
+          )) : <p>No saved transcript.</p>}
+        </Card>
+      ))}
       <div style={{display: 'flex', gap: 24, marginTop: 24, flexWrap: 'wrap'}}>
         <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p>None booked.</p>}</div>
         <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p>No open tasks.</p>}</div>
@@ -742,6 +750,7 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
   const [lines, setLines] = useState<Array<{description: string; quantity: string; price: string}>>([{description: '', quantity: '1', price: ''}]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pendingSignoff, setPendingSignoff] = useState<Quote | null>(null);
 
   async function load() {
     try {
@@ -847,21 +856,32 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
         </Card>
       </div>
       <Heading level={2}>Your quotations</Heading>
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))'}}>
-        {quotes.map((quote) => (
-          <Card key={quote.id}>
-            <Heading level={2}>{quote.title}</Heading>
-            <p><Badge label={quote.status} variant={quote.status === 'accepted' ? 'success' : quote.status === 'declined' ? 'error' : quote.status === 'reviewed' ? 'info' : 'neutral'} /> · {money(quote.total_cents, quote.currency)} incl. {money(quote.tax_cents, quote.currency)} tax</p>
-            {quote.lines.map((line, index) => <p key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, quote.currency)}</p>)}
-            {quote.notes ? <p>{quote.notes}</p> : null}
-            <Button label="Print / PDF" variant="secondary" onClick={() => printQuote(quote.id)} />
-            {quote.public_token ? <Button label="Customer page" variant="ghost" onClick={() => window.open('/quote/' + quote.public_token, '_blank', 'noopener')} /> : null}
-            {role === 'owner' && quote.status === 'draft' ? <Button label="Review and sign off" variant="primary" onClick={() => signOff(quote.id, quote.version)} /> : null}
-            {role === 'owner' && quote.status === 'reviewed' ? <Button label="Send to customer" variant="primary" onClick={() => sendQuote(quote.id)} /> : null}
-          </Card>
-        ))}
-        {!quotes.length ? <p>No quotations yet.</p> : null}
-      </div>
+      <Table
+        data={quotes as unknown as Record<string, unknown>[]}
+        idKey="id"
+        density="compact"
+        columns={[
+          {key: 'title', header: 'Quotation', width: proportional(2, {minWidth: 180}), renderCell: (row) => <strong>{String(row.title || '')}</strong>},
+          {key: 'status', header: 'Status', width: proportional(1, {minWidth: 100}), renderCell: (row) => <Badge label={String(row.status || '')} variant={row.status === 'accepted' ? 'success' : row.status === 'declined' ? 'error' : row.status === 'reviewed' ? 'info' : 'neutral'} />},
+          {key: 'total_cents', header: 'Total', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.total_cents), String(row.currency || 'NZD'))},
+          {key: 'id', header: 'Actions', width: proportional(1, {minWidth: 260}), renderCell: (row) => (
+            <span style={{display: 'inline-flex', gap: 4, flexWrap: 'wrap'}}>
+              <Button label="PDF" variant="secondary" onClick={() => printQuote(String(row.id))} />
+              {row.public_token ? <Button label="Customer page" variant="ghost" onClick={() => window.open('/quote/' + row.public_token, '_blank', 'noopener')} /> : null}
+              {role === 'owner' && row.status === 'draft' ? <Button label="Review" variant="primary" onClick={() => setPendingSignoff(row as unknown as Quote)} /> : null}
+              {role === 'owner' && row.status === 'reviewed' ? <Button label="Send" variant="primary" onClick={() => sendQuote(String(row.id))} /> : null}
+            </span>
+          )},
+        ] as TableColumn<Record<string, unknown>>[]}
+      />
+      {!quotes.length ? <p>No quotations yet.</p> : null}
+      <Dialog isOpen={Boolean(pendingSignoff)} onOpenChange={(open) => { if (!open) setPendingSignoff(null); }}>
+        <Heading level={2}>Sign off this quotation?</Heading>
+        <p>{pendingSignoff?.title}: {pendingSignoff ? money(pendingSignoff.total_cents, pendingSignoff.currency) : ''}</p>
+        <p>This marks it reviewed and ready to send. The owner is responsible for the prices and scope.</p>
+        <Button label="Sign off" variant="primary" onClick={async () => { if (pendingSignoff) { await signOff(pendingSignoff.id, pendingSignoff.version); setPendingSignoff(null); } }} />
+        <Button label="Cancel" variant="ghost" onClick={() => setPendingSignoff(null)} />
+      </Dialog>
       {status ? <p role="status">{status}</p> : null}
     </div>
   );
@@ -1268,6 +1288,8 @@ function Shell() {
   const [catalog, setCatalog] = useState<Record<string, string>>(en);
   const [navStrings, setNavStrings] = useState<Record<string, string>>({});
   const [copyStrings, setCopyStrings] = useState<Record<string, string>>({});
+  const [mode, setModeState] = useState(() => localStorage.getItem('concierge.mode') || 'system');
+  function setMode(value: string) { setModeState(value); localStorage.setItem('concierge.mode', value); }
   const tr = (key: string) => navStrings[key] || key;
   useDomTranslation(locale, copyStrings);
   function setLocale(value: string) { setLocaleState(value); localStorage.setItem('concierge.locale', value); }
@@ -1322,10 +1344,10 @@ function Shell() {
   }
 
   return (
-    <Theme theme={theme}>
+    <Theme theme={theme} mode={mode as 'light' | 'dark' | 'system'}>
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div>
-      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} />
+      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} mode={mode} setMode={setMode} />
       <TranslationNote locale={locale} />
       {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
