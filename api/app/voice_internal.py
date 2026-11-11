@@ -32,7 +32,7 @@ class Start(BaseModel):
 
 
 class Transcript(BaseModel):
-    conversation_id: int
+    conversation_id: str
     role: str = Field(pattern="^(user|assistant)$")
     text: str = Field(max_length=10000)
     item_id: str | None = Field(default=None, max_length=200)
@@ -40,8 +40,8 @@ class Transcript(BaseModel):
 
 class Tool(BaseModel):
     tenant_id: str
-    record_session_id: int
-    conversation_id: int
+    record_session_id: str
+    conversation_id: str
     call_id: str = Field(max_length=120)
     name: str = Field(max_length=80)
     args: dict = Field(default_factory=dict)
@@ -49,19 +49,19 @@ class Tool(BaseModel):
 
 class Monitor(BaseModel):
     tenant_id: str
-    record_session_id: int
+    record_session_id: str
 
 
 class Finish(BaseModel):
     tenant_id: str
     call_id: str = Field(max_length=120)
-    conversation_id: int
+    conversation_id: str
     status: str = Field(max_length=40)
-    record_session_id: int | None = None
+    record_session_id: str | None = None
 
 
 class Recording(BaseModel):
-    record_session_id: int
+    record_session_id: str
     wav_b64: str
 
 
@@ -140,6 +140,12 @@ async def finish(body: Finish, x_concierge_internal: str | None = Header(default
             body.record_session_id, body.tenant_id)
         record = dict(record) if record else None
     await asterisk_bridge.finish(tenant, body.call_id, body.conversation_id, body.status, record)
+    if record:
+        request = await db.pool().fetchval(
+            "UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 AND finalized_at IS NULL "
+            "RETURNING delivery_request", body.record_session_id)
+        if request is not None:
+            await voice_records.complete_delivery(record, tenant, request, {"ok": True})
     return {"ok": True}
 
 

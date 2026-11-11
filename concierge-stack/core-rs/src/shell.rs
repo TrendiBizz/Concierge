@@ -167,7 +167,7 @@ impl WavRecorder {
 #[derive(Debug, Deserialize)]
 struct StartResponse {
     tenant: Value,
-    conversation_id: i64,
+    conversation_id: String,
     record_session: Value,
     session: Value,
 }
@@ -231,8 +231,8 @@ impl Internal {
 struct CallState {
     tenant_id: String,
     call_id: String,
-    conversation: Option<i64>,
-    record_id: Option<i64>,
+    conversation: Option<String>,
+    record_id: Option<String>,
     consent: bool,
 }
 
@@ -265,7 +265,10 @@ async fn apply_actions(
                 text,
                 item_id,
             } => {
-                let conversation = state.conversation.ok_or("transcript before start")?;
+                let conversation = state
+                    .conversation
+                    .clone()
+                    .ok_or("transcript before start")?;
                 internal
                     .post(
                         "/internal/voice/transcript",
@@ -286,8 +289,11 @@ async fn apply_actions(
                 args,
             } => {
                 let tool_name = name.as_str().unwrap_or("").to_string();
-                let conversation = state.conversation.ok_or("tool before start")?;
-                let record_id = state.record_id.ok_or("tool before recording session")?;
+                let conversation = state.conversation.clone().ok_or("tool before start")?;
+                let record_id = state
+                    .record_id
+                    .clone()
+                    .ok_or("tool before recording session")?;
                 let result = internal
                     .post(
                         "/internal/voice/tool",
@@ -366,8 +372,12 @@ async fn run_call(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    state.conversation = Some(start.conversation_id);
-    state.record_id = start.record_session.get("id").and_then(Value::as_i64);
+    state.conversation = Some(start.conversation_id.clone());
+    state.record_id = start
+        .record_session
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
 
     let mut request = config
         .xai_url
@@ -423,6 +433,9 @@ async fn run_call(
             message = source.next() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
+                        if text.as_str().contains("\"type\":\"error\"") {
+                            warn!("grok error: {text}");
+                        }
                         let actions = bridge.on_message(text.as_str()).map_err(|e| format!("{e:?}"))?;
                         apply_actions(actions, &mut bridge, &mut sink, internal, state, recorder).await?;
                     }
@@ -492,6 +505,7 @@ async fn run_call(
 }
 
 async fn handle(mut stream: TcpStream, route: Route, config: Arc<Config>) {
+    info!("audiosocket connection for {}", route.tenant);
     let mut state = CallState::default();
     let mut recorder = WavRecorder::default();
     let internal = Internal::new(config.internal_url.clone(), config.internal_token.clone());

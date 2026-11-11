@@ -23,8 +23,8 @@ async fn record(State(calls): State<Calls>, path: &str) -> Value {
     match path {
         "/internal/voice/start" => json!({
             "tenant": {"id": "00000000-0000-0000-0000-000000000001", "name": "Test"},
-            "conversation_id": 1,
-            "record_session": {"id": 7, "recording_consent": false},
+            "conversation_id": "1",
+            "record_session": {"id": "7", "recording_consent": false},
             "session": {"type": "realtime", "audio": {}},
         }),
         "/internal/voice/tool" => json!({"ok": true, "recording": true}),
