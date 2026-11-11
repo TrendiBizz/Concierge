@@ -140,6 +140,12 @@ async def finish(body: Finish, x_concierge_internal: str | None = Header(default
             body.record_session_id, body.tenant_id)
         record = dict(record) if record else None
     await asterisk_bridge.finish(tenant, body.call_id, body.conversation_id, body.status, record)
+    if record:
+        request = await db.pool().fetchval(
+            "UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 AND finalized_at IS NULL "
+            "RETURNING delivery_request", body.record_session_id)
+        if request is not None:
+            await voice_records.complete_delivery(record, tenant, request, {"ok": True})
     return {"ok": True}
 
 
