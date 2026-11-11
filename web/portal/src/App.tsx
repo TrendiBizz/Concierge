@@ -21,7 +21,7 @@ type Variant = {account_id: string; account_name: string; network: string; conte
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
 type Turn = {role: string; content: string};
 type QuoteLine = {description: string; quantity: number; unit_price_cents: number; amount_cents?: number};
-type Quote = {id: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number};
+type Quote = {id: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number; public_token?: string; sent_at?: string};
 type Product = {id: string; name: string; sku?: string; unit?: string; sale_price_cents: number};
 
 function readRaw(file: File): Promise<string> {
@@ -719,6 +719,16 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
+  async function sendQuote(id: string) {
+    setBusy(true); setStatus('');
+    try {
+      const result = await api('/owner/crm/quotations/' + id + '/send', 'POST') as {link: string; sent_to: string};
+      setStatus('Sent to ' + result.sent_to + '. Customer link: ' + result.link);
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not send the quotation'); }
+    setBusy(false);
+  }
+
   async function signOff(id: string, version: number) {
     setBusy(true); setStatus('');
     try {
@@ -778,7 +788,9 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
             {quote.lines.map((line, index) => <p key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, quote.currency)}</p>)}
             {quote.notes ? <p>{quote.notes}</p> : null}
             <Button label="Print / PDF" variant="secondary" onClick={() => printQuote(quote.id)} />
+            {quote.public_token ? <Button label="Customer page" variant="ghost" onClick={() => window.open('/quote/' + quote.public_token, '_blank', 'noopener')} /> : null}
             {role === 'owner' && quote.status === 'draft' ? <Button label="Review and sign off" variant="primary" onClick={() => signOff(quote.id, quote.version)} /> : null}
+            {role === 'owner' && quote.status === 'reviewed' ? <Button label="Send to customer" variant="primary" onClick={() => sendQuote(quote.id)} /> : null}
           </Card>
         ))}
         {!quotes.length ? <p>No quotations yet.</p> : null}

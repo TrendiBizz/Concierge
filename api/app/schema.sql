@@ -716,3 +716,11 @@ CREATE TABLE IF NOT EXISTS media_assets (
 CREATE INDEX IF NOT EXISTS media_assets_tenant_idx ON media_assets (tenant_id, created_at DESC);
 
 ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS size_bytes bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS public_token text;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declined_at timestamptz;
+UPDATE quotations SET public_token = replace(gen_random_uuid()::text, '-', '') WHERE public_token IS NULL;
+ALTER TABLE quotations ALTER COLUMN public_token SET DEFAULT replace(gen_random_uuid()::text, '-', '');
+CREATE UNIQUE INDEX IF NOT EXISTS quotations_public_token_idx ON quotations (public_token);

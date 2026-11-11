@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import db, owner_auth
+from . import db, outbox, owner_auth
 
 router = APIRouter(prefix='/owner/crm/quotations', tags=['quotations'])
+public_router = APIRouter(prefix='/quote', tags=['quotations'])
 
 
 class QuoteLine(BaseModel):
@@ -165,3 +166,108 @@ th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{fo
 <p class="no-print"><button onclick="window.print()">Print / Save as PDF</button></p>
 </div></body></html>"""
     return HTMLResponse(document)
+
+
+@public_router.get('/{token}', response_class=HTMLResponse)
+async def public_quote(token: str):
+    row = await db.pool().fetchrow('SELECT * FROM quotations WHERE public_token=$1', token)
+    if not row:
+        raise HTTPException(404, 'Quotation not found')
+    quote = view(row)
+    tenant = await db.pool().fetchrow('SELECT id,name,site_url FROM tenants WHERE id=$1', quote['tenant_id'])
+    brand = await db.pool().fetchrow('SELECT name,accent,contact,logo_data FROM media_brand WHERE tenant_id=$1', quote['tenant_id'])
+    brand = dict(brand) if brand else {}
+    name = html.escape(brand.get('name') or (tenant['name'] if tenant else '') or 'Quotation')
+    accent = html.escape(brand.get('accent') or '#c8f560')
+    contact = html.escape(brand.get('contact') or (tenant['site_url'] if tenant and tenant['site_url'] else '') or '')
+    logo = brand.get('logo_data') or ''
+    logo_tag = f'<img src="{logo}" alt="" style="height:56px">' if logo.startswith('data:image/') else ''
+    currency = quote['currency']
+    cash = lambda cents: f"{cents / 100:,.2f} {currency}"
+    lines = ''.join(
+        f"<tr><td>{html.escape(line['description'])}</td><td class='num'>{line['quantity']}</td>"
+        f"<td class='num'>{cash(line['unit_price_cents'])}</td><td class='num'>{cash(line['amount_cents'])}</td></tr>"
+        for line in quote['lines'])
+    status = quote['status']
+    if status == 'reviewed':
+        actions = f"""<form method="post" action="/quote/{html.escape(token)}/accept" style="display:inline">
+<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Accept quotation</button></form>
+<form method="post" action="/quote/{html.escape(token)}/decline" style="display:inline;margin-left:8px">
+<button type="submit" style="background:transparent;border:1px solid #c9d1da;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Decline</button></form>"""
+        note = 'This quotation was reviewed and signed off by the business owner.'
+    elif status in ('accepted', 'declined'):
+        actions = f"<p><strong>This quotation has been {html.escape(status)}.</strong></p>"
+        note = ''
+    else:
+        actions = '<p>This quotation is not ready for acceptance yet.</p>'
+        note = 'The business owner still needs to review it.'
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(quote['title'])} — {name}</title>
+<style>
+body{{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#15191f;background:#f6f8fa}}
+.page{{max-width:820px;margin:32px auto;background:#fff;padding:40px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}}
+header{{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:6px solid {accent};padding-bottom:20px}}
+h1{{margin:8px 0 4px;font-size:28px}} .muted{{color:#5a6673}} table{{width:100%;border-collapse:collapse;margin-top:28px}}
+th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
+.num{{text-align:right}} .totals{{margin-left:auto;margin-top:18px;width:320px}} .totals td{{border:0;padding:6px 8px}}
+.grand{{font-weight:700;font-size:20px;border-top:2px solid {accent}}} .actions{{margin-top:32px;padding-top:24px;border-top:1px solid #e3e7ec}}
+</style></head><body><div class="page">
+<header><div>{logo_tag}<h1>{html.escape(quote['title'])}</h1><p class="muted">{name}{(' · ' + contact) if contact else ''}</p></div>
+<div class="muted">{quote['created_at']:%d %b %Y}<br>Version {quote['version']}</div></header>
+<p><strong>Prepared for:</strong> {html.escape(str(quote.get('contact', {}).get('name') or quote.get('contact', {}).get('email') or 'Customer'))}</p>
+<table><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody>{lines}</tbody></table>
+<table class="totals"><tr><td>Subtotal</td><td class="num">{cash(quote['subtotal_cents'])}</td></tr>
+<tr><td>Tax</td><td class="num">{cash(quote['tax_cents'])}</td></tr>
+<tr class="grand"><td>Total</td><td class="num">{cash(quote['total_cents'])}</td></tr></table>
+{('<p><strong>Notes</strong><br>' + html.escape(quote['notes']).replace(chr(10), '<br>') + '</p>') if quote.get('notes') else ''}
+<div class="actions">{actions}<p class="muted">{html.escape(note)}</p></div>
+</div></body></html>"""
+    return HTMLResponse(document)
+
+
+async def _decide(token: str, status: str):
+    row = await db.pool().fetchrow('SELECT id,status FROM quotations WHERE public_token=$1', token)
+    if not row:
+        raise HTTPException(404, 'Quotation not found')
+    if row['status'] != 'reviewed':
+        raise HTTPException(409, 'This quotation is no longer available')
+    column = 'accepted_at' if status == 'accepted' else 'declined_at'
+    await db.pool().execute(
+        f'UPDATE quotations SET status=$2, {column}=now(), version=version+1, updated_at=now() WHERE id=$1',
+        row['id'], status)
+    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quotation {status}</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:24px"><h1>Quotation {status}</h1><p>Thank you. The business has been notified.</p></body></html>""")
+
+
+@public_router.post('/{token}/accept')
+async def public_accept(token: str):
+    return await _decide(token, 'accepted')
+
+
+@public_router.post('/{token}/decline')
+async def public_decline(token: str):
+    return await _decide(token, 'declined')
+
+
+@router.post('/{quote_id}/send')
+async def send_quote(quote_id: UUID, user=Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, 'owner')
+    row = await db.pool().fetchrow('SELECT * FROM quotations WHERE tenant_id=$1 AND id=$2', user['tenant_id'], quote_id)
+    if not row:
+        raise HTTPException(404, 'Quotation not found')
+    quote = view(row)
+    if quote['status'] != 'reviewed':
+        raise HTTPException(409, 'Only a reviewed quotation can be sent')
+    contact = quote.get('contact') or {}
+    email = (contact.get('email') or '').strip()
+    if not email:
+        raise HTTPException(422, 'This enquiry has no email address; add one before sending')
+    tenant = await db.pool().fetchrow('SELECT name FROM tenants WHERE id=$1', user['tenant_id'])
+    link = get_settings().public_base_url.rstrip('/') + '/quote/' + quote['public_token']
+    body = f"Kia ora,\n\n{tenant['name']} has prepared a quotation: {quote['title']}.\n\n{link}\n\nYou can review and accept or decline it online.\n\nThank you."
+    await outbox.enqueue(user['tenant_id'], 'quotation', 'email', email, body,
+                         subject=f"Quotation: {quote['title']}",
+                         lead_id=quote['lead_id'],
+                         dedupe_key=f"quote:{quote['id']}:{quote['version']}")
+    await db.pool().execute('UPDATE quotations SET sent_at=now() WHERE id=$1', quote['id'])
+    return {'link': link, 'sent_to': email}
