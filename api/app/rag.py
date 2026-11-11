@@ -96,6 +96,8 @@ def build_system_prompt(tenant: dict, hits: list[dict] | None, channel: str) -> 
         "or infer a cost price. A quotation is only a draft until the owner reviews and signs it; "
         "never call a quote final or sent.",
         "- Keep answers short: one to four sentences unless the visitor asks for detail.",
+        "- Reply in the language the visitor uses, even when the business information is in "
+        "English. Match their language naturally; never ask the visitor to switch to English.",
         "- When a visitor shows buying intent (asks for a quote, price, availability, a callback, "
         "or says they want to buy or book), ask for their name and a phone number or email, and "
         "ask whether it is OK for the business to text or email them. Call capture_lead only after "

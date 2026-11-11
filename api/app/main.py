@@ -1643,6 +1643,27 @@ async def owner_login(body: OwnerLogin, request: Request):
     return {"access_token": token, "token_type": "bearer", "expires_in": 43200}
 
 
+COUNTRY_LOCALE = {
+    "FR": "fr-FR", "BE": "fr-FR", "CA": "fr-FR", "CH": "fr-FR",
+    "ES": "es-ES", "MX": "es-ES", "AR": "es-ES", "CO": "es-ES", "CL": "es-ES",
+    "DE": "de-DE", "AT": "de-DE",
+    "BR": "pt-BR", "PT": "pt-BR",
+    "CN": "zh-CN", "TW": "zh-CN", "HK": "zh-CN", "SG": "zh-CN",
+    "JP": "ja-JP", "KR": "ko-KR",
+    "SA": "ar-SA", "AE": "ar-SA", "EG": "ar-SA", "QA": "ar-SA",
+    "NL": "nl-NL",
+    "IT": "it-IT",
+    "PL": "pl-PL",
+}
+
+
+@app.get("/owner/locale")
+async def owner_locale(request: Request):
+    country = (request.headers.get("cf-ipcountry") or "").upper()
+    return {"country": country, "locale": COUNTRY_LOCALE.get(country, "en"),
+            "supported": ["en", "fr-FR", "es-ES", "de-DE", "pt-BR", "zh-CN", "ja-JP", "ko-KR", "ar-SA", "nl-NL", "it-IT", "pl-PL"]}
+
+
 @app.get("/owner/me")
 async def owner_me(user: dict = Depends(owner_auth.current_user)):
     return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}

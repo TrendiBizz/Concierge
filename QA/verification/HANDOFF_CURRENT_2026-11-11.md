@@ -230,3 +230,14 @@
   public upload 201, takeoff 200 with note; designs dirs owned by uid 10001.
 - Gateway routes added: `/quote/*`, `/upload/*`, `/api/v1/public-design/*`.
 - Astryx audit written at `QA/verification/ASTRYX_AUDIT_2026-11-11.md`.
+
+
+## Languages + native assessment — 2026-11-11
+- Astryx `InternationalizationProvider` wired with 12 locales (en, fr, es, de,
+  pt-BR, zh-CN, ja-JP, ko-KR, ar-SA, nl-NL, it-IT, pl-PL); selector in the
+  portal header; RTL for Arabic; preference/query/browser/IP detection.
+- `/owner/locale` maps Cloudflare `CF-IPCountry` to a locale (verified FR/JP).
+- AI system prompt now replies in the visitor's language.
+- Assessment at `QA/verification/I18N_NATIVE_ASSESSMENT.md`.
+- Astryx Native is canary-only, Apple-only, 11-12 components; not production.
+  PWA remains the mobile option; Capacitor is the store shortcut if needed.

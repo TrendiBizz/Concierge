@@ -10,9 +10,37 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
+import {InternationalizationProvider} from '@astryxdesign/core/i18n';
+import en from './locales/en.json';
+import frFR from './locales/fr-FR.json';
+import esES from './locales/es-ES.json';
+import deDE from './locales/de-DE.json';
+import ptBR from './locales/pt-BR.json';
+import zhCN from './locales/zh-CN.json';
+import jaJP from './locales/ja-JP.json';
+import koKR from './locales/ko-KR.json';
+import arSA from './locales/ar-SA.json';
+import nlNL from './locales/nl-NL.json';
+import itIT from './locales/it-IT.json';
+import plPL from './locales/pl-PL.json';
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
+const CATALOGS: Record<string, Record<string, string>> = {
+  en, 'fr-FR': frFR, 'es-ES': esES, 'de-DE': deDE, 'pt-BR': ptBR, 'zh-CN': zhCN,
+  'ja-JP': jaJP, 'ko-KR': koKR, 'ar-SA': arSA, 'nl-NL': nlNL, 'it-IT': itIT, 'pl-PL': plPL,
+};
+const LOCALES: Array<[string, string]> = [['en', 'English'], ['fr-FR', 'Français'], ['es-ES', 'Español'], ['de-DE', 'Deutsch'], ['pt-BR', 'Português (BR)'], ['zh-CN', '中文'], ['ja-JP', '日本語'], ['ko-KR', '한국어'], ['ar-SA', 'العربية'], ['nl-NL', 'Nederlands'], ['it-IT', 'Italiano'], ['pl-PL', 'Polski']];
+const LOCALE_PREFIX = (value: string) => LOCALES.find(([code]) => code.toLowerCase().startsWith(value.toLowerCase().split('-')[0]))?.[0] || 'en';
+
+function initialLocale() {
+  const query = new URLSearchParams(location.search).get('lang');
+  if (query && CATALOGS[LOCALE_PREFIX(query)]) return LOCALE_PREFIX(query);
+  const saved = localStorage.getItem('concierge.locale');
+  if (saved && CATALOGS[saved]) return saved;
+  if (navigator.language) return LOCALE_PREFIX(navigator.language);
+  return 'en';
+}
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
 type Business = {name: string; site_url: string; notify_email: string; notify_phone: string; public_key: string};
 type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean};
@@ -68,7 +96,7 @@ function useApi(token: string) {
   };
 }
 
-function BrandHeader({brand, tab, setTab, onSignOut, onInstall}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void}) {
+function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
@@ -77,7 +105,10 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall}: {brand: Brand; 
           <strong style={{fontSize: 20}}>{brand.name || 'Concierge'}</strong>
           <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>Powered by Trendi</span>
         </div>
-        <div style={{display: 'flex', gap: 8, marginLeft: 'auto'}}>
+        <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
+          <select aria-label="Language" value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
+            {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select>
           <Button label="Home" variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
           <Button label="Setup" variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
           <Button label="Designs" variant={tab === 'designs' ? 'primary' : 'ghost'} onClick={() => setTab('designs')} />
@@ -1128,6 +1159,16 @@ function Shell() {
   const [tab, setTab] = useState('home');
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
+  const [locale, setLocaleState] = useState(initialLocale);
+  function setLocale(value: string) { setLocaleState(value); localStorage.setItem('concierge.locale', value); }
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = locale.startsWith('ar') || locale.startsWith('he') ? 'rtl' : 'ltr';
+  }, [locale]);
+  useEffect(() => {
+    if (localStorage.getItem('concierge.locale') || new URLSearchParams(location.search).get('lang')) return;
+    api('/owner/locale').then((data) => { const suggested = (data as {locale?: string}).locale; if (suggested && CATALOGS[suggested]) setLocaleState(suggested); }).catch(() => undefined);
+  }, []);
   const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#c8f560', '--color-on-accent': '#101408'}}), [brand.name, brand.accent]);
   const api = useApi(token);
 
@@ -1152,10 +1193,12 @@ function Shell() {
 
   return (
     <Theme theme={theme}>
+    <InternationalizationProvider locale={locale} messages={CATALOGS}>
     <div>
-      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} />
+      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} />
       {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
+    </InternationalizationProvider>
     </Theme>
   );
 }
