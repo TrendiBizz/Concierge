@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from . import db, owner_auth
+import asyncio
 from .config import get_settings
 
 router = APIRouter(prefix="/owner/designs", tags=["designs"])
@@ -99,3 +100,65 @@ async def remove(design_id: UUID, user=Depends(owner_auth.current_user)):
     except OSError:
         pass
     return {"ok": True}
+
+
+def _takeoff(path: str) -> dict:
+    import ifcopenshell
+    model = ifcopenshell.open(path)
+    walls = list(model.by_type("IfcWall")) + list(model.by_type("IfcWallStandardCase"))
+    gross = net = opening_area = 0.0
+    for wall in walls:
+        for rel in getattr(wall, "IsDefinedBy", []):
+            if not rel.is_a("IfcRelDefinesByProperties"):
+                continue
+            prop = rel.RelatingPropertyDefinition
+            if prop is None or not prop.is_a("IfcElementQuantity"):
+                continue
+            for quantity in prop.Quantities or []:
+                if not quantity.is_a("IfcQuantityArea"):
+                    continue
+                name = quantity.Name or ""
+                value = float(quantity.AreaValue or 0)
+                if "GrossSideArea" in name:
+                    gross += value
+                elif "NetSideArea" in name:
+                    net += value
+    openings = list(model.by_type("IfcOpeningElement"))
+    for opening in openings:
+        for rel in getattr(opening, "IsDefinedBy", []):
+            if not rel.is_a("IfcRelDefinesByProperties"):
+                continue
+            prop = rel.RelatingPropertyDefinition
+            if prop is None or not prop.is_a("IfcElementQuantity"):
+                continue
+            for quantity in prop.Quantities or []:
+                if quantity.is_a("IfcQuantityArea"):
+                    opening_area += float(quantity.AreaValue or 0)
+    note = "" if gross or net else "This IFC has no wall area quantities. Measure manually or export quantities from the authoring tool."
+    return {"wall_count": len(walls), "gross_wall_area_m2": round(gross, 2),
+            "net_wall_area_m2": round(net, 2), "opening_count": len(openings),
+            "opening_area_m2": round(opening_area, 2),
+            "net_cladding_area_m2": round(max(net - opening_area, 0), 2) if net else None,
+            "note": note}
+
+
+@router.post("/{design_id}/takeoff")
+async def takeoff(design_id: UUID, user=Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    row = await db.pool().fetchrow(
+        "SELECT storage_path,filename FROM design_uploads WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], design_id)
+    if not row or not Path(row["storage_path"]).is_file():
+        raise HTTPException(404, "Design not found")
+    if not row["filename"].lower().endswith(".ifc"):
+        raise HTTPException(400, "Takeoff is available for IFC models")
+    try:
+        summary = await asyncio.to_thread(_takeoff, row["storage_path"])
+    except ImportError:
+        raise HTTPException(503, "IFC takeoff is not installed") from None
+    except Exception as error:  # noqa: BLE001 - malformed client models are expected
+        await db.pool().execute("UPDATE design_uploads SET status='failed' WHERE id=$1", design_id)
+        raise HTTPException(422, "This IFC could not be read: " + str(error)[:160]) from None
+    await db.pool().execute(
+        "UPDATE design_uploads SET status='parsed', summary=$2 WHERE id=$1", design_id, summary)
+    return summary

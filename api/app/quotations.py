@@ -8,6 +8,8 @@ from fastapi.responses import HTMLResponse
 import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import db, outbox, owner_auth
+from .config import get_settings
+from urllib.parse import urlsplit
 
 router = APIRouter(prefix='/owner/crm/quotations', tags=['quotations'])
 public_router = APIRouter(prefix='/quote', tags=['quotations'])
@@ -263,7 +265,8 @@ async def send_quote(quote_id: UUID, user=Depends(owner_auth.current_user)):
     if not email:
         raise HTTPException(422, 'This enquiry has no email address; add one before sending')
     tenant = await db.pool().fetchrow('SELECT name FROM tenants WHERE id=$1', user['tenant_id'])
-    link = get_settings().public_base_url.rstrip('/') + '/quote/' + quote['public_token']
+    origin = urlsplit(get_settings().owner_portal_url)
+    link = f"{origin.scheme}://{origin.netloc}/quote/" + quote['public_token']
     body = f"Kia ora,\n\n{tenant['name']} has prepared a quotation: {quote['title']}.\n\n{link}\n\nYou can review and accept or decline it online.\n\nThank you."
     await outbox.enqueue(user['tenant_id'], 'quotation', 'email', email, body,
                          subject=f"Quotation: {quote['title']}",
