@@ -76,3 +76,10 @@ presence is needed before Astryx Native stabilises.
   (owner's wording, though "Tenante"/"Kliënte" may read better).
 - Only English and Afrikaans are exposed; the other 28 locales remain hidden
   until reviewed.
+
+
+## All locales exposed with feedback note — 2026-11-11
+- All 30 locales are selectable again. English and Afrikaans are reviewed;
+  the other 28 are labelled in-product: automated translation, not reviewed by
+  a native speaker, with a mailto feedback link.
+- Verified in French: full French copy plus the feedback note.

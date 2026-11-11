@@ -257,3 +257,9 @@
   runtime text layer for the portal copy; RTL; selector on login and header.
 - English reviewed; Afrikaans review CSV at
   `QA/verification/AFRIKAANS_REVIEW.csv`; other 28 machine-only.
+
+
+## All 30 locales exposed — 2026-11-11
+- Language selector shows all 30; a yellow note appears for machine-translated
+  locales inviting corrections (mailto admin@trendibizz.com). English/Afrikaans
+  reviewed; the rest marked automated.
