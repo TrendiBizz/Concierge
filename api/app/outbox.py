@@ -182,6 +182,8 @@ async def _deliver(row: dict) -> None:
         if row.get("campaign_id"):
             link = unsub.url_for(row["tenant_id"], row["to_addr"])
             headers = {"List-Unsubscribe": f"<{link}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+        if row["kind"] in OWNER_KINDS and tenant.get("reply_address"):
+            headers = {**(headers or {}), "Reply-To": tenant["reply_address"]}
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"], headers,
         )

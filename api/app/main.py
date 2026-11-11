@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import casetimeline, hermes_orchestrator, provider_readiness
@@ -774,6 +774,10 @@ async def _require_tenant(slug: str) -> dict:
 async def admin_create_tenant(body: TenantCreate):
     data = body.model_dump()
     tenant = await tenants.create(data.pop("name"), data.pop("site_url"), slug=data.pop("slug"), **data)
+    try:
+        tenant = await reply_address.ensure(tenant)
+    except Exception:  # noqa: BLE001 - tenant exists; the operator can retry routing
+        log.exception("reply address setup failed for %s", tenant["slug"])
     return _with_snippet(tenant)
 
 
@@ -793,6 +797,11 @@ async def admin_get_tenant(slug: str):
 async def admin_update_tenant(slug: str, body: TenantUpdate):
     await _require_tenant(slug)
     updated = await tenants.update(slug, body.model_dump(exclude_unset=True))
+    if updated.get("notify_email") and not updated.get("reply_address"):
+        try:
+            updated = await reply_address.ensure(updated)
+        except Exception:  # noqa: BLE001
+            log.exception("reply address setup failed for %s", slug)
     return _with_snippet(updated)
 
 

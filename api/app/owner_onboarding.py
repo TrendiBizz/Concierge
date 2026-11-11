@@ -5,11 +5,14 @@ connect accounts, send messages, modify phone routing or enable a channel.
 """
 from __future__ import annotations
 
+import logging
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+log = logging.getLogger("concierge.onboarding")
 
 from . import channel_authorization, db, tenants
 from .config import get_settings
@@ -193,6 +196,11 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
     saved = await tenants.update(tenant_slug, changed)
     if saved is None:
         raise ValueError("Tenant unavailable")
+    if saved.get("notify_email") and not saved.get("reply_address"):
+        try:
+            saved = await reply_address.ensure(saved)
+        except Exception:  # noqa: BLE001 - onboarding must not fail on routing setup
+            log.exception("reply address setup failed for %s", tenant_slug)
     return {
         "name": saved["name"],
         "site_url": saved.get("site_url") or "",
