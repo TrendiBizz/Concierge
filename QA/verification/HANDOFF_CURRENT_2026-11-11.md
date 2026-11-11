@@ -209,3 +209,11 @@
 - `@astryxdesign/native` is a placeholder on npm (“Do not install”), so the
   native owner app is not buildable yet; the PWA remains the mobile option.
 - Bundle is ~960 KB JS after adding charts; code-splitting is a follow-up.
+
+
+## Astryx Native watch + PWA — 2026-11-11
+- `@astryxdesign/native` is a placeholder (0.0.0-bootstrap.0). Note at
+  `QA/verification/ASTRYX_NATIVE_WATCH.md`; weekly Monday 09:00 NZ scheduled
+  check (`schedule-df99a8a8-0abe-4b82-a9d9-e9cbf8a06c8e`).
+- Interim: PWA icons (192/512/maskable/apple), install prompt in the header,
+  offline shell. Manifest and icons verified 200.

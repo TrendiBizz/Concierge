@@ -67,7 +67,7 @@ function useApi(token: string) {
   };
 }
 
-function BrandHeader({brand, tab, setTab, onSignOut}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void}) {
+function BrandHeader({brand, tab, setTab, onSignOut, onInstall}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
@@ -85,6 +85,7 @@ function BrandHeader({brand, tab, setTab, onSignOut}: {brand: Brand; tab: string
           <Button label="Enquiries" variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
           <Button label="Social" variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
           <Button label="Marketing media" variant={tab === 'media' ? 'primary' : 'ghost'} onClick={() => setTab('media')} />
+          {onInstall ? <Button label="Install app" variant="secondary" onClick={onInstall} /> : null}
           <Button label="Sign out" variant="ghost" onClick={onSignOut} />
         </div>
       </div>
@@ -999,6 +1000,7 @@ function Shell() {
   const [token, setToken] = useState('');
   const [tab, setTab] = useState('home');
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
+  const [installEvent, setInstallEvent] = useState<Event | null>(null);
   const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#c8f560', '--color-on-accent': '#101408'}}), [brand.name, brand.accent]);
   const api = useApi(token);
 
@@ -1008,6 +1010,9 @@ function Shell() {
 
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/studio/sw.js').catch(() => undefined);
+    const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   useEffect(() => {
@@ -1021,7 +1026,7 @@ function Shell() {
   return (
     <Theme theme={theme}>
     <div>
-      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} />
+      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} />
       {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
     </Theme>
