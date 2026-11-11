@@ -186,6 +186,25 @@ class PublicTranslateRequest(BaseModel):
     strings: list[str] = Field(min_length=1, max_length=80)
 
 
+_GOOGLE_LOCALE = {"pt-BR": "pt", "pt-PT": "pt", "zh-CN": "zh-CN", "zh-TW": "zh-TW"}
+
+
+async def _google_translate(values: list[str], locale: str) -> dict[str, str]:
+    code = _GOOGLE_LOCALE.get(locale, locale.split("-")[0])
+    joined = "\n".join(values)
+    url = "https://translate.googleapis.com/translate_a/single"
+    params = {"client": "gtx", "sl": "en", "tl": code, "dt": "t", "q": joined}
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(url, params=params)
+    response.raise_for_status()
+    data = response.json()
+    translated = "".join(segment[0] for segment in data[0] if segment and segment[0])
+    parts = translated.split("\n")
+    if len(parts) == len(values):
+        return dict(zip(values, parts))
+    return {value: (parts[index] if index < len(parts) else value) for index, value in enumerate(values)}
+
+
 _translate_hits: dict[str, list[float]] = {}
 
 
@@ -230,7 +249,14 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
                                  "Content-Type": "application/json"},
                         json={"messages": [{"role": "user", "content": prompt}], "max_tokens": 4096})
                 data = response.json()
-                content = data["result"]["choices"][0]["message"]["content"].strip()
+                result = data.get("result") or {}
+                content = (result.get("response")
+                           or ((result.get("choices") or [{}])[0].get("message") or {}).get("content")
+                           or "")
+                content = str(content).strip()
+                if not content:
+                    log.warning("translation model response: %s", str(data)[:400])
+                    raise RuntimeError("empty translation response")
                 content = content[content.find("{"):content.rfind("}") + 1]
                 translated = json.loads(content)
                 if len(translated) == 1 and isinstance(next(iter(translated.values())), dict):
@@ -243,6 +269,17 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
                         "ON CONFLICT (locale,source) DO NOTHING", locale, source, value)
             except Exception:
                 log.exception("public translation failed")
+        still = [value for value in missing if value not in found]
+        if still:
+            try:
+                found.update(await _google_translate(still, locale))
+                for source, value in found.items():
+                    if source in still:
+                        await db.pool().execute(
+                            "INSERT INTO ui_translation_cache(locale,source,translated) VALUES($1,$2,$3) "
+                            "ON CONFLICT (locale,source) DO NOTHING", locale, source, value)
+            except Exception:
+                log.exception("google translation fallback failed")
         for source in missing:
             found.setdefault(source, source)
     return {"locale": locale, "strings": {source: found[source] for source in requested}}

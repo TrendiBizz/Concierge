@@ -272,3 +272,18 @@
 - Scope: homepage only; internal marketing pages remain English for now.
 - Verified: `?lang=fr` and `?lang=af` translate the homepage in headless Chrome.
 - Afrikaans portal translations applied from the owner's review.
+
+
+## Public site: all-page languages + AI bot blocking — 2026-11-11
+- `/site-i18n.js` now works on every public page: local homepage dictionary +
+  `POST https://chat.trendibizz.com/api/v1/translate` (cached in
+  `ui_translation_cache`, rate-limited, same-origin/Cloudflare origin check).
+- Cloudflare Workers AI free neurons were exhausted; the API falls back to a
+  server-side Google Translate endpoint and caches results.
+- Cloudflare WAF custom ruleset created: blocks GPTBot, CCBot, Bytespider,
+  ClaudeBot, Google-Extended, Applebot-Extended, Amazonbot, FacebookBot;
+  OAI-SearchBot, PerplexityBot, Claude-SearchBot, Googlebot/Bingbot allowed.
+  Rule id `26bf0a72f35540548206c4b92d2099fc`.
+- robots.txt rebuilt with the same allow/block split; sitemap retained.
+- Verified: GPTBot/CCBot 403, OAI-SearchBot/PerplexityBot 200, normal 200,
+  robots 200; French subpage translation works.

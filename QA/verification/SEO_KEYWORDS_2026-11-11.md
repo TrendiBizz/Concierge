@@ -45,3 +45,9 @@ Bytespider). Keep the portal noindex and auth-gated.
 - After a deploy that changes HTML: purge `/` (or all changed URLs).
 - After changing `/site-i18n.js`, `.css` or `.json`: purge those exact URLs.
 - Purge Everything is safe for this small site when many pages/headers change.
+
+
+## Bot policy applied
+- WAF rule `26bf0a72f35540548206c4b92d2099fc` blocks training/scraping AI bots;
+  AI search/citation bots remain allowed.
+- robots.txt mirrors the policy.

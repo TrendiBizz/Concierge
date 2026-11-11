@@ -1,8 +1,7 @@
-/* Self-hosted homepage language switcher: applies reviewed/machine translations
-   from /site-i18n.json. No third-party scripts, so the site CSP stays strict. */
+/* Public-site language switcher. Uses a self-hosted dictionary plus the
+   Concierge translation endpoint (cached server-side). No third-party scripts. */
 (function () {
   'use strict';
-  if (location.pathname !== '/' && location.pathname !== '/index.html') return;
   var LANGS = [
     ['en','English'],['af','Afrikaans'],['ar','العربية'],['ca','Català'],['cs','Čeština'],['da','Dansk'],
     ['de','Deutsch'],['el','Ελληνικά'],['es','Español'],['fi','Suomi'],['fr','Français'],['he','עברית'],
@@ -11,6 +10,7 @@
     ['sr','Српски'],['sv','Svenska'],['tr','Türkçe'],['uk','Українська'],['vi','Tiếng Việt'],
     ['zh-CN','中文（简体）'],['zh-TW','中文（繁體）']
   ];
+  var API = 'https://chat.trendibizz.com/api/v1/translate';
   function chosen() {
     var query = new URLSearchParams(location.search).get('lang');
     if (query && LANGS.some(function (p) { return p[0] === query; })) return query;
@@ -19,14 +19,14 @@
     return 'en';
   }
   var locale = chosen();
-  var dictionary = null;
+  var dictionary = {};
   function translate(value) {
-    if (!dictionary || locale === 'en') return null;
-    var translated = dictionary[locale] && dictionary[locale][value];
+    if (locale === 'en') return null;
+    var translated = dictionary[value];
     return translated && translated !== value ? translated : null;
   }
   function apply() {
-    if (!dictionary || locale === 'en') return;
+    if (locale === 'en') return;
     var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     var node;
     while ((node = walker.nextNode())) {
@@ -47,6 +47,39 @@
         if (translated) element.setAttribute(attribute, translated);
       });
     });
+  }
+  function collect() {
+    var values = [];
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var node;
+    while ((node = walker.nextNode())) {
+      var parent = node.parentElement;
+      if (!parent || parent.closest('.notranslate')) continue;
+      if (['SCRIPT','STYLE','TEXTAREA','INPUT','CODE'].indexOf(parent.tagName) >= 0) continue;
+      var value = (node.nodeValue || '').trim();
+      if (value.length > 1 && value.length <= 300 && values.indexOf(value) < 0) values.push(value);
+    }
+    ['placeholder','aria-label','title','alt','content'].forEach(function (attribute) {
+      document.querySelectorAll('[' + attribute + ']').forEach(function (element) {
+        if (element.closest('.notranslate')) return;
+        var value = (element.getAttribute(attribute) || '').trim();
+        if (value.length > 1 && value.length <= 300 && values.indexOf(value) < 0) values.push(value);
+      });
+    });
+    return values;
+  }
+  async function translateMissing(values) {
+    var missing = values.filter(function (value) { return !dictionary[value]; });
+    for (var start = 0; start < missing.length; start += 40) {
+      var chunk = missing.slice(start, start + 40);
+      try {
+        var response = await fetch(API, {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({locale: locale, strings: chunk})});
+        if (!response.ok) continue;
+        var data = await response.json();
+        Object.keys(data.strings || {}).forEach(function (key) { dictionary[key] = data.strings[key]; });
+      } catch (_) { /* fall back to English for this chunk */ }
+    }
   }
   function build() {
     var wrap = document.createElement('div');
@@ -76,9 +109,18 @@
       location.href = url.toString();
     });
   }
-  fetch('/site-i18n.json', {cache: 'no-store'}).then(function (response) { return response.json(); }).then(function (data) {
-    dictionary = data;
+  async function start() {
+    if (locale === 'en') { build(); return; }
+    try {
+      var local = await fetch('/site-i18n.json', {cache: 'no-store'}).then(function (r) { return r.json(); });
+      dictionary = (local[locale] || {});
+    } catch (_) { dictionary = {}; }
     build();
     apply();
-  }).catch(function () { build(); });
+    var values = collect();
+    await translateMissing(values);
+    apply();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();
