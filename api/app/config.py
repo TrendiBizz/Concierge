@@ -101,9 +101,9 @@ class Settings(BaseSettings):
     media_render_url: str = "http://media-render:8099"
     media_dir: str = "/data/media"
     media_image_limit: int = 100
-    media_video_limit: int = 10
+    media_video_limit: int = 40
     media_ai_limit: int = 50
-    media_storage_limit_bytes: int = 500 * 1024 * 1024
+    media_storage_limit_bytes: int = 2 * 1024 * 1024 * 1024
     reply_domain: str = "trendibizz.com"
     cloudflare_email: str = ""
     cloudflare_api_key: str = ""

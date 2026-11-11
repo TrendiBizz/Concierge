@@ -183,3 +183,14 @@
   customer media is not backed up.
 - Verified: usage 200 (0/100, 0/10, 0/50, 0/500 MB); image 201 with 26,398
   bytes; usage then 1/100 and 26,398 bytes stored; OAuth start 200.
+
+
+## Daily-video capacity — 2026-11-11
+- Video quota raised to **40/month** (one a day plus spares) and storage to
+  **2 GB per tenant**. Video renders now accept up to **20 photos** (~55 s at
+  1080p) and still enforce the 40 MB request cap.
+- Verified live: usage shows 0/40 videos and 2 GB storage; generated video 201,
+  16,037 bytes, usage then 1/40 and 16,037 bytes.
+- VPS has ~110 GB free; media is excluded from backups, so video growth does not
+  inflate R2/R2-style backup sizes. A separate VPS/storage plan can be added when
+  real client volume grows.

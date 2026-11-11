@@ -56,7 +56,7 @@ class ImageRequest(BaseModel):
 class VideoRequest(BaseModel):
     format: Literal["square", "portrait", "story"] = "portrait"
     headline: str = Field(default="", max_length=200)
-    photos: list[str] = Field(default_factory=list, min_length=1, max_length=12)
+    photos: list[str] = Field(default_factory=list, min_length=1, max_length=20)
     music: str | None = Field(default=None, max_length=35_000_000)
 
 
