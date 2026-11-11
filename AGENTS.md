@@ -24,7 +24,11 @@ Leave, at the end of the response when stopping:
 
 - what is committed (with the commit hash) and what is not;
 - the exact files modified but uncommitted;
-- anything the next session must know in order to resume (running services, ports, shims, seeds).
+- anything the next session must know in order to resume (running services, ports, shims, seeds);
+- **the outstanding list, carried forward in full** — blockers, known bugs, security items and
+  unverified features. Update `QA/verification/HANDOFF_CURRENT_<date>.md` with it, and make the
+  workspace `HANDOFF.md` name that file as "read first" plus summarise its Outstanding section.
+  A handoff that reports only the task just finished is incomplete, even when that task is done.
 
 ## Repository-specific notes
 
