@@ -34,7 +34,7 @@ const UI = UI_STRINGS as Record<string, Record<string, string>>;
 // Only locales a human has actually reviewed are exposed to customers.
 const REVIEWED = new Set(['en', 'af-ZA']);
 const LOCALE_PREFIX = (value: string) => LOCALES.find(([code]) => code.toLowerCase().startsWith(value.toLowerCase().split('-')[0]))?.[0] || 'en';
-const hasLocale = (code: string) => REVIEWED.has(code);
+const hasLocale = (code: string) => LOCALES.some(([item]) => item === code);
 
 function initialLocale() {
   const query = new URLSearchParams(location.search).get('lang');
@@ -99,6 +99,18 @@ function useApi(token: string) {
   };
 }
 
+
+function TranslationNote({locale}: {locale: string}) {
+  if (REVIEWED.has(locale)) return null;
+  const label = LOCALES.find(([code]) => code === locale)?.[1] || locale;
+  return (
+    <div role="note" style={{padding: '10px 16px', background: '#fff8e1', borderBottom: '1px solid #f0dca0', fontSize: 14}}>
+      {label} translation is automated and has not been reviewed by a native speaker. We welcome corrections and feedback —{' '}
+      <a href={'mailto:admin@trendibizz.com?subject=' + encodeURIComponent('Translation feedback: ' + locale)}>tell us what to improve</a>.
+    </div>
+  );
+}
+
 function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
@@ -110,7 +122,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
           <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-            {LOCALES.filter(([code]) => REVIEWED.has(code)).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
           <Button label={tr('Home')} variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
           <Button label={tr('Setup')} variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
@@ -146,7 +158,7 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
     <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
       <div style={{display: 'flex', justifyContent: 'flex-end'}}>
         <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-          {LOCALES.filter(([code]) => REVIEWED.has(code)).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
         </select>
       </div>
       <Heading level={1}>Concierge</Heading>
@@ -154,6 +166,7 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
       <TextInput label={tr('Business ID')} value={slug} onChange={setSlug} />
       <TextInput label={tr('Email')} type="email" value={email} onChange={setEmail} />
       <TextInput label={tr('Password')} type="password" value={password} onChange={setPassword} />
+      <TranslationNote locale={locale} />
       <div style={{marginTop: 16}}><Button label={tr('Sign in')} variant="primary" onClick={submit} /></div>
       {error ? <p role="alert">{error}</p> : null}
     </div>
@@ -1253,6 +1266,7 @@ function Shell() {
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} />
+      <TranslationNote locale={locale} />
       {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
     </InternationalizationProvider>
