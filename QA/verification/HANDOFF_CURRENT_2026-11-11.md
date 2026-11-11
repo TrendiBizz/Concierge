@@ -165,3 +165,21 @@
 - Verified: health 200, studio 200, admin status 200, 548 tests pass.
 - External/operational only: Pukeko has no connected social accounts yet; social
   live publishing stays disabled until the operator enables it.
+
+
+## Limits, OAuth and backups — 2026-11-11
+- Media quotas enforced server-side: 100 images, 10 videos, 50 AI images per
+  calendar month; 500 MB total media storage per tenant. `GET /owner/media/usage`
+  returns used/limit; the portal shows it. Video is capped at 12 photos
+  (~35 seconds, 1080p); photos are auto-resized to 2048 px/JPEG and total
+  request payload is capped at ~40 MB.
+- OAuth: the Astryx Social tab now has **Connect <network>** buttons using the
+  existing popup + BroadcastChannel flow (`start` → provider → `finish`). Tested
+  live: `POST /owner/social/oauth/linkedin/start` returns a LinkedIn
+  authorization URL. Provider apps/redirect URIs still need to be approved by
+  each network; the customer only authorizes their own account.
+- Backups: `shared.tgz` now excludes `shared/media` and `shared/designs`, so
+  daily backups cover the site, databases, CRM, config and secrets only —
+  customer media is not backed up.
+- Verified: usage 200 (0/100, 0/10, 0/50, 0/500 MB); image 201 with 26,398
+  bytes; usage then 1/100 and 26,398 bytes stored; OAuth start 200.
