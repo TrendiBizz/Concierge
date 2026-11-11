@@ -12,6 +12,7 @@ import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
 import {Banner} from '@astryxdesign/core/Banner';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
+import {NotifyProvider, useNotify} from './Notify';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -166,6 +167,7 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
 
 function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand: (b: Brand) => void}) {
   const api = useApi(token);
+  const notify = useNotify();
   const [step, setStep] = useState(1);
   const [business, setBusiness] = useState<Business>({name: '', site_url: '', notify_email: '', notify_phone: '', public_key: ''});
   const [status, setStatus] = useState('');
@@ -195,7 +197,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
       if (logo) payload.logo = await readRaw(logo);
       const saved = await api('/owner/media/brand', 'PUT', payload);
       setBrand({name: saved.name || '', accent: saved.accent || '#c8f560', contact: saved.contact || '', logo: saved.logo_data || brand.logo || null});
-      setStatus('Branding saved. It now follows through to your media and portal.');
+      setStatus('Branding saved. It now follows through to your media and portal.'); notify('Branding saved.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Save failed'); }
     setBusy(false);
   }
@@ -204,7 +206,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     setBusy(true); setStatus('Reading your public pages… this can take up to a minute.');
     try {
       const result = await api('/owner/knowledge/import-website', 'POST');
-      setStatus('Imported ' + (result.chunks || 0) + ' knowledge chunks from ' + (result.pages || 0) + ' pages.');
+      setStatus('Imported ' + (result.chunks || 0) + ' knowledge chunks from ' + (result.pages || 0) + ' pages.'); notify('Knowledge imported.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Import failed'); }
     setBusy(false);
   }
@@ -280,7 +282,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
           <Heading level={2}>You're ready</Heading>
           <p>Add this line to your website to show the chat window:</p>
           <TextArea label="Website embed code" value={snippet} onChange={() => {}} rows={3} />
-          <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); }} />
+          <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); notify('Embed code copied.'); }} />
           <p>Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.</p>
         </Card>
       ) : null}
@@ -328,6 +330,7 @@ function money(cents: number, currency: string) {
 
 function Bookings({token}: {token: string}) {
   const api = useApi(token);
+  const notify = useNotify();
   const [calendar, setCalendar] = useState<{configured?: boolean; connected?: boolean; provider?: string}>({});
   const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
   const [role, setRole] = useState('');
@@ -387,7 +390,7 @@ function Bookings({token}: {token: string}) {
         if (data.error || !data.code) { setStatus('Calendar authorization was cancelled.'); return; }
         try {
           await api('/owner/calendar/finish', 'POST', {state: data.state, code: data.code});
-          setStatus('Google Calendar connected.');
+          setStatus('Google Calendar connected.'); notify('Google Calendar connected.');
           await load();
         } catch (e) { setStatus(e instanceof Error ? e.message : 'Calendar connection failed'); }
       };
@@ -411,7 +414,7 @@ function Bookings({token}: {token: string}) {
       await api('/owner/onboarding/profile', 'PATCH', {slot_minutes: Number(slot), business_hours: businessHours});
       if (enabled && !ack) throw new Error('Tick the acknowledgement before enabling booking.');
       await api('/owner/onboarding/native-booking', 'POST', {enabled, acknowledgement: ack});
-      setStatus(enabled ? 'Booking enabled with these hours.' : 'Booking disabled.');
+      setStatus(enabled ? 'Booking enabled with these hours.' : 'Booking disabled.'); notify(enabled ? 'Booking enabled.' : 'Booking disabled.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save booking settings'); }
     setBusy(false);
@@ -670,6 +673,7 @@ function Shell() {
 
   return (
     <Theme theme={theme} mode={mode as 'light' | 'dark' | 'system'}>
+    <NotifyProvider>
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} mode={mode} setMode={setMode} />
@@ -677,6 +681,7 @@ function Shell() {
       {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </div>
     </InternationalizationProvider>
+    </NotifyProvider>
     </Theme>
   );
 }
