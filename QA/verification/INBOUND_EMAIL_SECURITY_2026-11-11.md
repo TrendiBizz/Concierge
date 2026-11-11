@@ -154,3 +154,41 @@ Measured on the live stack (grok-4.7; LLM latency varies run to run):
   effort would move it further.
 - Perf chat runs triggered owner alerts (SMS+email). Outbox and
   `device_sms_jobs` rows were removed; SMS already delivered to the paired phone.
+
+## Sender-verification bug fixed — 2026-11-12
+
+Reported symptom: an owner reply was labelled `unverified_sender` (medium) although its
+headers carried `dkim=pass`.
+
+Cause: the classifier only consulted the `dmarc` label from the Rust sidecar. Two genuine
+paths produced the misleading label:
+
+1. **Verified but no DMARC record.** The sidecar returned `dkim=pass` with `dmarc=none`
+   (the sender's domain publishes no DMARC record — normal for small-business mail).
+   The `dmarc` label fell through to the `else` branch, which appended
+   `unverified_sender` even though the signature passed and aligned.
+2. **Sidecar did not run.** If `EMAIL_AUTH_URL` is unset, the sidecar times out, or the
+   raw message is over 200 KB, `email_auth.verify()` returns `None` and ingestion falls
+   back to header hints — which are advisory-only and therefore always medium. Nothing
+   in the stored record said *why* verification was missing, so it read as a spoof
+   signal.
+
+Fix:
+- sidecar: `/verify` now returns `aligned` (a passing signature whose `d=` domain is the
+  From domain or a parent of it). The verdict computation is a pure, unit-tested function
+  (`verdict()` in `services/email-auth/src/main.rs`, 6 tests).
+- `email_auth.merge()` carries `aligned` into the stored auth record.
+- `email_risk.assess()`: verified + (`dmarc=pass` or aligned) → **low**; verified but
+  unaligned `dkim=pass` → medium with the accurate `dkim_unaligned`; sidecar failure →
+  medium with `verification_unavailable` (never a bare `unverified_sender`).
+- Behaviour kept: header hints alone still cannot lower risk, and a real `dmarc=fail`
+  still quarantines at high.
+- Tests: 6 Rust verdict tests, 4 new Python cases (20 pass in the email modules); full
+  suite 558 → 563.
+
+Still to do on the deployed stack: confirm `EMAIL_AUTH_URL` is set for the `api` service
+and that the deployed Worker sends `raw_b64` (the repo copy at
+`QA/verification/cloudflare-email-worker.js` does; the deployed copy is edited in the
+Cloudflare dashboard and is not version-controlled here). The repo's `scripts/vps/compose.yml`
+has no `email-auth` service at all, so the deployed compose has drifted from the repo —
+reconcile it when next on the VPS.

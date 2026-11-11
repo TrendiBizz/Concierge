@@ -341,3 +341,58 @@
 - Typography: heading line-height 1.12/1.2, letter-spacing reduced, paragraph 1.65.
 - Astryx ToastProvider added with setup/bookings notifications.
 - Font options captured in `designs/font-options/`.
+
+
+## Session 2026-11-12 — email auth fix, products/rates panel, AI quote drafting
+
+Repo-local work only: this session had no SSH alias or deploy path to the VPS, and the
+local `trendi-local-*` containers are a three-day-old image, so nothing below is deployed.
+
+- **DKIM / sender verification fixed** (`e946126`). The classifier trusted only the
+  `dmarc` label, so verified mail whose domain publishes no DMARC record
+  (`dkim=pass`, `dmarc=none`) was labelled `unverified_sender`, and a sidecar failure
+  was indistinguishable from a real spoof signal. Now: aligned DKIM pass = low;
+  verified-but-unaligned = medium + `dkim_unaligned`; sidecar failure = medium +
+  `verification_unavailable`. Sidecar `/verify` returns `aligned`; verdict logic is a
+  pure function with 6 Rust tests. Full suite **563 passed**; portal `tsc` clean.
+  Detail: `INBOUND_EMAIL_SECURITY_2026-11-11.md` (last section).
+- **Owner products/rates panel** (`8e7c2f5`): `web/portal/src/Products.tsx`, new
+  Products tab + sidebar entry. Catalogue table with sale price (cost column owner-only),
+  create/edit (owner), stock adjustment (editor), deactivate. The API existed but had no
+  UI, so prices were curl-only before this.
+- **AI quote drafting** (same commit): `POST /owner/crm/quotations/draft` drafts 2-8 lines
+  from a brief, an enquiry and/or a measured IFC takeoff. Prices come only from the
+  tenant's catalogue; unknown items stay at 0 cents; it never writes, sends or approves.
+  Falls back to a deterministic measured-takeoff line when the model is unavailable.
+  Quotes tab has **Draft with AI**; Designs tab has **Draft quote** on any design with a
+  stored takeoff. Tests: 6 pure + 5 route cases (no-INSERT invariant, fallback,
+  catalogue-only pricing, 409/422).
+- **Owner-only runbooks written** for the two external blockers:
+  `scripts/vps/rotate-cloudflare-token.sh` (scoped token → api.env → restart → revoke,
+  over ssh, with `scripts/vps/set_env_key.py`) and `scripts/vps/order-phone-did.sh`
+  (Telnyx purchase → connection → admin registration → real-call verification).
+  Both pass `bash -n`; the env-swap helper is proven against a copy on this machine.
+- **Astryx Native re-checked**: still `0.0.0-bootstrap.0`; a canary tag
+  `0.7.14-canary.gfdb9213` now exists. PWA remains the mobile path.
+
+### Deploy notes for whoever has VPS access
+1. `docker compose ... build api && up -d api` (email + quote draft changes).
+2. `npm run build` in `web/portal`, deploy `dist` to `/opt/trendi/shared/studio`.
+3. Confirm `EMAIL_AUTH_URL` is set for `api` and that the deployed Worker still sends
+   `raw_b64`; the repo `scripts/vps/compose.yml` has **no** `email-auth` service, so the
+   deployed compose has drifted from the repo — reconcile it or add the service here.
+4. Rebuild `trendi-email-auth:vps` for the `aligned` field.
+
+## Outstanding (current — supersedes the 16:00 block above)
+- **Phone DID (paid)**: run `scripts/vps/order-phone-did.sh`. Only blocker to a
+  customer-dialable number; Asterisk/SIP path is tested.
+- **Cloudflare token**: run `scripts/vps/rotate-cloudflare-token.sh`; the current key in
+  `/opt/trendi/shared/api.env` was pasted into a chat and is unrotated.
+- **Deploy 2026-11-12 work** (see notes above) and reconcile deployed compose/Worker with
+  the repo — the repo copies cannot be trusted to match the VPS.
+- **Verify the DKIM fix on the live stack** with a real reply from a no-DMARC domain.
+- **Pukeko social accounts** (external OAuth per network) and enabling social live
+  publishing (operator switch, currently off).
+- Carried forward: richer internal admin console; removal of the old test phone route;
+  consent-copy review; offsite backup credentials; off-site SEO accounts.
+- **Astryx Native watch**: weekly Monday 09:00 NZ task; still a placeholder, canary only.
