@@ -16,6 +16,8 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {Dialog} from '@astryxdesign/core/Dialog';
+import {TabList, Tab} from '@astryxdesign/core/TabList';
+import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -136,15 +138,17 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
           <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
             {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
-          <Button label={tr('Home')} variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
-          <Button label={tr('Setup')} variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
-          <Button label={tr('Designs')} variant={tab === 'designs' ? 'primary' : 'ghost'} onClick={() => setTab('designs')} />
-          <Button label={tr('Bookings')} variant={tab === 'bookings' ? 'primary' : 'ghost'} onClick={() => setTab('bookings')} />
-          <Button label={tr('Reports')} variant={tab === 'reports' ? 'primary' : 'ghost'} onClick={() => setTab('reports')} />
-          <Button label={tr('Quotes')} variant={tab === 'quotes' ? 'primary' : 'ghost'} onClick={() => setTab('quotes')} />
-          <Button label={tr('Enquiries')} variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
-          <Button label={tr('Social')} variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
-          <Button label={tr('Marketing media')} variant={tab === 'media' ? 'primary' : 'ghost'} onClick={() => setTab('media')} />
+          <TabList value={tab} onChange={setTab}>
+            <Tab value="home" label={tr('Home')} />
+            <Tab value="setup" label={tr('Setup')} />
+            <Tab value="designs" label={tr('Designs')} />
+            <Tab value="bookings" label={tr('Bookings')} />
+            <Tab value="reports" label={tr('Reports')} />
+            <Tab value="quotes" label={tr('Quotes')} />
+            <Tab value="crm" label={tr('Enquiries')} />
+            <Tab value="social" label={tr('Social')} />
+            <Tab value="media" label={tr('Marketing media')} />
+          </TabList>
           {onInstall ? <Button label={tr('Install app')} variant="secondary" onClick={onInstall} /> : null}
           <Button label={tr('Sign out')} variant="ghost" onClick={onSignOut} />
         </div>
@@ -608,7 +612,7 @@ function Social({token, brand}: {token: string; brand: Brand}) {
         </Card>
       ))}
 
-      <TextInput label="Schedule time (optional, defaults to one hour from now)" type="text" value={when} onChange={setWhen} description="Format: 2026-11-12T09:00" />
+      <DateTimeInput label="Schedule time (optional, defaults to one hour from now)" value={(when || undefined) as never} onChange={(value) => setWhen(value || '')} description="Local time; leave blank for one hour from now." />
 
       <Heading level={2}>Calendar</Heading>
       <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
