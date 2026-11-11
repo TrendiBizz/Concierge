@@ -14,6 +14,14 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
 type Business = {name: string; site_url: string; notify_email: string; notify_phone: string; public_key: string};
+type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean};
+type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string};
+type Variant = {account_id: string; account_name: string; network: string; content: string; link?: string; hashtags?: string; media?: string[]; video?: string | null; limit?: number; warnings?: string[]; errors?: string[]};
+type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
+type Turn = {role: string; content: string};
+type QuoteLine = {description: string; quantity: number; unit_price_cents: number; amount_cents?: number};
+type Quote = {id: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number};
+type Product = {id: string; name: string; sku?: string; unit?: string; sale_price_cents: number};
 
 function readRaw(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -69,6 +77,9 @@ function BrandHeader({brand, tab, setTab, onSignOut}: {brand: Brand; tab: string
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto'}}>
           <Button label="Setup" variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
+          <Button label="Quotes" variant={tab === 'quotes' ? 'primary' : 'ghost'} onClick={() => setTab('quotes')} />
+          <Button label="Enquiries" variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
+          <Button label="Social" variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
           <Button label="Marketing media" variant={tab === 'media' ? 'primary' : 'ghost'} onClick={() => setTab('media')} />
           <Button label="Sign out" variant="ghost" onClick={onSignOut} />
         </div>
@@ -358,6 +369,312 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
   );
 }
 
+
+function Social({token, brand}: {token: string; brand: Brand}) {
+  const api = useApi(token);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [content, setContent] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [link, setLink] = useState('');
+  const [hashtags, setHashtags] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [when, setWhen] = useState('');
+
+  async function load() {
+    try {
+      const [a, p] = await Promise.all([api('/owner/social/accounts'), api('/owner/social/posts')]);
+      setAccounts(a as Account[]); setPosts(p as Post[]);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load social accounts'); }
+  }
+  useEffect(() => { load(); }, [token]);
+
+  async function upload(): Promise<string[] | undefined> {
+    if (!file) return undefined;
+    const response = await fetch('/owner/social/media', {method: 'POST', headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream'}, body: file});
+    if (!response.ok) throw new Error('Media upload failed');
+    const data = await response.json();
+    return ['upload:' + data.id];
+  }
+
+  async function prepare() {
+    setBusy(true); setStatus('');
+    try {
+      if (!selected.length) throw new Error('Choose at least one connected account');
+      const media = await upload();
+      const draft = {content, account_ids: selected, link, hashtags, media: media || [], options: {}};
+      const result = await api('/owner/social/compose', 'POST', draft) as Variant[];
+      setVariants(result);
+      setStatus('Previews ready. Review each network version before scheduling.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Compose failed'); }
+    setBusy(false);
+  }
+
+  async function saveVariant(variant: Variant, schedule: boolean) {
+    setBusy(true); setStatus('');
+    try {
+      const media = variant.media || [];
+      const draft = {content: variant.content, account_ids: [variant.account_id], link: variant.link || '', hashtags: variant.hashtags || '', media, video: variant.video || null, options: {}};
+      const saved = await api('/owner/social/posts', 'POST', draft) as {id: string};
+      if (schedule) {
+        await api('/owner/social/posts/' + saved.id + '/submit', 'POST');
+        const at = when ? Math.floor(new Date(when).getTime() / 1000) : Math.floor(Date.now() / 1000) + 3600;
+        const approval = await api('/owner/social/posts/' + saved.id + '/approval-request', 'POST', {scheduled_at: at}) as {token: string};
+        await api('/owner/social/approvals/' + approval.token + '/approve', 'POST');
+        setStatus('Scheduled in Concierge. Live delivery depends on operator publishing being enabled.');
+      } else {
+        setStatus('Draft saved. Submit it for approval when ready.');
+      }
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the post'); }
+    setBusy(false);
+  }
+
+  const connectable = accounts.filter((a) => !a.needs_reauth && !['mastodon', 'bluesky'].includes(a.network));
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>Social</Heading>
+      <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
+      {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Connect a network in the workspace first; it appears here once connected.</p></Card> : null}
+      {accounts.length ? (
+        <Card>
+          <Heading level={2}>New post</Heading>
+          <TextArea label="Post" value={content} onChange={setContent} rows={5} />
+          <TextInput label="Link (optional)" type="url" value={link} onChange={setLink} />
+          <TextInput label="Hashtags (optional)" value={hashtags} onChange={setHashtags} />
+          <FileInput label="Image or video (optional)" value={file} onChange={(v) => setFile((v as File) || null)} accept="image/*,video/*" />
+          <div style={{margin: '12px 0'}}>
+            <strong>Accounts</strong>
+            {connectable.map((account) => (
+              <label key={account.id} style={{display: 'block', margin: '6px 0'}}>
+                <input type="checkbox" checked={selected.includes(account.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, account.id] : selected.filter((id) => id !== account.id))} />{' '}
+                {account.network.replaceAll('_', ' ')} — {account.display_name}
+              </label>
+            ))}
+          </div>
+          <Button label={busy ? 'Preparing…' : 'Prepare previews'} variant="primary" onClick={prepare} />
+        </Card>
+      ) : null}
+
+      {variants.map((variant) => (
+        <Card key={variant.account_id}>
+          <Heading level={2}>{variant.network.replaceAll('_', ' ')} — {variant.account_name}</Heading>
+          <TextArea label="Exact post text" value={variant.content} onChange={(v) => setVariants(variants.map((item) => item.account_id === variant.account_id ? {...item, content: v} : item))} rows={5} />
+          <p>{variant.limit ? variant.content.length + ' / ' + variant.limit + ' characters' : ''}</p>
+          {variant.errors?.map((error) => <p key={error} role="alert">{error}</p>)}
+          <Button label="Save draft" variant="secondary" onClick={() => saveVariant(variant, false)} />
+          <Button label="Schedule" variant="primary" onClick={() => saveVariant(variant, true)} />
+        </Card>
+      ))}
+
+      <TextInput label="Schedule time (optional, defaults to one hour from now)" type="text" value={when} onChange={setWhen} description="Format: 2026-11-12T09:00" />
+
+      <Heading level={2}>Your posts</Heading>
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
+        {posts.map((post) => (
+          <Card key={post.id}>
+            <strong>{post.status.replaceAll('_', ' ')}</strong>
+            <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
+            {post.last_error ? <p role="alert">{post.last_error}</p> : null}
+          </Card>
+        ))}
+        {!posts.length ? <p>No drafts yet.</p> : null}
+      </div>
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
+
+function Crm({token}: {token: string}) {
+  const api = useApi(token);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
+  const [todos, setTodos] = useState<Record<string, unknown>[]>([]);
+  const [query, setQuery] = useState('');
+  const [transcripts, setTranscripts] = useState<Record<string, Turn[]>>({});
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    api('/owner/crm').then((data) => {
+      setLeads((data.leads || []) as Lead[]);
+      setAppointments((data.appointments || []) as Record<string, unknown>[]);
+      setTodos((data.todos || []) as Record<string, unknown>[]);
+    }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load enquiries'));
+  }, [token]);
+
+  async function transcript(id: string) {
+    if (transcripts[id]) return;
+    try {
+      const turns = await api('/owner/crm/leads/' + id + '/transcript') as Turn[];
+      setTranscripts({...transcripts, [id]: turns});
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Transcript unavailable'); }
+  }
+
+  const shown = leads.filter((lead) => {
+    const text = [lead.name, lead.email, lead.phone, lead.message].filter(Boolean).join(' ').toLowerCase();
+    return !query || text.includes(query.toLowerCase());
+  });
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>CRM and enquiries</Heading>
+      <p>Every enquiry from chat, email, SMS and phone lands here, with the conversation and next step.</p>
+      <TextInput label="Search enquiries" value={query} onChange={setQuery} />
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))'}}>
+        {shown.map((lead) => (
+          <Card key={lead.id}>
+            <Heading level={2}>{lead.name || lead.email || lead.phone || 'Enquiry'}</Heading>
+            <p>{lead.channel} · {lead.status} · {new Date(lead.created_at).toLocaleString()}</p>
+            <p>{[lead.email, lead.phone].filter(Boolean).join(' · ')}</p>
+            {lead.message ? <p style={{whiteSpace: 'pre-wrap'}}>{lead.message}</p> : null}
+            <Button label="Conversation" variant="secondary" onClick={() => transcript(lead.id)} />
+            {transcripts[lead.id] ? (
+              <div>
+                {transcripts[lead.id].length ? transcripts[lead.id].map((turn, index) => (
+                  <p key={index}><strong>{turn.role === 'user' ? 'Customer' : 'Concierge'}:</strong> {turn.content}</p>
+                )) : <p>No saved transcript.</p>}
+              </div>
+            ) : null}
+          </Card>
+        ))}
+        {!shown.length ? <p>No enquiries yet. Connected channels will capture them here.</p> : null}
+      </div>
+      <div style={{display: 'flex', gap: 24, marginTop: 24, flexWrap: 'wrap'}}>
+        <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p>None booked.</p>}</div>
+        <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p>No open tasks.</p>}</div>
+      </div>
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
+
+function money(cents: number, currency: string) {
+  return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: currency || 'NZD'}).format((cents || 0) / 100);
+}
+
+function Quotes({token, brand}: {token: string; brand: Brand}) {
+  const api = useApi(token);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [role, setRole] = useState('');
+  const [leadId, setLeadId] = useState('');
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [tax, setTax] = useState(15);
+  const [lines, setLines] = useState<Array<{description: string; quantity: string; price: string}>>([{description: '', quantity: '1', price: ''}]);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      const [q, c, p, me] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me')]);
+      setQuotes(q as Quote[]);
+      setLeads(((c as {leads?: Lead[]}).leads || []) as Lead[]);
+      setProducts(p as Product[]);
+      setRole((me as {role: string}).role);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load quotations'); }
+  }
+  useEffect(() => { load(); }, [token]);
+
+  function addProduct(id: string) {
+    const product = products.find((item) => item.id === id);
+    if (!product) return;
+    setLines([...lines, {description: product.name, quantity: '1', price: (product.sale_price_cents / 100).toFixed(2)}]);
+  }
+
+  async function save() {
+    setBusy(true); setStatus('');
+    try {
+      const body = {
+        lead_id: leadId, title, currency: 'NZD', tax_basis_points: Math.round(tax * 100),
+        lines: lines.filter((line) => line.description.trim()).map((line) => ({
+          description: line.description.trim(), quantity: line.quantity, unit_price_cents: Math.round(Number(line.price) * 100),
+        })),
+        notes,
+      };
+      await api('/owner/crm/quotations', 'POST', body);
+      setStatus('Quotation saved as a draft. The owner reviews and signs it off.');
+      setTitle(''); setNotes(''); setLines([{description: '', quantity: '1', price: ''}]);
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the quotation'); }
+    setBusy(false);
+  }
+
+  async function signOff(id: string, version: number) {
+    setBusy(true); setStatus('');
+    try {
+      await api('/owner/crm/quotations/' + id + '/status', 'POST', {status: 'reviewed', version});
+      setStatus('Quotation reviewed and signed off.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Sign-off failed'); }
+    setBusy(false);
+  }
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>Quotations</Heading>
+      <p>Build a quote from your enquiry and products. Prices are your sale prices. The business owner reviews and signs off before it is accepted.</p>
+      <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
+        <Card>
+          <Heading level={2}>New quotation</Heading>
+          <label style={{display: 'block', margin: '8px 0'}}>
+            Enquiry
+            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={{display: 'block', width: '100%', padding: 8}}>
+              <option value="">Choose an enquiry</option>
+              {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.name || lead.email || lead.phone || lead.id}</option>)}
+            </select>
+          </label>
+          <TextInput label="Title" value={title} onChange={setTitle} />
+          <TextInput label="Tax %" value={String(tax)} onChange={(v) => setTax(Number(v) || 0)} />
+          <label style={{display: 'block', margin: '8px 0'}}>
+            Add from product catalogue
+            <select value="" onChange={(e) => addProduct(e.target.value)} style={{display: 'block', width: '100%', padding: 8}}>
+              <option value="">Choose a product</option>
+              {products.map((product) => <option key={product.id} value={product.id}>{product.name} — {money(product.sale_price_cents, 'NZD')}</option>)}
+            </select>
+          </label>
+          {lines.map((line, index) => (
+            <div key={index} style={{display: 'grid', gridTemplateColumns: '2fr 0.7fr 1fr', gap: 8, margin: '8px 0'}}>
+              <input aria-label="Line description" placeholder="Description" value={line.description} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, description: e.target.value} : item))} style={{padding: 8}} />
+              <input aria-label="Quantity" placeholder="Qty" value={line.quantity} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, quantity: e.target.value} : item))} style={{padding: 8}} />
+              <input aria-label="Unit price" placeholder="Unit price" value={line.price} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, price: e.target.value} : item))} style={{padding: 8}} />
+            </div>
+          ))}
+          <Button label="Add line" variant="ghost" onClick={() => setLines([...lines, {description: '', quantity: '1', price: ''}])} />
+          <TextArea label="Notes" value={notes} onChange={setNotes} rows={3} />
+          <Button label={busy ? 'Saving…' : 'Save quotation'} variant="primary" onClick={save} />
+        </Card>
+        <Card>
+          <Heading level={2}>How sign-off works</Heading>
+          <p>Draft → reviewed (owner only) → accepted or declined.</p>
+          <p>Concierge never sends a price without the owner's approval. Your branding: <strong>{brand.name || 'your business'}</strong>.</p>
+        </Card>
+      </div>
+      <Heading level={2}>Your quotations</Heading>
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))'}}>
+        {quotes.map((quote) => (
+          <Card key={quote.id}>
+            <Heading level={2}>{quote.title}</Heading>
+            <p><strong>{quote.status}</strong> · {money(quote.total_cents, quote.currency)} incl. {money(quote.tax_cents, quote.currency)} tax</p>
+            {quote.lines.map((line, index) => <p key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, quote.currency)}</p>)}
+            {quote.notes ? <p>{quote.notes}</p> : null}
+            {role === 'owner' && quote.status === 'draft' ? <Button label="Review and sign off" variant="primary" onClick={() => signOff(quote.id, quote.version)} /> : null}
+          </Card>
+        ))}
+        {!quotes.length ? <p>No quotations yet.</p> : null}
+      </div>
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
 function Shell() {
   const [token, setToken] = useState('');
   const [tab, setTab] = useState('setup');
@@ -381,7 +698,7 @@ function Shell() {
   return (
     <div style={accentStyle}>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} />
-      {tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
+      {tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
   );
 }

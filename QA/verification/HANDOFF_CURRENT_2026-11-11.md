@@ -106,3 +106,14 @@
   page remains as a fallback.
 - Goal created: complete all add-ons (social composer, CRM inbox, quote builder,
   booking, reports, owner PWA, admin console) with branding on every surface.
+
+
+## Astryx add-ons — 2026-11-11 (goal round 1)
+- `/studio` tabs: Setup, Quotes, Enquiries, Social, Marketing media.
+- Social: connected accounts, per-network previews, draft save, schedule +
+  approval (versioned). Pukeko has no connected social accounts yet.
+- CRM: leads, search, transcript, appointments and tasks.
+- Quotes: create from an enquiry or product line, tax, totals, owner sign-off
+  (`version` required by the API) — tested create + reviewed.
+- Branding: header logo/name/accent, media templates, tenant accent.
+- Remaining: booking, reports, owner PWA, internal admin console.
