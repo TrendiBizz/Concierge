@@ -320,3 +320,9 @@
   media quotas use ProgressBar; translation notice uses Banner; header has a
   light/dark/system selector.
 - Verified headless: dashboard, Enquiries and Quotes tables render with no errors.
+
+
+## Tabs/DateTime/lazy Designs — 2026-11-11
+- Header uses Astryx TabList/Tab; schedule uses DateTimeInput; Designs lazy.
+- Main entry still ~1.1 MB raw due Table/Dialog/TabList/DateTimeInput in the
+  main shell; next split is CRM/Quotes/Media/Social route chunks.

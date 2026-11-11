@@ -66,3 +66,16 @@ denser CRM/quotes UI.
 - Still not adopted: Tabs/AppShell/SideNav (nav is still a wrapped button bar),
   Toast (inline status remains), DatePicker (text schedule field), Richtext
   (plain-text backend/social APIs).
+
+
+## Tabs, DatePicker and route-level lazy — 2026-11-11
+- Header navigation uses Astryx **TabList/Tab**; schedule field uses
+  **DateTimeInput**.
+- Designs is now a lazy route chunk (`Designs`), like the dashboard; o3dv and
+  locale/translation chunks remain lazy.
+- Main entry is still large (~1.1 MB raw) because Table, Dialog, TabList and
+  DateTimeInput are imported by the main shell. Next route-level split: CRM,
+  Quotes, Media, Social (each pulls heavy components) — extract them to files
+  and `React.lazy`; the current main entry is the honest remaining cost.
+- Still not adopted: Toast provider, AppShell/SideNav shell, Richtext
+  (plain-text backend), full side-nav.
