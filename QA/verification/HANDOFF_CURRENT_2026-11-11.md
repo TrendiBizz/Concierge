@@ -396,3 +396,93 @@ local `trendi-local-*` containers are a three-day-old image, so nothing below is
 - Carried forward: richer internal admin console; removal of the old test phone route;
   consent-copy review; offsite backup credentials; off-site SEO accounts.
 - **Astryx Native watch**: weekly Monday 09:00 NZ task; still a placeholder, canary only.
+
+## Deployed to production — 2026-11-12 (second session)
+
+The earlier 2026-11-12 session recorded "no SSH alias, so nothing can be deployed". **That was
+wrong and cost the project a day.** Access has always existed; it is a *repo-local* key, not an
+`~/.ssh/config` alias:
+
+```
+ssh -o BatchMode=yes -o IdentitiesOnly=yes \
+    -i /Users/jo/work-staging/concierge-integration/Concierge \
+    root@152.42.239.240        # ubuntu-s-1vcpu-1gb-sgp1
+```
+
+Release dir `/opt/trendi/releases/20261108-vps/product` is **not** a git checkout. Deploy = copy
+files over ssh + `docker compose build/up` from `scripts/vps/` with
+`--env-file /opt/trendi/shared/compose.env`.
+
+### What is now live
+- **api image rebuilt** from `e946126` + `8b30bfc`; `trendi-api-1` healthy. Deployed
+  `api/app/{email_risk,email_auth,cloudflare_inbound}.py` hashes match the repo exactly.
+- **email-auth sidecar rebuilt** (`trendi-email-auth:vps`) — `/verify` now returns the `aligned`
+  field. Rust tests run against the deployed source: **6 passed**.
+- **Portal redeployed** to `/opt/trendi/shared/studio` (full 4.2 MB `dist`).
+- **Inbound Worker redeployed** (`concierge-inbound-worker`) so it sends `raw_b64`. Bindings
+  preserved byte-identically (hash-checked); 6 enabled routing rules intact.
+- Backups/rollback: `trendi-concierge-api:before-20261112-dkim-products`,
+  `trendi-email-auth:before-20261112-aligned`, `scripts/vps/compose.yml.bak-20261112`,
+  `/opt/trendi/backups/studio-before-20261112.tgz`, old Worker in
+  `QA/verification/cloudflare-email-worker.deployed-backup-20261112.js.txt`.
+
+### Three live bugs found by actually deploying
+1. **`/studio/` returned 500** — the owner portal had **no `index.html`** (the previous "deploy"
+   copied only part of `dist`), and the files were `700 root` so the api (uid 10001) could not
+   read them even if present. Now complete and `755/644`. `https://concierge.trendibizz.com/studio/`
+   → 200.
+2. **The DKIM fix was inert.** `verified_by` was empty on every stored draft: the deployed Worker
+   predated `raw_b64`, so the sidecar was never called and `email_risk.assess` always took the
+   "no cryptographic verdict" branch. Worker redeploy fixes that.
+3. **`scripts/vps/compose.yml` was missing `email-auth`** (added now) and is still missing
+   `clamav`, `rspamd` and `shell`, which run as orphans. **Never run `up -d --remove-orphans`**
+   until those are declared — it would quietly remove the mail filter and quarantine stack.
+
+### Verified
+Replayed the real stored auth payload from `email_drafts` id 16 (`dkim=pass`, `dmarc=none`, a real
+Google Workspace mail from `pukekonstruction.co.nz`) through both images:
+
+| case | old image | live image |
+|---|---|---|
+| legacy payload, no sidecar verdict | medium `unverified_sender` | medium `unverified_sender` |
+| sidecar `aligned=yes` | medium `unverified_sender` | **low, no flags** |
+| verified but unaligned | medium `unverified_sender` | medium `dkim_unaligned` |
+| sidecar unavailable | medium `unverified_sender` | medium `verification_unavailable` |
+
+Also live: `POST /owner/crm/quotations/draft` → 401 unauth (route present), `/owner/products` →
+401, `https://chat.trendibizz.com/demo/pukeko-construction` → 200, `trendibizz.com` → 200, api log
+clean since restart. Note `https://chat.trendibizz.com/healthz` is **404 by design** — the Caddyfile
+only proxies an explicit path allowlist; earlier docs that used `/healthz` as the health check were
+wrong. Use `docker inspect --format '{{.State.Health.Status}}'` or `concierge…/studio/`.
+
+### Cloudflare: what actually has to change, and why
+- The credential in use is a **Global API Key** (`X-Auth-Key` + `X-Auth-Email` headers), not a
+  scoped token. It is full account access with no scope and no expiry, and it is duplicated in two
+  files: `/opt/trendi/shared/api.env` (`CLOUDFLARE_API_KEY`/`CLOUDFLARE_EMAIL`) and
+  `/opt/trendi/shared/compose.env` (`CF_API_KEY`/`CF_EMAIL`, consumed by `media-render`).
+- It must be replaced because a global key is unrecoverable-if-leaked: it can create/delete DNS,
+  Workers, Email Routing and API tokens. Note: the "pasted into a chat" provenance asserted in the
+  previous handoff is **not recorded in any repo doc or the session index** — I could not verify it.
+  Rotation is still correct on scope grounds alone.
+- Rotating properly is **not fully automatable**: you can mint a scoped token by API, but
+  `media-render` authenticates with legacy `X-Auth-Key` headers, which scoped tokens do not accept,
+  so its `server.js` must switch to `Authorization: Bearer` first; and a leaked global key can only
+  be **rolled/revoked in the Cloudflare dashboard** — there is no API to roll a user's global key.
+  So this stays a human step: dashboard → My Profile → API Tokens.
+- Independently, the **Worker had to change** and now has (see above) — that was a code deploy, done.
+
+## Outstanding (current — supersedes every block above)
+- **Cloudflare credential rotation** — scoped token + `media-render` Bearer change + dashboard
+  roll of the global key. Credential is duplicated across `api.env` and `compose.env`.
+- **Phone DID (paid)** — `scripts/vps/order-phone-did.sh`; needs a payment method/KYC. Only
+  blocker to a customer-dialable number.
+- **First real inbound email since the Worker change** — the code path is proven, but a live
+  message from a no-DMARC domain has not landed yet. Watch for the first draft whose
+  `auth->>'verified_by'` is `email-auth` and confirm `risk='low'` for `dkim=pass, dmarc=none`.
+- **Declare the orphan services** (`clamav`, `rspamd`, `shell`) in `scripts/vps/compose.yml`
+  before anyone runs `up -d --remove-orphans`.
+- **Pukeko social accounts** (external OAuth per network) and enabling social live publishing
+  (operator switch, currently off).
+- Carried forward: richer internal admin console; removal of the old test phone route;
+  consent-copy review; offsite backup credentials; off-site SEO accounts.
+- **Astryx Native watch**: weekly Monday 09:00 NZ task; still a placeholder, canary only.
