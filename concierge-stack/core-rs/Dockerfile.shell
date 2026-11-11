@@ -1,0 +1,14 @@
+FROM rust:1.99-bookworm AS build
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --bin asterisk_shell
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --shell /usr/sbin/nologin shell
+COPY --from=build --chown=shell:shell /app/target/release/asterisk_shell /usr/local/bin/asterisk_shell
+USER shell
+ENTRYPOINT ["asterisk_shell"]
