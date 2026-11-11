@@ -32,7 +32,7 @@ class Start(BaseModel):
 
 
 class Transcript(BaseModel):
-    conversation_id: int
+    conversation_id: str
     role: str = Field(pattern="^(user|assistant)$")
     text: str = Field(max_length=10000)
     item_id: str | None = Field(default=None, max_length=200)
@@ -41,7 +41,7 @@ class Transcript(BaseModel):
 class Tool(BaseModel):
     tenant_id: str
     record_session_id: int
-    conversation_id: int
+    conversation_id: str
     call_id: str = Field(max_length=120)
     name: str = Field(max_length=80)
     args: dict = Field(default_factory=dict)
@@ -55,7 +55,7 @@ class Monitor(BaseModel):
 class Finish(BaseModel):
     tenant_id: str
     call_id: str = Field(max_length=120)
-    conversation_id: int
+    conversation_id: str
     status: str = Field(max_length=40)
     record_session_id: int | None = None
 
