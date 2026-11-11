@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     email_drafts_enabled: bool = False  # staging-only until explicitly enabled
     inbound_cloudflare_enabled: bool = False
     email_auth_url: str = ""
+    internal_token: str = ""  # loopback-only voice shell API
     rspamd_url: str = ""
     clamav_host: str = ""
     clamav_port: int = 3310  # no public ingestion until authorized

@@ -635,3 +635,8 @@ CREATE INDEX IF NOT EXISTS inbound_audit_tenant_idx
 -- Query tuning for common owner/chat reads (2026-11-11).
 CREATE INDEX IF NOT EXISTS leads_conversation_idx ON leads (tenant_id, conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS conversations_tenant_started_idx ON conversations (tenant_id, started_at DESC);
+
+-- Transcript identity for the Rust voice shell (replaces per-call in-memory map).
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS item_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS messages_item_idx
+    ON messages (conversation_id, item_id) WHERE item_id IS NOT NULL;
