@@ -191,7 +191,7 @@ async def _deliver(row: dict) -> None:
                 body += f"\n{tenant['site_url']}"
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", body, headers,
-            from_name=tenant.get("name") if row["kind"] in OWNER_KINDS else None,
+            from_name=tenant.get("name") or None,
         )
         if row["kind"] == "email_secretary_reply":
             await casetimeline.mark_replied(

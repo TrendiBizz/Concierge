@@ -15,7 +15,7 @@ type Brand = {name: string; accent: string; contact: string; logo?: string | nul
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
 type Business = {name: string; site_url: string; notify_email: string; notify_phone: string; public_key: string};
 type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean};
-type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string};
+type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string};
 type Variant = {account_id: string; account_name: string; network: string; content: string; link?: string; hashtags?: string; media?: string[]; video?: string | null; limit?: number; warnings?: string[]; errors?: string[]};
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
 type Turn = {role: string; content: string};
@@ -385,6 +385,7 @@ function Social({token, brand}: {token: string; brand: Brand}) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [when, setWhen] = useState('');
+  const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
 
   async function load() {
     try {
@@ -474,6 +475,46 @@ function Social({token, brand}: {token: string; brand: Brand}) {
       ))}
 
       <TextInput label="Schedule time (optional, defaults to one hour from now)" type="text" value={when} onChange={setWhen} description="Format: 2026-11-12T09:00" />
+
+      <Heading level={2}>Calendar</Heading>
+      <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
+        <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
+        <strong>{month.toLocaleString('en-NZ', {month: 'long', year: 'numeric'})}</strong>
+        <Button label="→" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
+      </div>
+      {(() => {
+        const start = new Date(month.getFullYear(), month.getMonth(), 1);
+        const offset = (start.getDay() + 6) % 7;
+        const cells = Array.from({length: 42}, (_, i) => new Date(month.getFullYear(), month.getMonth(), 1 - offset + i));
+        const byDay: Record<string, Post[]> = {};
+        for (const post of posts) {
+          const raw = post.scheduled_at || post.created_at;
+          if (!raw) continue;
+          const date = typeof raw === 'number' ? new Date(raw * 1000) : new Date(raw);
+          const key = date.toISOString().slice(0, 10);
+          (byDay[key] = byDay[key] || []).push(post);
+        }
+        return (
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6}}>
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} style={{fontSize: 12, color: 'var(--color-text-secondary)'}}>{day}</div>)}
+            {cells.map((date) => {
+              const key = date.toISOString().slice(0, 10);
+              const items = byDay[key] || [];
+              const inMonth = date.getMonth() === month.getMonth();
+              return (
+                <div key={key} style={{minHeight: 92, padding: 6, border: '1px solid var(--color-border)', borderRadius: 8, opacity: inMonth ? 1 : 0.4}}>
+                  <div style={{fontSize: 12}}>{date.getDate()}</div>
+                  {items.slice(0, 2).map((post) => (
+                    <div key={post.id} style={{fontSize: 11, marginTop: 4, padding: 4, background: 'var(--color-background-muted)', borderRadius: 4}}>
+                      {post.status.replaceAll('_', ' ')} · {post.content.slice(0, 30)}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <Heading level={2}>Your posts</Heading>
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
@@ -773,6 +814,69 @@ function Reports({token}: {token: string}) {
   );
 }
 
+
+function Admin() {
+  const [token, setToken] = useState(() => sessionStorage.getItem('adminToken') || '');
+  const [tenants, setTenants] = useState<Record<string, unknown>[]>([]);
+  const [status, setStatus] = useState<{counts?: Record<string, number>; backups?: Array<{name: string; bytes: number; modified: number}>}>({});
+  const [error, setError] = useState('');
+
+  async function load() {
+    setError('');
+    const headers = {'X-Admin-Token': token, 'Accept': 'application/json'};
+    try {
+      const [t, s] = await Promise.all([
+        fetch('/admin/tenants', {headers}).then((r) => r.ok ? r.json() : Promise.reject(new Error('Admin token rejected'))),
+        fetch('/admin/status', {headers}).then((r) => r.ok ? r.json() : Promise.reject(new Error('Admin status unavailable'))),
+      ]);
+      setTenants(t as Record<string, unknown>[]); setStatus(s); sessionStorage.setItem('adminToken', token);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Admin request failed'); }
+  }
+
+  useEffect(() => { if (token) load(); }, []);
+
+  if (!token) {
+    return (
+      <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
+        <Heading level={1}>Trendi admin</Heading>
+        <p>Internal console. The admin token is required.</p>
+        <TextInput label="Admin token" type="password" value={token} onChange={setToken} />
+        <div style={{marginTop: 16}}><Button label="Open console" variant="primary" onClick={load} /></div>
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+    );
+  }
+
+  const counts = status.counts || {};
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: 24}}>
+      <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+        <Heading level={1}>Trendi admin</Heading>
+        <Button label="Refresh" variant="secondary" onClick={load} />
+        <Button label="Sign out" variant="ghost" onClick={() => { sessionStorage.removeItem('adminToken'); setToken(''); }} />
+      </div>
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 24}}>
+        {Object.entries(counts).map(([key, value]) => <Card key={key}><strong style={{fontSize: 24}}>{key === 'database_bytes' ? Math.round(Number(value) / 1048576) + ' MB' : value}</strong><p>{key.replaceAll('_', ' ')}</p></Card>)}
+      </div>
+      <Heading level={2}>Tenants</Heading>
+      <div style={{display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
+        {tenants.map((tenant, index) => (
+          <Card key={index}>
+            <strong>{String(tenant.name || tenant.slug)}</strong>
+            <p>{String(tenant.slug || '')}</p>
+            <p>Phone: {tenant.phone_enabled ? 'enabled' : 'off'}</p>
+          </Card>
+        ))}
+      </div>
+      <Heading level={2}>Backups</Heading>
+      {status.backups?.length ? status.backups.map((backup) => (
+        <p key={backup.name}>{backup.name} · {Math.round(backup.bytes / 1048576)} MB · {new Date(backup.modified * 1000).toLocaleString()}</p>
+      )) : <p>No backups found.</p>}
+      {error ? <p role="alert">{error}</p> : null}
+    </div>
+  );
+}
+
 function Shell() {
   const [token, setToken] = useState('');
   const [tab, setTab] = useState('setup');
@@ -810,5 +914,5 @@ function Shell() {
 }
 
 export default function App() {
-  return <Theme theme={neutralTheme}><Shell /></Theme>;
+  return <Theme theme={neutralTheme}>{location.hash === '#admin' ? <Admin /> : <Shell />}</Theme>;
 }

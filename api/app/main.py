@@ -805,6 +805,24 @@ async def admin_list_tenants():
     return [_with_snippet(t) for t in await tenants.list_all()]
 
 
+@app.get("/admin/status", dependencies=admin)
+async def admin_status():
+    counts = await db.pool().fetchrow(
+        "SELECT (SELECT count(*) FROM tenants) AS tenants, "
+        "(SELECT count(*) FROM leads) AS leads, "
+        "(SELECT count(*) FROM quotations) AS quotations, "
+        "(SELECT count(*) FROM media_assets) AS media_assets, "
+        "(SELECT count(*) FROM design_uploads) AS designs, "
+        "pg_database_size(current_database()) AS database_bytes")
+    backups = []
+    root = Path("/backups")
+    if root.is_dir():
+        for item in sorted(root.glob("trendi-backup-*.tar.gz"), key=lambda p: p.stat().st_mtime, reverse=True)[:14]:
+            stat = item.stat()
+            backups.append({"name": item.name, "bytes": stat.st_size, "modified": int(stat.st_mtime)})
+    return {"counts": dict(counts), "backups": backups}
+
+
 @app.get("/admin/tenants/{slug}", dependencies=admin)
 async def admin_get_tenant(slug: str):
     tenant = await tenants.ensure_calendar_token(await _require_tenant(slug))
