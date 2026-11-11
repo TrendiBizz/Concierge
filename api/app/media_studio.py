@@ -56,7 +56,7 @@ class ImageRequest(BaseModel):
 class VideoRequest(BaseModel):
     format: Literal["square", "portrait", "story"] = "portrait"
     headline: str = Field(default="", max_length=200)
-    photos: list[str] = Field(default_factory=list, min_length=1, max_length=20)
+    photos: list[str] = Field(default_factory=list, min_length=1, max_length=12)
     music: str | None = Field(default=None, max_length=35_000_000)
 
 
@@ -82,11 +82,33 @@ async def _render(path: str, payload: dict) -> bytes:
 
 def _photos(values: list[str]) -> list[str]:
     cleaned = []
+    total = 0
     for value in values:
         if not value.startswith("data:image/") or len(value) > 25_000_000:
             raise HTTPException(400, "Photos must be image uploads under 25 MB each")
+        total += len(value)
         cleaned.append(value)
+    if total > 40_000_000:
+        raise HTTPException(413, "Send fewer photos at once (about 40 MB total)")
     return cleaned
+
+
+async def _check_quota(tenant_id, kind: str) -> None:
+    settings = get_settings()
+    limits = {"image": settings.media_image_limit, "video": settings.media_video_limit, "ai": settings.media_ai_limit}
+    row = await db.pool().fetchrow(
+        """SELECT count(*) FILTER (WHERE kind='image') AS images,
+                  count(*) FILTER (WHERE kind='video') AS videos,
+                  count(*) FILTER (WHERE kind='ai') AS ai,
+                  COALESCE(sum(size_bytes),0) AS bytes
+           FROM media_assets WHERE tenant_id=$1 AND created_at >= date_trunc('month', now())""",
+        tenant_id)
+    used = {"image": row["images"], "video": row["videos"], "ai": row["ai"]}[kind]
+    if used >= limits[kind]:
+        raise HTTPException(429, f"Monthly {kind} limit reached ({limits[kind]}). It resets next month.")
+    total = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1", tenant_id)
+    if total >= settings.media_storage_limit_bytes:
+        raise HTTPException(413, "Media storage limit reached. Download and remove older media, then try again.")
 
 
 async def _brand(tenant_id) -> dict:
@@ -108,9 +130,9 @@ async def _store(tenant_id, kind: str, template: str, prompt: str, fmt: str,
     path = folder / name
     path.write_bytes(content)
     row = await db.pool().fetchrow(
-        """INSERT INTO media_assets(tenant_id,kind,template,prompt,format,content_type,storage_path,created_by)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *""",
-        tenant_id, kind, template, prompt[:2000], fmt, content_type, str(path), email)
+        """INSERT INTO media_assets(tenant_id,kind,template,prompt,format,content_type,storage_path,created_by,size_bytes)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *""",
+        tenant_id, kind, template, prompt[:2000], fmt, content_type, str(path), email, len(content))
     return dict(row)
 
 
@@ -146,6 +168,7 @@ async def put_brand(body: Brand, user=Depends(owner_auth.current_user)):
 @router.post("/image", status_code=201)
 async def image(body: ImageRequest, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
+    await _check_quota(user["tenant_id"], "image")
     brand = _brand_payload(await _brand(user["tenant_id"]))
     content = await _render("/render/image", {
         "template": body.template, "format": body.format, "brand": brand,
@@ -160,6 +183,7 @@ async def image(body: ImageRequest, user=Depends(owner_auth.current_user)):
 @router.post("/video", status_code=201)
 async def video(body: VideoRequest, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
+    await _check_quota(user["tenant_id"], "video")
     brand = _brand_payload(await _brand(user["tenant_id"]))
     content = await _render("/render/video", {
         "format": body.format, "brand": brand, "photos": _photos(body.photos),
@@ -172,9 +196,27 @@ async def video(body: VideoRequest, user=Depends(owner_auth.current_user)):
 @router.post("/ai-image", status_code=201)
 async def ai_image(body: AiRequest, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
+    await _check_quota(user["tenant_id"], "ai")
     content = await _render("/ai-image", {"prompt": body.prompt})
     return await _store(user["tenant_id"], "ai", "ai", body.prompt, "square",
                         content, "image/jpeg", user.get("email", ""))
+
+
+@router.get("/usage")
+async def usage(user=Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    settings = get_settings()
+    row = await db.pool().fetchrow(
+        """SELECT count(*) FILTER (WHERE kind='image') AS images,
+                  count(*) FILTER (WHERE kind='video') AS videos,
+                  count(*) FILTER (WHERE kind='ai') AS ai
+           FROM media_assets WHERE tenant_id=$1 AND created_at >= date_trunc('month', now())""",
+        user["tenant_id"])
+    total = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1", user["tenant_id"])
+    return {"images": {"used": row["images"], "limit": settings.media_image_limit},
+            "videos": {"used": row["videos"], "limit": settings.media_video_limit},
+            "ai": {"used": row["ai"], "limit": settings.media_ai_limit},
+            "storage": {"used": total, "limit": settings.media_storage_limit_bytes}}
 
 
 @router.get("/assets")

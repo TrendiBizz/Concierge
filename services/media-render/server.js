@@ -138,7 +138,7 @@ function audioFile(value, dir) {
 
 async function renderVideo(body) {
   const [W, H] = FORMATS[body.format] || FORMATS.portrait;
-  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 20);
+  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 12);
   if (!photos.length) throw Object.assign(new Error('At least one photo is required'), { status: 400 });
   const clip = 3, transition = 0.5;
   const total = photos.length * clip - (photos.length - 1) * transition;

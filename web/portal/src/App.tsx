@@ -259,8 +259,10 @@ function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [usage, setUsage] = useState<{images?: {used: number; limit: number}; videos?: {used: number; limit: number}; ai?: {used: number; limit: number}; storage?: {used: number; limit: number}} | null>(null);
 
   useEffect(() => {
+    api('/owner/media/usage').then(setUsage).catch(() => undefined);
     api('/owner/media/assets').then(setAssets).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load media'));
   }, [token]);
 
@@ -283,6 +285,7 @@ function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
       fetch('/owner/media/assets/' + asset.id + '/to-social', {method: 'POST', headers: {Authorization: 'Bearer ' + token}}).catch(() => undefined);
       setStatus('Ready — added to your social composer.');
       setAssets(await api('/owner/media/assets'));
+      setUsage(await api('/owner/media/usage'));
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
     setBusy(false);
   }
@@ -299,6 +302,7 @@ function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Marketing media</Heading>
       <p>Branded images, short videos and AI images. Everything you generate is added to your social composer.</p>
+      {usage ? <p>This month: {usage.images?.used}/{usage.images?.limit} images · {usage.videos?.used}/{usage.videos?.limit} videos · {usage.ai?.used}/{usage.ai?.limit} AI images · {Math.round((usage.storage?.used || 0) / 1048576)}/{Math.round((usage.storage?.limit || 0) / 1048576)} MB stored.</p> : null}
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         <Card>
           <Heading level={2}>Brand kit</Heading>
@@ -386,14 +390,58 @@ function Social({token, brand}: {token: string; brand: Brand}) {
   const [busy, setBusy] = useState(false);
   const [when, setWhen] = useState('');
   const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const [providers, setProviders] = useState<Record<string, boolean>>({});
+  const [role, setRole] = useState('');
 
   async function load() {
     try {
-      const [a, p] = await Promise.all([api('/owner/social/accounts'), api('/owner/social/posts')]);
+      const [a, p, status, me] = await Promise.all([api('/owner/social/accounts'), api('/owner/social/posts'), api('/owner/social/status'), api('/owner/me')]);
       setAccounts(a as Account[]); setPosts(p as Post[]);
+      setProviders(((status as {providers?: Record<string, boolean>}).providers || {}));
+      setRole((me as {role: string}).role);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load social accounts'); }
   }
   useEffect(() => { load(); }, [token]);
+
+  function oauthPath(provider: string) {
+    if (provider === 'google_business') return '/owner/social/oauth/google';
+    if (['facebook', 'instagram'].includes(provider)) return '/owner/social/oauth/meta/' + provider;
+    return '/owner/social/oauth/' + provider;
+  }
+
+  async function connect(provider: string) {
+    if (role !== 'owner') { setStatus('Only the business owner can connect accounts.'); return; }
+    const popup = window.open('about:blank', 'concierge-social-oauth', 'width=620,height=760');
+    if (!popup) { setStatus('Allow popups for this page to connect an account.'); return; }
+    try {
+      const start = await api(oauthPath(provider) + '/start', 'POST') as {authorization_url: string; state: string};
+      const url = new URL(start.authorization_url);
+      if (url.protocol !== 'https:' || !start.state || start.state.length < 32) throw new Error('Invalid OAuth response');
+      const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('concierge-social-oauth:' + start.state) : null;
+      let finished = false;
+      const finish = async (data: {type?: string; state?: string; code?: string; error?: string}) => {
+        if (finished || !data || data.state !== start.state) return;
+        finished = true;
+        channel?.close();
+        try { popup.close(); } catch { /* ignore */ }
+        if (data.error || !data.code) { setStatus('Authorization was cancelled or denied.'); return; }
+        try {
+          await api(oauthPath(provider) + '/finish', 'POST', {state: data.state, code: data.code});
+          setStatus(provider.replaceAll('_', ' ') + ' connected.');
+          await load();
+        } catch (e) { setStatus(e instanceof Error ? e.message : 'Connection failed'); }
+      };
+      if (channel) channel.onmessage = (event) => { void finish(event.data); };
+      window.addEventListener('message', (event) => {
+        if (event.origin === location.origin && event.data?.type === 'concierge-social-oauth') void finish(event.data);
+      });
+      popup.location.href = url.href;
+      setStatus('Continue in the provider window. Authorize the account for this business.');
+    } catch (e) {
+      try { popup.close(); } catch { /* ignore */ }
+      setStatus(e instanceof Error ? e.message : 'Connection unavailable');
+    }
+  }
 
   async function upload(): Promise<string[] | undefined> {
     if (!file) return undefined;
@@ -442,7 +490,17 @@ function Social({token, brand}: {token: string; brand: Brand}) {
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Social</Heading>
       <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
-      {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Connect a network in the workspace first; it appears here once connected.</p></Card> : null}
+      <Card>
+        <Heading level={2}>Connect an account</Heading>
+        <p>Choose a network and authorize it on the provider's site. You authorize only the account for this business.</p>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          {Object.entries(providers).filter(([, enabled]) => enabled).map(([provider]) => (
+            <Button key={provider} label={'Connect ' + provider.replaceAll('_', ' ')} variant="secondary" onClick={() => connect(provider)} />
+          ))}
+        </div>
+        {!Object.values(providers).some(Boolean) ? <p>Account connections are awaiting Trendi setup for this business.</p> : null}
+      </Card>
+      {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Choose a network above; it appears here once connected.</p></Card> : null}
       {accounts.length ? (
         <Card>
           <Heading level={2}>New post</Heading>

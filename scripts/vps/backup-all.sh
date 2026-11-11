@@ -24,7 +24,7 @@ for spec in "trendi_social:social" "trendi_crm-storage:crm-storage"; do
     tar czf "/backup/$name.tgz" -C /data .
 done
 
-tar czf "$WORK/shared.tgz" -C "$ROOT" shared
+tar czf "$WORK/shared.tgz" --exclude="shared/media" --exclude="shared/designs" -C "$ROOT" shared
 tar czf "$WORK/website.tgz" -C "$ROOT/releases/20261108-vps" website/site
 tar czf "$WORK/asterisk.tgz" -C "$ROOT/releases/20261108-vps/product/scripts" asterisk/generated
 
