@@ -326,3 +326,9 @@
 - Header uses Astryx TabList/Tab; schedule uses DateTimeInput; Designs lazy.
 - Main entry still ~1.1 MB raw due Table/Dialog/TabList/DateTimeInput in the
   main shell; next split is CRM/Quotes/Media/Social route chunks.
+
+
+## Route-level split complete — 2026-11-11
+- Lazy chunks: Home, CrmQuotes, Engage (Social+Media), Designs, 3D viewer,
+  locales/translations. Main entry ~382 KB raw / ~119 KB gzip.
+- Verified login + tab clicks in headless Chrome with zero page errors.

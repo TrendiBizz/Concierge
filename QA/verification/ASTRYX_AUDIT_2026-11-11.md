@@ -79,3 +79,13 @@ denser CRM/quotes UI.
   and `React.lazy`; the current main entry is the honest remaining cost.
 - Still not adopted: Toast provider, AppShell/SideNav shell, Richtext
   (plain-text backend), full side-nav.
+
+
+## Final route split — 2026-11-11
+- Extracted lazy chunks: `Home` (dashboard/recharts), `CrmQuotes`, `Engage`
+  (Social + Media), `Designs`, plus the 3D viewer and per-locale catalogs.
+- Main entry is now ~382 KB raw (~119 KB gzip); Home ~363 KB raw, CrmQuotes
+  ~155 KB, Engage ~250 KB, 3D viewer ~919 KB, all lazy.
+- Header uses Astryx TabList/Tab; social schedule uses DateTimeInput.
+- Remaining: Toast (no provider export), AppShell/SideNav, Richtext (plain-text
+  data contract).
