@@ -1,0 +1,12 @@
+{
+  "name": "concierge-media-render",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Branded social images, short videos and hosted AI images for Concierge",
+  "main": "server.js",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "react": "^18.3.1",
+    "satori": "^0.12.2"
+  }
+}

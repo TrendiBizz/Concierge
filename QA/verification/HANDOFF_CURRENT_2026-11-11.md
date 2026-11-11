@@ -62,3 +62,20 @@
 - Bing shows trendibizz.com indexed; none of the target prompts present yet.
 
 
+
+
+## Marketing media (recommended stack) — 2026-11-11
+- `media-render` sidecar (Satori + FFmpeg, Alpine, internal only) and
+  Cloudflare Workers AI (FLUX.1 schnell) for AI images. No GPU, no model weights.
+- Concierge: `media_brand` / `media_assets`, `/owner/media/*`, and a
+  **Marketing media** panel in the owner portal (brand kit, 4 image templates,
+  short video, AI image, gallery).
+- Templates: showcase, before_after, quote, service; formats square/portrait/story.
+- Limits: 6 photos per image, 8 per video, 8 MB each; video is a silent
+  slideshow with a headline (music not yet added).
+- Deployed and tested end-to-end: PNG, JPEG and MP4 returned and stored.
+- Config: `CF_*` in `/opt/trendi/shared/compose.env`; `MEDIA_RENDER_URL`
+  defaults to `http://media-render:8099`; media stored under
+  `/opt/trendi/shared/media` (owned by uid 10001).
+- The temporary Pukeko support owner used for testing was deleted.
+- Commands: `docker compose build media-render api && up -d media-render api`.
