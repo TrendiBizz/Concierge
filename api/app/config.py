@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     inbound_cloudflare_enabled: bool = False
     email_auth_url: str = ""
     internal_token: str = ""  # loopback-only voice shell API
+    designs_dir: str = "/data/designs"
     reply_domain: str = "trendibizz.com"
     cloudflare_email: str = ""
     cloudflare_api_key: str = ""

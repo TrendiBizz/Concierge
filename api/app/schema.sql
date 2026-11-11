@@ -673,3 +673,19 @@ CREATE INDEX IF NOT EXISTS product_stock_movements_idx ON product_stock_movement
 -- Per-tenant reply address: replies to owner alerts come back into that tenant's CRM.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reply_address text;
 CREATE UNIQUE INDEX IF NOT EXISTS tenants_reply_address_idx ON tenants (reply_address) WHERE reply_address IS NOT NULL;
+
+-- Customer design/plan uploads for quotation takeoff.
+CREATE TABLE IF NOT EXISTS design_uploads (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    uploaded_by text NOT NULL DEFAULT '',
+    filename text NOT NULL,
+    content_type text NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes bigint NOT NULL CHECK (size_bytes >= 0),
+    sha256 text NOT NULL,
+    storage_path text NOT NULL,
+    status text NOT NULL DEFAULT 'uploaded' CHECK (status IN ('uploaded','parsed','failed')),
+    summary jsonb,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS design_uploads_tenant_idx ON design_uploads (tenant_id, created_at DESC);
