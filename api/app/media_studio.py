@@ -138,6 +138,8 @@ async def put_brand(body: Brand, user=Depends(owner_auth.current_user)):
              contact=EXCLUDED.contact,logo_data=EXCLUDED.logo_data,updated_at=now()
            RETURNING *""",
         user["tenant_id"], body.name, body.accent, body.contact, body.logo)
+    # The widget and chat surfaces read the tenant accent, so keep them in step.
+    await db.pool().execute("UPDATE tenants SET accent_color=$2 WHERE id=$1", user["tenant_id"], body.accent)
     return dict(row)
 
 

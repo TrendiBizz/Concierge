@@ -93,3 +93,16 @@
 - **Ops note:** the `social` container uses `network_mode: service:api`, so after
   recreating `api` run `docker compose up -d --force-recreate social`.
 - Test owner account and test assets removed; 0 media assets left.
+
+
+## Astryx portal + onboarding — 2026-11-11
+- `https://concierge.trendibizz.com/studio`: invite → password → 6-step
+  text-only onboarding (welcome, business, contact, website, branding, finish),
+  then the marketing media studio. Built with Astryx (MIT) in `web/portal`.
+- Branding: logo, name, accent and contact are stored in `media_brand`, used by
+  the portal header and all media templates, and the accent is synced to
+  `tenants.accent_color` so the widget follows it. Onboarding saves branding.
+- New owner invitations now point at `/studio#invite=…`. The older `/onboarding`
+  page remains as a fallback.
+- Goal created: complete all add-ons (social composer, CRM inbox, quote builder,
+  booking, reports, owner PWA, admin console) with branding on every surface.

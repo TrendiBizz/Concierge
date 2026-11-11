@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     admin_token: str = ""
     public_base_url: str = "http://localhost:8000"
     owner_portal_url: str = "https://concierge.trendibizz.com/owner-ui"
-    onboarding_url: str = "https://concierge.trendibizz.com/onboarding"
+    onboarding_url: str = "https://concierge.trendibizz.com/studio"
 
     @field_validator("owner_portal_url")
     @classmethod
