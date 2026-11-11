@@ -68,6 +68,7 @@ pub(crate) fn py_strip(s: &str) -> &str {
 }
 
 pub mod device_sms;
+pub mod media_bridge;
 pub mod pbx;
 pub mod phone_relay;
 

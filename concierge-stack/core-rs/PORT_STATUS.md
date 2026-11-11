@@ -360,3 +360,41 @@ discarded because they did not apply or compile (a reflowed line, a typo); each 
 Declined (fail closed): non-ASCII, non-whitespace text inside a `Range` part where Python's `int()` would parse Unicode digits
 (Rust gives Python's answer when no digit is parsed, otherwise a 500). Not covered: the owner boundary's hardening headers on a
 500 from an owner route (Starlette's error handler also bypasses `owner_boundary`; no owner route that can fail is ported yet).
+
+## Batch 29 (11 November 2026): the telephone media bridge as a pure state machine
+
+**Not deployed, not wired in, not pushed.** `api/app/asterisk_bridge.py` is untouched and remains the only bridge that
+answers calls. This batch ports the *rules* of `MediaBridge`; the sockets, the clock, the database and the tools are the
+next unit.
+
+`core-rs/src/media_bridge.rs` holds no I/O. The caller feeds it websocket text, AudioSocket bytes and the time, and carries
+out the actions it returns:
+
+| Python (`MediaBridge`) | Rust | What is pinned |
+|---|---|---|
+| `grok()` event handler | `Bridge::start`, `on_message`, `tool_result` | session start, `ready` + first `response.create`, barge-in flush and `response.cancel` only while speaking, cumulative-transcript replacement per (item, role), 10,000-character cut, tool-call identity rules, the 40-tool limit, `end_call`, results held until `response.done`, no new response after `end_call`, the 30 s playback bound |
+| `output()` | `Bridge::output_tick`, `pace` | 320-byte frames padded with silence, the 0.4 s end-of-call linger (`>=`, on exact doubles), sleep shortened by a slow write |
+| `input()` packet rules | `Deframer`, `classify`, `append_event`, `silence` | hangup, audio, keypad digits ignored, every other frame refused, oversize refused on the header alone |
+| `base64.b64decode(validate=True)` | `decode_audio` | 533 strings |
+
+Vectors come from the live class (`parity/gen_vectors29.py` -> `vectors29.json`): 205 scripted Grok conversations run through
+the real `grok()` coroutine with everything it sends, every callback and the shared state after each message recorded;
+75 runs of the real `output()` under a virtual clock; 85 AudioSocket byte streams through the real `input()`. The Rust test
+replays each byte stream whole, byte by byte and in uneven pieces, which is the property Python protects with its shielded
+read task (`tokio`'s `read_exact` is not cancel-safe, so the shell must use `Deframer` rather than `select!` over a read).
+
+Mutation check: 51 rules were each broken once (`parity/mutate29.py`, run from `core-rs`); all 51 failed a test. The first
+pass had one survivor, `>=` vs `>` on the linger, because no vector landed on a difference of exactly 0.4; five now do.
+
+Kept on purpose, as Python does it: `idle_since` is cleared only by playing audio, so a withdrawn `end_call` does not
+restart the linger; a linger that begins at clock 0.0 restarts once; a tool identifier is remembered before its arguments
+are checked. Candidates to *fix* after cut-over, not before: `input()` restarts its 20 ms timer after every packet, so
+caller jitter beyond 20 ms inserts a silence frame between two real ones.
+
+Refused rather than guessed (14 vectors; each can only end a call Python would have continued): `NaN`/`Infinity` and
+out-of-range numbers, lone surrogate escapes, and a transcript identifier that is not text. A tool result holding a float is
+written as serde writes it.
+
+Not ported yet (next unit, in order): `handle()` (peer check, call UUID, session wording, consent-gated recording, the
+5-second authorisation monitor), `register()` / `finish()` SQL, the tokio shell with a fake Grok server and a fake
+AudioSocket caller, then the differential database run and a real call through `scripts/asterisk`.
