@@ -398,3 +398,22 @@ written as serde writes it.
 Not ported yet (next unit, in order): `handle()` (peer check, call UUID, session wording, consent-gated recording, the
 5-second authorisation monitor), `register()` / `finish()` SQL, the tokio shell with a fake Grok server and a fake
 AudioSocket caller, then the differential database run and a real call through `scripts/asterisk`.
+
+## Batch 30 (11 November 2026): the loopback shell
+
+**Not deployed, not wired in.** `api/app/asterisk_bridge.py` remains the only bridge that answers calls. This batch adds
+the sockets, clock, websocket and the Python-owned data boundary around the batch-29 state machine.
+
+- `core-rs/src/shell.rs` + `src/bin/asterisk_shell.rs`: tokio AudioSocket listeners (one per route, peer ACL, call UUID),
+  20 ms pacing, Grok websocket, WAV recording, 5 s authorisation monitor, finish. Database, permissions, CRM, recordings
+  and tools stay in Python, reached over `/internal/voice/*` with `CONCIERGE_INTERNAL_TOKEN`.
+- `api/app/voice_internal.py`: loopback endpoints `start`, `transcript`, `tool`, `monitor`, `finish`, `recording`,
+  disabled unless `INTERNAL_TOKEN` is set. `asterisk_bridge.prepare()` and `run_phone_tool()` are now shared by the
+  Python bridge and this API; `messages.item_id` makes transcript replacement idempotent.
+- Env: `ASTERISK_ROUTES`, `ASTERISK_BIND`, `ASTERISK_PEERS`, `CONCIERGE_INTERNAL_URL`, `CONCIERGE_INTERNAL_TOKEN`,
+  `XAI_API_KEY`, `XAI_REALTIME_URL`.
+- Tests: an end-to-end shell test (fake caller + fake Grok websocket + fake internal API) proves audio in, audio out,
+  transcript, tool call, `end_call`, and finish; `cargo fmt --check`, `clippy -D warnings` and the full Rust suite pass.
+  Python: 532 pass on this branch plus the new internal-token test.
+- Remaining before a cut-over: set `INTERNAL_TOKEN` and build the shell image, run a real softphone call through
+  Asterisk (audio, consent/recording, revocation), a differential DB run, then switch with Python as the fallback.

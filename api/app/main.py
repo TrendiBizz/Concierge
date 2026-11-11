@@ -15,12 +15,12 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal,
 )
 from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import casetimeline, hermes_orchestrator, provider_readiness
@@ -87,6 +87,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
+
+app.include_router(voice_internal.router)
 app.include_router(device_sms.router)
 app.include_router(phone_sip.router)
 app.include_router(managed_phone.router)
@@ -209,6 +211,31 @@ async def chat(req: ChatRequest, request: Request):
         "booking_url": result["booking_url"],
         "appointment": result["appointment"],
     }
+
+
+@app.post("/api/v1/chat/stream")
+async def chat_stream(req: ChatRequest, request: Request):
+    """Server-sent token stream for the website widget (same turn semantics)."""
+    session_id = convo.clean_session(req.session_id)
+    _rate_limit(request, session_id)
+    tenant = await _tenant_for(request, req.key)
+
+    async def events():
+        try:
+            async for event in chat_engine.run_turn_stream(
+                tenant, session_id, "chat", req.message, page_url=req.page_url, utm=req.utm
+            ):
+                yield "data: " + json.dumps(event, default=str) + "\n\n"
+        except llm.LLMNotConfigured:
+            yield 'data: {"type":"error","message":"AI is not configured"}\n\n'
+        except Exception:
+            log.exception("chat stream failed for tenant %s", tenant["slug"])
+            yield 'data: {"type":"error"}\n\n'
+
+    return StreamingResponse(
+        events(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 def _twiml(text: str) -> Response:

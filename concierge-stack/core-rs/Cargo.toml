@@ -21,8 +21,17 @@ url = "2"
 serde = { version = "1", features = ["derive"] }
 pbkdf2 = "0.12"
 fancy-regex = "0.14"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
+ipnet = "2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [dev-dependencies]
+axum = "0.8"
 
 
 # Dependencies (PBKDF2, SHA-2, regex) run optimised even in dev/test builds; our own code stays debuggable.
