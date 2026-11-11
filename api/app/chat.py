@@ -1,7 +1,9 @@
 """One conversation turn, shared by web chat, SMS and the eval runner."""
 
+import asyncio
 import json
 import logging
+from types import SimpleNamespace
 
 from . import casetimeline, convo, db, guard, llm, enquiries, owner_notifications
 import hashlib
@@ -11,6 +13,8 @@ from .tools import chat_tools, run_tool
 log = logging.getLogger("concierge.chat")
 
 MAX_TOOL_ROUNDS = 4
+# Independent lookups can run concurrently; anything that mutates stays ordered.
+READ_ONLY_TOOLS = {"search_knowledge", "check_availability", "get_booking_link"}
 GENERIC_FAILURE = (
     "Sorry, I had trouble with that. Could you rephrase, or leave your phone number or email so "
     "the team can follow up?"
@@ -27,6 +31,32 @@ async def _history(conversation_id) -> list[dict]:
         conversation_id,
     )
     return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+
+def _parse_args(tc) -> dict:
+    try:
+        parsed = json.loads(tc.function.arguments or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def _execute_tools(tool_calls, tenant: dict, ctx: dict) -> list:
+    """Run one assistant turn's tool calls. Read-only lookups run concurrently."""
+    results: list = [None] * len(tool_calls)
+    parallel = [i for i, tc in enumerate(tool_calls) if tc.function.name in READ_ONLY_TOOLS]
+    sequential = [i for i, tc in enumerate(tool_calls) if tc.function.name not in READ_ONLY_TOOLS]
+    if parallel:
+        gathered = await asyncio.gather(*[
+            run_tool(tenant, tool_calls[i].function.name, _parse_args(tool_calls[i]), ctx)
+            for i in parallel
+        ])
+        for index, result in zip(parallel, gathered):
+            results[index] = result
+    for index in sequential:
+        results[index] = await run_tool(
+            tenant, tool_calls[index].function.name, _parse_args(tool_calls[index]), ctx)
+    return results
 
 
 async def _run_llm(messages: list[dict], tenant: dict, ctx: dict) -> str:
@@ -49,12 +79,8 @@ async def _run_llm(messages: list[dict], tenant: dict, ctx: dict) -> str:
                 ],
             }
         )
-        for tc in msg.tool_calls:
-            try:
-                args = json.loads(tc.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            result = await run_tool(tenant, tc.function.name, args, ctx)
+        results = await _execute_tools(msg.tool_calls, tenant, ctx)
+        for tc, result in zip(msg.tool_calls, results):
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result, default=str)})
     return ""
 
@@ -156,4 +182,144 @@ async def run_turn(
         "appointment": ctx.get("appointment_text"),
         "guard_triggered": flag == "quote_guard",
         "tool_calls": ctx.get("tool_calls", []),
+    }
+
+
+async def run_turn_stream(
+    tenant: dict,
+    session_id: str,
+    channel: str,
+    message: str,
+    page_url: str | None = None,
+    utm: dict | None = None,
+):
+    """Same turn as run_turn, but yields token events while the final answer streams.
+
+    Events: {"type":"token","text":...}, {"type":"replace","text":...},
+    {"type":"done", ...}. The reply is saved once, after the guard, so the
+    stored message always matches what the visitor ends up seeing.
+    """
+    try:
+        paused = await casetimeline.is_paused_for(
+            tenant["id"], phone="", email="",
+            default_cc=casetimeline.tenant_country_code(tenant),
+        )
+    except Exception:  # noqa: BLE001 - a lookup failure must not silence the assistant
+        log.exception("takeover lookup failed for tenant %s", tenant.get("slug"))
+        paused = False
+    if paused:
+        yield {"type": "done", "reply": "", "suppressed": True, "reason": "human_takeover"}
+        return
+
+    conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
+    ctx = {
+        "conversation_id": conversation_id,
+        "channel": channel,
+        "page_url": page_url,
+        "utm": convo.clean_utm(utm),
+        "sender_phone": None,
+        "sms_inbound": False,
+        "dry_run": False,
+    }
+    if channel == "chat":
+        await enquiries.capture(tenant, "chat", str(conversation_id), message, conversation_id=conversation_id)
+    history = await _history(conversation_id)
+    await convo.save_message(conversation_id, "user", message)
+
+    hits = await retrieve(tenant["id"], message)
+    prompt_channel = "sms" if channel == "sms" else ("email" if channel == "email" else "chat")
+    messages: list[dict] = [{"role": "system", "content": build_system_prompt(tenant, hits, prompt_channel)}]
+    messages += history
+    messages.append({"role": "user", "content": message})
+
+    reply = ""
+    for round_no in range(MAX_TOOL_ROUNDS + 1):
+        content = ""
+        slots: dict[int, dict] = {}
+        tools = chat_tools(tenant) if round_no < MAX_TOOL_ROUNDS else None
+        async for delta in llm.stream_complete(messages, tools=tools):
+            if delta.content:
+                content += delta.content
+                yield {"type": "token", "text": delta.content}
+            for tc in (delta.tool_calls or []):
+                slot = slots.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                if tc.id:
+                    slot["id"] = tc.id
+                if tc.function:
+                    if tc.function.name:
+                        slot["name"] = tc.function.name
+                    if tc.function.arguments:
+                        slot["arguments"] += tc.function.arguments
+        if slots and round_no < MAX_TOOL_ROUNDS:
+            calls = [
+                SimpleNamespace(
+                    id=slot["id"] or f"call_{index}",
+                    function=SimpleNamespace(name=slot["name"], arguments=slot["arguments"]),
+                )
+                for index, slot in sorted(slots.items())
+            ]
+            messages.append({
+                "role": "assistant",
+                "content": content or None,
+                "tool_calls": [
+                    {"id": call.id, "type": "function",
+                     "function": {"name": call.function.name, "arguments": call.function.arguments}}
+                    for call in calls
+                ],
+            })
+            results = await _execute_tools(calls, tenant, ctx)
+            for call, result in zip(calls, results):
+                messages.append({"role": "tool", "tool_call_id": call.id,
+                                 "content": json.dumps(result, default=str)})
+            continue
+        reply = content.strip()
+        break
+
+    flag = None
+    evidence = "\n".join(
+        [h["content"] for h in hits]
+        + ctx.get("tool_results", [])
+        + [tenant.get("persona") or "", tenant.get("incentive") or ""]
+    )
+    if reply and guard.unknown_amounts(reply, evidence):
+        flag = "quote_guard"
+        retry = list(messages) + [
+            {"role": "assistant", "content": reply},
+            {"role": "system", "content": guard.CORRECTION},
+        ]
+        second = await llm.complete(retry, tools=None)
+        corrected = (second.content or "").strip()
+        if not corrected or guard.unknown_amounts(corrected, evidence):
+            corrected = guard.FALLBACK
+        reply = corrected
+        yield {"type": "replace", "text": reply}
+    if not reply:
+        reply = GENERIC_FAILURE
+        yield {"type": "replace", "text": reply}
+
+    await convo.save_message(conversation_id, "assistant", reply, flag)
+    if channel != "email":
+        await casetimeline.mark_replied(
+            tenant["id"], phone="", email="", channel=channel,
+            default_cc=casetimeline.tenant_country_code(tenant),
+        )
+    rows = await db.pool().fetch(
+        "SELECT role,content FROM messages WHERE conversation_id=$1 ORDER BY id", conversation_id)
+    dialogue = "\n\n".join(
+        ("Enquirer" if row["role"] == "user" else "Concierge") + ": " + row["content"] for row in rows)
+    lead = await db.pool().fetchval(
+        "SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1",
+        tenant["id"], conversation_id)
+    key = hashlib.sha256((str(conversation_id) + message + reply).encode()).hexdigest()
+    await owner_notifications.queue(
+        tenant, channel.title() + " conversation for " + tenant["name"], dialogue,
+        f"dialogue:{tenant['id']}:{key}", lead_id=lead)
+    yield {
+        "type": "done",
+        "conversation_id": conversation_id,
+        "lead_captured": bool(ctx.get("lead_captured")),
+        "booking_url": ctx.get("booking_url"),
+        "appointment": ctx.get("appointment_text"),
+        "guard_triggered": flag == "quote_guard",
+        "reply": reply,
     }

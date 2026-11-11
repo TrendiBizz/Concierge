@@ -631,3 +631,7 @@ CREATE TABLE IF NOT EXISTS inbound_audit (
 );
 CREATE INDEX IF NOT EXISTS inbound_audit_tenant_idx
     ON inbound_audit (tenant_id, created_at DESC);
+
+-- Query tuning for common owner/chat reads (2026-11-11).
+CREATE INDEX IF NOT EXISTS leads_conversation_idx ON leads (tenant_id, conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS conversations_tenant_started_idx ON conversations (tenant_id, started_at DESC);

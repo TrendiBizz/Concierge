@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
@@ -209,6 +209,31 @@ async def chat(req: ChatRequest, request: Request):
         "booking_url": result["booking_url"],
         "appointment": result["appointment"],
     }
+
+
+@app.post("/api/v1/chat/stream")
+async def chat_stream(req: ChatRequest, request: Request):
+    """Server-sent token stream for the website widget (same turn semantics)."""
+    session_id = convo.clean_session(req.session_id)
+    _rate_limit(request, session_id)
+    tenant = await _tenant_for(request, req.key)
+
+    async def events():
+        try:
+            async for event in chat_engine.run_turn_stream(
+                tenant, session_id, "chat", req.message, page_url=req.page_url, utm=req.utm
+            ):
+                yield "data: " + json.dumps(event, default=str) + "\n\n"
+        except llm.LLMNotConfigured:
+            yield 'data: {"type":"error","message":"AI is not configured"}\n\n'
+        except Exception:
+            log.exception("chat stream failed for tenant %s", tenant["slug"])
+            yield 'data: {"type":"error"}\n\n'
+
+    return StreamingResponse(
+        events(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 def _twiml(text: str) -> Response:

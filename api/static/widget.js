@@ -283,23 +283,53 @@
       addMsg("user", text);
       var typing = addMsg("assistant", "…");
       try {
-        var res = await post("/api/v1/chat", {
-          key: KEY,
-          session_id: SID,
-          message: text,
-          page_url: location.href,
-          utm: UTM,
+        var res = await fetch(API + "/api/v1/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: KEY,
+            session_id: SID,
+            message: text,
+            page_url: location.href,
+            utm: UTM,
+          }),
         });
-        typing.remove();
         if (res.status === 429) {
+          typing.remove();
           addMsg("note", "You're sending messages quickly - please wait a moment.");
         } else if (!res.ok) {
+          typing.remove();
           addMsg("assistant", "Sorry, I'm having trouble right now. Please try again in a moment.");
         } else {
-          var data = await res.json();
-          addMsg("assistant", data.reply);
-          if (data.appointment) addMsg("note", "✓ " + data.appointment);
-          else if (data.lead_captured) addMsg("note", "✓ Your details were sent to the team.");
+          var reader = res.body.getReader();
+          var decoder = new TextDecoder();
+          var buffer = "";
+          var wrote = false;
+          while (true) {
+            var step = await reader.read();
+            if (step.done) break;
+            buffer += decoder.decode(step.value, { stream: true });
+            var parts = buffer.split("\n\n");
+            buffer = parts.pop();
+            for (var i = 0; i < parts.length; i++) {
+              var line = parts[i].trim();
+              if (line.indexOf("data: ") !== 0) continue;
+              var event;
+              try { event = JSON.parse(line.slice(6)); } catch (e) { continue; }
+              if (event.type === "token") {
+                if (!wrote) { typing.textContent = ""; wrote = true; }
+                typing.textContent += event.text;
+              } else if (event.type === "replace") {
+                typing.textContent = event.text; wrote = true;
+              } else if (event.type === "done") {
+                if (event.reply && !wrote) typing.textContent = event.reply;
+                if (event.appointment) addMsg("note", "✓ " + event.appointment);
+                else if (event.lead_captured) addMsg("note", "✓ Your details were sent to the team.");
+              } else if (event.type === "error" && !wrote) {
+                typing.textContent = "Sorry, I'm having trouble right now. Please try again in a moment.";
+              }
+            }
+          }
         }
       } catch (e) {
         typing.remove();

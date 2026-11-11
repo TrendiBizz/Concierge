@@ -36,3 +36,25 @@ async def complete(
         kwargs["tools"] = tools
     response = await client().chat.completions.create(**kwargs)
     return response.choices[0].message
+
+
+async def stream_complete(
+    messages: list[dict],
+    tools: list[dict] | None = None,
+    temperature: float = 0.3,
+    max_tokens: int = 600,
+):
+    """Yield response deltas as they arrive (content tokens and/or tool-call fragments)."""
+    kwargs: dict = {
+        "model": get_settings().chat_model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    if tools:
+        kwargs["tools"] = tools
+    stream = await client().chat.completions.create(**kwargs)
+    async for chunk in stream:
+        if chunk.choices:
+            yield chunk.choices[0].delta
