@@ -15,17 +15,25 @@ SITEMAP = f"https://{HOST}/sitemap.xml"
 def main() -> None:
     root = ET.fromstring(urllib.request.urlopen(SITEMAP, timeout=20).read())
     urls = [node.text.strip() for node in root.iter() if node.tag.endswith("loc") and node.text]
-    body = json.dumps({
-        "host": HOST,
-        "key": KEY,
-        "keyLocation": f"https://{HOST}/{KEY}.txt",
-        "urlList": urls[:100],
-    }).encode()
-    request = urllib.request.Request(
-        "https://api.indexnow.org/indexnow", data=body,
-        headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "TrendiIndexNow/1.0"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        print(response.status, len(urls), "urls submitted")
+    submitted = 0
+    for url in urls[:100]:
+        body = json.dumps({
+            "host": HOST,
+            "key": KEY,
+            "keyLocation": f"https://{HOST}/{KEY}.txt",
+            "urlList": [url],
+        }).encode()
+        request = urllib.request.Request(
+            "https://api.indexnow.org/indexnow", data=body,
+            headers={"Content-Type": "application/json; charset=utf-8",
+                     "User-Agent": "TrendiIndexNow/1.0"})
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                if response.status < 300:
+                    submitted += 1
+        except Exception:
+            pass
+    print(submitted, "urls submitted")
 
 
 if __name__ == "__main__":
