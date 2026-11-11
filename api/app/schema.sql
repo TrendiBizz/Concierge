@@ -690,3 +690,27 @@ CREATE TABLE IF NOT EXISTS design_uploads (
 );
 CREATE INDEX IF NOT EXISTS design_uploads_tenant_idx ON design_uploads (tenant_id, created_at DESC);
 
+
+-- Marketing media: branded images and short videos rendered server-side.
+CREATE TABLE IF NOT EXISTS media_brand (
+    tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    name text NOT NULL DEFAULT '',
+    accent text NOT NULL DEFAULT '#c8f560',
+    contact text NOT NULL DEFAULT '',
+    logo_data text,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS media_assets (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK (kind IN ('image','video','ai')),
+    template text NOT NULL DEFAULT '',
+    prompt text NOT NULL DEFAULT '',
+    format text NOT NULL DEFAULT 'square',
+    content_type text NOT NULL,
+    storage_path text NOT NULL,
+    created_by text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS media_assets_tenant_idx ON media_assets (tenant_id, created_at DESC);

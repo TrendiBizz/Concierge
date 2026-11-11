@@ -47,7 +47,7 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 </form></details>
 </section>
 <section id="app-panel" hidden>
-<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
+<nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#media-panel">Marketing media</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
 <section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
 <section class="panel" id="quotations-panel"><h2>Quotations</h2><p>Prepare a draft linked to an enquiry. Review prices and tax before marking it reviewed. Quotes are never sent automatically.</p>
@@ -78,6 +78,40 @@ A configured channel still needs Trendi's verification before it is activated.</
 </form>
 </section>
 
+<section class="panel" id="media-panel">
+<h2>Marketing media</h2>
+<p class="muted">Branded images, short videos and AI images for your social drafts. Nothing is published automatically; review everything here first.</p>
+<h3>Brand kit</h3>
+<div class="row">
+<div><label for="media-brand-name">Brand name</label><input id="media-brand-name" maxlength="120"></div>
+<div><label for="media-brand-accent">Accent colour</label><input id="media-brand-accent" type="color" value="#c8f560"></div>
+<div><label for="media-brand-contact">Contact line</label><input id="media-brand-contact" maxlength="160" placeholder="pukekoconstruction.co.nz"></div>
+</div>
+<label for="media-logo">Logo (PNG or JPG, optional)</label><input id="media-logo" type="file" accept="image/png,image/jpeg">
+<button type="button" id="media-save-brand">Save brand kit</button>
+
+<h3>Branded image</h3>
+<div class="row">
+<div><label for="media-template">Template</label><select id="media-template"><option value="showcase">Project showcase</option><option value="before_after">Before / after</option><option value="quote">Quote card</option><option value="service">Service card</option></select></div>
+<div><label for="media-format">Format</label><select id="media-format"><option value="square">Square 1080×1080</option><option value="portrait">Portrait 1080×1350</option><option value="story">Story 1080×1920</option></select></div>
+</div>
+<label for="media-headline">Headline</label><input id="media-headline" maxlength="240" placeholder="Nu-Wall re-cladding in Auckland">
+<label for="media-subline">Subline or bullets (one per line)</label><textarea id="media-subline" maxlength="600"></textarea>
+<label for="media-photos">Photos (up to 6)</label><input id="media-photos" type="file" accept="image/*" multiple>
+<button type="button" id="media-image">Generate image</button>
+
+<h3>Short video</h3>
+<label for="media-video-headline">Headline</label><input id="media-video-headline" maxlength="200">
+<label for="media-video-photos">Photos (up to 8)</label><input id="media-video-photos" type="file" accept="image/*" multiple>
+<button type="button" id="media-video">Generate video</button>
+
+<h3>AI image</h3>
+<label for="media-ai-prompt">Prompt</label><textarea id="media-ai-prompt" maxlength="2000" placeholder="A modern Auckland villa with new aluminium cladding, dusk, architectural photo"></textarea>
+<button type="button" id="media-ai">Generate AI image</button>
+
+<p class="muted" id="media-status" aria-live="polite"></p>
+<div id="media-gallery"></div>
+</section>
 <section class="panel" id="knowledge-panel">
 <h2>Business information</h2><p class="muted">Add the FAQs, services, opening hours and price lists Concierge should use for your business. This information belongs only to your workspace. Saving the same document title replaces that document.</p>
 <form id="knowledge-form"><label for="knowledge-title">Document title</label><input id="knowledge-title" required maxlength="120" placeholder="Business information">
@@ -219,7 +253,7 @@ async function signIn(slug,email,password){
  $("login-panel").hidden=true;$("app-panel").hidden=false;
  $("invite-panel").hidden=user.role!=="owner";
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs()]);
+ const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message("Your business workspace is ready. Choose what to set up below.");
@@ -1017,6 +1051,79 @@ $("invite-form").addEventListener("submit",async event=>{
 });
 
 
+
+function mediaData(file){
+  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.readAsDataURL(file);});
+}
+async function mediaPhotos(id,limit){
+  const input=$(id); const files=input&&input.files?Array.from(input.files):[];
+  if(files.length>limit)throw new Error("Use at most "+limit+" photos");
+  return Promise.all(files.map(mediaData));
+}
+async function refreshMedia(){
+  const statusEl=$("media-status"); if(!statusEl)return;
+  try{
+    const brand=await request("/owner/media/brand");
+    $("media-brand-name").value=brand.name||""; $("media-brand-accent").value=brand.accent||"#c8f560"; $("media-brand-contact").value=brand.contact||"";
+    const assets=await request("/owner/media/assets");
+    const gallery=$("media-gallery"); gallery.textContent="";
+    for(const asset of assets){
+      const box=document.createElement("article"); box.className="card";
+      const h=document.createElement("h3"); h.textContent=asset.kind==="video"?"Video":(asset.kind==="ai"?"AI image":"Branded image"); box.appendChild(h);
+      const meta=document.createElement("p"); meta.className="muted"; meta.textContent=(asset.template||"")+" · "+new Date(asset.created_at).toLocaleString(); box.appendChild(meta);
+      if(asset.prompt){const p=document.createElement("p");p.textContent=asset.prompt;box.appendChild(p);}
+      const open=document.createElement("button"); open.type="button"; open.className="secondary"; open.textContent="Open media";
+      open.addEventListener("click",()=>openMediaAsset(asset.id)); box.appendChild(open);
+      gallery.appendChild(box);
+    }
+    if(!assets.length){const p=document.createElement("p");p.className="muted";p.textContent="No media generated yet.";gallery.appendChild(p);}
+  }catch(e){statusEl.textContent=e.message;}
+}
+async function openMediaAsset(id){
+  const response=await fetch("/owner/media/assets/"+encodeURIComponent(id)+"/file",{headers:{Authorization:"Bearer "+bearer},cache:"no-store"});
+  if(!response.ok){alert("Media not available.");return;}
+  const blob=await response.blob(); const url=URL.createObjectURL(blob);
+  window.open(url,"_blank","noopener"); setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function saveMediaBrand(){
+  const statusEl=$("media-status"); statusEl.textContent="Saving brand kit…";
+  try{
+    const logoInput=$("media-logo"); const logo=logoInput&&logoInput.files&&logoInput.files[0]?await mediaData(logoInput.files[0]):undefined;
+    const body={name:$("media-brand-name").value.trim(),accent:$("media-brand-accent").value,contact:$("media-brand-contact").value.trim()};
+    if(logo)body.logo=logo;
+    await request("/owner/media/brand","PUT",body);
+    statusEl.textContent="Brand kit saved.";
+  }catch(e){statusEl.textContent=e.message;}
+}
+async function generateMediaImage(){
+  const statusEl=$("media-status"); statusEl.textContent="Rendering image…";
+  try{
+    const photos=await mediaPhotos("media-photos",6);
+    await request("/owner/media/image","POST",{template:$("media-template").value,format:$("media-format").value,headline:$("media-headline").value.trim(),subline:$("media-subline").value.trim(),photos});
+    statusEl.textContent="Image ready."; await refreshMedia();
+  }catch(e){statusEl.textContent=e.message;}
+}
+async function generateMediaVideo(){
+  const statusEl=$("media-status"); statusEl.textContent="Rendering video… this can take a minute.";
+  try{
+    const photos=await mediaPhotos("media-video-photos",8);
+    if(!photos.length)throw new Error("Choose at least one photo");
+    await request("/owner/media/video","POST",{format:"portrait",headline:$("media-video-headline").value.trim(),photos});
+    statusEl.textContent="Video ready."; await refreshMedia();
+  }catch(e){statusEl.textContent=e.message;}
+}
+async function generateMediaAi(){
+  const statusEl=$("media-status"); statusEl.textContent="Generating AI image…";
+  try{
+    await request("/owner/media/ai-image","POST",{prompt:$("media-ai-prompt").value.trim()});
+    statusEl.textContent="AI image ready."; await refreshMedia();
+  }catch(e){statusEl.textContent=e.message;}
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  const bind=(id,fn)=>{const el=$(id); if(el)el.addEventListener("click",fn);};
+  bind("media-save-brand",saveMediaBrand); bind("media-image",generateMediaImage);
+  bind("media-video",generateMediaVideo); bind("media-ai",generateMediaAi);
+});
 </script>
 </body>
 </html>
