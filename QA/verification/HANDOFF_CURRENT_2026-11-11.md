@@ -287,3 +287,18 @@
 - robots.txt rebuilt with the same allow/block split; sitemap retained.
 - Verified: GPTBot/CCBot 403, OAI-SearchBot/PerplexityBot 200, normal 200,
   robots 200; French subpage translation works.
+
+
+## Calendar, booking, logo and more SEO — 2026-11-11
+- Astryx Bookings now completes Google Calendar OAuth in a popup (start →
+  callback → finish) and saves booking hours/slot/acknowledgement through
+  `/owner/onboarding/profile` + `/owner/onboarding/native-booking`.
+- Pukeko booking enabled (Mon–Fri 09:00–17:00, 30-minute slots); calendar still
+  needs the owner to complete Google OAuth.
+- Pukeko logo (32 KB PNG) loaded into `media_brand`; widget logo endpoint
+  returns 200 image/png; portal/media templates use it.
+- Added public pages: ai-receptionist-real-estate, ai-receptionist-clinics,
+  ai-chat-widget-nz, best-ai-receptionist-nz. Sitemap/llms updated; language
+  switcher present; cache purged.
+- Remaining: bundle code-splitting, removal of the old test phone route, consent
+  copy review, off-site SEO accounts, offsite backup credentials.
