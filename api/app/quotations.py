@@ -203,7 +203,7 @@ async def public_quote(token: str):
     else:
         actions = '<p>This quotation is not ready for acceptance yet.</p>'
         note = 'The business owner still needs to review it.'
-    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(quote['title'])} — {name}</title>
 <style>
 body{{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#15191f;background:#f6f8fa}}
@@ -237,7 +237,7 @@ async def _decide(token: str, status: str):
     await db.pool().execute(
         f'UPDATE quotations SET status=$2, {column}=now(), version=version+1, updated_at=now() WHERE id=$1',
         row['id'], status)
-    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quotation {status}</title></head>
+    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quotation {status}</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:24px"><h1>Quotation {status}</h1><p>Thank you. The business has been notified.</p></body></html>""")
 
 

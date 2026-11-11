@@ -1579,7 +1579,7 @@ STUDIO_DIR = Path("/srv/studio")
 @app.get("/studio/", include_in_schema=False)
 async def studio_page():
     return FileResponse(STUDIO_DIR / "index.html", media_type="text/html",
-                        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"})
+                        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
 
 
 @app.get("/studio/assets/{path:path}", include_in_schema=False)
@@ -1596,8 +1596,14 @@ async def studio_file(path: str):
     target = (root / path).resolve()
     if not str(target).startswith(str(root)) or not target.is_file():
         return FileResponse(root / "index.html", media_type="text/html",
-                            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"})
+                            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
     return FileResponse(target)
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return Response("User-agent: *\nDisallow: /\n", media_type="text/plain",
+                    headers={"Cache-Control": "public, max-age=300"})
 
 
 @app.get("/onboarding", include_in_schema=False)

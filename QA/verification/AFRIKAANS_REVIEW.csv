@@ -1,158 +1,158 @@
 Section,English,Afrikaans
-NAV,Home,Tuiste
-NAV,Setup,Instalering
+NAV,Home,Tuis
+NAV,Setup,Stel op
 NAV,Designs,Ontwerpe
-NAV,Bookings,Bekennings
-NAV,Reports,Rapporte
+NAV,Bookings,Besprekings
+NAV,Reports,Verslae
 NAV,Quotes,Kwotasies
 NAV,Enquiries,Navrae
 NAV,Social,Sosiale
-NAV,Marketing media,Bemarkingmedië
-NAV,Sign out,Uitlog
-NAV,Install app,Appstal
+NAV,Marketing media,Bemarkingsmedia
+NAV,Sign out,Teken uit
+NAV,Install app,Installeer app
 NAV,Language,Taal
-NAV,Sign in,Inlog
-NAV,Business ID,Bedryfsienmerk
+NAV,Sign in,Teken in
+NAV,Business ID,Sake-ID
 NAV,Email,E-pos
 NAV,Password,Wagwoord
-NAV,Continue,Voorslaan
-NAV,Save,Bewaar
-NAV,Print / PDF,Afdruk / PDF
-NAV,Send to customer,Stuur na kliënt
-NAV,Review and sign off,Oorsae en onderteken
-NAV,Customer page,Kliëntblad
-NAV,Generate,Generer
-NAV,Upload,Oplaai
-UI,A simple view of the work coming in and going out., 'n Simpelse weergawe van die werk wat binnekom en uitgaan.
-UI,AI image,AI-beeld
-UI,Accent colour,Voorgrondkleur
-UI,Accent colour (hex),Voorgrondkleur (hex)
-UI,Account connections are awaiting Trendi setup for this business.,Rekeningverbindinge wag vir die inrigting van Trendi vir hierdie besigheid.
-UI,Accounts,Rekeninge
-UI,Add from product catalogue,Voeg vanuit produkkatologie by
-UI,Add line,Voeg lyn by
+NAV,Continue,Gaan voort
+NAV,Save,Stoor
+NAV,Print / PDF,Druk / PDF
+NAV,Send to customer,Stuur aan kliënt
+NAV,Review and sign off,Oorsig en teken af
+NAV,Customer page,Kliëntbladsy
+NAV,Generate,Genereer
+NAV,Upload,Laai op
+UI,A simple view of the work coming in and going out.,'n Eenvoudige oorsig van die werk wat ingestuur en uitgestuur word.
+UI,AI image,AI-afbeelding
+UI,Accent colour,Aksekkleur
+UI,Accent colour (hex),Aksekkleur (hex)
+UI,Account connections are awaiting Trendi setup for this business.,Rekeningkonneksies wag op Trendi-opstelling vir hierdie besigheid.
+UI,Accounts,Rekenings
+UI,Add from product catalogue,Voeg by vanuit produk-katalogus
+UI,Add line,Voeg lyn toe
 UI,Add this line to your website to show the chat window:,Voeg hierdie lyn by jou webwerf om die gespreksvenster te wys:
-UI,Admin token,Admin-token
-UI,Appointments,Agterpunte
-UI,"Appointments booked by Concierge, with the enquiry and confirmation kept together.","Agterpunte wat deur Concierge geregistreer word, saam met die vraag en bevestiging wat saam gehou word."
+UI,Admin token,Admin-tolk
+UI,Appointments,Afsprake
+UI,"Appointments booked by Concierge, with the enquiry and confirmation kept together.","Afsprake geboek deur Concierge, met die ondersoek en bevestiging saam gehou."
 UI,Back,Terug
-UI,Backups,Bekende kopieë
+UI,Backups,Backups
 UI,Bookings,Boekings
-UI,Brand kit,Merkpakket
-UI,Brand name,Merknaam
-UI,Branded image,Geldeenbeelde
-UI,"Branded images, short videos and AI images. Everything you generate is added to your social composer.","Geldeenbeelde, kort videos en AI- beelde. Alles wat jy skep, word by jou sosiale komponis gevoeg."
+UI,Brand kit,Handelsmerkstel
+UI,Brand name,Handelsnaam
+UI,Branded image,Handelsmerk-afbeelding
+UI,"Branded images, short videos and AI images. Everything you generate is added to your social composer.","Handelsmerk-afbeeldings, kort videos en AI-afbeeldings. Alles wat jy gegenereer word by jou sosiale samestelling gevoeg."
 UI,Bring in your website,Bring jou webwerf in
-UI,Build a quote from your enquiry and products. Prices are your sale prices. The business owner reviews and signs off before it is accepted.,Bou 'n aanbod van jou vraag en produkke. Prysse is jou verkoopprysse. Die besigheidsbesitter ondersoek en onderteken voor dit akkoord is.
+UI,Build a quote from your enquiry and products. Prices are your sale prices. The business owner reviews and signs off before it is accepted.,Bou 'n kwotasie van jou ondersoek en produkte. Pryse is jou verkooppryse. Die besigheids-eienaar hersien en teken af voordat dit aanvaar word.
 UI,Business name,Besigheidsnaam
-UI,CRM and enquiries,CRM en vrae
+UI,CRM and enquiries,CRM en ondersoeke
 UI,Calendar,Kalender
-UI,Choose a network and authorize it on the provider's site. You authorize only the account for this business.,Kies 'n netwerk en verleen toestemming op die aanbieder se webwerf. Jy verleen toestemming slegs vir die rekening vir hierdie besigheid.
+UI,Choose a network and authorize it on the provider's site. You authorize only the account for this business.,Kies 'n netwerk en autoriseer dit op die verskaffer se webwerf. Jy autoriseer slegs die rekening vir hierdie besigheid.
 UI,Choose a product,Kies 'n produk
-UI,Choose an enquiry,Kies 'n vraag
-UI,Close viewer,Sluit gesig
+UI,Choose an enquiry,Kies 'n ondersoek
+UI,Close viewer,Sluit kyker
 UI,Concierge,Concierge
-UI,Concierge never sends a price without the owner's approval. Your branding:,Concierge stuur nooit 'n prys sonder die eienaars goedkeuring nie. Jou merk:
-UI,Confirm password,Bevestig woorde
-UI,Connect Google Calendar,Sluit Google-Kalender aan
-UI,Connect an account,Sluit 'n rekening aan
+UI,Concierge never sends a price without the owner's approval. Your branding:,Concierge stuur nooit 'n prys sonder die eienaar se goedkeuring. Jou handelsmerk:
+UI,Confirm password,Bevestig wagwoord
+UI,Connect Google Calendar,Verbind Google Kalender
+UI,Connect an account,Verbind 'n rekening
 UI,Contact line,Kontaklyn
 UI,Contact phone,Kontaktelefoon
-UI,Continue,Voorslaan
+UI,Continue,Gaan voort
 UI,Conversation,Gesprek
-UI,Copy embed code,Kopieeer insluit kode
-UI,Create upload link,Maak 'n upload-samevaller
-UI,Customer page,Klantblad
-UI,Customer upload link,Klant- upload-samevaller
+UI,Copy embed code,Kopieer ingebedde kode
+UI,Create upload link,Skep opgelaai-skakel
+UI,Customer page,Kliëntbladsy
+UI,Customer upload link,Kliënt-opgelaai-skakel
 UI,Description,Beskrywing
 UI,Designs and CAD,Ontwerpe en CAD
 UI,Download,Laai af
-UI,Draft → reviewed (owner only) → accepted or declined.,Skets → ondersoek (slegs eienaar) → akkoord of geweier.
-UI,Enquiries by channel,Vrae deur kanaal
-UI,"Enquiries, quotes and marketing in one place.","Vrae, aanbiedings en marketing in een plek."
-UI,Enquiry,Vraag
-UI,"Every enquiry from chat, email, SMS and phone lands here, with the conversation and next step.","Elke vraag van gesprek, e-pos, SMS en telefoon kom hier aan, saam met die gesprek en volgende stap."
-UI,Exact post text,Praatstuksteks
+UI,Draft → reviewed (owner only) → accepted or declined.,Konsep → hersien (eienaar slegs) → aanvaar of verwerp.
+UI,Enquiries by channel,Ondersoeke per kanaal
+UI,"Enquiries, quotes and marketing in one place.","Ondersoeke, kwotasies en bemarking op een plek."
+UI,Enquiry,Ondersoek
+UI,"Every enquiry from chat, email, SMS and phone lands here, with the conversation and next step.","Elke ondersoek vanaf gesprek, e-pos, SMS en telefoon beland hier, met die gesprek en volgende stap."
+UI,Exact post text,Presiese plasingsleks
 UI,Format: 2026-11-12T09:00,Formaat: 2026-11-12T09:00
 UI,Hashtags (optional),Hashtags (opsioneel)
-UI,Headline,Hoofstuk
+UI,Headline,Koplyn
 UI,How Concierge works,Hoe Concierge werk
-UI,How sign-off works,Hoe onderteken werk
-UI,IFC takeoff,IFC neemoff
-UI,Image or video (optional),Beeld of video (opsioneel)
-UI,Internal console. The admin token is required.,Binne-inhoudskonsol. Die admin-token word vereis.
-UI,Latest enquiries,Laatste vrae
+UI,How sign-off works,Hoe aftekening werk
+UI,IFC takeoff,IFC-opstyg
+UI,Image or video (optional),Afbeelding of video (opsioneel)
+UI,Internal console. The admin token is required.,Interne konsole. Die admin-tolk is vereis.
+UI,Latest enquiries,Nuutste ondersoeke
 UI,Line description,Lynbeskrywing
 UI,Link (optional),Skakel (opsioneel)
-UI,Logo,Lêer
-UI,Marketing media,Marketingmedië
+UI,Logo,Logo
+UI,Marketing media,Bemarkingsmedia
 UI,Music (optional),Musiek (opsioneel)
 UI,New post,Nuwe pos
-UI,New quotation,Nuwe aanbod
-UI,New-enquiry alerts go here. Your replies are routed back into your own CRM.,Nuwe-vrae-waarskuings kom hier. Jou antwoorde word gerig terug na jou eie CRM.
+UI,New quotation,Nuwe kwotasie
+UI,New-enquiry alerts go here. Your replies are routed back into your own CRM.,Nuwe navraagwaarskuwings kom hier. U antwoorde word teruggestuur na u eie CRM.
 UI,Next,Volgende
-UI,"Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.","Volgende: sluit e-pos, SMS, telefoon, sosiale rekeninge en 'n kalender aan. Hulle leef in die werkruimte en word slegs ingeskep nadat getoets is."
-UI,No appointments booked yet.,Geen agterpunte is nog geregistreer nie.
-UI,No backups found.,Geen back-ups gevind.
-UI,No designs uploaded yet.,Geen ontwerpe geüpload nog.
-UI,No drafts yet.,Geen voorlopige sketse nog.
-UI,No enquiries yet. Connected channels will capture them here.,Geen vraelinge nog. Verbonde kanale sal hierdie vraelinge vang.
-UI,No open tasks.,Geen oop taken nog.
-UI,No quotations yet.,Geen aanbiedings nog.
-UI,No saved transcript.,Geen opgeslote transskripte nog.
-UI,No social accounts are connected yet.,Geen sosiale rekeninge is nog verbonde.
-UI,None booked.,Niks geboek.
-UI,Notes,Nota's
-UI,Notification email,Notifisie-e-pos
+UI,"Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.","Volgende: koppel e-pos, SMS, foon, sosiale rekenings en 'n kalender. Hulle leef in die werksruimte en word slegs na toetsing geaktiveer."
+UI,No appointments booked yet.,Geen afsprake nog geboek nie.
+UI,No backups found.,Geen back-ups gevind nie.
+UI,No designs uploaded yet.,Geen ontwerpe nog opgelaai nie.
+UI,No drafts yet.,Geen konsepte nog nie.
+UI,No enquiries yet. Connected channels will capture them here.,Geen navrae nog nie. Verbindde kanale sal hulle hier vasvang.
+UI,No open tasks.,Geen oop take nie.
+UI,No quotations yet.,Geen kwotasies nog nie.
+UI,No saved transcript.,Geen gestoorde transkripsie nie.
+UI,No social accounts are connected yet.,Geen sosiale rekenings is nog verbind nie.
+UI,None booked.,Geen een geboek nie.
+UI,Notes,Notas
+UI,Notification email,Kennisgewingse-pos
 UI,Open,Oop
-UI,Open console,Oop skakel
-UI,"PDF, DWG, IFC, GLB/GLTF, OBJ, STL, 3DM, STEP up to 50 MB. IFC gives automatic wall-area takeoff.","PDF, DWG, IFC, GLB/GLTF, OBJ, STL, 3DM, STEP tot 50 MB. IFC gee automatiese muur-oppervlakname."
+UI,Open console,Oop console
+UI,"PDF, DWG, IFC, GLB/GLTF, OBJ, STL, 3DM, STEP up to 50 MB. IFC gives automatic wall-area takeoff.","PDF, DWG, IFC, GLB/GLTF, OBJ, STL, 3DM, STEP tot 50 MB. IFC gee outomatiese muuroppervlak-afleiding."
 UI,Password (12+ characters),Wagwoord (12+ karakters)
 UI,Photos,Fotos
 UI,Post,Pos
-UI,Powered by Trendi,Deur Trendi aangedryf
+UI,Powered by Trendi,Aangedrewe deur Trendi
 UI,Print / PDF,Druk / PDF
-UI,Prompt,Vraag
-UI,Qty,Koppies
-UI,Quantity,Koppies
-UI,Quotations,Aanbiedings
-UI,Quotations by status,Aanbiedings na status
-UI,Refresh,Herlaai
-UI,Reports,Rapporte
-UI,Review and sign off,Oorsae en onderteken
-UI,Save brand kit,Sla brandkit op
-UI,Save draft,Sla voorlopige skets op
-UI,Schedule,Agenda
-UI,"Schedule time (optional, defaults to one hour from now)","Agenda tyd (opsioneel, stel om een uur van nou af)"
-UI,Search enquiries,Soek vraelinge
-UI,Send this to a customer so they can upload their own plans. It expires in 7 days.,Stuur hierdie aan 'n klant om hulle eie planne te laai. Dit verstryk binne 7 dae.
-UI,Send to customer,Stuur na klant
-UI,Set password and continue,Stel wagwoord en voorslaan
+UI,Prompt,Aansporing
+UI,Qty,Hoev.
+UI,Quantity,Hoeveelheid
+UI,Quotations,Kwotasies
+UI,Quotations by status,Kwotasies volgens status
+UI,Refresh,Verfris
+UI,Reports,Verslae
+UI,Review and sign off,Oorsig en onderteken
+UI,Save brand kit,Stoor handelsmerkstel
+UI,Save draft,Stoor konsep
+UI,Schedule,Skeduleer
+UI,"Schedule time (optional, defaults to one hour from now)","Skeduleer tyd (opsioneel, standaard een uur vanaf nou)"
+UI,Search enquiries,Soek navrae
+UI,Send this to a customer so they can upload their own plans. It expires in 7 days.,Stuur dit aan 'n kliënt sodat hulle hul eie planne kan oplaai. Dit verloop in 7 dae.
+UI,Send to customer,Stuur aan kliënt
+UI,Set password and continue,Stel wagwoord en gaan voort
 UI,Short video,Kort video
-UI,"Sign in to set up your business, generate marketing media and manage enquiries.","Inlog om jou onderneming op te stel, reklame- media te skep en vraelinge te bestuur."
-UI,Sign out,Uitlog
-UI,Skip,Oorspring
+UI,"Sign in to set up your business, generate marketing media and manage enquiries.","Teken in om u besigheid op te stel, bemarkingsmedia te genereer en navrae te bestuur."
+UI,Sign out,Teken uit
+UI,Skip,Skuil
 UI,Social,Sosiaal
-UI,Subline or bullets,Sublyne of bullette
-UI,Tasks,Taken
+UI,Subline or bullets,Sublyn of koeëls
+UI,Tasks,Take
 UI,Tax %,Belasting %
-UI,Tenants,Huiseienaars
+UI,Tenants,Huurders
 UI,Title,Titel
-UI,Trendi admin,Trendi bestuurder
-UI,Unit price,Eenheid pryse
+UI,Trendi admin,Trendi-admin
+UI,Unit price,Eenheidsprys
 UI,Upload a design,Laai 'n ontwerp op
-UI,"Upload plans or 3D models, view them, and read wall areas from IFC models for cladding quotes.","Laai planne of 3D-modelle op, kyk hulle aan en lees muur-oppervlakke vanuit IFC-modelle vir kladdingsaanbiedings."
-UI,View,Sien
-UI,We read the public pages you own and turn them into the assistant's answers. You can re-run this any time.,Ons lees die openbare bladsye wat jy besit en verander hulle in die assistent se antwoorde. Jy kan hierdie enigtyds herloop.
+UI,"Upload plans or 3D models, view them, and read wall areas from IFC models for cladding quotes.","Laai planne of 3D-modelle op, kyk daarna en lees muuroppervlakke van IFC-modelle vir bekledingkwotasies."
+UI,View,Kyks
+UI,We read the public pages you own and turn them into the assistant's answers. You can re-run this any time.,Ons lees die openbare bladsye wat jy besit en verander hulle in die assistent se antwoorde. Jy kan dit enige tyd herhardloop.
 UI,Website,Webwerf
-UI,Website embed code,Webwerf-inbeddingskode
+UI,Website embed code,Webwerf ingebedingkode
 UI,Welcome to Concierge,Welkom by Concierge
-UI,"You only need to provide your business details, a contact email and phone. Everything else can be skipped.","Jy hoef slegs jou ondernemingsinligting, 'n kontak-e-pos en telefoon te lewer. Alles anders kan oorspring."
-UI,You're ready,Jy's kla
-UI,Your branding,Jou merkbekendheid
-UI,Your business,Jou onderneming
-UI,Your contact details,Jou kontak-inligting
-UI,"Your logo, name, contact line and accent colour follow through to your media and portal.","Jou logo, naam, kontaklyn en kleurvolg na jou media en portal."
+UI,"You only need to provide your business details, a contact email and phone. Everything else can be skipped.","Jy hoef slegs jou besigheidsbesonderhede, 'n kontak-e-pos en telefoonnommer te verskaf. Al die res kan oorgeslaan word."
+UI,You're ready,Jy is gereed
+UI,Your branding,Jou handelsmerk
+UI,Your business,Jou besigheid
+UI,Your contact details,Jou kontakbesonderhede
+UI,"Your logo, name, contact line and accent colour follow through to your media and portal.","Jou logo, naam, kontaklyn en aksentkleur loop deur na jou media en portal."
 UI,Your media,Jou media
-UI,Your posts,Jou posse
-UI,Your quotations,Jou aanbiedings
+UI,Your posts,Jou plasings
+UI,Your quotations,Jou kwotasies

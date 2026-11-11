@@ -31,8 +31,10 @@ const LOCALES: Array<[string, string]> = [
   ['zh-CN', '中文（简体）'], ['zh-TW', '中文（繁體）'],
 ];
 const UI = UI_STRINGS as Record<string, Record<string, string>>;
+// Only locales a human has actually reviewed are exposed to customers.
+const REVIEWED = new Set(['en', 'af-ZA']);
 const LOCALE_PREFIX = (value: string) => LOCALES.find(([code]) => code.toLowerCase().startsWith(value.toLowerCase().split('-')[0]))?.[0] || 'en';
-const hasLocale = (code: string) => LOCALES.some(([item]) => item === code);
+const hasLocale = (code: string) => REVIEWED.has(code);
 
 function initialLocale() {
   const query = new URLSearchParams(location.search).get('lang');
@@ -108,7 +110,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
           <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-            {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {LOCALES.filter(([code]) => REVIEWED.has(code)).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
           <Button label={tr('Home')} variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
           <Button label={tr('Setup')} variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
@@ -144,7 +146,7 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
     <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
       <div style={{display: 'flex', justifyContent: 'flex-end'}}>
         <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-          {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          {LOCALES.filter(([code]) => REVIEWED.has(code)).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
         </select>
       </div>
       <Heading level={1}>Concierge</Heading>

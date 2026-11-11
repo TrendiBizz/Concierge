@@ -188,7 +188,7 @@ async def upload_page(token: str):
     row = await db.pool().fetchrow("SELECT tenant_id,expires_at FROM design_links WHERE token=$1 AND expires_at>now()", token)
     if not row:
         raise HTTPException(404, "This upload link has expired")
-    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Send your plans</title><style>body{{font-family:system-ui,sans-serif;max-width:560px;margin:8vh auto;padding:24px}}input,button{{font:inherit;margin-top:12px}}</style></head>
 <body><h1>Send your plans</h1><p>Upload the original plan drawings or a 3D model. PDF, DWG, IFC, GLB and common formats up to 50 MB.</p>
 <input id="file" type="file" accept=".pdf,.dwg,.dxf,.ifc,.glb,.gltf,.obj,.stl,.3dm,.step,.stp"><br>
