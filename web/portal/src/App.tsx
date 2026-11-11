@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
@@ -10,13 +10,18 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
+import {Badge} from '@astryxdesign/core/Badge';
+import {ProgressBar} from '@astryxdesign/core/ProgressBar';
+import {Banner} from '@astryxdesign/core/Banner';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
-import UI_STRINGS from './i18n/strings.json';
-import UI_TEXT from './i18n/ui.json';
+const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
+const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/copy/*.json');
 
 const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./locales/*.json');
-import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
+
+
+const Home = lazy(() => import('./Home'));
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 const CATALOGS: Record<string, Record<string, string>> = {en};
@@ -30,7 +35,6 @@ const LOCALES: Array<[string, string]> = [
   ['sv-SE', 'Svenska'], ['tr-TR', 'Türkçe'], ['uk-UA', 'Українська'], ['vi-VN', 'Tiếng Việt'],
   ['zh-CN', '中文（简体）'], ['zh-TW', '中文（繁體）'],
 ];
-const UI = UI_STRINGS as Record<string, Record<string, string>>;
 // Only locales a human has actually reviewed are exposed to customers.
 const REVIEWED = new Set(['en', 'af-ZA']);
 const LOCALE_PREFIX = (value: string) => LOCALES.find(([code]) => code.toLowerCase().startsWith(value.toLowerCase().split('-')[0]))?.[0] || 'en';
@@ -104,10 +108,12 @@ function TranslationNote({locale}: {locale: string}) {
   if (REVIEWED.has(locale)) return null;
   const label = LOCALES.find(([code]) => code === locale)?.[1] || locale;
   return (
-    <div role="note" style={{padding: '10px 16px', background: '#fff8e1', borderBottom: '1px solid #f0dca0', fontSize: 14}}>
-      {label} translation is automated and has not been reviewed by a native speaker. We welcome corrections and feedback —{' '}
-      <a href={'mailto:admin@trendibizz.com?subject=' + encodeURIComponent('Translation feedback: ' + locale)}>tell us what to improve</a>.
-    </div>
+    <Banner
+      status="warning"
+      title={label + ' translation'}
+      description={<>Automated and not reviewed by a native speaker. We welcome corrections — <a href={'mailto:admin@trendibizz.com?subject=' + encodeURIComponent('Translation feedback: ' + locale)}>tell us what to improve</a>.</>}
+      isDismissable
+    />
   );
 }
 
@@ -359,7 +365,14 @@ function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Marketing media</Heading>
       <p>Branded images, short videos and AI images. Everything you generate is added to your social composer.</p>
-      {usage ? <p>This month: {usage.images?.used}/{usage.images?.limit} images · {usage.videos?.used}/{usage.videos?.limit} videos · {usage.ai?.used}/{usage.ai?.limit} AI images · {Math.round((usage.storage?.used || 0) / 1048576)}/{Math.round((usage.storage?.limit || 0) / 1048576)} MB stored.</p> : null}
+      {usage ? (
+        <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
+          <ProgressBar label="Images this month" value={usage.images?.used || 0} max={usage.images?.limit || 100} hasValueLabel />
+          <ProgressBar label="Videos this month" value={usage.videos?.used || 0} max={usage.videos?.limit || 40} hasValueLabel />
+          <ProgressBar label="AI images this month" value={usage.ai?.used || 0} max={usage.ai?.limit || 50} hasValueLabel />
+          <ProgressBar label="Storage (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)} max={Math.round((usage.storage?.limit || 0) / 1048576)} hasValueLabel />
+        </div>
+      ) : null}
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         <Card>
           <Heading level={2}>Brand kit</Heading>
@@ -635,7 +648,7 @@ function Social({token, brand}: {token: string; brand: Brand}) {
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
         {posts.map((post) => (
           <Card key={post.id}>
-            <strong>{post.status.replaceAll('_', ' ')}</strong>
+            <Badge label={post.status.replaceAll('_', ' ')} variant={post.status === 'published' ? 'success' : post.status === 'failed' ? 'error' : 'neutral'} />
             <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
             {post.last_error ? <p role="alert">{post.last_error}</p> : null}
           </Card>
@@ -687,7 +700,7 @@ function Crm({token}: {token: string}) {
         {shown.map((lead) => (
           <Card key={lead.id}>
             <Heading level={2}>{lead.name || lead.email || lead.phone || 'Enquiry'}</Heading>
-            <p>{lead.channel} · {lead.status} · {new Date(lead.created_at).toLocaleString()}</p>
+            <p>{lead.channel} · <Badge label={lead.status} variant={lead.status === 'new' ? 'info' : 'neutral'} /> · {new Date(lead.created_at).toLocaleString()}</p>
             <p>{[lead.email, lead.phone].filter(Boolean).join(' · ')}</p>
             {lead.message ? <p style={{whiteSpace: 'pre-wrap'}}>{lead.message}</p> : null}
             <Button label="Conversation" variant="secondary" onClick={() => transcript(lead.id)} />
@@ -838,7 +851,7 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
         {quotes.map((quote) => (
           <Card key={quote.id}>
             <Heading level={2}>{quote.title}</Heading>
-            <p><strong>{quote.status}</strong> · {money(quote.total_cents, quote.currency)} incl. {money(quote.tax_cents, quote.currency)} tax</p>
+            <p><Badge label={quote.status} variant={quote.status === 'accepted' ? 'success' : quote.status === 'declined' ? 'error' : quote.status === 'reviewed' ? 'info' : 'neutral'} /> · {money(quote.total_cents, quote.currency)} incl. {money(quote.tax_cents, quote.currency)} tax</p>
             {quote.lines.map((line, index) => <p key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, quote.currency)}</p>)}
             {quote.notes ? <p>{quote.notes}</p> : null}
             <Button label="Print / PDF" variant="secondary" onClick={() => printQuote(quote.id)} />
@@ -1101,64 +1114,6 @@ function Admin() {
 }
 
 
-function Home({token, brand}: {token: string; brand: Brand}) {
-  const api = useApi(token);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [status, setStatus] = useState('');
-
-  useEffect(() => {
-    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets')])
-      .then(([crm, q, p, a]) => {
-        setLeads(((crm as {leads?: Lead[]}).leads || []));
-        setQuotes(q as Quote[]); setPosts(p as Post[]); setAssets(a as Asset[]);
-      }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load the dashboard'));
-  }, [token]);
-
-  const quoted = quotes.filter((quote) => ['reviewed', 'accepted'].includes(quote.status)).reduce((sum, quote) => sum + quote.total_cents, 0);
-  const channels = Object.entries(leads.reduce((acc, lead) => {
-    acc[lead.channel] = (acc[lead.channel] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>)).map(([name, count]) => ({name, count}));
-  const quoteStates = ['draft', 'reviewed', 'accepted', 'declined'].map((state) => ({name: state, count: quotes.filter((quote) => quote.status === state).length}));
-
-  return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
-      <Heading level={1}>{brand.name || 'Your business'} at a glance</Heading>
-      <p>Enquiries, quotes and marketing in one place.</p>
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))'}}>
-        {[['Enquiries', leads.length], ['Quoted value', money(quoted, 'NZD')], ['Posts', posts.length], ['Media', assets.length]].map(([label, value]) => (
-          <Card key={String(label)}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
-        ))}
-      </div>
-      <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: 20}}>
-        <Card>
-          <Heading level={2}>Enquiries by channel</Heading>
-          <div style={{height: 240}}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={channels}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card>
-          <Heading level={2}>Quotations by status</Heading>
-          <div style={{height: 240}}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={quoteStates}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
-      <Heading level={2}>Latest enquiries</Heading>
-      {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.channel} · {lead.status}</p>)}
-      {status ? <p role="status">{status}</p> : null}
-    </div>
-  );
-}
-
-
 function Designs({token}: {token: string}) {
   const api = useApi(token);
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -1256,7 +1211,7 @@ function Designs({token}: {token: string}) {
         {designs.map((design) => (
           <Card key={design.id}>
             <strong>{design.filename}</strong>
-            <p>{Math.round(design.size_bytes / 1024)} KB · {design.status} · {new Date(design.created_at).toLocaleDateString()}</p>
+            <p>{Math.round(design.size_bytes / 1024)} KB · <Badge label={design.status} variant={design.status === 'parsed' ? 'success' : design.status === 'failed' ? 'error' : 'neutral'} /> · {new Date(design.created_at).toLocaleDateString()}</p>
             <Button label="View" variant="secondary" onClick={() => open(design)} />
             <Button label="Download" variant="ghost" onClick={() => open(design, true)} />
             {design.filename.toLowerCase().endsWith('.ifc') ? <Button label="IFC takeoff" variant="primary" onClick={() => takeoff(design)} /> : null}
@@ -1272,10 +1227,9 @@ function Designs({token}: {token: string}) {
 }
 
 
-function useDomTranslation(locale: string) {
+function useDomTranslation(locale: string, dictionary: Record<string, string>) {
   useEffect(() => {
-    if (locale === 'en') return;
-    const dictionary = (UI_TEXT as Record<string, Record<string, string>>)[locale] || {};
+    if (locale === 'en' || !dictionary) return;
     const translate = () => {
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       let node: Node | null;
@@ -1302,7 +1256,7 @@ function useDomTranslation(locale: string) {
     });
     observer.observe(document.body, {childList: true, subtree: true, characterData: true});
     return () => { observer.disconnect(); window.clearTimeout(timer); };
-  }, [locale]);
+  }, [locale, dictionary]);
 }
 
 function Shell() {
@@ -1312,13 +1266,23 @@ function Shell() {
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
   const [locale, setLocaleState] = useState(initialLocale);
   const [catalog, setCatalog] = useState<Record<string, string>>(en);
-  const tr = (key: string) => UI[locale]?.[key] || key;
-  useDomTranslation(locale);
+  const [navStrings, setNavStrings] = useState<Record<string, string>>({});
+  const [copyStrings, setCopyStrings] = useState<Record<string, string>>({});
+  const tr = (key: string) => navStrings[key] || key;
+  useDomTranslation(locale, copyStrings);
   function setLocale(value: string) { setLocaleState(value); localStorage.setItem('concierge.locale', value); }
   useEffect(() => {
     const loader = localeLoaders['./locales/' + locale + '.json'];
     if (loader) loader().then((module) => setCatalog(module.default)).catch(() => setCatalog(en));
     else setCatalog(en);
+  }, [locale]);
+  useEffect(() => {
+    const navLoader = navLoaders['./i18n/nav/' + locale + '.json'];
+    const copyLoader = copyLoaders['./i18n/copy/' + locale + '.json'];
+    Promise.all([
+      navLoader ? navLoader().then((m) => m.default) : Promise.resolve({}),
+      copyLoader ? copyLoader().then((m) => m.default) : Promise.resolve({}),
+    ]).then(([nav, copy]) => { setNavStrings(nav); setCopyStrings(copy); }).catch(() => undefined);
   }, [locale]);
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -1363,7 +1327,7 @@ function Shell() {
     <div>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} />
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
     </InternationalizationProvider>
     </Theme>
