@@ -1,0 +1,11 @@
+; --- VoipLine inbound route ---
+[voipline-inbound]
+exten => {{DID}},1,Goto(business-{{TENANT}},s,1)
+exten => _.,1,Hangup(21)
+
+[business-{{TENANT}}]
+exten => s,1,Answer()
+ same => n,Set(TIMEOUT(absolute)=600)
+ same => n,Set(CONCIERGE_CALL=${FILTER(0-9a-f-,${SHELL(cat /proc/sys/kernel/random/uuid)})})
+ same => n,AudioSocket(${CONCIERGE_CALL},bridge:{{PORT}})
+ same => n,Hangup()
