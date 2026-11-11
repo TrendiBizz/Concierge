@@ -17,7 +17,7 @@
     }
     @chat {
         host chat.trendibizz.com
-        path /widget.js /demo/* /api/v1/widget-config /api/v1/chat /api/v1/chat/stream /api/v1/voice/token /api/v1/voice/log /api/v1/voice/sessions/* /api/v1/voice/recordings/shared/* /api/v1/tools/* /api/v1/unsubscribe/* /api/v1/smsgate/* /api/v1/sms/*
+        path /widget.js /demo/* /api/v1/widget-config /api/v1/widget-logo /api/v1/chat /api/v1/chat/stream /api/v1/voice/token /api/v1/voice/log /api/v1/voice/sessions/* /api/v1/voice/recordings/shared/* /api/v1/tools/* /api/v1/unsubscribe/* /api/v1/smsgate/* /api/v1/sms/*
     }
     handle @chat {
         reverse_proxy api:8000 {

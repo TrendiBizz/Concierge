@@ -212,7 +212,13 @@
 
     var panel = el("div", { class: "panel", role: "dialog", "aria-label": cfg.name + " AI guide" }, [
       el("div", { class: "head" }, [
-        el("div", {}, [el("b", { text: cfg.name }), el("small", { text: "AI guide" })]),
+        (function(){
+          var brand = el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+            el("div", {}, [el("b", { text: cfg.name }), el("small", { text: "AI guide" })]),
+          ]);
+          if (cfg.logo_url) brand.insertBefore(el("img", { src: cfg.logo_url, alt: "", style: "height:28px;width:auto" }), brand.firstChild);
+          return brand;
+        })(),
         closeBtn,
       ]),
       log,

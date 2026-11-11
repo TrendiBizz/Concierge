@@ -609,6 +609,14 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
     setBusy(false);
   }
 
+  async function printQuote(id: string) {
+    const response = await fetch('/owner/crm/quotations/' + id + '/print', {headers: {Authorization: 'Bearer ' + token}});
+    if (!response.ok) { setStatus('Could not prepare the quotation.'); return; }
+    const url = URL.createObjectURL(await response.blob());
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
   async function signOff(id: string, version: number) {
     setBusy(true); setStatus('');
     try {
@@ -667,6 +675,7 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
             <p><strong>{quote.status}</strong> · {money(quote.total_cents, quote.currency)} incl. {money(quote.tax_cents, quote.currency)} tax</p>
             {quote.lines.map((line, index) => <p key={index}>{line.description} · {line.quantity} × {money(line.unit_price_cents, quote.currency)}</p>)}
             {quote.notes ? <p>{quote.notes}</p> : null}
+            <Button label="Print / PDF" variant="secondary" onClick={() => printQuote(quote.id)} />
             {role === 'owner' && quote.status === 'draft' ? <Button label="Review and sign off" variant="primary" onClick={() => signOff(quote.id, quote.version)} /> : null}
           </Card>
         ))}

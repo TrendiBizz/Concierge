@@ -4,6 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
+import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import db, owner_auth
 
@@ -114,3 +116,52 @@ async def change_status(quote_id: UUID, body: QuoteStatus, user=Depends(owner_au
     if not row:
         raise HTTPException(409, 'Quotation changed or transition unavailable; refresh first')
     return view(row)
+
+
+@router.get('/{quote_id}/print', response_class=HTMLResponse, include_in_schema=False)
+async def print_view(quote_id: UUID, user=Depends(owner_auth.current_user)):
+    """Branded, print-ready quotation (browser Print → Save as PDF)."""
+    row = await db.pool().fetchrow('SELECT * FROM quotations WHERE tenant_id=$1 AND id=$2', user['tenant_id'], quote_id)
+    if not row:
+        raise HTTPException(404, 'Quotation not found')
+    quote = view(row)
+    tenant = await db.pool().fetchrow('SELECT name,site_url FROM tenants WHERE id=$1', user['tenant_id'])
+    brand = await db.pool().fetchrow('SELECT name,accent,contact,logo_data FROM media_brand WHERE tenant_id=$1', user['tenant_id'])
+    brand = dict(brand) if brand else {}
+    name = html.escape((brand.get('name') or (tenant['name'] if tenant else '') or 'Quotation'))
+    accent = html.escape(brand.get('accent') or '#c8f560')
+    contact = html.escape(brand.get('contact') or (tenant['site_url'] if tenant and tenant['site_url'] else '') or '')
+    logo = brand.get('logo_data') or ''
+    currency = quote['currency']
+    def cash(cents: int) -> str:
+        return f"{cents / 100:,.2f} {currency}"
+    lines = ''.join(
+        f"<tr><td>{html.escape(line['description'])}</td><td class='num'>{line['quantity']}</td>"
+        f"<td class='num'>{cash(line['unit_price_cents'])}</td><td class='num'>{cash(line['amount_cents'])}</td></tr>"
+        for line in quote['lines'])
+    logo_tag = f'<img src="{logo}" alt="" style="height:64px">' if logo.startswith('data:image/') else ''
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>{html.escape(quote['title'])} — {name}</title>
+<style>
+body{{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#15191f}}
+.page{{max-width:820px;margin:0 auto;padding:40px}}
+header{{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:6px solid {accent};padding-bottom:20px}}
+h1{{margin:8px 0 4px;font-size:28px}} .muted{{color:#5a6673}} table{{width:100%;border-collapse:collapse;margin-top:28px}}
+th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
+.num{{text-align:right}} .totals{{margin-left:auto;margin-top:18px;width:320px}} .totals td{{border:0;padding:6px 8px}}
+.grand{{font-weight:700;font-size:20px;border-top:2px solid {accent}}} footer{{margin-top:36px;font-size:13px;color:#5a6673}}
+.status{{display:inline-block;padding:4px 10px;border-radius:999px;background:{accent};color:#101408;font-size:12px;font-weight:700;text-transform:uppercase}}
+@media print{{.page{{padding:0}} .no-print{{display:none}}}}
+</style></head><body><div class="page">
+<header><div>{logo_tag}<h1>{html.escape(quote['title'])}</h1><p class="muted">{name}{(' · ' + contact) if contact else ''}</p></div>
+<div><span class="status">{html.escape(quote['status'])}</span><p class="muted">{quote['created_at']:%d %b %Y}<br>Version {quote['version']}</p></div></header>
+<p><strong>Prepared for:</strong> {html.escape(str(quote.get('contact', {}).get('name') or quote.get('contact', {}).get('email') or 'Customer'))}</p>
+<table><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody>{lines}</tbody></table>
+<table class="totals"><tr><td>Subtotal</td><td class="num">{cash(quote['subtotal_cents'])}</td></tr>
+<tr><td>Tax</td><td class="num">{cash(quote['tax_cents'])}</td></tr>
+<tr class="grand"><td>Total</td><td class="num">{cash(quote['total_cents'])}</td></tr></table>
+{('<p><strong>Notes</strong><br>' + html.escape(quote['notes']).replace(chr(10), '<br>') + '</p>') if quote.get('notes') else ''}
+<footer>{name} · Quotation {html.escape(str(quote['id']))[:8]} · Prices in {currency}. This quotation is a draft until reviewed and signed off by the business owner.</footer>
+<p class="no-print"><button onclick="window.print()">Print / Save as PDF</button></p>
+</div></body></html>"""
+    return HTMLResponse(document)

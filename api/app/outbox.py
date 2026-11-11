@@ -184,8 +184,13 @@ async def _deliver(row: dict) -> None:
             headers = {"List-Unsubscribe": f"<{link}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
         if row["kind"] in OWNER_KINDS and tenant.get("reply_address"):
             headers = {**(headers or {}), "Reply-To": tenant["reply_address"]}
+        body = row["body"]
+        if row["kind"] in OWNER_KINDS and tenant.get("name"):
+            body = body.rstrip() + f"\n\n— {tenant['name']}"
+            if tenant.get("site_url"):
+                body += f"\n{tenant['site_url']}"
         await mailer.send_email(
-            row["to_addr"], row["subject"] or f"Message from {tenant['name']}", row["body"], headers,
+            row["to_addr"], row["subject"] or f"Message from {tenant['name']}", body, headers,
         )
         if row["kind"] == "email_secretary_reply":
             await casetimeline.mark_replied(

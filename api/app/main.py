@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import html
 import json
 import logging
@@ -8,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote_plus, urlsplit
 from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
 
@@ -176,10 +177,26 @@ async def widget_js():
     )
 
 
+@app.get("/api/v1/widget-logo")
+async def widget_logo(request: Request, key: str):
+    tenant = await _tenant_for(request, key)
+    row = await db.pool().fetchrow("SELECT logo_data FROM media_brand WHERE tenant_id=$1", tenant["id"])
+    data = row["logo_data"] if row else None
+    if not data or not data.startswith("data:image/"):
+        raise HTTPException(404, "Logo unavailable")
+    header, encoded = data.split(",", 1)
+    mime = header[5:].split(";")[0] or "image/png"
+    return Response(base64.b64decode(encoded), media_type=mime,
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.get("/api/v1/widget-config")
 async def widget_config(request: Request, key: str):
     tenant = await _tenant_for(request, key)
     result = tenants.public_view(tenant)
+    brand = await db.pool().fetchrow("SELECT logo_data FROM media_brand WHERE tenant_id=$1", tenant["id"])
+    if brand and brand["logo_data"]:
+        result["logo_url"] = "/api/v1/widget-logo?key=" + quote_plus(key)
     result["recording_available"] = bool(settings.voice_recording_enabled and tenant.get("voice_enabled") and await channel_authorization.is_authorized(tenant["id"], "call_recording"))
     return result
 
