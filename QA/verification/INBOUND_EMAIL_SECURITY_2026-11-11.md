@@ -125,3 +125,32 @@ quarantined row with attacker text, which a human sees and discards or releases.
 - Operational note: the Rust sidecar caches negative DNS answers for up to an
   hour; restart `trendi-email-auth-1` after publishing a DKIM record. Test rows
   and the temporary DKIM TXT record were removed.
+
+## Speed work — 2026-11-11 13:20
+
+Measured on the live stack (grok-4.7; LLM latency varies run to run):
+
+| Change | Before | After |
+|---|---|---|
+| Chat reply (full JSON) | 7.80 s, 5.08 s | 6.40 s, 3.85 s |
+| Chat first token (stream) | n/a (waited for full) | 7.50, 2.37, 4.67, 3.08, 3.52 s (avg 4.2 s vs 5.8 s full) |
+| Repeated retrieval | 21.9 ms | **0.0 ms** (TTL cache hit) |
+| Static asset headers | none | `public, max-age=2592000, immutable` (Cloudflare purged) |
+
+- `POST /api/v1/chat/stream` (SSE) + widget reader; events `token`, `replace`
+  (quote guard correction), `done`. Gateway routes `/api/v1/chat/stream`.
+- `rag.retrieve` TTL cache (300 s, 512 entries); repeated questions skip the
+  embedding + vector query.
+- Read-only tools (`search_knowledge`, `check_availability`,
+  `get_booking_link`) run concurrently; mutating tools stay ordered. Prompt now
+  asks the model to batch lookups. Test: two 100 ms tools finish in <180 ms.
+- Indexes: added `leads_conversation_idx` and
+  `conversations_tenant_started_idx`; confirmed `chunks` HNSW,
+  `messages_conv_idx`, `leads_tenant_idx` already existed.
+- Caddy caches `/brand/*`, `/fonts/*`, `/assets/*`, `/images/*` for 30 days.
+- 538 tests pass.
+- Note: grok-4.7 has a silent reasoning phase before its first token, which is
+  now the floor on perceived latency. A non-reasoning model or lower reasoning
+  effort would move it further.
+- Perf chat runs triggered owner alerts (SMS+email). Outbox and
+  `device_sms_jobs` rows were removed; SMS already delivered to the paired phone.
