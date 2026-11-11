@@ -77,6 +77,8 @@ function BrandHeader({brand, tab, setTab, onSignOut}: {brand: Brand; tab: string
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto'}}>
           <Button label="Setup" variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
+          <Button label="Bookings" variant={tab === 'bookings' ? 'primary' : 'ghost'} onClick={() => setTab('bookings')} />
+          <Button label="Reports" variant={tab === 'reports' ? 'primary' : 'ghost'} onClick={() => setTab('reports')} />
           <Button label="Quotes" variant={tab === 'quotes' ? 'primary' : 'ghost'} onClick={() => setTab('quotes')} />
           <Button label="Enquiries" variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
           <Button label="Social" variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
@@ -675,11 +677,106 @@ function Quotes({token, brand}: {token: string; brand: Brand}) {
   );
 }
 
+
+function Bookings({token}: {token: string}) {
+  const api = useApi(token);
+  const [calendar, setCalendar] = useState<{configured?: boolean; connected?: boolean; provider?: string}>({});
+  const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    Promise.all([api('/owner/calendar'), api('/owner/crm')]).then(([cal, crm]) => {
+      setCalendar(cal as {configured?: boolean; connected?: boolean; provider?: string});
+      setAppointments(((crm as {appointments?: Record<string, unknown>[]}).appointments || []));
+    }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load bookings'));
+  }, [token]);
+
+  async function connect() {
+    try {
+      const result = await api('/owner/calendar/start', 'POST') as {authorization_url?: string};
+      if (result.authorization_url) window.location.href = result.authorization_url;
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Calendar connection unavailable'); }
+  }
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>Bookings</Heading>
+      <p>Appointments booked by Concierge, with the enquiry and confirmation kept together.</p>
+      <Card>
+        <Heading level={2}>Calendar</Heading>
+        <p>{calendar.connected ? 'Connected to ' + (calendar.provider || 'your calendar') + '.' : calendar.configured ? 'Calendar connection is available but not connected.' : 'Calendar connection is awaiting Trendi setup.'}</p>
+        {calendar.configured && !calendar.connected ? <Button label="Connect Google Calendar" variant="primary" onClick={connect} /> : null}
+      </Card>
+      <Heading level={2}>Appointments</Heading>
+      {appointments.length ? appointments.map((appointment, index) => (
+        <Card key={index}>
+          <strong>{String(appointment.title || appointment.name || 'Appointment')}</strong>
+          <p>{String(appointment.start_at || appointment.start || appointment.when || '')}</p>
+        </Card>
+      )) : <p>No appointments booked yet.</p>}
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
+function Reports({token}: {token: string}) {
+  const api = useApi(token);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets')])
+      .then(([crm, q, p, a]) => {
+        setLeads(((crm as {leads?: Lead[]}).leads || []));
+        setQuotes(q as Quote[]); setPosts(p as Post[]); setAssets(a as Asset[]);
+      }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load reports'));
+  }, [token]);
+
+  const quoted = quotes.filter((quote) => ['reviewed', 'accepted'].includes(quote.status)).reduce((sum, quote) => sum + quote.total_cents, 0);
+  const metrics = [
+    ['Enquiries', leads.length],
+    ['Quotations', quotes.length],
+    ['Quoted value', money(quoted, 'NZD')],
+    ['Social posts', posts.length],
+    ['Media assets', assets.length],
+  ] as Array<[string, string | number]>;
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>Reports</Heading>
+      <p>A simple view of the work coming in and going out.</p>
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
+        {metrics.map(([label, value]) => (
+          <Card key={label}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
+        ))}
+      </div>
+      <Heading level={2}>Quotations by status</Heading>
+      {['draft', 'reviewed', 'accepted', 'declined', 'void'].map((state) => (
+        <p key={state}>{state}: {quotes.filter((quote) => quote.status === state).length}</p>
+      ))}
+      <Heading level={2}>Latest enquiries</Heading>
+      {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.status}</p>)}
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
 function Shell() {
   const [token, setToken] = useState('');
   const [tab, setTab] = useState('setup');
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const api = useApi(token);
+
+  useEffect(() => {
+    document.title = brand.name ? brand.name + ' — Concierge' : 'Concierge';
+  }, [brand.name]);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/studio/sw.js').catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -698,7 +795,7 @@ function Shell() {
   return (
     <div style={accentStyle}>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} />
-      {tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
+      {tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
   );
 }

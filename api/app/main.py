@@ -1552,6 +1552,16 @@ async def studio_asset(path: str):
     return FileResponse(target)
 
 
+@app.get("/studio/{path:path}", include_in_schema=False)
+async def studio_file(path: str):
+    root = STUDIO_DIR.resolve()
+    target = (root / path).resolve()
+    if not str(target).startswith(str(root)) or not target.is_file():
+        return FileResponse(root / "index.html", media_type="text/html",
+                            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"})
+    return FileResponse(target)
+
+
 @app.get("/onboarding", include_in_schema=False)
 async def onboarding_page():
     return FileResponse(
