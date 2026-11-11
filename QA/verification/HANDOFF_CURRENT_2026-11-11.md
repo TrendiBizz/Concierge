@@ -79,3 +79,17 @@
   `/opt/trendi/shared/media` (owned by uid 10001).
 - The temporary Pukeko support owner used for testing was deleted.
 - Commands: `docker compose build media-render api && up -d media-render api`.
+
+
+## Astryx studio and seamless media — 2026-11-11
+- `https://concierge.trendibizz.com/studio` — React 19 + Astryx (MIT) app for
+  marketing media: login, brand kit, image/video/AI generation, gallery.
+  Source in `web/portal`; build with `npm run build`, deploy `dist` to
+  `/opt/trendi/shared/studio` (owned by uid 10001).
+- Photos are auto-resized in the browser (max 2048 px, JPEG 0.86); up to 20
+  photos per image/video. Generated media is automatically pushed to the social
+  media library (`/owner/media/assets/{id}/to-social`) and appears in the composer.
+- Video: fade transitions and optional music (FFmpeg xfade/amix), 3 s per photo.
+- **Ops note:** the `social` container uses `network_mode: service:api`, so after
+  recreating `api` run `docker compose up -d --force-recreate social`.
+- Test owner account and test assets removed; 0 media assets left.

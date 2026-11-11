@@ -1534,6 +1534,24 @@ async def owner_ui():
     )
 
 
+STUDIO_DIR = Path("/srv/studio")
+
+
+@app.get("/studio", include_in_schema=False)
+@app.get("/studio/", include_in_schema=False)
+async def studio_page():
+    return FileResponse(STUDIO_DIR / "index.html", media_type="text/html",
+                        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"})
+
+
+@app.get("/studio/assets/{path:path}", include_in_schema=False)
+async def studio_asset(path: str):
+    target = (STUDIO_DIR / "assets" / path).resolve()
+    if not str(target).startswith(str((STUDIO_DIR / "assets").resolve())) or not target.is_file():
+        raise HTTPException(404, "Not found")
+    return FileResponse(target)
+
+
 @app.get("/onboarding", include_in_schema=False)
 async def onboarding_page():
     return FileResponse(
