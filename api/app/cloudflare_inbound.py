@@ -80,6 +80,10 @@ async def handle(request: Request) -> dict:
             raise ValueError("Invalid field types")
         if len(payload["sender"]) > 320 or len(payload["subject"]) > 250:
             raise ValueError("Invalid fields")
+        # Body text has its own cap: an oversized message is a payload-size
+        # problem (413), not a malformed-field problem (400).
+        if len(payload["text"]) > 20000:
+            raise HTTPException(413, "Email body too large")
         auth = payload.get("auth")
         if auth is not None:
             if not isinstance(auth, dict) or len(auth) > 10:
