@@ -42,21 +42,21 @@ def get(url: str, timeout: int = 25) -> tuple[int, bytes]:
         return error.code, b""
 
 
-def bing_rss(query: str) -> list[dict]:
-    url = "https://www.bing.com/search?format=rss&count=30&q=" + urllib.parse.quote(query)
+def bing_visibility(query: str) -> tuple[bool, int | None]:
+    """Bing HTML result page: is trendibizz present, and at what result position.
+
+    The RSS endpoint ignores these queries, so this parses the normal result list.
+    """
+    url = "https://www.bing.com/search?count=20&q=" + urllib.parse.quote(query)
     status, body = get(url)
     if status != 200:
-        return []
-    try:
-        root = ET.fromstring(body)
-    except ET.ParseError:
-        return []
-    items = []
-    for item in root.iter("item"):
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        items.append({"title": title, "link": link})
-    return items
+        return False, None
+    text = body.decode("utf-8", "replace")
+    blocks = text.split('class="b_algo"')
+    for position, block in enumerate(blocks[1:], 1):
+        if "trendibizz" in block.lower():
+            return True, position
+    return "trendibizz" in text.lower(), None
 
 
 def main() -> None:
@@ -112,9 +112,9 @@ def main() -> None:
 
     # Bing visibility (proxy for ChatGPT/Copilot retrieval)
     for label, query in [("site:trendibizz.com", "site:trendibizz.com")] + [(p, p) for p in PROMPTS]:
-        items = bing_rss(query)
-        hit = next((i for i, item in enumerate(items, 1) if "trendibizz.com" in item["link"]), None)
-        report.append(f"- Bing `{label}`: {len(items)} results, position {hit or 'not present'}")
+        present, position = bing_visibility(query)
+        report.append(f"- Bing `{label}`: {'present' if present else 'not present'}"
+                      + (f", position {position}" if position else ""))
 
     report += ["", "## Manual AI checks (weekly)", "",
                "Ask each prompt in ChatGPT, Perplexity and Gemini; record whether Trendi is",

@@ -32,3 +32,5 @@ QA/verification/HERMES_*
 QA/verification/HANDOFF_HERMES_*
 office-shots/
 tiktok-review/
+.geo-state.json
+QA/verification/geo-daily/
