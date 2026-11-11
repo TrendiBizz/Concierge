@@ -302,3 +302,12 @@
   switcher present; cache purged.
 - Remaining: bundle code-splitting, removal of the old test phone route, consent
   copy review, off-site SEO accounts, offsite backup credentials.
+
+
+## Bundle split + Astryx re-audit — 2026-11-11
+- Dashboard/recharts is lazy-loaded (`Home` chunk), locale catalogs and per-locale
+  nav/copy strings are dynamic; main entry ~571 KB, Home ~363 KB, 3D viewer
+  ~919 KB lazy.
+- Added Astryx Badge (statuses), ProgressBar (media quotas), Banner (translation
+  feedback); re-audit notes Table/Dialog/Toast/Tabs/DatePicker/Richtext as next
+  candidates, charts/vega/lab/native still placeholders/canary.

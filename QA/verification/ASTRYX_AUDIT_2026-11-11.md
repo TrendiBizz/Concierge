@@ -32,3 +32,25 @@ Checked 2026-11-11 against the installed `@astryxdesign/*` packages and the
 Table, Tabs, Toast, Dialog, ProgressBar, AppShell/SideNav, DatePicker, Badge.
 They are not required for the current screens but are the next step for a
 denser CRM/quotes UI.
+
+
+## Re-audit after bundle split — 2026-11-11
+- Used now: Button, Card, Heading, TextInput, TextArea, FileInput, Badge,
+  ProgressBar, Banner, Theme/defineTheme, i18n provider, CLI, dashboard
+  template, recharts (per Astryx's own template).
+- Bundle split: dashboard (recharts) is lazy-loaded into `Home` (~363 KB);
+  locale catalogs and per-locale nav/copy strings are dynamic; the main entry
+  fell from ~995 KB to ~571 KB, with the 3D viewer in its own ~919 KB lazy chunk.
+- Not adopted yet:
+  - **Table** — best next addition for CRM/quotes/social lists (density and
+    column layout); current cards are deliberate but table would scale better.
+  - **Dialog** — use for owner sign-off and destructive actions instead of
+    immediate buttons.
+  - **Toast** — transient success/error messages; currently inline status text.
+  - **Tabs / AppShell / SideNav** — cleaner navigation when the portal grows past
+    the current 10 tabs.
+  - **DatePicker** — better scheduling than a plain text field.
+  - **Richtext (`@astryxdesign/richtext` 0.7.13)** — real package, but the backend
+    and social providers store plain text; adopt only with HTML sanitising.
+  - **charts / vega / lab** — bootstrap placeholders; do not use.
+  - **native** — canary Apple-only; PWA remains the mobile option.
