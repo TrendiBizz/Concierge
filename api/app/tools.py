@@ -128,6 +128,18 @@ TOOL_SPECS: list[dict] = [
         "available": lambda t: bool(t.get("native_booking")),
     },
     {
+        "name": "search_catalog",
+        "description": (
+            "Look up products in the business catalogue: sale price, unit and stock. "
+            "Cost price is never available. Use for product, price and availability questions. "
+            "A quotation built from this is only a draft until the owner reviews and signs it."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string", "description": "Product name, SKU or description words"}},
+            "required": ["query"]},
+        "voice": True, "chat": True, "available": lambda t: True,
+    },
+    {
         "name": "search_knowledge",
         "description": (
             "Search the business's website content. Call this before answering any question "
@@ -241,6 +253,31 @@ async def _book_appointment(tenant: dict, args: dict, ctx: dict) -> dict:
     return await booking.book(tenant, args, ctx)
 
 
+async def _search_catalog(tenant: dict, args: dict, ctx: dict) -> dict:
+    """Catalogue lookup. Sale price and stock only; cost never leaves the DB."""
+    query = str(args.get("query") or "").strip()[:120]
+    if not query:
+        return {"ok": False, "error": "Ask for a product name or SKU first."}
+    rows = await db.pool().fetch(
+        """SELECT sku,name,description,unit,sale_price_cents,stock_quantity
+           FROM products
+           WHERE tenant_id=$1 AND active
+             AND (name ILIKE $2 OR sku ILIKE $2 OR description ILIKE $2)
+           ORDER BY name LIMIT 10""",
+        tenant["id"], f"%{query}%")
+    products = [{
+        "sku": row["sku"],
+        "name": row["name"],
+        "description": row["description"][:300],
+        "unit": row["unit"],
+        "sale_price": f"{row['sale_price_cents'] / 100:.2f}",
+        "sale_price_cents": row["sale_price_cents"],
+        "stock": row["stock_quantity"],
+        "in_stock": row["stock_quantity"] > 0,
+    } for row in rows]
+    return {"ok": True, "found": len(products), "products": products}
+
+
 async def _search_knowledge(tenant: dict, args: dict, ctx: dict) -> dict:
     query = str(args.get("query") or "").strip()[:300]
     if not query:
@@ -280,6 +317,7 @@ _HANDLERS = {
     "check_availability": _check_availability,
     "book_appointment": _book_appointment,
     "search_knowledge": _search_knowledge,
+    "search_catalog": _search_catalog,
 }
 
 

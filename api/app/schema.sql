@@ -640,3 +640,32 @@ CREATE INDEX IF NOT EXISTS conversations_tenant_started_idx ON conversations (te
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS item_id text;
 CREATE UNIQUE INDEX IF NOT EXISTS messages_item_idx
     ON messages (conversation_id, item_id) WHERE item_id IS NOT NULL;
+
+-- Company product catalogue and inventory for quotations. Cost is private to the
+-- owner; assistants and staff-facing lists only ever see the sale price.
+CREATE TABLE IF NOT EXISTS products (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL DEFAULT '',
+    unit text NOT NULL DEFAULT 'each',
+    sale_price_cents bigint NOT NULL CHECK (sale_price_cents >= 0),
+    cost_price_cents bigint CHECK (cost_price_cents IS NULL OR cost_price_cents >= 0),
+    stock_quantity integer NOT NULL DEFAULT 0,
+    active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, sku)
+);
+CREATE INDEX IF NOT EXISTS products_tenant_idx ON products (tenant_id, active, name);
+CREATE TABLE IF NOT EXISTS product_stock_movements (
+    id bigserial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    delta integer NOT NULL,
+    reason text NOT NULL DEFAULT '',
+    actor text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS product_stock_movements_idx ON product_stock_movements (tenant_id, product_id, created_at DESC);
