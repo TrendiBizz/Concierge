@@ -60,3 +60,17 @@
 - Snapshot of the changed live site files is in `website/` in this repo; the live
   site itself is not a git checkout, so this is the recovery copy.
 - Bing shows trendibizz.com indexed; none of the target prompts present yet.
+
+
+## Marketing media (Imagination Studio) — 2026-11-11
+- Concierge side is built and deployed: `media_jobs`, `/owner/media/status|jobs`,
+  file proxy and a **Marketing media** panel in the owner portal.
+- It is not connected yet: set `STUDIO_URL` (private host) and `STUDIO_KEY`
+  (Studio access key) in `/opt/trendi/shared/api.env`, then restart `api`.
+- Studio host must be a supported Mac (48 GB+ for images, 96–128 GB for video),
+  DGX Spark (128 GB) or supported NVIDIA GPU; run `oneshot-setup.sh --image-only`
+  first (33 GB). Expose over Tailscale, never public; the key goes in
+  `X-Studio-Key`. Full video install is ~182 GB weights.
+- Workflow: owner prompts in the portal → Studio queues still/clip → Concierge
+  records status and proxies outputs → owner approves into social drafts. No
+  auto-publishing. Not used for CAD or quotations.
