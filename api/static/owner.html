@@ -988,8 +988,7 @@ async function refresh(){
    }else{item.appendChild(node("pre",draft.reply_body));}
    $("drafts").appendChild(item);
  }
-}
-const rulesHost=$("sender-rules");clear(rulesHost);
+ const rulesHost=$("sender-rules");clear(rulesHost);
  if(Array.isArray(senderRules)){
    for(const rule of senderRules){
      const item=node("div","","item");item.appendChild(node("span",rule.action.toUpperCase()+" — "+rule.pattern));
@@ -999,6 +998,7 @@ const rulesHost=$("sender-rules");clear(rulesHost);
    }
    if(!senderRules.length)rulesHost.appendChild(node("p","No sender rules.","muted"));
  }else rulesHost.appendChild(node("p",senderRules.error||"Sender rules unavailable.","muted"));
+}
 $("sender-rule-add").addEventListener("click",async()=>{
    try{await request("/owner/email-sender-rules","POST",{pattern:$("sender-rule-pattern").value,action:$("sender-rule-action").value});await refresh();message("Sender rule saved.");}
    catch(error){message(error.message,true);}
