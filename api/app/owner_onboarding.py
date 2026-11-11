@@ -168,6 +168,8 @@ async def overview(tenant_id) -> dict:
             "notify_phone": tenant.get("notify_phone") or "",
             "notify_email": tenant.get("notify_email") or "",
             "timezone": tenant.get("timezone") or "Pacific/Auckland",
+            "public_key": tenant.get("public_key") or "",
+            "reply_address": tenant.get("reply_address") or "",
         },
         "channels": {
             **website_channel_status(tenant, settings),

@@ -17,7 +17,7 @@ ITERATIONS = 600_000
 
 def invitation_link(token: str) -> str:
     # Fragment is never sent to the server or included in HTTP access logs.
-    return get_settings().owner_portal_url + "#invite=" + token
+    return get_settings().onboarding_url + "#invite=" + token
 
 
 def digest(token: str) -> str:

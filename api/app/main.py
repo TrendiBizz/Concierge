@@ -1533,6 +1533,15 @@ async def owner_ui():
     )
 
 
+@app.get("/onboarding", include_in_schema=False)
+async def onboarding_page():
+    return FileResponse(
+        STATIC_DIR / "onboarding.html", media_type="text/html",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                 "Referrer-Policy": "no-referrer"},
+    )
+
+
 @app.get("/owner/social/oauth/callback", include_in_schema=False)
 async def owner_social_oauth_callback():
     # Public landing page only. It cannot exchange a code or authenticate anyone.

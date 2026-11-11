@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up Concierge — Trendi</title>
+<style>
+:root{--bg:#0b0d10;--card:#15191f;--line:#2a3038;--text:#f2f5f8;--muted:#a8b3c1;--accent:#c8f560;--accent-ink:#101408;--danger:#ff8d7a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.15;margin:0 0 8px}
+h2{font-size:1.35rem;margin:0 0 8px}
+p{margin:0 0 14px}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin:18px 0}
+label{display:block;font-weight:600;margin:14px 0 6px}
+input{width:100%;padding:14px;border-radius:10px;border:1px solid var(--line);background:#0f1216;color:var(--text);font-size:1rem}
+input:focus,button:focus{outline:3px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:14px 22px;cursor:pointer;background:var(--accent);color:var(--accent-ink);margin:10px 8px 0 0}
+button.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+ol.steps{display:flex;gap:8px;flex-wrap:wrap;list-style:none;padding:0;margin:0 0 22px}
+ol.steps li{font-size:.82rem;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+ol.steps li[aria-current="step"]{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.diagram{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.diagram div{border:1px solid var(--line);border-radius:12px;padding:14px;background:#0f1216}
+.diagram strong{display:block;color:var(--accent);margin-bottom:4px}
+.status{min-height:24px;color:var(--muted)}
+.status.error{color:var(--danger)}
+.snippet{width:100%;min-height:70px;background:#0f1216;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:.9rem}
+.skip{margin-top:8px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Set up Concierge</h1>
+<p class="muted">A plain-language, click-through setup. Nothing here plays audio; every step is text and keyboard accessible.</p>
+
+<section id="auth" class="card">
+  <h2 id="auth-title">Sign in</h2>
+  <p class="muted" id="auth-help">Use the business ID, email and password from your Trendi invitation.</p>
+  <form id="login-form">
+    <label for="login-slug">Business ID</label><input id="login-slug" autocomplete="username" required>
+    <label for="login-email">Email</label><input id="login-email" type="email" autocomplete="email" required>
+    <label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+  </form>
+  <form id="invite-form" hidden>
+    <label for="invite-password">Choose a password (12+ characters)</label><input id="invite-password" type="password" autocomplete="new-password" minlength="12" required>
+    <label for="invite-confirm">Confirm password</label><input id="invite-confirm" type="password" autocomplete="new-password" minlength="12" required>
+    <button type="submit">Set password and continue</button>
+  </form>
+  <p class="status" id="auth-status" aria-live="polite"></p>
+</section>
+
+<section id="wizard" hidden>
+  <ol class="steps" id="progress" aria-label="Setup progress">
+    <li data-step="1">1. How it works</li><li data-step="2">2. Business</li><li data-step="3">3. Contact</li>
+    <li data-step="4">4. Website</li><li data-step="5">5. Channels</li><li data-step="6">6. Finish</li>
+  </ol>
+
+  <div class="card" data-panel="1">
+    <h2>How Concierge works</h2>
+    <div class="diagram">
+      <div><strong>Channels</strong>Website chat, email, SMS and (when a number is connected) phone calls.</div>
+      <div><strong>Concierge</strong>Answers from your website, captures enquiries and books agreed appointments.</div>
+      <div><strong>CRM</strong>Every enquiry, contact and follow-up in one place.</div>
+      <div><strong>You</strong>You review, reply and sign off anything that leaves the business.</div>
+    </div>
+    <p>You only need to provide your business details, an email and a phone number. Everything else can be skipped and done later in your workspace.</p>
+    <button type="button" data-next>Continue</button>
+  </div>
+
+  <div class="card" data-panel="2" hidden>
+    <h2>Your business</h2>
+    <p class="muted">This is what the assistant answers for. We will read the public pages of your website into its knowledge.</p>
+    <label for="biz-name">Business name</label><input id="biz-name" required maxlength="160">
+    <label for="biz-site">Business website</label><input id="biz-site" type="url" maxlength="2048" placeholder="https://example.com">
+    <button type="button" id="save-business">Save and continue</button>
+    <button type="button" class="secondary skip" data-next>Skip for now</button>
+    <p class="status" id="business-status" aria-live="polite"></p>
+  </div>
+
+  <div class="card" data-panel="3" hidden>
+    <h2>Your contact details</h2>
+    <p class="muted">We send new-enquiry alerts here. Your replies to those alerts are routed back into your own CRM — never to another business.</p>
+    <label for="owner-email">Notification email</label><input id="owner-email" type="email" maxlength="254" autocomplete="email">
+    <label for="owner-phone">Contact phone</label><input id="owner-phone" type="tel" maxlength="16" placeholder="+64211234567">
+    <button type="button" id="save-contact">Save and continue</button>
+    <button type="button" class="secondary skip" data-next>Skip for now</button>
+    <p class="status" id="contact-status" aria-live="polite"></p>
+  </div>
+
+  <div class="card" data-panel="4" hidden>
+    <h2>Bring in your website</h2>
+    <p class="muted">We read the public pages you own and turn them into the assistant's answers. You can re-run this any time.</p>
+    <button type="button" id="import-site">Import my website</button>
+    <button type="button" class="secondary skip" data-next>Skip for now</button>
+    <p class="status" id="import-status" aria-live="polite"></p>
+  </div>
+
+  <div class="card" data-panel="5" hidden>
+    <h2>Channels</h2>
+    <p class="muted">Start with chat. Email and SMS need a connected address/phone; calls need a phone number. Connections and permissions live in your workspace.</p>
+    <div id="channel-list" class="diagram"></div>
+    <button type="button" data-next>Continue</button>
+  </div>
+
+  <div class="card" data-panel="6" hidden>
+    <h2>You are ready</h2>
+    <p>Add this one line to your website to show the chat window:</p>
+    <textarea class="snippet" id="snippet" readonly aria-label="Website embed code"></textarea>
+    <button type="button" id="copy-snippet">Copy embed code</button>
+    <a href="https://concierge.trendibizz.com/owner-ui" target="_blank" rel="noopener"><button type="button" class="secondary">Open my workspace</button></a>
+    <p class="muted">In the workspace you can connect social accounts, a calendar, your phone and review enquiries. Nothing is sent without your approval.</p>
+    <p class="status" id="finish-status" aria-live="polite"></p>
+  </div>
+</section>
+</main>
+<script>
+(function(){
+  "use strict";
+  var token = "", role = "", slug = "";
+  var overview = null, step = 1, total = 6;
+  function $(id){ return document.getElementById(id); }
+  function show(el, on){ el.hidden = !on; }
+  function status(id, text, bad){ var el = $(id); el.textContent = text || ""; el.className = "status" + (bad ? " error" : ""); }
+  function api(path, method, body){
+    var headers = { "Accept": "application/json" };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(path, { method: method || "GET", headers: headers, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store", credentials: "omit" })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if (!r.ok) throw new Error(d.detail || ("Request failed (" + r.status + ")")); return d; }); });
+  }
+  function setStep(next){
+    step = Math.max(1, Math.min(total, next));
+    var panels = document.querySelectorAll("[data-panel]");
+    for (var i = 0; i < panels.length; i++) panels[i].hidden = Number(panels[i].getAttribute("data-panel")) !== step;
+    var items = document.querySelectorAll("#progress li");
+    for (var j = 0; j < items.length; j++) items[j].removeAttribute("aria-current");
+    var current = document.querySelector('#progress li[data-step="' + step + '"]');
+    if (current) current.setAttribute("aria-current", "step");
+    var heading = document.querySelector('[data-panel="' + step + '"] h2');
+    if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus(); }
+  }
+  function renderChannels(){
+    var host = $("channel-list"); host.textContent = "";
+    if (!overview) return;
+    var channels = overview.channels || {};
+    var labels = { website_chat: "Website chat", email: "Email", sms: "SMS", telephone: "Phone calls", social: "Social accounts", booking: "Bookings", crm: "CRM" };
+    Object.keys(labels).forEach(function(key){
+      var data = channels[key] || {};
+      var box = document.createElement("div");
+      var strong = document.createElement("strong"); strong.textContent = labels[key];
+      var line = document.createElement("div"); line.className = "muted";
+      line.textContent = data.verified ? "Verified and ready" : data.configured ? "Configured — needs verification or connection" : "Not set up yet";
+      box.appendChild(strong); box.appendChild(line); host.appendChild(box);
+    });
+  }
+  function loadOverview(){
+    return api("/owner/onboarding").then(function(data){
+      overview = data;
+      $("biz-name").value = (data.business && data.business.name) || "";
+      $("biz-site").value = (data.business && data.business.site_url) || "";
+      $("owner-email").value = (data.business && data.business.notify_email) || "";
+      $("owner-phone").value = (data.business && data.business.notify_phone) || "";
+      var key = (data.business && data.business.public_key) || "";
+      $("snippet").value = key ? '<script src="https://chat.trendibizz.com/widget.js" data-key="' + key + '" defer><\/script>' : "Embed code appears once your website key is ready.";
+      renderChannels();
+    });
+  }
+  function saveProfile(fields, statusId, next){
+    if (role !== "owner") { status(statusId, "Only the business owner can change these details.", true); return; }
+    status(statusId, "Saving…");
+    api("/owner/onboarding/profile", "PATCH", fields).then(function(){
+      status(statusId, "Saved.");
+      return loadOverview();
+    }).then(function(){ if (next) setStep(next); }).catch(function(e){ status(statusId, e.message, true); });
+  }
+  $("login-form").addEventListener("submit", function(ev){
+    ev.preventDefault(); status("auth-status", "Signing in…");
+    api("/owner/auth/login", "POST", { slug: $("login-slug").value.trim(), email: $("login-email").value.trim(), password: $("login-password").value })
+      .then(function(data){ token = data.access_token; return start(); })
+      .catch(function(e){ status("auth-status", e.message, true); });
+  });
+  $("invite-form").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    if ($("invite-password").value !== $("invite-confirm").value) { status("auth-status", "Passwords do not match.", true); return; }
+    status("auth-status", "Setting your password…");
+    var invite = (location.hash.indexOf("#invite=") === 0) ? location.hash.slice(8) : "";
+    api("/owner/auth/redeem", "POST", { token: invite, password: $("invite-password").value })
+      .then(function(data){ return api("/owner/auth/login", "POST", { slug: data.slug, email: data.email, password: $("invite-password").value }); })
+      .then(function(data){ token = data.access_token; location.hash = ""; return start(); })
+      .catch(function(e){ status("auth-status", e.message, true); });
+  });
+  $("save-business").addEventListener("click", function(){ saveProfile({ name: $("biz-name").value.trim(), site_url: $("biz-site").value.trim() || null }, "business-status", 3); });
+  $("save-contact").addEventListener("click", function(){
+    var fields = { notify_email: $("owner-email").value.trim() || null };
+    var phone = $("owner-phone").value.trim(); if (phone) fields.notify_phone = phone;
+    saveProfile(fields, "contact-status", 4);
+  });
+  $("import-site").addEventListener("click", function(){
+    status("import-status", "Reading your public pages… this can take up to a minute.");
+    api("/owner/knowledge/import-website", "POST").then(function(result){
+      status("import-status", "Imported " + (result.chunks || 0) + " knowledge chunks from " + (result.pages || 0) + " pages.");
+      return loadOverview();
+    }).catch(function(e){ status("import-status", e.message, true); });
+  });
+  $("copy-snippet").addEventListener("click", function(){
+    var text = $("snippet").value;
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){ status("finish-status", "Copied."); }, function(){ status("finish-status", "Select and copy the code manually.", true); });
+    else status("finish-status", "Select and copy the code manually.", true);
+  });
+  document.querySelectorAll("[data-next]").forEach(function(btn){ btn.addEventListener("click", function(){ setStep(step + 1); }); });
+  function start(){
+    show($("auth"), false); show($("wizard"), true);
+    return api("/owner/me").then(function(me){ role = me.role; slug = me.tenant; return loadOverview(); }).then(function(){ setStep(1); })
+      .catch(function(e){ show($("auth"), true); show($("wizard"), false); status("auth-status", e.message, true); });
+  }
+  var invite = (location.hash.indexOf("#invite=") === 0);
+  show($("login-form"), !invite); show($("invite-form"), invite);
+  if (invite) { $("auth-title").textContent = "Set your password"; $("auth-help").textContent = "Your invitation is in this link. Choose a password, then the setup starts."; }
+})();
+</script>
+</body>
+</html>
