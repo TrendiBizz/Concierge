@@ -732,3 +732,11 @@ CREATE TABLE IF NOT EXISTS design_links (
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ui_translation_cache (
+    locale text NOT NULL,
+    source text NOT NULL,
+    translated text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (locale, source)
+);

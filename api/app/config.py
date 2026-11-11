@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     media_storage_limit_bytes: int = 2 * 1024 * 1024 * 1024
     reply_domain: str = "trendibizz.com"
     cloudflare_email: str = ""
+    cloudflare_account_id: str = ""
     cloudflare_api_key: str = ""
     cloudflare_zone_id: str = ""
     cloudflare_worker_name: str = "concierge-inbound-worker"

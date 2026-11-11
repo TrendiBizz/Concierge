@@ -1,4 +1,5 @@
 import asyncio
+import time
 import base64
 import html
 import json
@@ -178,6 +179,73 @@ async def widget_js():
         media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=300"},
     )
+
+
+class PublicTranslateRequest(BaseModel):
+    locale: str = Field(min_length=2, max_length=12)
+    strings: list[str] = Field(min_length=1, max_length=80)
+
+
+_translate_hits: dict[str, list[float]] = {}
+
+
+@app.post("/api/v1/translate")
+async def public_translate(body: PublicTranslateRequest, request: Request):
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    if origin and origin not in {"https://trendibizz.com", "https://www.trendibizz.com"}:
+        raise HTTPException(403, "Origin not allowed")
+    ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    hits = [stamp for stamp in _translate_hits.get(ip, []) if now - stamp < 60]
+    if len(hits) >= 30:
+        raise HTTPException(429, "Too many translation requests")
+    _translate_hits[ip] = hits + [now]
+    locale = body.locale.strip()
+    if locale == "en":
+        return {"locale": locale, "strings": {source: source for source in body.strings}}
+    requested = []
+    for source in body.strings:
+        value = source.strip()
+        if value and len(value) <= 300 and value not in requested:
+            requested.append(value)
+    if not requested:
+        return {"locale": locale, "strings": {}}
+    rows = await db.pool().fetch(
+        "SELECT source, translated FROM ui_translation_cache WHERE locale=$1 AND source=ANY($2::text[])",
+        locale, requested)
+    found = {row["source"]: row["translated"] for row in rows}
+    missing = [value for value in requested if value not in found]
+    if missing:
+        settings = get_settings()
+        if settings.cloudflare_account_id and settings.cloudflare_api_key:
+            try:
+                prompt = ("Translate these website strings into locale " + locale + ". "
+                          "Keep brand names Trendi and Concierge. Return only a JSON object "
+                          "with the same keys and translated values. " +
+                          json.dumps({value: value for value in missing}, ensure_ascii=False))
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.post(
+                        f"https://api.cloudflare.com/client/v4/accounts/{settings.cloudflare_account_id}/ai/run/@cf/meta/llama-3.1-8b-instruct",
+                        headers={"X-Auth-Email": settings.cloudflare_email, "X-Auth-Key": settings.cloudflare_api_key,
+                                 "Content-Type": "application/json"},
+                        json={"messages": [{"role": "user", "content": prompt}], "max_tokens": 4096})
+                data = response.json()
+                content = data["result"]["choices"][0]["message"]["content"].strip()
+                content = content[content.find("{"):content.rfind("}") + 1]
+                translated = json.loads(content)
+                if len(translated) == 1 and isinstance(next(iter(translated.values())), dict):
+                    translated = next(iter(translated.values()))
+                for source in missing:
+                    value = str(translated.get(source, source))
+                    found[source] = value
+                    await db.pool().execute(
+                        "INSERT INTO ui_translation_cache(locale,source,translated) VALUES($1,$2,$3) "
+                        "ON CONFLICT (locale,source) DO NOTHING", locale, source, value)
+            except Exception:
+                log.exception("public translation failed")
+        for source in missing:
+            found.setdefault(source, source)
+    return {"locale": locale, "strings": {source: found[source] for source in requested}}
 
 
 @app.get("/api/v1/widget-logo")
