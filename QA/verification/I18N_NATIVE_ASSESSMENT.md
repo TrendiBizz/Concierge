@@ -44,3 +44,14 @@ our own native" is possible but means one of:
 Recommendation: keep the PWA now (installable, offline shell, install prompt),
 watch the canary (`schedule-df99a8a8-…`), and choose Capacitor if a store
 presence is needed before Astryx Native stabilises.
+
+
+## Update: all 30 locales enabled
+- All 30 Astryx catalogs are copied into `web/portal/src/locales` and loaded
+  dynamically per locale.
+- The header and login page have a language dropdown (native names).
+- Nav/tab and login labels are translated for all 30 via a cached/machine
+  translation file `src/i18n/strings.json` (generated with Cloudflare Workers AI;
+  review before selling as fully localised).
+- Product page copy beyond the nav/login labels is still English; translating the
+  full portal copy is the remaining content task.

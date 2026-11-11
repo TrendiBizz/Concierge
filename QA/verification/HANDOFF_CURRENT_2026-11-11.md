@@ -241,3 +241,12 @@
 - Assessment at `QA/verification/I18N_NATIVE_ASSESSMENT.md`.
 - Astryx Native is canary-only, Apple-only, 11-12 components; not production.
   PWA remains the mobile option; Capacitor is the store shortcut if needed.
+
+
+## All 30 locales — 2026-11-11
+- 30 Astryx catalogs dynamically loaded; language selector on login and header;
+  nav/login labels translated via `src/i18n/strings.json`; preference/query/
+  browser/IP switching; RTL for Arabic/Hebrew.
+- Verified French login renders "ID d'entreprise / Courriel / Mot de passe /
+  Se connecter".
+- Product copy (page content) still English; next: full copy translation.

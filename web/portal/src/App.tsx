@@ -12,32 +12,32 @@ import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import en from './locales/en.json';
-import frFR from './locales/fr-FR.json';
-import esES from './locales/es-ES.json';
-import deDE from './locales/de-DE.json';
-import ptBR from './locales/pt-BR.json';
-import zhCN from './locales/zh-CN.json';
-import jaJP from './locales/ja-JP.json';
-import koKR from './locales/ko-KR.json';
-import arSA from './locales/ar-SA.json';
-import nlNL from './locales/nl-NL.json';
-import itIT from './locales/it-IT.json';
-import plPL from './locales/pl-PL.json';
+import UI_STRINGS from './i18n/strings.json';
+
+const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./locales/*.json');
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
-const CATALOGS: Record<string, Record<string, string>> = {
-  en, 'fr-FR': frFR, 'es-ES': esES, 'de-DE': deDE, 'pt-BR': ptBR, 'zh-CN': zhCN,
-  'ja-JP': jaJP, 'ko-KR': koKR, 'ar-SA': arSA, 'nl-NL': nlNL, 'it-IT': itIT, 'pl-PL': plPL,
-};
-const LOCALES: Array<[string, string]> = [['en', 'English'], ['fr-FR', 'Français'], ['es-ES', 'Español'], ['de-DE', 'Deutsch'], ['pt-BR', 'Português (BR)'], ['zh-CN', '中文'], ['ja-JP', '日本語'], ['ko-KR', '한국어'], ['ar-SA', 'العربية'], ['nl-NL', 'Nederlands'], ['it-IT', 'Italiano'], ['pl-PL', 'Polski']];
+const CATALOGS: Record<string, Record<string, string>> = {en};
+const LOCALES: Array<[string, string]> = [
+  ['en', 'English'], ['af-ZA', 'Afrikaans'], ['ar-SA', 'العربية'], ['ca-ES', 'Català'],
+  ['cs-CZ', 'Čeština'], ['da-DK', 'Dansk'], ['de-DE', 'Deutsch'], ['el-GR', 'Ελληνικά'],
+  ['es-ES', 'Español'], ['fi-FI', 'Suomi'], ['fr-FR', 'Français'], ['he-IL', 'עברית'],
+  ['hu-HU', 'Magyar'], ['it-IT', 'Italiano'], ['ja-JP', '日本語'], ['ko-KR', '한국어'],
+  ['nl-NL', 'Nederlands'], ['no-NO', 'Norsk'], ['pl-PL', 'Polski'], ['pt-BR', 'Português (BR)'],
+  ['pt-PT', 'Português (PT)'], ['ro-RO', 'Română'], ['ru-RU', 'Русский'], ['sr-SP', 'Српски'],
+  ['sv-SE', 'Svenska'], ['tr-TR', 'Türkçe'], ['uk-UA', 'Українська'], ['vi-VN', 'Tiếng Việt'],
+  ['zh-CN', '中文（简体）'], ['zh-TW', '中文（繁體）'],
+];
+const UI = UI_STRINGS as Record<string, Record<string, string>>;
 const LOCALE_PREFIX = (value: string) => LOCALES.find(([code]) => code.toLowerCase().startsWith(value.toLowerCase().split('-')[0]))?.[0] || 'en';
+const hasLocale = (code: string) => LOCALES.some(([item]) => item === code);
 
 function initialLocale() {
   const query = new URLSearchParams(location.search).get('lang');
-  if (query && CATALOGS[LOCALE_PREFIX(query)]) return LOCALE_PREFIX(query);
+  if (query && hasLocale(LOCALE_PREFIX(query))) return LOCALE_PREFIX(query);
   const saved = localStorage.getItem('concierge.locale');
-  if (saved && CATALOGS[saved]) return saved;
+  if (saved && hasLocale(saved)) return saved;
   if (navigator.language) return LOCALE_PREFIX(navigator.language);
   return 'en';
 }
@@ -96,7 +96,7 @@ function useApi(token: string) {
   };
 }
 
-function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void}) {
+function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
   return (
     <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
@@ -106,20 +106,20 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
           <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>Powered by Trendi</span>
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
-          <select aria-label="Language" value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
+          <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
             {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
-          <Button label="Home" variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
-          <Button label="Setup" variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
-          <Button label="Designs" variant={tab === 'designs' ? 'primary' : 'ghost'} onClick={() => setTab('designs')} />
-          <Button label="Bookings" variant={tab === 'bookings' ? 'primary' : 'ghost'} onClick={() => setTab('bookings')} />
-          <Button label="Reports" variant={tab === 'reports' ? 'primary' : 'ghost'} onClick={() => setTab('reports')} />
-          <Button label="Quotes" variant={tab === 'quotes' ? 'primary' : 'ghost'} onClick={() => setTab('quotes')} />
-          <Button label="Enquiries" variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
-          <Button label="Social" variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
-          <Button label="Marketing media" variant={tab === 'media' ? 'primary' : 'ghost'} onClick={() => setTab('media')} />
-          {onInstall ? <Button label="Install app" variant="secondary" onClick={onInstall} /> : null}
-          <Button label="Sign out" variant="ghost" onClick={onSignOut} />
+          <Button label={tr('Home')} variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
+          <Button label={tr('Setup')} variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
+          <Button label={tr('Designs')} variant={tab === 'designs' ? 'primary' : 'ghost'} onClick={() => setTab('designs')} />
+          <Button label={tr('Bookings')} variant={tab === 'bookings' ? 'primary' : 'ghost'} onClick={() => setTab('bookings')} />
+          <Button label={tr('Reports')} variant={tab === 'reports' ? 'primary' : 'ghost'} onClick={() => setTab('reports')} />
+          <Button label={tr('Quotes')} variant={tab === 'quotes' ? 'primary' : 'ghost'} onClick={() => setTab('quotes')} />
+          <Button label={tr('Enquiries')} variant={tab === 'crm' ? 'primary' : 'ghost'} onClick={() => setTab('crm')} />
+          <Button label={tr('Social')} variant={tab === 'social' ? 'primary' : 'ghost'} onClick={() => setTab('social')} />
+          <Button label={tr('Marketing media')} variant={tab === 'media' ? 'primary' : 'ghost'} onClick={() => setTab('media')} />
+          {onInstall ? <Button label={tr('Install app')} variant="secondary" onClick={onInstall} /> : null}
+          <Button label={tr('Sign out')} variant="ghost" onClick={onSignOut} />
         </div>
       </div>
       <div style={{height: 4, background: brand.accent || '#c8f560', marginTop: 16}} />
@@ -127,7 +127,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
   );
 }
 
-function Login({onLogin}: {onLogin: (token: string) => void}) {
+function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
   const [slug, setSlug] = useState('pukeko-construction');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -141,12 +141,17 @@ function Login({onLogin}: {onLogin: (token: string) => void}) {
   }
   return (
     <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
+      <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+        <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
+          {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+        </select>
+      </div>
       <Heading level={1}>Concierge</Heading>
       <p>Sign in to set up your business, generate marketing media and manage enquiries.</p>
-      <TextInput label="Business ID" value={slug} onChange={setSlug} />
-      <TextInput label="Email" type="email" value={email} onChange={setEmail} />
-      <TextInput label="Password" type="password" value={password} onChange={setPassword} />
-      <div style={{marginTop: 16}}><Button label="Sign in" variant="primary" onClick={submit} /></div>
+      <TextInput label={tr('Business ID')} value={slug} onChange={setSlug} />
+      <TextInput label={tr('Email')} type="email" value={email} onChange={setEmail} />
+      <TextInput label={tr('Password')} type="password" value={password} onChange={setPassword} />
+      <div style={{marginTop: 16}}><Button label={tr('Sign in')} variant="primary" onClick={submit} /></div>
       {error ? <p role="alert">{error}</p> : null}
     </div>
   );
@@ -1160,14 +1165,21 @@ function Shell() {
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
   const [locale, setLocaleState] = useState(initialLocale);
+  const [catalog, setCatalog] = useState<Record<string, string>>(en);
+  const tr = (key: string) => UI[locale]?.[key] || key;
   function setLocale(value: string) { setLocaleState(value); localStorage.setItem('concierge.locale', value); }
+  useEffect(() => {
+    const loader = localeLoaders['./locales/' + locale + '.json'];
+    if (loader) loader().then((module) => setCatalog(module.default)).catch(() => setCatalog(en));
+    else setCatalog(en);
+  }, [locale]);
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = locale.startsWith('ar') || locale.startsWith('he') ? 'rtl' : 'ltr';
   }, [locale]);
   useEffect(() => {
     if (localStorage.getItem('concierge.locale') || new URLSearchParams(location.search).get('lang')) return;
-    api('/owner/locale').then((data) => { const suggested = (data as {locale?: string}).locale; if (suggested && CATALOGS[suggested]) setLocaleState(suggested); }).catch(() => undefined);
+    api('/owner/locale').then((data) => { const suggested = (data as {locale?: string}).locale; if (suggested && hasLocale(suggested)) setLocaleState(suggested); }).catch(() => undefined);
   }, []);
   const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#c8f560', '--color-on-accent': '#101408'}}), [brand.name, brand.accent]);
   const api = useApi(token);
@@ -1188,14 +1200,21 @@ function Shell() {
     api('/owner/media/brand').then((b) => setBrand({name: b.name || '', accent: b.accent || '#c8f560', contact: b.contact || '', logo: b.logo_data || null})).catch(() => undefined);
   }, [token]);
 
-  if (!token && location.hash.startsWith('#invite=')) return <Invite onToken={setToken} />;
-  if (!token) return <Login onLogin={setToken} />;
+  if (!token) {
+    return (
+      <Theme theme={theme}>
+        <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
+          {location.hash.startsWith('#invite=') ? <Invite onToken={setToken} /> : <Login onLogin={setToken} locale={locale} setLocale={setLocale} tr={tr} />}
+        </InternationalizationProvider>
+      </Theme>
+    );
+  }
 
   return (
     <Theme theme={theme}>
-    <InternationalizationProvider locale={locale} messages={CATALOGS}>
+    <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div>
-      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} />
+      <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} />
       {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Designs token={token} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
     </InternationalizationProvider>
