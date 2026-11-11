@@ -332,3 +332,12 @@
 - Lazy chunks: Home, CrmQuotes, Engage (Social+Media), Designs, 3D viewer,
   locales/translations. Main entry ~382 KB raw / ~119 KB gzip.
 - Verified login + tab clicks in headless Chrome with zero page errors.
+
+## Worldwide repositioning and typography — 2026-11-11
+- Removed New Zealand marketing copy from all public HTML; kept legal entity name only.
+- Pricing/GST wording removed; USD positioning worldwide.
+- New global pages `/virtual-receptionist`, `/best-ai-receptionist`, `/ai-chat-widget`;
+  301 redirects from old NZ URLs and `/nz-ai-seo` → `/ai-seo-services`.
+- Typography: heading line-height 1.12/1.2, letter-spacing reduced, paragraph 1.65.
+- Astryx ToastProvider added with setup/bookings notifications.
+- Font options captured in `designs/font-options/`.

@@ -1,0 +1,16 @@
+/_headers /404.html 404
+/_redirects /404.html 404
+# Path redirects (host-level www→apex is a Cloudflare Redirect Rule)
+/tools/security-check /security-check 301
+/tools/security-check/ /security-check 301
+
+# Concierge stays part of the Trendi website; authenticated access uses its secure app host.
+/concierge/sign-in https://concierge.trendibizz.com/owner-ui 302
+/virtual-receptionist-nz /virtual-receptionist 301
+/virtual-receptionist-nz/ /virtual-receptionist 301
+/best-ai-receptionist-nz /best-ai-receptionist 301
+/best-ai-receptionist-nz/ /best-ai-receptionist 301
+/nz-ai-seo /ai-seo-services 301
+/nz-ai-seo/ /ai-seo-services 301
+/ai-chat-widget-nz /ai-chat-widget 301
+/ai-chat-widget-nz/ /ai-chat-widget 301

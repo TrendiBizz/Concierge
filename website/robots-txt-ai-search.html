@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" name="robots"/>
+<meta content="index, follow" name="googlebot"/>
+<title>Robots.txt for Google and AI crawlers: 2026 guide | Trendi</title>
+<meta content="Set up robots.txt for Google and AI search: which bots to allow or block, what blocking training vs search bots costs, a clean example and three parser traps." name="description"/>
+<meta content="light" name="color-scheme"/>
+<link href="https://trendibizz.com/robots-txt-ai-search" rel="canonical"/>
+<meta content="article" property="og:type"/>
+<meta content="Robots.txt for Google and AI crawlers: 2026 guide | Trendi" property="og:title"/>
+<meta content="Set up robots.txt for Google and AI search: which bots to allow or block, what blocking training vs search bots costs, a clean example and three parser traps." property="og:description"/>
+<meta content="https://trendibizz.com/robots-txt-ai-search" property="og:url"/>
+<meta content="https://trendibizz.com/brand/og-image.png" property="og:image"/>
+<meta content="Trendi" property="og:site_name"/>
+<meta content="https://trendibizz.com/brand/og-image.png" name="twitter:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="Robots.txt for Google and AI crawlers: 2026 guide | Trendi" name="twitter:title"/>
+<meta content="Set up robots.txt for Google and AI search: which bots to allow or block, what blocking training vs search bots costs, a clean example and three parser traps." name="twitter:description"/>
+<link href="/brand/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="/brand/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="/styles.css?v=fe22430ad1" rel="stylesheet"/>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "How to set up robots.txt for Google and AI search (2026)",
+      "name": "Robots.txt for Google and AI crawlers: 2026 guide | Trendi",
+      "description": "Set up robots.txt for Google and AI search: which bots to allow or block, what blocking training vs search bots costs, a clean example file and three parser traps.",
+      "datePublished": "2026-11-02",
+      "dateModified": "2026-11-02",
+      "author": {
+        "@type": "Organization",
+        "@id": "https://trendibizz.com/#organization",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/"
+      },
+      "inLanguage": "en",
+      "mainEntityOfPage": "https://trendibizz.com/robots-txt-ai-search",
+      "image": "https://trendibizz.com/brand/og-image.png",
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://trendibizz.com/#organization",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://trendibizz.com/brand/logo-symbol.svg"
+        }
+      },
+      "isPartOf": {
+        "@type": "WebSite",
+        "@id": "https://trendibizz.com/#website",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is ChatGPT a web crawler?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "ChatGPT itself is a product, and OpenAI uses separate bots with separate jobs. GPTBot crawls content that may be used for training, and OAI-SearchBot is for search. ChatGPT-User visits a page when a user asks ChatGPT or a Custom GPT something, and OpenAI says it is not used to crawl the web automatically."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why block AI crawlers?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The usual reason is a wish to opt out of having your content used to train models. Training bots such as GPTBot, ClaudeBot and CCBot can be restricted without touching the search bots. Each block has a cost described by its owner, so decide bot by bot and not with a single blanket rule."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does GPTBot work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "GPTBot crawls content that may be used to train OpenAI's generative AI foundation models. Disallowing it in robots.txt indicates that your content should not be used for training. Its setting is independent of OAI-SearchBot, and if both are allowed, OpenAI may use one crawl for both."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does blocking Google-Extended remove my site from Google Search?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Google-Extended is a standalone product token that controls whether content Google crawls may be used to train future Gemini models and for grounding in Gemini Apps and Grounding with Google Search on Vertex AI. It does not affect a site's inclusion in Google Search and is not a ranking signal. AI Overviews are a Google Search feature, so they follow Googlebot rules and not Google-Extended."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can robots.txt keep a page out of Google?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not reliably. robots.txt manages crawler traffic, and a disallowed page's URL may still be indexed and shown without a snippet. To keep a page out of results, use noindex and leave the page crawlable so Google can see it."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://trendibizz.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Robots.txt for Google and AI crawlers",
+          "item": "https://trendibizz.com/robots-txt-ai-search"
+        }
+      ]
+    }
+  ]
+}
+</script>
+<meta content="#f5f7fb" media="(prefers-color-scheme: light)" name="theme-color"/><meta content="#14213d" media="(prefers-color-scheme: dark)" name="theme-color"/><link as="font" crossorigin="" href="/fonts/plus-jakarta-sans-var.woff2" rel="preload" type="font/woff2"/><link href="/brand/mark-refresh.svg" rel="icon" type="image/svg+xml"/><link href="/refresh.css?v=20261110c" rel="stylesheet"/><link href="/layout.css?v=20261110c" rel="stylesheet"/><link rel="stylesheet" href="/site-i18n.css">
+</head>
+<body class="rollout page-robots-txt-ai-search">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+<div class="wrap wide">
+<a aria-label="Trendi home" class="brand" href="/"><img alt="Trendi" height="40" src="/brand/logo-refresh.svg" width="150"/></a>
+<button aria-controls="main-nav" aria-expanded="false" class="menu-btn" id="menu-btn">Menu</button>
+<nav aria-label="Main" class="main" id="main-nav"><a href="/concierge">Concierge</a><a href="/seo">SEO &amp; AI Visibility</a><a href="/penetration-testing">Pen Testing</a><a href="/tools/site-check">Tools</a><a href="/pricing">Pricing</a><a href="/about">About</a><a href="/concierge/sign-in">Sign in ↗</a><a class="btn nav-start" data-concierge-open="" href="/contact">Let’s talk ↗</a></nav>
+</div>
+</header>
+<main class="legal article" id="main"><section class="page-intro design-section"><div class="wrap"><p class="eyebrow">THE SMALL BUSINESS FIELD GUIDE</p><h1>How to set up robots.txt for Google and AI search (2026)</h1></div></section>
+<div class="wrap reading-layout"><div class="reading-content">
+<nav aria-label="Breadcrumb" class="fine"><a href="/">Home</a> › <span aria-current="page">Robots.txt for Google and AI crawlers</span></nav>
+<div class="answer"><p>Allow the search bots you want to be found by, decide each training bot on its own, and keep every page you want read crawlable. A robots.txt AI crawler opt-out works one bot at a time, so give each bot its own group. Remember that <a href="https://developers.google.com/search/docs/crawling-indexing/robots/intro" rel="noopener">robots.txt manages crawler traffic and is not a way to keep a page out of Google</a>.</p></div><p class="byline">By Trendi · Updated <time datetime="2026-11-02">2 November 2026</time></p>
+<p class="lead"><strong>Direct answer:</strong> Allow the search crawlers you want to appear through, opt out of training crawlers one by one, and keep pages crawlable so each bot can read your rules and your content.</p>
+<p class="cta-row"><a class="btn lime" href="/tools/robots-ai-check">Check your robots.txt now</a></p>
+<nav aria-label="On this page" class="toc"><strong>On this page</strong><a href="#what-are-ai-crawlers">What are AI crawlers?</a><a href="#search-bots">Search and retrieval bots: what blocking costs</a><a href="#training-bots">Training bots and controls: what blocking costs</a><a href="#user-triggered">User-triggered fetchers</a><a href="#what-is-gptbot">What is GPTBot?</a><a href="#example-file">A clean example robots.txt</a><a href="#worked-example">Worked example: Trendi's live robots.txt</a><a href="#parser-traps">Three parser traps</a><a href="#checks">Checks before and after you publish</a><a href="#faq">FAQ</a><a href="#sources">Sources</a></nav>
+<section class="reading-chapter"><h2 id="what-are-ai-crawlers">What are AI crawlers?</h2><p>AI crawlers are automated programs that fetch web pages for AI products. They fall into three kinds. Search and retrieval crawlers, such as OAI-SearchBot, PerplexityBot and Claude-SearchBot, collect pages so a product can surface and link sites in its search results. Training crawlers, such as GPTBot, ClaudeBot and CCBot, collect content that may be used to train models. Some names you will see in robots.txt, namely Google-Extended and Applebot-Extended, are controls and not crawlers. They are tokens you name in robots.txt to state a training preference. <a href="https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers" rel="noopener">Google describes Google-Extended as a standalone product token</a>, and <a href="https://support.apple.com/en-us/119829" rel="noopener">Apple says Applebot-Extended does not crawl</a>.</p><p>The third kind is user-triggered fetchers: ChatGPT-User, Claude-User and Perplexity-User. They visit a page because a person asked an assistant a question, not because a bot is sweeping the web. Because of that, owners treat robots.txt differently for them, as the table below shows. A robots.txt AI crawler opt-out is therefore a set of separate decisions: search, training and user-triggered access are not the same choice.</p>
+</section><section class="reading-chapter"><h2 id="search-bots">Search and retrieval bots: what blocking costs</h2><div class="table-scroll"><table class="compare"><caption class="fine">Search and retrieval bots, per each owner's documentation</caption><thead><tr><th scope="col">Bot or token</th><th scope="col">What it does</th><th scope="col">What blocking it costs</th></tr></thead><tbody><tr><th scope="row">Googlebot<br/><span class="fine">Google</span></th><td>Crawls for Google Search, including Discover, all Google Search features, Google Images, Video mode and Google News.</td><td>Blocked pages can't be crawled for Google Search or its features, including AI Overviews. A blocked URL may still show without a snippet.</td></tr><tr><th scope="row">Bingbot<br/><span class="fine">Microsoft</span></th><td>Bing's standard crawler. robots.txt controls how Bing crawlers interact with a site.</td><td>Blocking it stops Bing's standard crawler from crawling the paths you disallow, so Bing cannot read that content.</td></tr><tr><th scope="row">OAI-SearchBot<br/><span class="fine">OpenAI</span></th><td>Surfaces sites in ChatGPT search features.</td><td>Sites opted out are not shown in ChatGPT search answers, though they can still appear as navigational links.</td></tr><tr><th scope="row">PerplexityBot<br/><span class="fine">Perplexity</span></th><td>Surfaces and links sites in Perplexity search results. It is not used to crawl content for AI foundation models.</td><td>Blocking it stops the crawler Perplexity uses to surface and link sites in its search results. It isn't a training opt-out.</td></tr><tr><th scope="row">Claude-SearchBot<br/><span class="fine">Anthropic</span></th><td>Improves the quality of Claude's search results.</td><td>Anthropic says disabling it may reduce your visibility in Claude's search results.</td></tr><tr><th scope="row">Applebot<br/><span class="fine">Apple</span></th><td>Powers search in Spotlight, Siri and Safari. Its data may also be used to train Apple foundation models.</td><td>Blocking it affects search in Spotlight, Siri and Safari. If robots.txt omits Applebot but names Googlebot, it follows Googlebot rules.</td></tr></tbody></table></div>
+</section><section class="reading-chapter"><h2 id="training-bots">Training bots and controls: what blocking costs</h2><div class="table-scroll"><table class="compare"><caption class="fine">Training bots and training controls, per each owner's documentation</caption><thead><tr><th scope="col">Bot or token</th><th scope="col">What it does</th><th scope="col">What blocking it costs</th></tr></thead><tbody><tr><th scope="row">GPTBot<br/><span class="fine">OpenAI</span></th><td>Crawls content that may be used to train OpenAI's generative AI foundation models.</td><td>Disallowing it indicates your content should not be used for training. It is independent of the OAI-SearchBot setting.</td></tr><tr><th scope="row">ClaudeBot<br/><span class="fine">Anthropic</span></th><td>Collects content that could contribute to model training.</td><td>Restricting it signals that future material from your site should be excluded from training data.</td></tr><tr><th scope="row">CCBot<br/><span class="fine">Common Crawl</span></th><td>Builds Common Crawl's open repository of web crawl data that anyone can access and analyse.</td><td>Blocking it keeps CCBot from adding your pages to Common Crawl's open repository. Some crawlers falsely identify as CCBot.</td></tr><tr><th scope="row">Bytespider<br/><span class="fine">Commonly attributed to ByteDance</span></th><td>We couldn't find first-party documentation for it, so we treat it as an undocumented crawler.</td><td>If you don't want it, block it by name.</td></tr><tr><th scope="row">Google-Extended<br/><span class="fine">Google</span></th><td>A standalone product token, not a separate crawler. It controls whether content Google crawls may be used to train future Gemini models and for grounding in Gemini Apps and Grounding with Google Search on Vertex AI.</td><td>Blocking it does not affect Google Search or AI Overviews. It is not a ranking signal. AI Overviews follow Googlebot rules.</td></tr><tr><th scope="row">Applebot-Extended<br/><span class="fine">Apple</span></th><td>Does not crawl. Disallowing it opts content out of training Apple's foundation models.</td><td>Pages that disallow it can still appear in Apple search results.</td></tr></tbody></table></div>
+</section><section class="reading-chapter"><h2 id="user-triggered">User-triggered fetchers</h2><div class="table-scroll"><table class="compare"><caption class="fine">User-triggered fetchers, per each owner's documentation</caption><thead><tr><th scope="col">Bot or token</th><th scope="col">What it does</th><th scope="col">What blocking it costs</th></tr></thead><tbody><tr><th scope="row">ChatGPT-User<br/><span class="fine">OpenAI</span></th><td>Visits pages when a user asks ChatGPT or a Custom GPT something. It is not used to crawl the web automatically or to decide what appears in search.</td><td>OpenAI says robots.txt rules may not apply, because the user started the action.</td></tr><tr><th scope="row">Claude-User<br/><span class="fine">Anthropic</span></th><td>Fetches pages when a person asks Claude a question.</td><td>Anthropic says its bots honour robots.txt. Disabling it stops Claude retrieving your content for those user requests.</td></tr><tr><th scope="row">Perplexity-User<br/><span class="fine">Perplexity</span></th><td>Fetches pages when a user asks Perplexity a question. It is not used for web crawling or training.</td><td>Because a user requested the fetch, Perplexity says it generally ignores robots.txt rules.</td></tr></tbody></table></div>
+</section><section class="reading-chapter"><h2 id="what-is-gptbot">What is GPTBot?</h2><p>GPTBot is OpenAI's crawler for content that may be used to train its generative AI foundation models. According to <a href="https://platform.openai.com/docs/bots" rel="noopener">OpenAI's bot documentation</a>, disallowing GPTBot indicates that your content should not be used for training. It is separate from OAI-SearchBot, which is for search and surfaces sites in ChatGPT search features, and from ChatGPT-User, which visits a page when a user asks ChatGPT or a Custom GPT something. Each setting is independent, so you can allow OAI-SearchBot and disallow GPTBot. If both are allowed, OpenAI may use one crawl for both.</p>
+</section><section class="reading-chapter"><h2 id="example-file">A clean example robots.txt</h2><p>The example below allows the search bots and opts out of the training bots, with each bot in its own group. You can copy it and change the groups to match your own policy.</p><pre><code># Example: allow search crawlers, opt out of AI model training.
+# Replace example.com with your domain. Each bot has its own group.
+
+# Search and AI search crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# Training crawlers and training controls
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+# Every other crawler
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap.xml
+</code></pre><ul><li>Each bot has its own group, so a change to one bot's rules cannot affect another's. <a href="https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt" rel="noopener">Google says several user-agent lines in a row form a single group</a>, so keep groups separate unless you want identical rules.</li><li>The Sitemap line points crawlers to your sitemap. It is not tied to any one group.</li><li>The * group covers crawlers you have not named. Google does not combine a specific group with the * group, so a named bot reads only its own rules.</li><li>Applebot-Extended is a control token, not a crawler. Disallowing it opts content out of Apple model training, and <a href="https://support.apple.com/en-us/119829" rel="noopener">Apple says those pages can still appear in Apple search results</a>.</li></ul>
+</section><section class="reading-chapter"><h2 id="worked-example">Worked example: Trendi's live robots.txt</h2><p>Trendi's own live robots.txt is a worked example of the opposite policy. We allow both search and training bots explicitly, by choice, because we want our public guides read widely. That is a policy choice for our site, not a recommendation for everyone.</p><p class="fine">Live file at <code>https://trendibizz.com/robots.txt</code>, shown verbatim on 2 November 2026:</p><pre><code># Trendi - trendibizz.com
+# Allow major search + AI *search* crawlers. The main training crawlers are also
+# allowed explicitly below; all other bots fall to the * group (Allow: /).
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://trendibizz.com/sitemap.xml
+
+# Optional site brief for tools that read it. Google Search ignores llms.txt
+# for rankings / AI Overviews (see Search Central AI optimization guide).
+# https://trendibizz.com/llms.txt
+
+# SEO deploy 2026-10-26 - crawl files republished
+</code></pre><ul><li>The main search and training bots each have their own named group, so they don't depend on the * fallback. Bots that aren't named, such as CCBot, fall to the * group, which allows everything.</li><li>Applebot is named, so it does not fall back to Googlebot rules.</li><li>Comments in the file are ignored by crawlers. They are there for the people who maintain it.</li></ul>
+</section><section class="reading-chapter"><h2 id="parser-traps">Three parser traps</h2><p>Three patterns trip up simple parsers. Here is how <a href="https://www.rfc-editor.org/rfc/rfc9309" rel="noopener">RFC 9309</a> and Google read each one, and our checker reads them the same way.</p><h3>1. Stacked user-agent lines</h3><pre><code>User-agent: GPTBot
+User-agent: CCBot
+Disallow: /</code></pre><p><strong>Correct reading:</strong> This is one group that applies to both GPTBot and CCBot, so both are disallowed. The rule doesn't apply only to the last user-agent line. <a href="https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt" rel="noopener">Google's robots.txt specification</a> says several user-agent lines in a row form one group.</p><h3>2. Duplicate groups for the same bot</h3><pre><code>User-agent: GPTBot
+Disallow: /
+
+User-agent: GPTBot
+Allow: /blog/</code></pre><p><strong>Correct reading:</strong> Groups that match the same user-agent are combined, and <a href="https://www.rfc-editor.org/rfc/rfc9309" rel="noopener">RFC 9309</a> says they MUST be. Google also merges them into one group. GPTBot is then disallowed everywhere except paths under /blog/, because the longest matching path wins.</p><h3>3. Allow: /$ with Disallow: /</h3><pre><code>User-agent: *
+Disallow: /
+Allow: /$</code></pre><p><strong>Correct reading:</strong> The homepage is allowed and every other URL is disallowed. For the homepage both rules match and Allow: /$ is the more specific one, so it wins. Every other URL matches only Disallow: /. <a href="https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt" rel="noopener">Google's specification</a> gives this exact case.</p>
+</section><section class="reading-chapter"><h2 id="checks">Checks before and after you publish</h2><ul><li>Save the file as UTF-8 plain text. LF line endings are recommended, and Google also accepts CR/LF. A byte order mark is not needed, since <a href="https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt" rel="noopener">Google ignores it</a> along with invalid lines.</li><li>Place the file at the root of each host and protocol. Keep it under 500 KiB, because content after that limit is ignored.</li><li>If you want a page kept out of search results, use noindex and leave the page crawlable. <a href="https://developers.google.com/search/docs/crawling-indexing/block-indexing" rel="noopener">If robots.txt blocks the page, Google never sees the noindex</a>, and Google does not support noindex inside robots.txt.</li><li>A disallowed page's content can't be indexed, but its URL may still be indexed and shown without a snippet.</li><li>Use the <a href="https://support.google.com/webmasters/answer/6062598" rel="noopener">Search Console robots.txt report</a> to see the files Google found, when they were last crawled, and any warnings or errors. It works for Domain properties and for URL-prefix properties without a path, shows versions from the last 30 days, and lets you request a recrawl. To test one URL, use the URL Inspection tool.</li><li>Allow time after a change. OpenAI says changes can take about 24 hours to reach its search systems, and Perplexity says changes can take up to 24 hours to apply.</li></ul><p>When you have written your file, run it through the checker for <a href="/tools/robots-ai-check">robots.txt AI crawlers</a> to see how each bot reads it. The checker lists 16 bots: 14 AI crawlers plus Googlebot and Bingbot.</p>
+</section><section class="reading-chapter"><h2 id="faq">FAQ</h2><details><summary>Is ChatGPT a web crawler?</summary><p>ChatGPT itself is a product, and OpenAI uses separate bots with separate jobs. GPTBot crawls content that may be used for training, and OAI-SearchBot is for search. ChatGPT-User visits a page when a user asks ChatGPT or a Custom GPT something, and OpenAI says it is not used to crawl the web automatically.</p></details><details><summary>Why block AI crawlers?</summary><p>The usual reason is a wish to opt out of having your content used to train models. Training bots such as GPTBot, ClaudeBot and CCBot can be restricted without touching the search bots. Each block has a cost described by its owner, so decide bot by bot and not with a single blanket rule.</p></details><details><summary>How does GPTBot work?</summary><p>GPTBot crawls content that may be used to train OpenAI's generative AI foundation models. Disallowing it in robots.txt indicates that your content should not be used for training. Its setting is independent of OAI-SearchBot, and if both are allowed, OpenAI may use one crawl for both.</p></details><details><summary>Does blocking Google-Extended remove my site from Google Search?</summary><p>No. Google-Extended is a standalone product token that controls whether content Google crawls may be used to train future Gemini models and for grounding in Gemini Apps and Grounding with Google Search on Vertex AI. It does not affect a site's inclusion in Google Search and is not a ranking signal. AI Overviews are a Google Search feature, so they follow Googlebot rules and not Google-Extended.</p></details><details><summary>Can robots.txt keep a page out of Google?</summary><p>Not reliably. robots.txt manages crawler traffic, and a disallowed page's URL may still be indexed and shown without a snippet. To keep a page out of results, use noindex and leave the page crawlable so Google can see it.</p></details>
+</section><section class="reading-chapter"><h2 id="sources">Sources</h2><ul class="fine"><li><a href="https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers" rel="noopener">Google: Google common crawlers (Googlebot, Google-Extended)</a></li><li><a href="https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt" rel="noopener">Google: How Google interprets the robots.txt specification</a></li><li><a href="https://developers.google.com/search/docs/crawling-indexing/robots/intro" rel="noopener">Google: Introduction to robots.txt</a></li><li><a href="https://developers.google.com/search/docs/crawling-indexing/block-indexing" rel="noopener">Google: Block Search indexing with noindex</a></li><li><a href="https://support.google.com/webmasters/answer/6062598" rel="noopener">Google Search Console Help: robots.txt report</a></li><li><a href="https://www.rfc-editor.org/rfc/rfc9309" rel="noopener">RFC 9309: Robots Exclusion Protocol</a></li><li><a href="https://www.bing.com/webmasters/help/which-crawlers-does-bing-use-8c184ec0" rel="noopener">Bing Webmaster Tools: Which crawlers does Bing use?</a></li><li><a href="https://platform.openai.com/docs/bots" rel="noopener">OpenAI: Overview of OpenAI crawlers</a></li><li><a href="https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler" rel="noopener">Anthropic: Does Anthropic crawl data from the web, and how can site owners block the crawler?</a></li><li><a href="https://support.apple.com/en-us/119829" rel="noopener">Apple: About Applebot</a></li><li><a href="https://docs.perplexity.ai/guides/bots" rel="noopener">Perplexity: Perplexity crawlers</a></li><li><a href="https://commoncrawl.org/ccbot" rel="noopener">Common Crawl: CCBot</a></li></ul>
+<p class="related"><strong>Related guides and tools:</strong> <a href="/tools/robots-ai-check">Check AI crawlers in your robots.txt</a> · <a href="/llms-txt">Is llms.txt worth adding?</a> · <a href="/get-mentioned-chatgpt-perplexity">How to get mentioned in ChatGPT</a> · <a href="/indexing-time">How long Google takes to index a new website</a> · <a href="/ai-visibility">What AI visibility means</a></p>
+<aside class="soft-cta"><h2>Check your file, then decide</h2><p>Run your robots.txt through the checker first. If you want the wider picture, an AI-visibility audit reviews crawl access, indexing and how your business is described, with no ranking or AI-mention promises.</p><p class="cta-row"><a class="btn lime" href="/tools/robots-ai-check">Check your robots.txt now</a> <a class="btn ghost" href="/ai-visibility#what-an-ai-visibility-audit-checks">Get a full AI-visibility audit</a></p></aside></section></div><aside aria-label="On this page" class="reading-rail"><p class="eyebrow">ON THIS PAGE</p><a href="#what-are-ai-crawlers">What are AI crawlers?</a><a href="#search-bots">Search and retrieval bots: what blocking costs</a><a href="#training-bots">Training bots and controls: what blocking costs</a><a href="#user-triggered">User-triggered fetchers</a><a href="#what-is-gptbot">What is GPTBot?</a><a href="#example-file">A clean example robots.txt</a><a href="#worked-example">Worked example: Trendi's live robots.txt</a><a href="#parser-traps">Three parser traps</a><a href="#checks">Checks before and after you publish</a><a href="#faq">FAQ</a><a href="#sources">Sources</a><a class="btn" data-concierge-open="" href="/contact">Let’s talk ↗</a></aside></div>
+</main>
+<footer class="site"><div class="wrap"><div><img alt="Trendi" class="footer-logo" height="32" src="/brand/logo-refresh.svg" width="125"/><p>Concierge, SEO and AI visibility, and security reviews.</p><p class="fine">Trendi (trendibizz.com) is operated by TRENDI LIMITED.</p><p class="fine">© <span data-year=""></span> Trendi</p><a href="mailto:admin@trendibizz.com">admin@trendibizz.com</a><p class="fine footer-social"><a href="https://www.linkedin.com/company/trendi-nz/" rel="me">LinkedIn</a> · <a href="https://www.facebook.com/profile.php?id=61558235720533" rel="me">Facebook</a> · <a href="https://www.instagram.com/trendi456/" rel="me">Instagram</a> · <a href="https://www.youtube.com/@trendibizz" rel="me">YouTube</a> · <a href="https://www.tiktok.com/@trendibizz" rel="me">TikTok</a></p></div><nav aria-label="Explore" class="footer-nav"><a href="/concierge/sign-in">Customer sign-in</a><a href="/concierge">Concierge</a><a href="/seo">SEO services</a><a href="/pricing">SEO pricing</a><a href="/tools/site-check">Tools</a><a href="/tools/robots-ai-check">Robots checker</a><a href="/security-check">Security check</a><a href="/ai-visibility">Guides</a><a href="/about">Company</a><a href="/contact">Contact</a></nav><nav aria-label="Guides" class="footer-nav"><a href="/get-mentioned-chatgpt-perplexity">Get mentioned in ChatGPT</a><a href="/indexing-time">How long indexing takes</a><a href="/llms-txt">llms.txt explained</a><a href="/robots-txt-ai-search">Robots.txt for AI crawlers</a><a href="/generative-engine-optimization">GEO and AEO explained</a><a href="/ai-seo-services">AI SEO services</a><a href="/trendi-vs-firstindex">Trendi vs FirstIndex</a></nav><nav aria-label="Legal" class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/penetration-testing">Penetration testing</a></nav></div></footer>
+<script defer="" src="/products.js"></script>
+<script defer="" src="/main.js?v=0f4677a321"></script>
+<script data-key="pk_8y_wsHO4StqCzd0yc2QNEKp0" defer="" src="https://chat.trendibizz.com/widget.js"></script><script defer="" src="/concierge.js"></script>
+<script defer="" src="/refresh.js?v=20261110"></script><script src="/site-i18n.js" defer></script>
+</body>
+</html>
