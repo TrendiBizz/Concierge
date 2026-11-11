@@ -47,3 +47,16 @@
 - VPS: `/opt/trendi/releases/20261108-vps/product`
 - Compose: `scripts/vps/compose.yml` (`--env-file /opt/trendi/shared/compose.env`)
 - Secrets: `/opt/trendi/shared/{api.env,cloudflare.key,stripe.key}`
+
+
+## GEO / AI visibility — 2026-11-11 evening
+- New worldwide page `https://trendibizz.com/ai-receptionist` (30-page site now),
+  with Service + Offer + FAQPage + Breadcrumb JSON-LD, linked from `/concierge`
+  and `/pricing`, added to `sitemap.xml` and `llms.txt`.
+- `scripts/seo/geo-daily.py` checks pages, IndexNow for changed URLs and Bing
+  visibility for global prompts; report under `QA/verification/geo-daily/`.
+- Daily scheduled task `schedule-9776d74f-69df-4a66-81b5-8a058ffd36e3` runs at
+  07:00 NZ in a new session and proposes one action. Notification plugin fires.
+- Snapshot of the changed live site files is in `website/` in this repo; the live
+  site itself is not a git checkout, so this is the recovery copy.
+- Bing shows trendibizz.com indexed; none of the target prompts present yet.

@@ -25,10 +25,11 @@ SITEMAP = f"{SITE}/sitemap.xml"
 KEY = "3a226d049abaa3f61aeeb0b3f9a6c6b9"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/141 Safari/537.36"}
 PROMPTS = [
-    "best AI receptionist NZ",
-    "AI receptionist cost NZ",
+    "AI receptionist",
+    "AI receptionist cost",
+    "best AI receptionist",
     "AI answering service vs human",
-    "AI receptionist for small business NZ",
+    "AI receptionist for small business",
     "Trendi Concierge",
 ]
 
