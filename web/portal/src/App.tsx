@@ -1,8 +1,8 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import {Theme} from '@astryxdesign/core/theme';
+import {Theme, defineTheme} from '@astryxdesign/core/theme';
 import {neutralTheme} from '@astryxdesign/theme-neutral/built';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
@@ -10,6 +10,7 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
+import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
@@ -76,6 +77,7 @@ function BrandHeader({brand, tab, setTab, onSignOut}: {brand: Brand; tab: string
           <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>Powered by Trendi</span>
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto'}}>
+          <Button label="Home" variant={tab === 'home' ? 'primary' : 'ghost'} onClick={() => setTab('home')} />
           <Button label="Setup" variant={tab === 'setup' ? 'primary' : 'ghost'} onClick={() => setTab('setup')} />
           <Button label="Bookings" variant={tab === 'bookings' ? 'primary' : 'ghost'} onClick={() => setTab('bookings')} />
           <Button label="Reports" variant={tab === 'reports' ? 'primary' : 'ghost'} onClick={() => setTab('reports')} />
@@ -935,10 +937,69 @@ function Admin() {
   );
 }
 
+
+function Home({token, brand}: {token: string; brand: Brand}) {
+  const api = useApi(token);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets')])
+      .then(([crm, q, p, a]) => {
+        setLeads(((crm as {leads?: Lead[]}).leads || []));
+        setQuotes(q as Quote[]); setPosts(p as Post[]); setAssets(a as Asset[]);
+      }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load the dashboard'));
+  }, [token]);
+
+  const quoted = quotes.filter((quote) => ['reviewed', 'accepted'].includes(quote.status)).reduce((sum, quote) => sum + quote.total_cents, 0);
+  const channels = Object.entries(leads.reduce((acc, lead) => {
+    acc[lead.channel] = (acc[lead.channel] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>)).map(([name, count]) => ({name, count}));
+  const quoteStates = ['draft', 'reviewed', 'accepted', 'declined'].map((state) => ({name: state, count: quotes.filter((quote) => quote.status === state).length}));
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>{brand.name || 'Your business'} at a glance</Heading>
+      <p>Enquiries, quotes and marketing in one place.</p>
+      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))'}}>
+        {[['Enquiries', leads.length], ['Quoted value', money(quoted, 'NZD')], ['Posts', posts.length], ['Media', assets.length]].map(([label, value]) => (
+          <Card key={String(label)}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
+        ))}
+      </div>
+      <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: 20}}>
+        <Card>
+          <Heading level={2}>Enquiries by channel</Heading>
+          <div style={{height: 240}}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={channels}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+        <Card>
+          <Heading level={2}>Quotations by status</Heading>
+          <div style={{height: 240}}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={quoteStates}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+      <Heading level={2}>Latest enquiries</Heading>
+      {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.channel} · {lead.status}</p>)}
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
 function Shell() {
   const [token, setToken] = useState('');
-  const [tab, setTab] = useState('setup');
+  const [tab, setTab] = useState('home');
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
+  const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#c8f560', '--color-on-accent': '#101408'}}), [brand.name, brand.accent]);
   const api = useApi(token);
 
   useEffect(() => {
@@ -957,20 +1018,16 @@ function Shell() {
   if (!token && location.hash.startsWith('#invite=')) return <Invite onToken={setToken} />;
   if (!token) return <Login onLogin={setToken} />;
 
-  const accentStyle = {
-    '--color-accent': brand.accent || '#c8f560',
-    '--color-on-accent': '#101408',
-    '--color-background-body': '#ffffff',
-  } as React.CSSProperties;
-
   return (
-    <div style={accentStyle}>
+    <Theme theme={theme}>
+    <div>
       <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} />
-      {tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
+      {tab === 'home' ? <Home token={token} brand={brand} /> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Quotes token={token} brand={brand} /> : tab === 'crm' ? <Crm token={token} /> : tab === 'social' ? <Social token={token} brand={brand} /> : <Media token={token} brand={brand} setBrand={setBrand} />}
     </div>
+    </Theme>
   );
 }
 
 export default function App() {
-  return <Theme theme={neutralTheme}>{location.hash === '#admin' ? <Admin /> : <Shell />}</Theme>;
+  return location.hash === '#admin' ? <Theme theme={neutralTheme}><Admin /></Theme> : <Shell />;
 }

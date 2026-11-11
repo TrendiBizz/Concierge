@@ -194,3 +194,18 @@
 - VPS has ~110 GB free; media is excluded from backups, so video growth does not
   inflate R2/R2-style backup sizes. A separate VPS/storage plan can be added when
   real client volume grows.
+
+
+## Astryx deepening — 2026-11-11
+- Per-tenant theme via `defineTheme` extending the neutral theme with the
+  customer accent; the Theme provider wraps the portal (verified in headless
+  Chrome after login).
+- Home dashboard: headline tiles, **recharts** bar charts (enquiries by channel,
+  quotations by status), latest enquiries. Astryx dashboard/template pattern.
+- `npx @astryxdesign/cli init` added `web/portal/AGENTS.md` + `GEMINI.md` (component
+  index and rules for future agents).
+- Verified with headless Chrome: login renders the Pukeko dashboard, 0 console
+  errors; Playwright/puppeteer test used a temporary owner that was removed.
+- `@astryxdesign/native` is a placeholder on npm (“Do not install”), so the
+  native owner app is not buildable yet; the PWA remains the mobile option.
+- Bundle is ~960 KB JS after adding charts; code-splitting is a follow-up.
