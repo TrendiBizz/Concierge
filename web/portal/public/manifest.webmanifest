@@ -1,0 +1,13 @@
+{
+  "name": "Concierge",
+  "short_name": "Concierge",
+  "description": "Client portal for enquiries, quotations, social and marketing media.",
+  "start_url": "/studio/",
+  "scope": "/studio/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#c8f560",
+  "icons": [
+    {"src": "/studio/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}

@@ -117,3 +117,11 @@
   (`version` required by the API) — tested create + reviewed.
 - Branding: header logo/name/accent, media templates, tenant accent.
 - Remaining: booking, reports, owner PWA, internal admin console.
+
+
+## Astryx add-ons continued — 2026-11-11 (goal round 1)
+- `/studio` now also has Bookings (calendar status + appointments) and Reports
+  (enquiries, quoted value, post/media counts, quote status split).
+- PWA: manifest + service worker at `/studio/manifest.webmanifest` and
+  `/studio/sw.js`; app is installable. Document title follows the tenant brand.
+- Remaining from the objective: internal admin console, branding in emails/PDFs.
