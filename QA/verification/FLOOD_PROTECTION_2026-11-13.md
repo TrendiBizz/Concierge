@@ -88,3 +88,23 @@ Rollback of this change: image `trendi-concierge-api:before-20261113-floodguard`
 `admin@trendibizz.com` is still suppressed for the staging tenant (re-suppressed during the incident).
 Delete that `email_suppressions` row only when you want alerts to it again; the loop guard and the caps
 now protect against a repeat.
+
+## 7. Update, later the same day: the gaps in section 5 are closed
+
+Tests: API suite **798 passed** (789 before). Deployed and verified live; rollback image
+`trendi-concierge-api:before-20261113-caps`, files in `/opt/trendi/backups/api-20261113g/`.
+
+| Gap | Now | Evidence |
+|---|---|---|
+| Ring-first had no limit | The dialplan rings the owner only while: fewer than **12** owner rings this hour, fewer than **3** from this caller this hour, fewer than **2** rings in progress. Over any limit the call goes straight to the assistant. Counters are AstDB keys per hour. Tunable per route (`max_per_hour`, `max_per_caller_hour`, `max_concurrent`) | Proven on a **scratch Asterisk with no network and a dummy number**: one caller x6 calls -> counter stopped at 3; 15 different callers -> hourly total stopped at 12; with 3 rings in progress a 4th went straight to the assistant (`rf_skip` -> `Answer`). 9 unit tests |
+| Twenty CRM bridge | 600 events / hour / business (in-memory); already limited to one authorised tenant and a retry queue | tests; code read |
+| Brevo webhook | 120 calls / minute (in-memory); already needs the shared secret and rejects payloads over 100 KB / 500 events | code read |
+| Social publishing | Writes capped at 120 / 10 min (in-memory) at the single `_request` choke point; the service itself is human-approval based | code read |
+| No alarm | `healthcheck.py` now has `outbound:guard`, `outbound:paused`, `outbound:blocked`, `outbound:volume:<channel>` checks. The existing 5-minute cron healthcheck emails the operator once per condition (de-duplicated, 6-hourly reminder); details carry no counts so mail is not repeated | Live check returned `ok`; cron path confirmed |
+
+Still open (honest list):
+- The caps on Twenty, the Brevo webhook and social writes are **in-memory per process**: they reset on restart
+  and were not individually exercised live (they were code-read and unit-tested only).
+- Ring-first is still **not live**: the Pukeko cutover waits for the owner to authorise telephone answering.
+- The healthcheck's operator email goes to `HEALTH_ALERT_TO`; confirm that address is the one you want.
+- Auto-reply handling still reads address and subject heuristics, not the other system's `Auto-Submitted` header.
