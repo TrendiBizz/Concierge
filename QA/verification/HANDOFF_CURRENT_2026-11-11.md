@@ -1080,3 +1080,37 @@ supervision) → E (payments on accepted quotes) → F (attributed revenue).
 
 ### Next
 B (live call supervision panel), then E (payments on accepted quotes), then F (attributed revenue).
+
+### B. Live call supervision — SHIPPED (`908b9cf`), deployed and live-proved
+- **Honest scope, documented in the module docstring and the readiness copy:** the provider's call
+  API exposes call control (accept/hangup), **not** a SIP transfer or audio join, so there is no
+  audio listen-in. This was verified against the public API surface before building; inventing a
+  "listen in" button would have been a lie in the UI.
+- **Code:** `api/app/live_calls.py` — pure rules (`is_live`, `caller_label`, `seconds_in_call`,
+  `transcript_tail`, `summarise`) plus `active()`, `one()` and `take_over()`. Takeover ordering is
+  the guarantee: **pause the case → alert the owner (number + conversation tail) → create a
+  ring-back task → end the AI call (best effort, never raises)**.
+- **Routes:** `GET /owner/live-calls`, `GET /owner/live-calls/{call_sid}`,
+  `POST /owner/live-calls/{call_sid}/takeover` (404 unknown, 409 already ended).
+- **Studio:** Bookings gained a "Happening now" card polling every 3 s with the caller, duration,
+  whether the caller has spoken, the last turns of the conversation and a "Take over — ring them
+  back" button.
+- **Onboarding:** `included` gains "Watch a call while it happens", saying plainly that you ring the
+  caller back rather than joining the call.
+- **Tests:** 11 new (`api/tests/test_live_calls.py`) — liveness window, labels, negative durations,
+  transcript bounds, ordering, task dedupe, hangup failure, non-SIP refusal, route guards.
+  Pause-first ordering mutation-checked. **API 663 passed.**
+- **Live:** health **43 ok / 0 warn / 0 fail**, `/owner/live-calls` 401 (present, auth-gated).
+  Proof (`scripts/vps/prove_live_calls.py`) on a synthetic in-progress call: the console listed it
+  with caller, 48 s, caller-spoken flag and the transcript tail; the drill-down reported live; after
+  marking it ended it disappeared from `active()` — the guardrail that stops a stale takeover.
+  Fixtures removed (0 left).
+- Not done, deliberately: audio listen-in / whisper (needs a media server) and a true SIP transfer
+  (not offered by the provider).
+
+### Next
+E (money on accepted quotes) then F (attributed revenue). **Constraint noted:** the operator wants
+no Microsoft dependency and only free/GitHub services, so E must not force a paid processor:
+implement tenant-supplied payment instructions/link + a "I have paid" declaration the owner confirms,
+which keeps the money trail for F. Stripe remains an optional later add-on (it needs an account and
+charges fees), never a dependency.
