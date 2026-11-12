@@ -70,14 +70,12 @@ async fn verify(State(state): State<AppState>, Json(req): Json<VerifyRequest>) -
 
     let result = state.auth.verify_dkim(&message).await;
     let mut signatures = Vec::new();
-    let mut any_pass = false;
     for output in result.iter() {
         let domain = output
             .signature()
             .map(|signature| signature.domain().to_string())
             .unwrap_or_default();
         let passed = output.result() == &DkimResult::Pass;
-        any_pass |= passed;
         signatures.push(SignatureOut {
             domain,
             result: if passed { "pass" } else { "fail" }.into(),

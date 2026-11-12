@@ -1,6 +1,10 @@
 name: Concierge isolated verification
 
 on:
+  # Run on pushes to main too. It previously ran only on pull_request, so three stale
+  # tests sat red on main unnoticed (2026-11-12 system check).
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
