@@ -181,6 +181,47 @@ services:
     security_opt: [no-new-privileges:true]
     depends_on: [gateway]
     mem_limit: 128m
+  # ── Services that already ran on the VPS but were never declared here ──────
+  # They carry `com.docker.compose.project=trendi` labels, so ANY
+  # `compose up --remove-orphans` deletes them: the mail filter, the spam
+  # scanner, and the phone receptionist shell. Declared so that command is safe.
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    environment:
+      TZ: Etc/UTC
+    mem_limit: 1800m
+    cpus: 1
+  rspamd:
+    image: rspamd/rspamd:latest
+    command: [/usr/bin/rspamd, -f]
+    restart: unless-stopped
+    environment:
+      RSPAMD_LOCAL_ADDR: '*'
+      RSPAMD_LOG_TYPE: console
+    volumes: [rspamd-data:/var/lib/rspamd]
+    mem_limit: 512m
+    cpus: 1
+  # Rust AudioSocket shell (concierge-stack/core-rs/Dockerfile.shell). It joins
+  # the Asterisk phone network as well as the app network, exactly as the live
+  # container does; a recreate that dropped `asterisk_phone` would leave the PBX
+  # with nothing to send call audio to.
+  shell:
+    image: trendi-asterisk-shell:vps
+    entrypoint: [asterisk_shell]
+    restart: unless-stopped
+    env_file:
+      - {path: /opt/trendi/shared/api.env, format: raw}
+    environment:
+      ASTERISK_BIND: 0.0.0.0
+      ASTERISK_PEERS: ${ASTERISK_PEERS:-172.30.91.2/32}
+      # Server-specific: lives in /opt/trendi/shared/compose.env, never in the
+      # repo. The shell panics on an empty list, so it must be set there.
+      ASTERISK_ROUTES: ${ASTERISK_ROUTES:-}
+      CONCIERGE_INTERNAL_URL: http://api:8000
+    networks: [default, asterisk_phone]
+    mem_limit: 256m
+    cpus: 1
 volumes:
   database:
   api-model-cache:
@@ -188,3 +229,10 @@ volumes:
   crm-database:
   crm-redis:
   crm-storage:
+  rspamd-data:
+
+networks:
+  # Created by scripts/asterisk/compose.yml (project "asterisk"). External so a
+  # compose run in this project never recreates or deletes it.
+  asterisk_phone:
+    external: true

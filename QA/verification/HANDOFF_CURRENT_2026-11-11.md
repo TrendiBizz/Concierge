@@ -471,7 +471,7 @@ wrong. Use `docker inspect --format '{{.State.Health.Status}}'` or `concierge…
   So this stays a human step: dashboard → My Profile → API Tokens.
 - Independently, the **Worker had to change** and now has (see above) — that was a code deploy, done.
 
-## Outstanding (current — supersedes every block above)
+## Outstanding (as of 2026-11-12 second session — superseded by the third session below)
 - **Cloudflare credential rotation** — scoped token + `media-render` Bearer change + dashboard
   roll of the global key. Credential is duplicated across `api.env` and `compose.env`.
 - **Phone DID (paid)** — `scripts/vps/order-phone-did.sh`; needs a payment method/KYC. Only
@@ -486,3 +486,115 @@ wrong. Use `docker inspect --format '{{.State.Health.Status}}'` or `concierge…
 - Carried forward: richer internal admin console; removal of the old test phone route;
   consent-copy review; offsite backup credentials; off-site SEO accounts.
 - **Astryx Native watch**: weekly Monday 09:00 NZ task; still a placeholder, canary only.
+
+## Session 2026-11-12 (third) — Cloudflare rotation, risk bug, phone stack back up
+
+Supersedes the "Outstanding" block above where the two disagree. Everything here was done
+against the live VPS; each claim carries its evidence.
+
+### Cloudflare: the global key is no longer used by any service (human re-key still needed)
+
+**What was wrong.** Confirmed live, not inferred: the credential in `api.env`/`compose.env` is a
+**Global API Key** (52 chars, `cfk_…`). `GET /user` with `X-Auth-Email` + `X-Auth-Key` returns
+200 — i.e. full account access, no scope, no expiry, 2FA enabled on the account. It can mint API
+tokens, read/edit DNS, Workers, Email Routing. It existed in **three** places, not two:
+`/opt/trendi/shared/api.env` (`CLOUDFLARE_API_KEY`+`CLOUDFLARE_EMAIL`),
+`/opt/trendi/shared/compose.env` (`CF_API_KEY`+`CF_EMAIL`), and an unreferenced stray copy at
+`/opt/trendi/shared/cloudflare.key`. No copy is in the repo or git history (`grep cfk_` clean).
+
+**What was done, and how it was verified.**
+1. Minted a **scoped API token** by API (`POST /user/tokens`, with the global key — so the old
+   claim "a token cannot be minted without the dashboard" was only half right):
+   id `98ff677ed501482b660a2ee8401f3d9b`, name `trendi-concierge-scoped-2026-11-12`.
+   Scopes: Account → Workers AI Read, Workers Scripts Read+Write; Zone → Zone Read, Email Routing
+   Rules Read+Write. **No** DNS edit, **no** Account:Edit, no other zone.
+2. Probed that token against the real endpoints: `/user/tokens/verify` 200, zone read 200,
+   email-routing rules read 200, workers-scripts read 200, Workers AI `flux-1-schnell` authorised
+   (400 *model* refusal, not 401/403).
+3. Added `api/app/cloudflare_auth.py` (`configured()` / `headers()`): **Bearer when
+   `CLOUDFLARE_API_TOKEN` is set, legacy `X-Auth-Key` otherwise.** Wired into both api call sites
+   (`reply_address.py` Email Routing rules, `main.py` Workers AI translation) and into
+   `services/media-render/server.js` (`CF_API_TOKEN` → `Authorization: Bearer`). The legacy key is
+   kept as a fallback only so a rollback is always possible.
+4. Wrote `CLOUDFLARE_API_TOKEN` into `api.env` and `CF_API_TOKEN` into `compose.env`; added
+   `CF_API_TOKEN` to the `media-render` service env in `scripts/vps/compose.yml`.
+5. Rebuilt and restarted `api` + `media-render` (`--no-deps`). Evidence: inside the api container
+   `cloudflare_auth.headers()` returns `['Authorization']` and the Email Routing rules read is
+   **200**; `media-render` `/ai-image` returns **200, 1,031,411-byte JPEG** using the token.
+   `api` healthy, `/studio/` 200, `/owner-ui` 200, `/demo/puko-construction` 200, site 200.
+6. Backups: `/opt/trendi/backups/cf-rotation-20261112-0404/` (both env files, compose.yml,
+   server.js) and image tag `trendi-concierge-api:before-20261112-bearer`.
+
+**What only a human can do now — this is the whole remaining Cloudflare item.** A global key
+cannot be rolled through the API. Someone with dashboard access must: Cloudflare dashboard →
+My Profile → API Tokens → Global API Key → *Change* → update the 2FA confirmation. Then, because
+no service needs it any more, delete the legacy lines (`CLOUDFLARE_API_KEY`/`CLOUDFLARE_EMAIL`
+from `api.env`; `CF_API_KEY`/`CF_EMAIL` from `compose.env`), delete
+`/opt/trendi/shared/cloudflare.key`, and restart `api` + `media-render` to confirm nothing
+regressed. Until the roll happens the *old* key remains valid for anyone who has a copy; the
+services simply never use it.
+
+### The real reason no low-risk inbound email was appearing (fixed)
+
+The DKIM/Worker fix from the previous session **is** working: drafts 19, 20, 22, 23, 24 all have
+`auth->>'verified_by' = 'email-auth'`, and draft 24 shows `spf=pass, dkim=pass, dmarc=pass,
+aligned=yes`. The first live inbound message question is therefore **answered: yes, real mail is
+landing and being cryptographically verified.**
+
+But every draft, including ones with a 161-byte body, was `risk='high'` with flag `oversized`:
+`email_risk.MAX_BYTES` was **30,000**, which is smaller than a normal HTML email with a signature
+image, and exceeding it forces `high`. So the inbox could never classify anything as `low`
+regardless of how good the authentication was — every message was quarantined.
+
+Fix: `MAX_BYTES = 200_000`, chosen to match the upstream Worker, which only forwards `raw_b64`
+(i.e. allows verification) for messages up to 200,000 bytes; above that a message genuinely
+cannot be verified and `oversized` is a fair signal. Tests added for the 85 KB business email and
+for `dkim=pass, dmarc=none, aligned=yes → low`. Deployed evidence (inside the live api container):
+`size=41k/85k/150k → low []`, `size=250k → high ['oversized']`. Full api suite: **565 passed**.
+Drafts stored before the fix keep their old risk; the next real inbound message should be `low`.
+
+### The Asterisk phone stack was entirely down — restarted
+
+Not a DID-purchase problem: `asterisk-pbx-1` (exit 0), `asterisk-bridge-1` (exit 137) and
+`trendi-shell-1` (exit 137) had all been **stopped 26 hours earlier, within ~15 s of each other
+on 2026-11-11 01:49 UTC**, so `restart=unless-stopped` never brought them back. Nothing was
+callable even if a DID existed. Restarted all three: `Asterisk Ready`, shell listening on
+`9511` for `trendi-oauth-staging`, `sip show peers` clean (0 peers because no trunk/DID yet).
+Verdict on the DID item stands: **money/KYC, not code** — but it is no longer blocked on a dead
+phone stack.
+
+### `--remove-orphans` is now safe for the mail filter and phone shell — but not without profiles
+
+`clamav`, `rspamd` and `shell` carried `com.docker.compose.project=trendi` labels while missing
+from `scripts/vps/compose.yml`, so `up -d --remove-orphans` would have deleted the mail filter,
+the spam scanner and the phone receptionist. All three are now declared (faithful to the live
+containers: images, mem limits, rspamd named volume, shell's `env_file: api.env` + `asterisk_phone`
+network) and were recreated **and verified working**: rspamd `/checkv2` 200 from the api
+container, `clamd` up, shell listening.
+
+Two things learned while doing it:
+- `shell` panics (`exit 101`, "at least one route is required") on an empty `ASTERISK_ROUTES`, so
+  `ASTERISK_ROUTES` now lives in `/opt/trendi/shared/compose.env` (server-specific, not in the
+  repo) and compose passes it through.
+- `crm`, `crm-db`, `crm-redis`, `crm-worker`, `public-main`, `public-owner` are **profile-gated**
+  (`crm` / `public`). `--remove-orphans` *without those profiles* deletes the CRM **and the two
+  Cloudflare tunnels** — i.e. the public site goes dark. The only safe full-stack command is:
+  ```
+  docker compose --env-file /opt/trendi/shared/compose.env -f scripts/vps/compose.yml \
+      --profile crm --profile public up -d --remove-orphans
+  ```
+
+### Security note for whoever works on this box next
+
+`docker inspect <container>` prints every service secret in clear text (xAI key, SMTP password,
+DB password, `INTERNAL_TOKEN`, `INBOUND_CLOUDFLARE_SECRET`, `SOCIAL_CONCIERGE_KEY`) because they
+arrive as environment variables. Treat any terminal capture, transcript or log that includes
+`docker inspect` output as a secret leak, and prefer the `sed`-masked form used in this session.
+Worth rotating the xAI key when convenient; it is the same value in every container that has it.
+
+### Verified at the end of this session
+`api` healthy; `email-auth` healthy; postgres healthy; `media-render` up (AI image 200);
+`rspamd` healthy + reachable from api; `clamav` healthy; `shell` up and listening;
+`asterisk-pbx` up; `/studio/` 200; `/owner-ui` 200; `chat…/demo/puko-construction` 200;
+`trendibizz.com` 200; `chat…/healthz` and `concierge…/healthz` 404 **by design** (Caddyfile
+allowlist, unchanged). 565 api tests pass; 15 email-risk tests pass.
