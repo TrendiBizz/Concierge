@@ -2,16 +2,12 @@
 # Use DOMAIN=localhost for local testing (Caddy issues an internal certificate;
 # run `docker compose exec caddy caddy trust` or accept the browser warning).
 # For production, point these A records at your server:
-#   api.example.com  n8n.example.com  crm.example.com  chat.example.com  status.example.com
+#   api.example.com  crm.example.com  chat.example.com  status.example.com
 # Caddy then obtains Let's Encrypt certificates automatically.
 
 api.{$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy api:8000
-}
-
-n8n.{$DOMAIN} {
-	reverse_proxy n8n:5678
 }
 
 crm.{$DOMAIN} {

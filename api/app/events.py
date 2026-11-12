@@ -1,4 +1,4 @@
-"""Outbound webhooks (to n8n, Zapier, a CRM...) for lead and appointment events."""
+"""Outbound webhooks (to Zapier, a CRM, any HTTP endpoint) for lead and appointment events."""
 
 import asyncio
 import hashlib

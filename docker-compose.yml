@@ -2,9 +2,8 @@ name: concierge
 
 # Core services (always on): caddy, postgres, redis, api
 # Optional services are enabled with profiles, e.g. in .env:
-#   COMPOSE_PROFILES=automation,support,crm,ops
+#   COMPOSE_PROFILES=support,crm,ops
 #
-#   automation -> n8n          (lead routing, SMS/email follow-up, CRM sync)
 #   support    -> chatwoot     (human inbox / live handoff)
 #   crm        -> twenty       (CRM, contacts, pipelines)
 #   ops        -> uptime-kuma  (uptime monitoring)
@@ -161,31 +160,6 @@ services:
     depends_on:
       - api
 
-  # ---------------------------------------------------------- automation
-  n8n:
-    image: docker.n8n.io/n8nio/n8n:${N8N_TAG:-latest}
-    <<: *restart
-    profiles: ["automation"]
-    environment:
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_PORT: "5432"
-      DB_POSTGRESDB_DATABASE: n8n
-      DB_POSTGRESDB_USER: postgres
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?run scripts/gen-env.sh}
-      N8N_HOST: n8n.${DOMAIN:-localhost}
-      N8N_PROTOCOL: https
-      N8N_PROXY_HOPS: "1"
-      WEBHOOK_URL: https://n8n.${DOMAIN:-localhost}/
-      GENERIC_TIMEZONE: ${TZ:-UTC}
-      TZ: ${TZ:-UTC}
-    volumes:
-      - n8n_data:/home/node/.n8n
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   # ------------------------------------------------------------- support
   chatwoot-prepare:
     image: chatwoot/chatwoot:${CHATWOOT_TAG:-latest}
@@ -268,7 +242,6 @@ volumes:
   caddy_config:
   pg_data:
   redis_data:
-  n8n_data:
   chatwoot_storage:
   twenty_storage:
   kuma_data:

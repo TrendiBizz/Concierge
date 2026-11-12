@@ -10,7 +10,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="backups/${STAMP}"
 mkdir -p "${OUT}"
 
-for db in concierge n8n chatwoot twenty; do
+for db in concierge chatwoot twenty; do
   echo "Dumping ${db}..."
   docker compose exec -T postgres pg_dump -U postgres --no-owner "${db}" | gzip > "${OUT}/${db}.sql.gz"
 done

@@ -3,7 +3,7 @@
 # Creates one database per service and enables pgvector where needed.
 set -euo pipefail
 
-for db in concierge n8n chatwoot twenty; do
+for db in concierge chatwoot twenty; do
   echo "Creating database: ${db}"
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
     -c "CREATE DATABASE ${db};"
