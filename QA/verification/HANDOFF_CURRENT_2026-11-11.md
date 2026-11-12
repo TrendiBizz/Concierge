@@ -732,3 +732,36 @@ Live evidence:
 Still to do: schedule `check-inbound-chain.sh` as a cron/health job so a broken chain is caught
 without someone running it, and create the missing owner account for the `concierge` tenant /
 grant consent for `trendi-meta-review`.
+
+### Closed the two broken chains, croned the guard, and found the missing monitoring
+
+- **`concierge` tenant**: had no owner account at all → created `concierge-owner@trendibizz.com`
+  (role owner, app's PBKDF2 format; credentials in `concierge-owner-login.txt`, 0600, session
+  workspace) and granted `email_read`.
+- **`trendi-meta-review`**: owner account existed but `email_read` had never been authorised →
+  granted, attributed to that tenant's own owner user.
+- Both grants write `tenant_channel_authorization_audit` rows. Same caveat as Pukeko: these were
+  recorded by the operator using the tenant's owner account, not by the customer clicking.
+- **Guard is now scheduled**: root crontab, hourly at :07 —
+  `/opt/trendi/releases/20261108-vps/product/scripts/vps/check-inbound-chain.sh`, output appended
+  to `/opt/trendi/backups/inbound-chain.log` with a timestamp and the exit code.
+- **Proved the guard catches the real failure**, end to end, on the scratch tenant: revoked
+  `email_read` → sent a real message → api returned 403 **and wrote
+  `inbound_audit(action='inbound_rejected', reason='email_read_not_authorized', recipient=…)`**
+  → `check-inbound-chain.sh` reported `FAIL concierge-test blocked=consent warnings=rejections`
+  and exited 1. Consent restored; all five tenants are green (the scratch tenant keeps the
+  "refused in the last 24h" warning for a day, which is correct).
+
+**The reason nobody noticed the outage for a day: there was no monitoring.** Uptime Kuma and n8n
+(the `trendi-auxiliary` compose project) were both stopped on **2026-11-09 02:43 UTC** with a
+graceful SIGTERM, and their containers had `restart: no`, so they never came back — three days
+without uptime checks. Kuma is running again (`127.0.0.1:3001`, healthy, data in
+`/opt/trendi/auxiliary/kuma`) and its restart policy is now `unless-stopped` so a host reboot
+brings it back. **n8n and its database remain stopped on purpose** — automation can send mail and
+publish social posts, so starting it is an operator decision, not a fix. There is also no compose
+file for the auxiliary stack any more, so it can only be started with `docker start`.
+
+Health sweep at the end: no api 5xx in 6 hours, zero container restarts, backups ran
+(2026-11-11 14:30, 59 MB; daily 14:30 UTC cron) — but they are **local-only**, still no offsite
+copy. Portal lint is pre-existing noisy: 24 warnings + 3 errors already on `main`, and the new
+`Permissions.tsx` adds 0 errors and 1 warning of the same class the other panels have.
