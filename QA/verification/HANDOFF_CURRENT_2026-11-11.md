@@ -1420,19 +1420,74 @@ the open item below.
   recreates the PBX once. Until then a container restart keeps AMI working (the file is inside the
   container), but a recreate without compose would not.
 
-## Consolidated status and worklist — 2026-11-12 23:15 (supersedes the outstanding lists above)
+## Session 2026-11-12 (sixteenth) — deployed, the PBX container formalised, and the live probe caught a real bug
+
+**Deployed** (`413b004` plus the fix below):
+
+- `api/app` rsynced to the release dir and `chmod -R a+rX`; API image rebuilt, `trendi-api-1`
+  recreated healthy, `trendi-social-1` force-recreated (it shares the API's netns).
+  `supervision_sessions` was created by the schema on boot — verified with `\d`, indexes included.
+- Portal rebuilt (`npm run build`, tsc + vite clean) and rsynced to `/opt/trendi/shared/studio`
+  (4.3 MB), `chmod -R a+rX`; `/studio/` 200.
+- **PBX container formalised.** `docker compose -f compose.yml -f compose.public.yml up -d`
+  recreated `asterisk-pbx-1` and `asterisk-bridge-1`. `manager.conf` is now a **mount** (it had
+  been copied into the container by hand); the config hash now matches the compose files, the
+  `trendi_default`/`pbx` alias and the fixed `172.30.91.2` on `asterisk_phone` are as specified,
+  and Hero re-registered on the carrier within the retry window. Never recreate the PBX without
+  `compose.public.yml`.
+- Healthcheck after all of it: **43 ok / 0 warn / 0 fail**.
+
+**The probe found a bug the tests could not.** To exercise the unproven half (Hangup on a spy
+channel, reading `CONCIERGE_SPY` back), a temporary `[supervision-test]` dialplan context gave two
+Local stand-in channels — 100 answered as the caller, 200 as the supervisor's phone — and
+`scripts/vps/prove_supervision_pbx.py` drove the real modules, AMI and database against the live
+PBX. The first run failed, and it failed honestly:
+
+- **`attach_supervisor` returned the caller's channel, not the supervisor's leg.** The audit trail
+  stored that as `spy_channel`. "Stop listening" would therefore have hung up **the customer**, and
+  the reconcile pass — comparing a caller channel against the `CONCIERGE_SPY` legs — would have
+  declared the leg hung up while the owner was still listening. The unit tests passed because they
+  fake `attach_supervisor`'s return value; the carrier was never in the loop.
+
+**Fixed** in the code committed with this session (`300bb51`, the 23:26 auto-checkpoint):
+
+- `attach_supervisor` now polls the PBX briefly for the channel carrying the marker and returns
+  **that** leg (or `''` when not yet listed). `legs_for_marker` is the lookup.
+- `stop_supervision` ends **every** channel carrying the marker (a Local leg is a pair) and never
+  falls back to a channel it cannot place; reconcile treats the marker as the leg's identity and
+  gives a row younger than 15 s a grace window, so a newborn leg is never declared dead.
+- Evidence: **API 726 passed** (724 before, +2: the spy-leg return and the stop-every-marker-leg
+  test). Mutation check: putting `return channel` back reddens
+  `test_supervision_rings_the_owner_and_returns_the_spy_leg_not_the_caller`.
+- **Live probe PASS** on the real PBX: synthetic caller found by `CONCIERGE_CALL`; real `ChanSpy`
+  leg originated; `CONCIERGE_SPY` read back off the live channel; audit row opened before the ring;
+  `stop_supervision` closed exactly one row (`the supervisor stopped it (probe)`), the leg
+  disappeared from the PBX in ≤ 0.5 s, and **the caller's channel stayed up**. Fixtures: 0 left.
+  The temporary dialplan context was removed and the dialplan reloaded; the line is back to
+  `0 active channels` with Hero registered.
+
+**Still unproven — the part that needs the operator and a real handset.** The stand-in was a Local
+channel, so this proves the control plane, not the carrier path: a real ring through
+`PJSIP/<number>@concierge-reg`, the owner's phone actually hearing the caller, the console's
+"Listening: …" state and the "Who listened" card as a human reads them, whisper (`qw`) and join
+(`qB`) audio behaviour, and the 30 s no-answer transfer fallback. Those are the next actions below,
+and they need the line dialled and a phone answered.
+
+## Consolidated status and worklist — 2026-11-12 23:45 (supersedes the outstanding lists above)
 
 Everything below is the single current list. The three session sections above it carry the
 evidence; nothing in them is outstanding any more unless it appears here.
 
-**Baselines:** API **709 passed** (was 684 before today), live healthcheck **43 ok / 0 warn / 0
-fail**, `/studio/` 200, owner routes auth-gated, Hero registration **Registered**, deployed files
-match the repo byte-for-byte.
+**Baselines:** API **726 passed**, live healthcheck **43 ok / 0 warn / 0 fail**, `/studio/` 200,
+owner routes auth-gated, Hero registration **Registered**, deployed files match the repo byte-for-byte,
+the PBX container matches its compose files (`manager.conf` is a mount).
 
 **Shipped today:** the three phone-bridge fixes (`73753b4`, `a76eb93` — error tolerance, audible-only
 cancel, 700 ms dictation silence, reply-debt nudge); the Asterisk media server (`74002eb` — AMI
 control plane, take-over with fallback, listen/whisper/join, per-call capability map, supervise
-endpoint); caller disclosure for live listening plus corrected capability claims (`891607e`).
+endpoint); caller disclosure for live listening plus corrected capability claims (`891607e`); the
+console supervise buttons and supervision audit trail (`413b004`), deployed this session with the
+live-PBX fix (`300bb51`).
 
 ### Phone / voice
 
@@ -1442,12 +1497,16 @@ endpoint); caller disclosure for live listening plus corrected capability claims
 2. **Prove the media server on a real call.** On that live call: take-over (owner's phone rings
    through Hero, caller bridged), then listen, then whisper, then join; and a no-answer transfer
    must fall back into the assistant after 30 s.
-3. ~~**Console buttons** for supervise~~ — **built 2026-11-12 (fifteenth session), in the repo,
-   not deployed.** Listen in / Whisper / Join / Stop listening in the console's "Happening now"
-   panel, with live legs shown per call.
-4. ~~**Supervision audit trail**~~ — **built 2026-11-12 (fifteenth session), in the repo, not
-   deployed.** `supervision_sessions` + `GET /owner/supervision` + a "Who listened" console card.
-   Still unproven on a real PBX leg; the hangup of a spy channel has never run against Asterisk.
+3. ~~**Console buttons** for supervise~~ — **built (`413b004`) and deployed 2026-11-12.** Listen in /
+   Whisper / Join / Stop listening in the console's "Happening now" panel, with live legs shown per
+   call. The console flow as a human sees it is still unclicked (see item 2's real-call test).
+4. ~~**Supervision audit trail**~~ — **built (`413b004`), deployed, and the PBX half live-proven
+   2026-11-12 (sixteenth session).** `supervision_sessions` + `GET /owner/supervision` + a "Who
+   listened" console card. `scripts/vps/prove_supervision_pbx.py` proved on the live PBX that the
+   `CONCIERGE_SPY` marker is readable back, a `Hangup` ends the leg in ≤ 0.5 s, the caller is not
+   hung up by Stop, and the row closes with a reason; that probe also caught and fixed the
+   caller-channel bug (`300bb51`). What remains is the real-carrier ring and a human reading the
+   card.
 5. **Per-tenant `transfer_number`.** Transfers use `managed_phone_setups.owner_number`, else
    `tenants.notify_phone`; `pukeko-construction` has neither set.
 6. **Decide the DID's tenant** — currently the internal `trendi-oauth-staging`; production should be
@@ -1463,10 +1522,12 @@ endpoint); caller disclosure for live listening plus corrected capability claims
 
 ### Media-server / telephony ops
 
-- **Formalise the PBX container.** `manager.conf` was copied into the running container and the
-  `trendi_default` / `pbx` alias added by hand; both are now in `compose.yml`. One
-  `docker compose -f compose.yml -f compose.public.yml up -d` recreates the PBX with them. Until
-  then, never recreate the PBX with a compose invocation that omits `compose.public.yml`.
+- ~~**Formalise the PBX container.**~~ **DONE 2026-11-12 (sixteenth session).** `manager.conf` was
+  copied into the running container and the `trendi_default` / `pbx` alias added by hand; both are
+  in `compose.yml`, and `docker compose -f compose.yml -f compose.public.yml up -d` recreated the
+  PBX with the mount, the alias and `172.30.91.2`. The container's config hash now matches the
+  compose files and Hero re-registered. **Still never recreate the PBX without
+  `compose.public.yml`** — that omission is what takes the line down.
 - AMI secret: `/opt/trendi/shared/api.env` (0600). `generated/manager.conf` must stay `100:101`, 640.
 - The scoped AMI user cannot run `CoreShowChannels` or `Events: on`; the client uses `Status` and
   quiet-window event termination instead of widening permissions.
@@ -1492,8 +1553,12 @@ new live-listen disclosure copy (now customer-facing).
 
 ### Next action
 
-Dial +64 9 243 1347 and give the full enquiry, dictation included; then, on that same call, exercise
-take-over → listen → whisper and confirm the fallback when nobody answers.
+Everything is deployed; the PBX container matches its compose files; the control plane is proved on
+the live PBX. What is left needs a human and a phone: dial +64 9 243 1347 and give the full enquiry,
+dictation included; then, on that same call, press **Listen in** in the console, confirm the owner's
+phone rings through Hero and the caller is audible, press **Stop listening**, and check "Who
+listened" shows one closed leg with a sensible duration. Then exercise take-over, whisper and the
+30 s no-answer fallback.
 
 ## Session 2026-11-12 (fifteenth) — console supervise buttons and the supervision audit trail
 
@@ -1532,3 +1597,8 @@ the three oxlint errors are pre-existing in the login/invite components, untouch
 on a spy channel, the `CONCIERGE_SPY` marker being readable back from an originated leg, and the
 end-to-end console flow all need the live Asterisk box and a human on a phone. The API tests pin
 the logic, not the carrier.
+
+**Superseded 2026-11-12 23:45 (sixteenth session):** deployed (`413b004`), the PBX half was then
+live-proved, and that probe caught a real bug — `attach_supervisor` returned the caller's channel,
+so "Stop listening" would have hung up the customer. Fixed in `300bb51`. See the sixteenth-session
+section above; the only part still unproven is the real carrier ring and the human on a phone.
