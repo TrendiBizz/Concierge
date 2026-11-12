@@ -38,3 +38,11 @@ abroad may be under stricter rules. Revisit before wide rollout. Rollback of the
 Everything in the session-19 handoff §4, minus the loop test. Biggest: Conrad's telephone consent and invite (expires 11:31 NZDT on 14 Nov),
 the SMS phone, per-caller cap on the AI path, take-over ordering decision, Hero origin list, go-live secret rotation.
 Possible next fix: turn spoken digits and emails in owner alerts into written form ("027 88 17 368", "kiwi18@gmail.com") while keeping the spoken text.
+
+
+## Support mailbox (13:10 NZDT)
+
+`support@trendibizz.com` was only caught by Cloudflare's catch-all forward (no record, no alert) although the website says "Both reach Trendi".
+It now has a Cloudflare rule "Support intake" (id `8db03a2cc01f4c97935ed313f73f048c`) to `concierge-inbound-worker`, and a registered inbound mailbox
+for `trendi-oauth-staging`. The worker also forwards the original to the operator inbox. Undo: delete the rule; `delete from inbound_mailboxes where recipient='support@trendibizz.com';`.
+Not yet tested with a real inbound email. The full plan is `SUPPORT_STRUCTURE_2026-11-13.md`.
