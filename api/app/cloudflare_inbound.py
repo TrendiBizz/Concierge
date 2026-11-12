@@ -11,6 +11,8 @@ import json
 import logging
 import re
 import time
+from email.parser import BytesHeaderParser
+from email.utils import parseaddr
 
 from fastapi import HTTPException, Request
 
@@ -55,6 +57,22 @@ async def register_mailbox(tenant_id, recipient: str, enabled: bool = False) -> 
     )
     if result != "INSERT 0 1":
         raise ValueError("Mailbox is assigned elsewhere")
+
+
+def is_own_mail(sender: str, raw: bytes | None) -> bool:
+    """True for mail this platform sent itself and that has been routed back to it.
+
+    With the raw message we trust only our marker header, so an operator who emails the platform
+    from the same address is still treated as a person. Without it (an older Worker) the sender
+    address is the only signal left, so it is used as the fallback.
+    """
+    if raw:
+        try:
+            return BytesHeaderParser().parsebytes(raw[:65536]).get("X-Concierge-Mail") is not None
+        except Exception:  # noqa: BLE001 - an unparsable message is simply not ours
+            return False
+    own = parseaddr(getattr(get_settings(), "smtp_from", "") or "")[1].strip().lower()
+    return bool(own) and parseaddr(sender or "")[1].strip().lower() == own
 
 
 async def handle(request: Request) -> dict:
@@ -135,6 +153,24 @@ async def handle(request: Request) -> dict:
                      "hard": bool(parsed.get("hard")), "suppressed": outcome["suppressed"],
                      "closed": outcome["closed"]})
                 return {"accepted": True, "dropped": "bounce"}
+        # Our own outbound mail coming back (for example an owner alert sent to an address that
+        # routes into the platform) must never become a new enquiry: that is a mail loop, and it
+        # sent 76 alerts in 20 minutes on 2026-11-13.
+        raw_bytes = None
+        if raw_b64:
+            try:
+                raw_bytes = base64.b64decode(raw_b64)
+            except (ValueError, TypeError):
+                raw_bytes = None
+        if is_own_mail(payload["sender"], raw_bytes):
+            try:
+                await inbound_policy.audit(
+                    mailbox["tenant_id"], None, "inbound_loop_guard", "api",
+                    {"sender": payload.get("sender", "")[:320], "recipient": recipient,
+                     "message_id": payload.get("message_id", "")[:200]})
+            except Exception:  # noqa: BLE001 - the guard must never fail the delivery
+                log.exception("could not audit the loop guard")
+            return {"accepted": True, "dropped": "own_mail"}
         if not await channel_authorization.is_authorized(mailbox["tenant_id"], "email_read"):
             # Record the refusal so it is visible in readiness/onboarding, not only in the
             # access log. A silently dropped customer message was the 2026-11-12 incident.

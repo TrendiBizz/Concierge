@@ -16,6 +16,9 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
     msg["From"] = formataddr((from_name, s.smtp_from)) if from_name else s.smtp_from
     msg["To"] = to_addr
     msg["Subject"] = subject
+    # RFC 3834 marker plus our own: lets the inbound side recognise mail we sent ourselves.
+    msg["Auto-Submitted"] = "auto-generated"
+    msg["X-Concierge-Mail"] = "1"
     for name, value in (headers or {}).items():
         msg[name] = value
     msg.set_content(body)
