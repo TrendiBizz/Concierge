@@ -1654,9 +1654,9 @@ async def brevo_email_webhook(request: Request, token: str = ""):
             data = json.loads((form.get("json") or ["{}"])[0])
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(400, "Invalid payload") from None
-    events = data if isinstance(data, list) else [data]
+    events = (data if isinstance(data, list) else [data])[:500]
     results = []
-    for event in events[:50]:
+    for event in events:
         if not isinstance(event, dict):
             continue
         event = dict(event)
