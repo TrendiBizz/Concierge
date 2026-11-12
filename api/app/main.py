@@ -1629,6 +1629,19 @@ async def cloudflare_email_webhook(request: Request):
     return await cloudflare_inbound.handle(request)
 
 
+@app.get("/webhooks/brevo")
+async def brevo_email_webhook_status():
+    """Human-friendly status for the POST-only webhook below.
+
+    A browser click lands here, so it must not be a bare 405. This reveals nothing and
+    processes nothing: Brevo is the only caller that may deliver events.
+    """
+    configured = bool(get_settings().brevo_webhook_secret)
+    return {"ok": configured, "endpoint": "brevo webhook", "method": "POST",
+            "configured": configured,
+            "usage": "POST delivery events here; configure the URL in Brevo > Transactional > Settings > Webhooks"}
+
+
 @app.post("/webhooks/brevo")
 async def brevo_email_webhook(request: Request, token: str = ""):
     """Brevo delivery-event webhook: bounces, blocks, complaints, unsubscribes.

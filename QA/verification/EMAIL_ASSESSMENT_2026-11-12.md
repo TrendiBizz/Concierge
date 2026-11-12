@@ -169,7 +169,8 @@ Rust sidecar **6/6**. db schema is applied by the API on startup (idempotent).
 - Outbound: `outbox._deliver` refuses a suppressed address (`status='suppressed'`) and stamps a
   `Message-ID` on every email, persisted on `outbox.message_id`, so a later bounce closes the
   right row (`status='failed', last_error='hard_bounce: …'`).
-- Brevo webhook: `POST /webhooks/brevo?token=…` (constant-time compare, 503 if no secret set,
+- Brevo webhook: `GET /webhooks/brevo` returns a small status document (a browser click
+  must not be a 405); `POST /webhooks/brevo?token=…` (constant-time compare, 503 if no secret set,
   accepts JSON or Brevo's form-encoded `json` field, batches up to 500 events, idempotent).
 - Owner/operator API: `GET/POST/DELETE /owner/email-suppressions`, `GET /admin/tenants/{slug}/
   email-suppressions`.

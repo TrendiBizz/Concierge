@@ -281,10 +281,10 @@ def check_inbound(api_env: dict) -> list[dict]:
                              "BREVO_WEBHOOK_SECRET not set: bounces cannot be ingested"))
     else:
         status, _, _ = http("https://concierge.trendibizz.com/webhooks/brevo")
-        # GET is rejected with 405 by the route, 401 without the token's secret. 404 means
-        # Caddy's allowlist dropped the path and Brevo could never deliver an event.
-        results.append(_ok("email:bounce-webhook", "endpoint routed") if status in (401, 405)
-                       else _fail("email:bounce-webhook", f"HTTP {status} (expected 401 or 405)"))
+        # GET returns a small status document; 404 means Caddy's allowlist dropped the path
+        # and Brevo could never deliver an event.
+        results.append(_ok("email:bounce-webhook", "endpoint routed") if status == 200
+                       else _fail("email:bounce-webhook", f"HTTP {status} (expected 200)"))
         code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres",
                          "-d", "concierge", "-tAc", "select count(*) from email_suppressions"])
         suppressed = int(out.strip()) if code == 0 and out.strip().isdigit() else None
