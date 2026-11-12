@@ -173,6 +173,14 @@ def _included() -> dict:
     """
     steps = [
         _step(
+            "A summary of every call",
+            "ready",
+            "Each finished call gets a short summary, an outcome (booked, quote requested, ring back, "
+            "unresolved…), how the caller felt, and — for a callback or an unresolved call — a task "
+            "for you. Visible in Studio, Bookings, 'Recent calls'.",
+            "call_insights / GET /owner/call-insights",
+        ),
+        _step(
             "One timeline per customer",
             "ready",
             "Studio → Contacts shows every email, text, call, chat, quote and appointment for a "

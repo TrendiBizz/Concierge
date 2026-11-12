@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import casetimeline, hermes_orchestrator, missed_calls, provider_readiness
+from . import call_insights, casetimeline, hermes_orchestrator, missed_calls, provider_readiness
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -71,6 +71,7 @@ async def lifespan(_: FastAPI):
     sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
     missed_worker = asyncio.create_task(missed_calls.run_forever(stop)) if settings.outbox_enabled else None
+    insights_worker = asyncio.create_task(call_insights.run_forever(stop)) if settings.outbox_enabled else None
     twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
         settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
     email_worker = asyncio.create_task(email_secretary.run_forever(stop))
@@ -2027,6 +2028,16 @@ async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_
 class ContactTakeover(BaseModel):
     paused: bool
     reason: str = ""
+
+
+@app.get("/owner/call-insights")
+async def owner_call_insights(limit: int = 20, user: dict = Depends(owner_auth.current_user)):
+    """What happened on recent calls: summary, outcome, how the caller felt, the next step."""
+    rows = await call_insights.recent(user["tenant_id"], limit)
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row["outcome"]] = counts.get(row["outcome"], 0) + 1
+    return {"insights": rows, "counts_by_outcome": counts, "outcomes": list(call_insights.OUTCOMES)}
 
 
 @app.get("/owner/contacts")

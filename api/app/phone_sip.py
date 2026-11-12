@@ -19,7 +19,7 @@ from websockets.exceptions import ConnectionClosedOK
 from fastapi import APIRouter, HTTPException, Request
 
 from . import channel_authorization, convo, db, enquiries, events, tenants, voice, voice_records
-from . import missed_calls
+from . import call_insights, missed_calls
 from .config import get_settings
 from .rag import build_system_prompt
 from .tools import run_tool
@@ -202,6 +202,9 @@ async def serve_call(call_id,tenant,caller):
             await missed_calls.evaluate_call_sid(session_id)
         except Exception:
             log.warning("Missed-call recovery needs reconciliation for %s",session_id)
+        # After-call intelligence (competitor-gap item D): summary, outcome, sentiment, follow-up.
+        # Backgrounded so a slow model can never delay the end of a call.
+        events.spawn(call_insights.analyse_call_sid(session_id))
         if caller_turns and conversation:
             await db.pool().execute(
                 "UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 "

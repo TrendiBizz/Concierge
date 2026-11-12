@@ -828,3 +828,20 @@ CREATE INDEX IF NOT EXISTS missed_call_recoveries_tenant_idx
     ON missed_call_recoveries (tenant_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS missed_call_recoveries_one_per_day
     ON missed_call_recoveries (tenant_id, contact, day) WHERE status = 'queued' AND contact <> '';
+
+-- After-call intelligence (competitor-gap item D, 2026-11-12): one validated record per call, so
+-- an owner never has to read a transcript to know what happened and what to do next.
+CREATE TABLE IF NOT EXISTS call_insights (
+    id         bigserial PRIMARY KEY,
+    call_sid   text NOT NULL,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    lead_id    uuid REFERENCES leads(id) ON DELETE SET NULL,
+    summary    text NOT NULL DEFAULT '',
+    outcome    text NOT NULL DEFAULT 'unresolved',
+    sentiment  text NOT NULL DEFAULT 'neutral' CHECK (sentiment IN ('positive','neutral','negative')),
+    next_step  text NOT NULL DEFAULT '',
+    model      text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, call_sid)
+);
+CREATE INDEX IF NOT EXISTS call_insights_tenant_idx ON call_insights (tenant_id, created_at DESC);

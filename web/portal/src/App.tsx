@@ -11,6 +11,7 @@ import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
 import {Banner} from '@astryxdesign/core/Banner';
+import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
 import {AppShell} from '@astryxdesign/core/AppShell';
@@ -353,16 +354,18 @@ function Bookings({token}: {token: string}) {
   });
   const [ack, setAck] = useState(false);
   const [textback, setTextback] = useState<{enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]}>({});
+  const [insights, setInsights] = useState<{insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>}>({});
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const days: Array<[string, string]> = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']];
 
   async function load() {
     try {
-      const [cal, crm, onboarding, me, missed] = await Promise.all([
+      const [cal, crm, onboarding, me, missed, calls] = await Promise.all([
         api('/owner/calendar'), api('/owner/crm'), api('/owner/onboarding'), api('/owner/me'),
-        api('/owner/missed-calls')]);
+        api('/owner/missed-calls'), api('/owner/call-insights?limit=10')]);
       setTextback(missed as {enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]});
+      setInsights(calls as {insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>});
       setCalendar(cal as {configured?: boolean; connected?: boolean; provider?: string});
       setAppointments(((crm as {appointments?: Record<string, unknown>[]}).appointments || []));
       const business = (onboarding as {business?: Record<string, unknown>}).business || {};
@@ -474,6 +477,19 @@ function Bookings({token}: {token: string}) {
           <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> The hours and rules are correct, and Concierge may book appointments.
         </label>
         <Button label={busy ? 'Saving…' : 'Save booking settings'} variant="primary" onClick={saveBooking} />
+      </Card>
+
+      <Card>
+        <Heading level={2}>Recent calls</Heading>
+        <p>What happened on each call, in your own words — no transcripts to read.</p>
+        {(insights.insights || []).length ? (insights.insights || []).map((call, index) => (
+          <p key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>
+            <Badge label={String(call.outcome || '')} variant={call.outcome === 'booked' ? 'success' : call.outcome === 'unresolved' ? 'warning' : 'neutral'} />
+            {' '}<strong>{String(call.from_number || 'Caller')}</strong> · {String(call.started_at || call.created_at || '').slice(0, 16)}
+            <br />{String(call.summary || '')}
+            {call.next_step ? <><br /><em>Next: {String(call.next_step)}</em></> : null}
+          </p>
+        )) : <p>No calls analysed yet. Every call your line answers will appear here.</p>}
       </Card>
 
       <Card>
