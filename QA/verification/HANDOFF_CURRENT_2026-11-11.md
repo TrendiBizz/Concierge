@@ -857,3 +857,28 @@ Supersedes the email queue and n8n notes above. Full detail + evidence:
 - Phone DID (payment/KYC), Pukeko social OAuth, offsite backup credentials, SEO accounts, Astryx.
 - Rotate the xAI key; consent-copy review; old test phone route; richer admin console.
 - Tenant reply addresses still rely on the Cloudflare rule check; DMARC enforcement after reports.
+
+## Session 2026-11-12 (sixth) — full systems check
+
+Operator asked for a whole-system check for anything outstanding beyond the go-live checklist.
+Full report: `SYSTEM_CHECK_2026-11-12.md`. Headline: the stack is green where prior sessions said
+(44/44 health, 604 API tests, Rust 6/6 + 6/6, no 5xx, no restart loops, TLS/DNS/git clean), but
+four things are not:
+
+1. **P1 Worker secret**: `CONCIERGE_INBOUND_SECRET` is still `plain_text` (confirmed via the
+   Workers settings API) and its value was printed during this check — rotate it now and set the
+   binding to Secret. `FORWARD_TO` is also plain text (`kiwi18@gmail.com`).
+2. **P1 Kuma has zero monitors** (`select count(*) from monitor` = 0); the healthcheck's
+   `aux:kuma` 302 check can't see that. Monitoring is really healthcheck.py + GitHub uptime.
+3. **P1 device-SMS receipts are lost on every deploy**: 42/42 `/api/v1/device-sms/receipt` calls
+   in 24 h returned 502 (Caddy DNS `lookup api ... server misbehaving` during api restarts). The
+   phone retries ~5×/13 s then gives up; 10 `outbox` rows have sat in `awaiting_receipt`
+   (owner_alert, tenant `trendi-oauth-staging`) since 2026-11-11 02:40 with nothing reconciling
+   them. Needs a stable upstream/sweeper and a deliberate clear.
+4. **P2 host hardening**: ufw and fail2ban inactive, `PermitRootLogin yes`, ambiguous
+   `PasswordAuthentication` drop-ins, 12 packages upgradable.
+
+Still outstanding and unchanged: the whole `GO_LIVE_HARDENING.md` list (§2 secret rotation, §3
+DMARC reject, §4 Brevo plan/IP/key, §5 scratch tenants + `admin@trendibizz.com`, §6 token split),
+plus the carried items (phone DID, social OAuth, offsite backups, SEO accounts, Astryx, xAI key,
+consent-copy review, old test phone route, richer admin console).
