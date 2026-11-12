@@ -1031,3 +1031,26 @@ schema applies itself on API boot (`db.init` runs the idempotent `schema.sql`).
 ### Next
 C (one contact timeline screen) — the backend `casetimeline.timeline()` already merges channels, so
 this is a Studio view plus the readiness/onboarding entry; then D, B, E, F.
+
+### C. One timeline per customer — SHIPPED (`6439c27`), deployed and live-proved
+- **Code:** `casetimeline.contact_label()` + `casetimeline.summarise()` (pure: name → phone →
+  email → case key; per-channel counts). The channel merge itself already existed.
+- **Owner API:** `GET /owner/contacts` (search, channels, event count, last contact, assistant
+  state), `GET /owner/contacts/{case_key}/timeline` (events + enquiries + appointments + takeover
+  state), `PUT /owner/contacts/{case_key}/takeover` (a reason is required to pause; same store as
+  the enquiry-level takeover, so the two screens cannot disagree).
+- **Studio:** new **Contacts** tab and sidebar item — one row per person, drill-down timeline,
+  take-over/resume with the reason recorded.
+- **Onboarding:** `included` gains "One timeline per customer", so the customer sees it exists.
+- **Tests:** 8 new (`api/tests/test_contact_timeline.py`). Tenant-scoping mutation-checked
+  (removing `c.tenant_id = $1` reddened the list test, then restored). **API 636 passed.**
+- **Live:** healthcheck **43 ok / 0 warn / 0 fail**; `/studio/` 200; `/owner/contacts` and the
+  timeline route answer 401 (present, auth-gated) rather than 404. Real data proof
+  (`scripts/vps/prove_contacts.py`): 3 contacts for `pukeko-construction`, one with 3 email events,
+  summarise → `{'event_count': 3, 'by_channel': {'email': 3}, 'channels': ['email']}`.
+- Honest limit: no live contact has mixed channels yet, so the cross-channel merge is proven by
+  the merge logic in `test_case_timeline.py`, not by production data.
+
+### Next
+D (after-call intelligence: summary, outcome label, sentiment, follow-up task) → B (live call
+supervision) → E (payments on accepted quotes) → F (attributed revenue).
