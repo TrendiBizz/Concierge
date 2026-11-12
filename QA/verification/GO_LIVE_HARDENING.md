@@ -61,3 +61,12 @@ SPF from `~all` to `-all`.
   deliberate deploys (or move worker deploys to CI with its own token).
 - `docker inspect` prints container secrets in clear text; nothing in the health check or docs should
   paste that output.
+
+---
+## Status 2026-11-12 20:45 NZ
+- **§1 DONE.** `CONCIERGE_INBOUND_SECRET` is a Cloudflare **Secret** (`secret_text`) and was
+  rotated on both sides; old value now returns 401, new value 400 (accepted). `FORWARD_TO` is
+  also a Secret.
+- **§2 partially done.** `INBOUND_CLOUDFLARE_SECRET` rotated. `BREVO_WEBHOOK_SECRET` and
+  `ADMIN_TOKEN` still to rotate. `ADMIN_TOKEN` is still a single shared token.
+- §3–§6 unchanged.

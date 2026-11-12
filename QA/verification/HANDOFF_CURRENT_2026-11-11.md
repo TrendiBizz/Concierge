@@ -882,3 +882,28 @@ Still outstanding and unchanged: the whole `GO_LIVE_HARDENING.md` list (§2 secr
 DMARC reject, §4 Brevo plan/IP/key, §5 scratch tenants + `admin@trendibizz.com`, §6 token split),
 plus the carried items (phone DID, social OAuth, offsite backups, SEO accounts, Astryx, xAI key,
 consent-copy review, old test phone route, richer admin console).
+
+### Session 2026-11-12 (sixth, continued) — changes applied, commit `12e5593`
+
+Operator asked for all tests plus all needed changes. Done and live-verified:
+
+- **Worker secret** is a Cloudflare Secret and was rotated on both sides. Old value → 401,
+  new value → 400 (signature accepted). `api.env` backup beside it (`api.env.bak-*`).
+- **SMS no longer sticks in `awaiting_receipt`**: `outbox.reconcile_stale_device_sms` (15 min,
+  every 5 min) failed the 10 stuck owner-alert rows on its first live run; device jobs went
+  `uncertain`. Caddy retries the api upstream for 10 s during a deploy instead of 502'ing.
+  New `api/tests/test_outbox_reconcile.py`. Live bug found and fixed: asyncpg needs a
+  `timedelta`, not a string, for the interval parameter.
+- **Host hardened**: sshd key-only (`passwordauthentication no`, `permitrootlogin
+  without-password`) — note sshd honours the FIRST value, so `50-cloud-init.conf` had to be
+  edited, not just a 99- drop-in; `ufw` active (deny inbound, :22, `DEFAULT_FORWARD_POLICY=ACCEPT`
+  to keep Docker networking); `fail2ban` active with the `sshd` jail.
+- **Three stale tests fixed** (red on `main` because CI only runs on `pull_request`):
+  `customer_authorization_test.py`, `customer_onboarding_integration.py` (`/studio` invite),
+  `owner_customer_journey_test.cjs` (`document.addEventListener`).
+- **Final evidence**: API 606 passed; isolated battery **17/17** (fresh Postgres per suite);
+  node widget 9/9; Rust social all pass; email-auth 6/6; live healthcheck 44/44.
+
+Still open: Kuma decision (0 monitors), `BREVO_WEBHOOK_SECRET` + `ADMIN_TOKEN` rotation, DMARC
+`p=reject`, Brevo plan/IP/key, scratch tenants + `admin@trendibizz.com`, Cloudflare token split,
+phone DID, social OAuth, offsite backups, xAI key, consent-copy review.

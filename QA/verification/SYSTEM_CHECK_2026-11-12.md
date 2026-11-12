@@ -111,3 +111,46 @@ script has **no lock logic**, so the stale `backup.lock` / `auxiliary-backup.loc
 3. Configure Kuma monitors or remove Kuma.
 4. Host hardening drop-in (ufw, fail2ban, root login, password auth explicit).
 5. Then work through `GO_LIVE_HARDENING.md` §2–§6.
+
+## Changes applied — 2026-11-12 20:20–20:45 NZ (same session)
+
+Operator: "run all the tests and make all the changes needed." Everything below is deployed and
+proven on the live box; commit `12e5593`.
+
+### Closed
+1. **Worker secret → Secret and rotated.** `CONCIERGE_INBOUND_SECRET` and `FORWARD_TO` are now
+   `secret_text` in the Workers settings API. The value was rotated on both sides:
+   `/opt/trendi/shared/api.env` + Worker secret + `api` recreated. Proof: signed POST with the
+   **new** key → `400` (signature accepted, payload rejected); with the **old** key → `401`.
+   Backup of the previous `api.env` is beside it (`api.env.bak-*`).
+2. **Lost device-SMS receipts.** `api/app/outbox.py` now sweeps `awaiting_receipt`/`sending` SMS
+   rows older than 15 min to `failed` ("Phone never confirmed send; reconcile before retry") and
+   marks the device job `uncertain`, every 5 min — no more silent in-flight rows. First live run:
+   `reconciled 10 unconfirmed SMS row(s) as failed`; `outbox` 121 sent / 10 failed, device jobs
+   47 sent / 10 uncertain / 2 failed. Caddy gained `lb_try_duration 10s` + `lb_try_interval
+   250ms` on both api upstreams so a deploy's Docker DNS blip is retried instead of 502'd.
+   New tests `api/tests/test_outbox_reconcile.py` (they caught a real bug: asyncpg needs a
+   `timedelta`, not a string — the first deploy failed live and was fixed).
+3. **Host hardening.** sshd is key-only (`permitrootlogin without-password`,
+   `passwordauthentication no`, validated with `sshd -t`); `ufw` active (default deny inbound,
+   :22 allowed, `DEFAULT_FORWARD_POLICY=ACCEPT` so Docker forwarding survives); `fail2ban`
+   active with the `sshd` jail. SSH reconnect, all public URLs and container egress verified after.
+
+### Stale tests fixed (they were red on `main`; CI only runs on pull_request)
+- `customer_authorization_test.py` — `MemoryDb` now accepts the `set_config` provenance call and
+  records the audit on the INSERT.
+- `customer_onboarding_integration.py` — invitation link is `/studio` (the new portal), not
+  `/owner-ui`.
+- `owner_customer_journey_test.cjs` — the page harness now provides `document.addEventListener`.
+
+### Test results (final)
+API **606 passed** (1 deselected `hangs_on_py312`); isolated battery **17/17** against a fresh
+Postgres per suite (previously 15/17 on the same DB); node widget **9/9**; Rust social-service
+**all pass**; email-auth **6/6**. Live healthcheck **44 ok / 0 warn / 0 fail**.
+
+### Not done / still open
+- **Uptime Kuma still has 0 monitors.** Left running pending the operator's decision: it is a
+  self-hosted uptime dashboard that duplicates healthcheck.py + GitHub Actions here, so the
+  recommendation is to remove it (or leave it stopped) rather than configure a third monitor.
+- Brevo plan/IP/SMTP key, DMARC `p=reject`, scratch tenants, `admin@trendibizz.com`, token split
+  — unchanged, still `GO_LIVE_HARDENING.md` §3–§6.
