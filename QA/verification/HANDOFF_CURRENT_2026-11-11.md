@@ -684,3 +684,51 @@ audit row (`tenant_channel_authorization_audit`) will then name them.
 so a customer who only ever sees Studio cannot enable inbound email — only the legacy
 `/owner-ui` console can. And a rejected inbound message (`403`) is still visible only in
 `docker logs`; it should surface in the owner portal or `/healthz`-style readiness output.
+
+### Whole inbound chain re-checked, and it can no longer fail silently
+
+**Was it "something changed"? No — the state changed, and nothing guarded it.** Evidence:
+
+- The consent gate has been in the code since `3807085` (2026-11-08) and *every* api image on the
+  box since 2026-11-09 contains it (checked by running `inspect.getsource` inside the old tagged
+  images; the pre-incident image `before-20261112-dkim-products` built 2026-11-11 10:34 has it too).
+  So no deploy yesterday removed a check.
+- `email_drafts` id 16 (`2026-11-11 02:40 UTC`, sender `conrad@pukekoconstruction.co.nz`,
+  `source_id cloudflare:…`, real `authentication_results`) proves the chain *did* deliver for
+  Pukeko. It could only pass the gate if a consent row existed at that moment.
+- But `tenant_channel_authorization_audit` has **no** Pukeko row before today. Every grant made
+  through the product writes an audit row, so that earlier consent was inserted **out of band**
+  (direct SQL) — and it is gone. Direct inserts are invisible to the audit trail, which is why it
+  could vanish without anyone noticing.
+- Verdict: not a code regression. A required precondition was set up manually, rotted, and nothing
+  in the system re-checked or reported it. The bug was the absence of a guard.
+
+**Now there is a guard. Seven links are checked for every tenant** (`api/app/inbound_readiness.py`,
+pure `evaluate()` + live `check()`): api enabled · owner account exists · `email_read` consented ·
+reply address set · mailbox enabled · Cloudflare rule present/enabled → Worker · email-auth sidecar
+reachable. Each failure returns the exact fix. Missing Cloudflare access reports `unknown` (warning,
+not a failure) so a missing token cannot cry wolf.
+
+Live evidence:
+- `GET /owner/onboarding/inbound-readiness` (owner) and `GET /admin/inbound-readiness` (operator).
+  For the test account: **all seven green, `ok: true`**; `GET /owner/onboarding` now carries an
+  `inbound_email` block, so onboarding cannot claim email is ready while mail is refused.
+- **Rejections are recorded**: `cloudflare_inbound` now writes `inbound_audit(action=
+  'inbound_rejected', detail={reason, sender, recipient, message_id})` before returning 403, and
+  readiness reports "N message(s) refused in the last 24h" as a warning. The refusal is no longer
+  visible only in the access log.
+- **Ops check**: `scripts/vps/check-inbound-chain.sh` (+ `.py`) — exit 1 if any tenant's chain is
+  broken, safe to cron. First run found **two more chains that were silently broken and unknown**:
+  `concierge` (no owner account → 403) and `trendi-meta-review` (`email_read` never consented →
+  403). Both are internal tenants, listed as outstanding below.
+- **Studio now has the screen**: new `web/portal/src/Permissions.tsx` — per-channel
+  Authorise/Withdraw with the explicit acknowledgement checkbox, plus a live seven-point chain
+  display with fix text, last-stored timestamp and rejection count. Tab **Permissions**, built and
+  deployed to `/opt/trendi/shared/studio` (`Permissions-BG_AQltX.js` served by `index-*.js`;
+  `/studio/` 200). The legacy `/owner-ui` console is no longer the only way in.
+- 573 api tests pass, including 8 new readiness tests (missing consent, missing owner, missing rule,
+  unknown-Cloudflare-is-not-failure, sidecar down, rejections as warnings, garbage input).
+
+Still to do: schedule `check-inbound-chain.sh` as a cron/health job so a broken chain is caught
+without someone running it, and create the missing owner account for the `concierge` tenant /
+grant consent for `trendi-meta-review`.

@@ -18,27 +18,15 @@ API="${API:-http://127.0.0.1:8000}"
 set -a; . "$ENV_FILE"; set +a
 [ -n "${ADMIN_TOKEN:-}" ] || { echo "ADMIN_TOKEN not set in $ENV_FILE" >&2; exit 2; }
 
-body=$(curl -sS -m 30 -w '\n%{http_code}' "$API/admin/inbound-readiness" -H "X-Admin-Token: $ADMIN_TOKEN") || {
-  echo "readiness request failed" >&2; exit 2; }
-code=${body##*$'\n'}
-json=${body%$'\n'*}
-if [ "$code" != "200" ]; then echo "readiness returned HTTP $code" >&2; echo "$json" | head -c 400 >&2; exit 2; fi
+response=$(curl -sS -m 30 -w '\n%{http_code}' "$API/admin/inbound-readiness" \
+  -H "X-Admin-Token: $ADMIN_TOKEN") || { echo "readiness request failed" >&2; exit 2; }
+code=${response##*$'\n'}
+json=${response%$'\n'*}
+if [ "$code" != "200" ]; then
+  echo "readiness returned HTTP $code" >&2
+  printf '%s\n' "$json" | head -c 400 >&2
+  exit 2
+fi
 
-printf '%s' "$json" | python3 - <<'PY'
-import json, sys
-data = json.load(sys.stdin)
-tenants = data.get("tenants") or []
-bad = 0
-for t in tenants:
-    status = "OK  " if t.get("ok") else "FAIL"
-    if not t.get("ok"):
-        bad += 1
-    blocked = ", ".join(b.get("check", "?") for b in t.get("blocked") or []) or "-"
-    warns = ", ".join(w.get("check", "?") for w in t.get("warnings") or []) or "-"
-    print(f"{status} {t.get('slug','?'):26} blocked={blocked:34} warnings={warns}")
-    for b in t.get("blocked") or []:
-        print(f"      -> {b.get('message','')}")
-print()
-print(f"{bad} of {len(tenants)} tenant chain(s) broken")
-sys.exit(1 if bad else 0)
-PY
+printf '%s' "$json" > /tmp/inbound-readiness.json
+exec python3 "$(dirname "$0")/check-inbound-chain.py" /tmp/inbound-readiness.json
