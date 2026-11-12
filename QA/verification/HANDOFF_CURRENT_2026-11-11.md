@@ -1419,3 +1419,76 @@ the open item below.
   `docker compose -f compose.yml -f compose.public.yml up -d` (both files!) formalises them and
   recreates the PBX once. Until then a container restart keeps AMI working (the file is inside the
   container), but a recreate without compose would not.
+
+## Consolidated status and worklist — 2026-11-12 23:15 (supersedes the outstanding lists above)
+
+Everything below is the single current list. The three session sections above it carry the
+evidence; nothing in them is outstanding any more unless it appears here.
+
+**Baselines:** API **709 passed** (was 684 before today), live healthcheck **43 ok / 0 warn / 0
+fail**, `/studio/` 200, owner routes auth-gated, Hero registration **Registered**, deployed files
+match the repo byte-for-byte.
+
+**Shipped today:** the three phone-bridge fixes (`73753b4`, `a76eb93` — error tolerance, audible-only
+cancel, 700 ms dictation silence, reply-debt nudge); the Asterisk media server (`74002eb` — AMI
+control plane, take-over with fallback, listen/whisper/join, per-call capability map, supervise
+endpoint); caller disclosure for live listening plus corrected capability claims (`891607e`).
+
+### Phone / voice
+
+1. **Prove a clean human call.** Dial +64 9 243 1347; full enquiry including a callback number **and
+   email read out loud** (dictation broke call two). Expect `phone_calls.status = completed`, the
+   lead saved and the owner alert queued.
+2. **Prove the media server on a real call.** On that live call: take-over (owner's phone rings
+   through Hero, caller bridged), then listen, then whisper, then join; and a no-answer transfer
+   must fall back into the assistant after 30 s.
+3. **Console buttons** for supervise — API only today (`POST /owner/live-calls/{call_sid}/supervise
+   {mode: listen|whisper|join}`); nothing in `web/portal` calls it.
+4. **Supervision audit trail** — who listened to which call, for how long. The greeting now promises
+   listening can happen, so this is the next compliance gap.
+5. **Per-tenant `transfer_number`.** Transfers use `managed_phone_setups.owner_number`, else
+   `tenants.notify_phone`; `pukeko-construction` has neither set.
+6. **Decide the DID's tenant** — currently the internal `trendi-oauth-staging`; production should be
+   `pukeko-construction` (set `notify_phone` with it).
+7. **SIP exposure** — no fail2ban on 5060/udp; consider a DOCKER-USER restriction to Hero's ranges.
+8. Missed-call text-back inert for `pukeko-construction` (`sms_enabled=false`) — business decision,
+   not a defect.
+9. `payment_instructions` unset for the live tenant.
+10. AudioSocket carries no caller ID (agent asks for a callback number); a transferred call shows the
+    business line's CLI to the owner — carrier constraint, not a bug.
+11. Deliberately not built: multi-call supervision/queue/roster, and browser listen-in
+    (WSS/DTLS/ICE + JsSIP).
+
+### Media-server / telephony ops
+
+- **Formalise the PBX container.** `manager.conf` was copied into the running container and the
+  `trendi_default` / `pbx` alias added by hand; both are now in `compose.yml`. One
+  `docker compose -f compose.yml -f compose.public.yml up -d` recreates the PBX with them. Until
+  then, never recreate the PBX with a compose invocation that omits `compose.public.yml`.
+- AMI secret: `/opt/trendi/shared/api.env` (0600). `generated/manager.conf` must stay `100:101`, 640.
+- The scoped AMI user cannot run `CoreShowChannels` or `Events: on`; the client uses `Status` and
+  quiet-window event termination instead of widening permissions.
+
+### Go-live hardening (unchanged, `GO_LIVE_HARDENING.md`)
+
+Rotate `BREVO_WEBHOOK_SECRET` (and its webhook URL) and `ADMIN_TOKEN`; Brevo paid plan/dedicated IP,
+rotate SMTP key, narrow authorised IPs; watch DMARC aggregate reports then move `p=quarantine` →
+`p=reject`; delete scratch tenants and `admin@trendibizz.com`; split the Cloudflare token; rotate the
+xAI key (visible in `docker inspect`).
+
+### Operator / external
+
+Pukeko social OAuth + live publishing; offsite backup credentials; off-site SEO accounts; 3 phased
+host packages may remain.
+
+### Watching
+
+Astryx Native (weekly Monday 09:00 NZ, still a placeholder); GitHub uptime workflow for red runs;
+`docker logs asterisk-bridge-1` for `Grok telephone session error` (real) vs `Benign Grok cancel
+race` (noise); lower priority — internal admin console, old test phone route, and a review of the
+new live-listen disclosure copy (now customer-facing).
+
+### Next action
+
+Dial +64 9 243 1347 and give the full enquiry, dictation included; then, on that same call, exercise
+take-over → listen → whisper and confirm the fallback when nobody answers.
