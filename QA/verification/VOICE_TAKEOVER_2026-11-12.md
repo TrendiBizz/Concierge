@@ -61,6 +61,14 @@ Concierge sells to a one-to-three-person trade business. There is no supervisor 
 owner, and no roster of agents. Capabilities 3 and 4 are Octovox's channel/call-centre business
 (they sell channel-only, *"We don't sell direct. You do."*). Copying them is the bloat trap.
 
+> **Update, 2026-11-12 (later the same day).** Row 3 was built anyway, on the Asterisk path only,
+> because that path already existed and needed no new media product: `ChanSpy qr/qw/qB` gives
+> listen-in, whisper and barge over the carrier DID's own trunk. What sank the "weeks + a new
+> media/WebRTC surface" estimate was that the PBX was already in the media path — the missing piece
+> was AMI, not audio. See `HANDOFF_CURRENT_2026-11-11.md` (fourteenth section) and
+> `scripts/asterisk/README.md`. Row 3 remains **not** available on Grok SIP calls, and the
+> browser softphone (WSS/DTLS/ICE + JsSIP) is still a separate project. Row 4 is still not built.
+
 ---
 
 ## 2. What each voice path can actually do
@@ -269,6 +277,11 @@ Only then, and only with a customer paying for it:
 - **Consent first**: silent monitoring changes what callers must be told. The disclosure in
   `phone_sip.serve_call` and `asterisk_bridge.prepare` would have to say a person may listen, before
   any code ships.
+
+> **Done 2026-11-12:** `asterisk_bridge.greeting_disclosure()` adds exactly that sentence to the
+> phone receptionist's instructions — but only when the media server is configured, so a line that
+> cannot be monitored is not falsely told it might be. `phone_sip.serve_call` (the Grok SIP path)
+> needs no change: nothing there can listen.
 
 ---
 

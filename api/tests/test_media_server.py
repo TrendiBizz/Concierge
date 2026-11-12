@@ -208,3 +208,14 @@ def test_an_empty_channel_list_ends_on_quiet_not_on_a_missing_completion_event()
             await server.wait_closed()
         assert channels == []
     run(scenario())
+
+
+def test_callers_are_told_about_live_listening_only_when_it_can_happen():
+    # The take-over research was explicit: the disclosure has to change *before* listen-in ships.
+    from app.asterisk_bridge import greeting_disclosure
+
+    disclosure = greeting_disclosure(True)
+    assert 'may listen' in disclosure and 'join it' in disclosure
+    assert greeting_disclosure(False) == ''
+    # The disclosure is guidance to the model, not a claim that listening is always happening.
+    assert 'may listen' in disclosure

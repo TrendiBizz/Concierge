@@ -18,7 +18,8 @@ import uuid
 
 import websockets
 
-from . import channel_authorization, convo, db, enquiries, events, tenants, voice, voice_records
+from . import (call_control, channel_authorization, convo, db, enquiries, events, tenants, voice,
+               voice_records)
 from .config import get_settings
 from .rag import build_system_prompt
 from .tools import run_tool
@@ -27,6 +28,11 @@ from .telephone_recording import TelephoneRecording
 log = logging.getLogger('concierge.asterisk')
 FRAME_BYTES = 320  # 20ms PCM16 LE mono at 8kHz, native AudioSocket application format
 MAX_SECONDS = 600
+# Silent monitoring changes what a caller must be told, so the greeting discloses it *when the
+# capability exists* -- not speculatively, and not only in a policy document.
+LIVE_LISTEN_DISCLOSURE = (
+    ' This line is answered by an automated assistant, and a member of our team may listen to the '
+    'call while it happens or join it. Say so in your greeting, in your own words.')
 # A `response.cancel` that races the end of a response comes back as
 # "Cancellation failed: no active response found". That is not a dead call -- the
 # barge-in already achieved what it wanted -- so one error event must never end a
@@ -49,6 +55,11 @@ class Route:
     tenant: str
     number: str
     port: int
+
+
+def greeting_disclosure(media_control: bool) -> str:
+    """The extra greeting sentence owed to callers when a human may listen in."""
+    return LIVE_LISTEN_DISCLOSURE if media_control else ''
 
 
 def routes_from_json(value):
@@ -362,7 +373,8 @@ async def prepare(route, call_id):
         'Ask whether they want a text copy, recording link, or callback. Save callback preference in their enquiry. '
         'For a copy, capture their contact and permission, read back destination and format, wait for yes, then request_conversation_copy. '
         'Collect their message and callback details. Never claim a text was sent without a confirmed result. '
-        'When finished, say goodbye then call end_call. Do not end with an open question.')
+        'When finished, say goodbye then call end_call. Do not end with an open question.'
+        + greeting_disclosure(call_control.enabled()))
     session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
                              'parameters':{'type':'object','properties':{},'additionalProperties':False}})
     session['tools'].append({'type':'function','name':'set_call_recording',

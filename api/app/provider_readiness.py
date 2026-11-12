@@ -192,9 +192,11 @@ def _included() -> dict:
             "Watch a call while it happens",
             "ready",
             "Studio → Bookings shows any call in progress with the conversation so far, and a "
-            "button to take over: it stops the assistant, texts and emails you the caller's number "
-            "and the discussion, and gives you a ring-back task. No audio listen-in — the carrier "
-            "does not allow joining a call, so you ring the caller back.",
+            "button to take over. On the phone line we run (the carrier DID), take-over puts the "
+            "caller straight through to your phone, and you can also open a listen-in, whisper or "
+            "join leg from your phone. On the provider's own SIP calls there is no transfer or audio "
+            "join, so take-over stops the assistant, sends you the caller's number and the "
+            "discussion, and gives you a ring-back task. The call record says which applies.",
             "GET /owner/live-calls",
         ),
         _step(

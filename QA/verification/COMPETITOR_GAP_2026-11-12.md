@@ -192,3 +192,10 @@ either, and it is roughly two weeks of work, not two quarters.
 
 Suggested order: **A, C, D** (cheap, visible, compounding), then **B** (the differentiator, needs
 a live call test), then **E, F**. A and C alone close the two gaps an owner would notice in a trial.
+
+> **Correction, 2026-11-12 (late).** The statements above that the carrier path has no transfer and no
+> listen-in are true of the **Grok SIP** provider path only. The Hero DID terminates on our own
+> Asterisk, so the same console now offers a real take-over (redirect through the carrier trunk, with
+> a fallback to the assistant) and listen/whisper/join via `ChanSpy`. The API reports per call which
+> engine it is on, so the UI never claims a control it cannot perform. Details:
+> `HANDOFF_CURRENT_2026-11-11.md`, fourteenth section.
