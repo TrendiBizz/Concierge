@@ -984,3 +984,50 @@ shop), snapshot/reseller mode (only if the operator decides to sell through part
 `HANDOFF.md` still claims Studio has no Permissions screen — it does (`web/portal/src/Permissions.tsx`,
 wired in `App.tsx`). Stale doc statement, corrected there. No capability was added this session, so
 **the 606 API / Rust / email-auth baselines and 43/43 health are unchanged and were not re-run.**
+
+## Session 2026-11-12 (eighth) — competitor-gap items being shipped, one per commit
+
+Operator instruction: implement items A–F from `COMPETITOR_GAP_2026-11-12.md` in order, test each
+thoroughly, wire each into onboarding so the customer always knows what is included, commit, push
+and deploy after each, then move to the next. Also: **no Microsoft dependency anywhere** (so
+Microsoft calendar is dropped from the trigger list entirely) and only free/GitHub-hosted services.
+`GO_LIVE_HARDENING.md` items are unaffected and still open.
+
+Deploy recipe used (unchanged from previous sessions): rsync `api/app` → release dir + rsync
+`web/portal/dist` → `/opt/trendi/shared/studio`, `chmod -R a+rX` both, then
+`docker compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile crm --profile public up -d --build --no-deps api`;
+schema applies itself on API boot (`db.init` runs the idempotent `schema.sql`).
+
+### A. Missed-call text-back — SHIPPED (`79b3b97`), deployed and live-proved
+- **Code:** `api/app/missed_calls.py`. Conservative trigger: the call ended and (the caller never
+  had a transcribed turn, or the call was < 20 s, or the provider said no-answer/busy/failed) and
+  no appointment was created for that number. Skips: switched off, SMS disabled/unauthorised, no
+  caller number, self-call, already booked, a real conversation, or a text already sent to that
+  number in the last 24 h.
+- **Hooks:** `phone_sip.serve_call` finally block (Grok SIP) and `/api/v1/phone/twilio/ended`, plus
+  a 5-minute sweeper (`missed_calls.run_forever`, started with the outbox) so a call whose webhook
+  never arrived is still recovered. Recovery never changes the recorded outcome of the call.
+- **Data:** `tenants.missed_call_textback` (default **on**), `tenants.missed_call_template`,
+  `missed_call_recoveries` (one row per call, partial unique index = one reply per number per day).
+  `lead_id`/`outbox_id` link the audit row to what was actually sent.
+- **Owner surface:** `GET /owner/missed-calls` (enabled, 30-day count, recent recoveries),
+  `PUT /owner/missed-calls/textback`. Studio → Bookings now has a "Missed-call text-back" card with
+  the switch, the 30-day count and the last five recoveries.
+- **Onboarding/awareness:** `provider_readiness` gained an **`included`** area — the customer-facing
+  half of the report ("what we already do for you, and how to turn it off"). A test now asserts every
+  shipped capability is advertised there, so this cannot silently rot. `included` grows with B–F.
+- **Tests:** 20 new (`api/tests/test_missed_calls.py`) covering every rule, the message template,
+  the queue+audit write, the sweep query and the tenant/call split; the readiness suite gained the
+  "every shipped capability is advertised" assertion. **API 628 passed.** Mutation check: disabling
+  the `already_booked` rule reddened 2 tests, then restored.
+- **Live proof** (`scripts/vps/prove_missed_calls.py`, run inside `trendi-api-1` on the real DB):
+  schema applied (`missed_call_textback`, `missed_call_template`, `missed_call_recoveries`), a
+  synthetic call produced audit row `{'status': 'skipped', 'reason': 'sms_disabled'}` and the
+  fixtures were removed (0 left). Healthcheck after deploy: **0 fail, 0 warn**.
+- **Honest finding:** `pukeko-construction` has `sms_enabled = false`, so A is inert for the live
+  tenant until that business enables SMS — A cannot text without the SMS channel the product already
+  gates. This is why the `included` step says "for every business with SMS enabled".
+
+### Next
+C (one contact timeline screen) — the backend `casetimeline.timeline()` already merges channels, so
+this is a Studio view plus the readiness/onboarding entry; then D, B, E, F.
