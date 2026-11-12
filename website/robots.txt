@@ -16,6 +16,17 @@ Allow: /
 User-agent: Claude-SearchBot
 Allow: /
 
+# User-triggered fetchers: an AI assistant opening a page because a person asked it to.
+# These are not training crawlers, so they stay allowed.
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
 User-agent: Applebot
 Allow: /
 
