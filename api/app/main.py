@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import call_insights, casetimeline, hermes_orchestrator, missed_calls, provider_readiness
+from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -2028,6 +2028,46 @@ async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_
 class ContactTakeover(BaseModel):
     paused: bool
     reason: str = ""
+
+
+class LiveTakeover(BaseModel):
+    reason: str = ""
+
+
+@app.get("/owner/live-calls")
+async def owner_live_calls(user: dict = Depends(owner_auth.current_user)):
+    """Calls happening right now, with the conversation so far — the Switchboard, narrowed.
+
+    Honest limit (see live_calls.py): the provider exposes call control, not a SIP transfer, so
+    "take over" stops the AI and alerts the owner to ring back. There is no audio listen-in.
+    """
+    return {"calls": await live_calls.active(user["tenant_id"])}
+
+
+@app.get("/owner/live-calls/{call_sid}")
+async def owner_live_call(call_sid: str, user: dict = Depends(owner_auth.current_user)):
+    found = await live_calls.one(user["tenant_id"], call_sid)
+    if not found:
+        raise HTTPException(404, "Call not found")
+    return found
+
+
+@app.post("/owner/live-calls/{call_sid}/takeover")
+async def owner_live_takeover(
+    call_sid: str, body: LiveTakeover, user: dict = Depends(owner_auth.current_user)
+):
+    tenant = await _require_tenant(user["slug"])
+    row = await db.pool().fetchrow(
+        "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",
+        user["tenant_id"], call_sid)
+    if not row:
+        raise HTTPException(404, "Call not found")
+    call = dict(row)
+    if not live_calls.is_live(call):
+        raise HTTPException(409, "That call has already ended; use Contacts to follow it up")
+    by = user.get("email") or user.get("role") or "owner"
+    result = await live_calls.take_over(tenant, call, by=str(by))
+    return {"ok": True, **result}
 
 
 @app.get("/owner/call-insights")

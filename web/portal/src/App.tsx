@@ -355,6 +355,7 @@ function Bookings({token}: {token: string}) {
   const [ack, setAck] = useState(false);
   const [textback, setTextback] = useState<{enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]}>({});
   const [insights, setInsights] = useState<{insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>}>({});
+  const [live, setLive] = useState<Record<string, unknown>[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const days: Array<[string, string]> = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']];
@@ -388,6 +389,29 @@ function Bookings({token}: {token: string}) {
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load bookings'); }
   }
   useEffect(() => { load(); }, [token]);
+
+  // Live calls refresh every few seconds; the console is only useful if it is current.
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const data = await api('/owner/live-calls') as {calls?: Record<string, unknown>[]};
+        if (alive) setLive(data.calls || []);
+      } catch { /* a blip must not clear the panel */ }
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => { alive = false; clearInterval(id); };
+  }, [token]);
+
+  async function takeOverLive(callSid: string) {
+    try {
+      const result = await api('/owner/live-calls/' + encodeURIComponent(callSid) + '/takeover', 'POST', {reason: 'live takeover from Studio'}) as {caller?: string; ended?: boolean; note?: string};
+      setStatus(result.ended ? 'Concierge stopped. Ring ' + (result.caller || 'the caller') + ' back now.' : (result.note || 'Concierge stopped; ring them back now.'));
+      notify('Take over: ring ' + (result.caller || 'the caller') + ' back now.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not take over that call'); }
+  }
 
   async function connectCalendar() {
     if (role !== 'owner') { setStatus('Only the business owner can connect the calendar.'); return; }
@@ -478,6 +502,24 @@ function Bookings({token}: {token: string}) {
         </label>
         <Button label={busy ? 'Saving…' : 'Save booking settings'} variant="primary" onClick={saveBooking} />
       </Card>
+
+      {live.length ? (
+        <Card>
+          <Heading level={2}>Happening now</Heading>
+          {live.map((call, index) => (
+            <div key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 8, marginBottom: 8}}>
+              <strong>{String(call.caller || 'Caller')}</strong> · {Math.round(Number(call.seconds || 0) / 60)}m {Number(call.seconds || 0) % 60}s
+              {!call.caller_has_spoken ? <Badge label="has not spoken" variant="warning" /> : null}
+              <div style={{margin: '6px 0'}}>
+                {(Array.isArray(call.transcript) ? call.transcript as Array<Record<string, string>> : []).slice(-6).map((turn, i) => (
+                  <p key={i} style={{margin: '2px 0'}}><em>{turn.who}:</em> {turn.text}</p>
+                ))}
+              </div>
+              <Button label="Take over — ring them back" variant="primary" onClick={() => takeOverLive(String(call.call_sid))} />
+            </div>
+          ))}
+        </Card>
+      ) : null}
 
       <Card>
         <Heading level={2}>Recent calls</Heading>

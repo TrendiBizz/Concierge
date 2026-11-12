@@ -173,6 +173,15 @@ def _included() -> dict:
     """
     steps = [
         _step(
+            "Watch a call while it happens",
+            "ready",
+            "Studio → Bookings shows any call in progress with the conversation so far, and a "
+            "button to take over: it stops the assistant, texts and emails you the caller's number "
+            "and the discussion, and gives you a ring-back task. No audio listen-in — the carrier "
+            "does not allow joining a call, so you ring the caller back.",
+            "GET /owner/live-calls",
+        ),
+        _step(
             "A summary of every call",
             "ready",
             "Each finished call gets a short summary, an outcome (booked, quote requested, ring back, "
