@@ -155,7 +155,7 @@ class CustomerJourney(unittest.TestCase):
             self.assertTrue("invitation_url" in issued, "Customers need a usable invitation link")
             url = urlsplit(issued["invitation_url"])
             self.assertEqual(url.scheme, "https")
-            self.assertEqual(url.path, "/owner-ui")
+            self.assertEqual(url.path, "/studio")
             self.assertEqual(url.query, "")
             self.assertEqual(parse_qs(url.fragment)["invite"], [issued["invitation_token"]])
             self.assertEqual(self.redemptions[name, "owner"]["slug"], self.businesses[name]["slug"])

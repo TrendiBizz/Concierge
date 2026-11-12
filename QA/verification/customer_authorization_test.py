@@ -30,12 +30,20 @@ class MemoryDb:
     def transaction(self):
         return self
 
-    async def fetchrow(self, sql, tenant, channel, authorized, actor):
-        self.records[(tenant, channel)] = {"authorized": authorized, "updated_at": None}
-        return self.records[(tenant, channel)]
+    async def fetchrow(self, sql, *args):
+        if "INSERT INTO tenant_channel_authorizations" in sql:
+            tenant, channel, authorized, actor = args[:4]
+            self.records[(tenant, channel)] = {"authorized": authorized, "updated_at": None}
+            # The real audit row is written by the DB trigger; the double records the
+            # same fact so the test still proves who made the change.
+            self.audit.append((tenant, channel, authorized, actor))
+            return self.records[(tenant, channel)]
+        return None
 
-    async def execute(self, sql, tenant, channel, authorized, actor):
-        self.audit.append((tenant, channel, authorized, actor))
+    async def execute(self, sql, *args):
+        # record_authorization() sets the actor provenance with set_config(); the
+        # trigger turns that into the audit row, so the double stores nothing here.
+        return None
 
     async def fetch(self, sql, tenant):
         return [

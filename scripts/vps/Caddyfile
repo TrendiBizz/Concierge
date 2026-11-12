@@ -21,6 +21,11 @@
     }
     handle @chat {
         reverse_proxy api:8000 {
+            # A deploy recreates the api container and Docker's DNS briefly answers
+            # SERVFAIL for "api"; without retries Caddy returned 502 and the phone
+            # connector's SMS receipts were lost (2026-11-12 system check).
+            lb_try_duration 10s
+            lb_try_interval 250ms
             header_up X-Forwarded-Proto https
             header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
         }
@@ -31,6 +36,11 @@
     }
     handle @owner {
         reverse_proxy api:8000 {
+            # A deploy recreates the api container and Docker's DNS briefly answers
+            # SERVFAIL for "api"; without retries Caddy returned 502 and the phone
+            # connector's SMS receipts were lost (2026-11-12 system check).
+            lb_try_duration 10s
+            lb_try_interval 250ms
             header_up X-Forwarded-Proto https
             header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
         }

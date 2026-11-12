@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time as _time
 from datetime import datetime, time, timedelta, timezone
 from email.utils import make_msgid
 from zoneinfo import ZoneInfo
@@ -263,13 +264,59 @@ async def process_once() -> int:
     return len(rows)
 
 
+# How long an SMS may wait for the phone's receipt before it is declared unconfirmed.
+# /poll expires jobs the phone *claimed* but never receipted; this covers the case where
+# the phone stops polling altogether (unpaired, revoked, app closed, lost receipt during a
+# deploy), which previously left the row in awaiting_receipt forever and the owner never
+# learned the alert did not go out.
+STALE_SMS_INTERVAL = timedelta(minutes=15)
+SMS_RECONCILE_SECONDS = 300
+
+
+async def reconcile_stale_device_sms(breach: timedelta = STALE_SMS_INTERVAL) -> int:
+    """Mark SMS rows whose phone never confirmed the send as failed, never silently in-flight.
+
+    The owner must be able to tell "sent" from "we do not know". Nothing is retried here:
+    a send that may have happened is reconciled by a human, per the device-SMS contract.
+    """
+    stalled = await db.pool().fetch(
+        """UPDATE device_sms_jobs j SET status='uncertain', finished_at=now()
+           FROM outbox o
+           WHERE j.outbox_id=o.id AND j.status IN ('queued','claimed')
+             AND o.channel='sms' AND o.status IN ('sending','awaiting_receipt')
+             AND o.send_at < now() - $1::interval
+           RETURNING j.outbox_id""",
+        breach,
+    )
+    failed = 0
+    for row in stalled:
+        if row["outbox_id"] is None:
+            continue
+        await db.pool().execute(
+            "UPDATE outbox SET status='failed', last_error=$2 "
+            "WHERE id=$1 AND status IN ('sending','awaiting_receipt')",
+            row["outbox_id"], "Phone never confirmed send; reconcile before retry",
+        )
+        failed += 1
+    return failed
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     interval = max(get_settings().outbox_poll_seconds, 1)
+    last_sweep = 0.0
     while not stop.is_set():
         try:
             await process_once()
         except Exception:
             log.exception("outbox loop error")
+        if _time.monotonic() - last_sweep >= SMS_RECONCILE_SECONDS:
+            last_sweep = _time.monotonic()
+            try:
+                stalled = await reconcile_stale_device_sms()
+                if stalled:
+                    log.warning("reconciled %s unconfirmed SMS row(s) as failed", stalled)
+            except Exception:
+                log.exception("sms receipt reconciliation error")
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
         except asyncio.TimeoutError:

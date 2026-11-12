@@ -27,7 +27,8 @@ function portal(hash='',fetcher){
   const requests=[],window=new EventTarget();
   const location={origin:'https://example.test',pathname:'/owner-ui',search:'',hash};
   const context=vm.createContext({URL,URLSearchParams,Event,window,location,console,
-    document:{getElementById:id=>nodes[id]||findById(Object.values(nodes),id),createElement:element,querySelectorAll:()=>[]},
+    document:{getElementById:id=>nodes[id]||findById(Object.values(nodes),id),createElement:element,querySelectorAll:()=>[],
+      addEventListener(){},removeEventListener(){}},
     history:{replaceState(_a,_b,url){location.hash='';location.replaced=url;}},
     navigator:{},confirm:()=>true,
     fetch:async(url,options)=>{
