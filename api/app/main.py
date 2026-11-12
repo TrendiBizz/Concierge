@@ -27,6 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
+from . import channel_health, mailer
 from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
 from .booking import DAYS
 from .config import get_settings
@@ -1748,6 +1749,9 @@ async def admin_suppressions(slug: str, limit: int = 200):
 class OwnerInvite(BaseModel):
     email: str = Field(max_length=320)
     role: Literal["viewer", "editor", "owner"] = "viewer"
+    # Opt-in: email the single-use link to the invitee. Off by default so the operator can still
+    # deliver it over a channel they have verified themselves.
+    send_email: bool = False
 
 
 class OwnerRecovery(BaseModel):
@@ -1772,9 +1776,30 @@ async def admin_invite_owner(slug: str, body: OwnerInvite):
         token = await owner_auth.make_invite(tenant["id"], body.email, body.role)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    # Do not auto-email credentials; operator delivers token over verified channel.
-    return {"invitation_token": token, "invitation_url": owner_auth.invitation_link(token),
-            "expires_in_hours": 24}
+    link = owner_auth.invitation_link(token)
+    emailed = False
+    email_error = ""
+    if body.send_email:
+        # The secret is in the URL fragment and redemption needs a POST with a new password, so a
+        # mail scanner that pre-fetches the link cannot consume it. A failed send never fails the
+        # invitation: the operator still gets the link in the response.
+        try:
+            name = tenant.get("name") or "your business"
+            await mailer.send_email(
+                owner_auth.clean_email(body.email),
+                f"Your {name} Concierge is ready",
+                f"Hello,\n\nYour AI front desk for {name} is ready to set up.\n\n"
+                f"Open this private link to choose your password and finish setup:\n{link}\n\n"
+                "The link works once and expires in 24 hours. If you did not expect this "
+                "message, ignore it.\n\n— Trendi Concierge",
+                from_name="Trendi Concierge",
+            )
+            emailed = True
+        except Exception as exc:  # noqa: BLE001
+            email_error = type(exc).__name__
+            logging.getLogger("concierge.invite").warning("invitation email not sent: %s", email_error)
+    return {"invitation_token": token, "invitation_url": link, "expires_in_hours": 24,
+            "emailed": emailed, "email_error": email_error}
 
 
 @app.post("/admin/tenants/{slug}/owner-recovery", dependencies=admin)
@@ -1898,6 +1923,12 @@ async def owner_locale(request: Request):
 @app.get("/owner/me")
 async def owner_me(user: dict = Depends(owner_auth.current_user)):
     return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}
+
+
+@app.get("/owner/channel-health")
+async def owner_channel_health(user: dict = Depends(owner_auth.current_user)):
+    """Plain status of email alerts, the SMS phone and voice calls for this business."""
+    return await channel_health.channel_report(user["tenant_id"])
 
 
 @app.get("/owner/crm")
