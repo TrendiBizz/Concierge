@@ -1054,3 +1054,29 @@ this is a Studio view plus the readiness/onboarding entry; then D, B, E, F.
 ### Next
 D (after-call intelligence: summary, outcome label, sentiment, follow-up task) → B (live call
 supervision) → E (payments on accepted quotes) → F (attributed revenue).
+
+### D. After-call intelligence — SHIPPED (`96827c1`), deployed and live-proved
+- **Code:** `api/app/call_insights.py`. Deterministic first: no caller turns = no analysis at all;
+  an appointment created around the call records `booked` without asking the model. Otherwise one
+  model pass over the stored transcript, `parse_analysis` (fenced/padded JSON tolerated, unknown
+  outcome downgraded to `unresolved`, unknown sentiment to `neutral`, unusable reply rejected
+  outright), persisted with the model name. Per-tenant daily cap 50 so spend cannot run away.
+- **Outcomes:** booked, quote_requested, call_back, information_only, not_interested, wrong_number,
+  unresolved. `call_back` and `unresolved` create exactly one open task per lead (deduped).
+- **Hook:** `events.spawn(call_insights.analyse_call_sid(...))` in the `serve_call` finally block, so
+  a slow model can never delay the end of a call, plus a 6-hour anti-join sweeper for calls
+  interrupted by a deploy. `UNIQUE (tenant_id, call_sid)` makes a replay a no-op, not a re-bill.
+- **Owner surface:** `GET /owner/call-insights`; Studio → Bookings gained a "Recent calls" card
+  (outcome badge, caller, summary, next step).
+- **Onboarding:** `included` gains "A summary of every call".
+- **Tests:** 16 new (`api/tests/test_call_insights.py`). Outcome-validation mutation-checked
+  (accepting unknown outcomes reddened the test, then restored). **API 652 passed.**
+- **Live:** deployed, health **43 ok / 0 warn / 0 fail**, `/owner/call-insights` 401 (present,
+  auth-gated). Real analysis proved with `scripts/vps/prove_call_insights.py` on a synthetic
+  transcript: model **grok-4.7**, outcome `quote_requested`, correct summary and next step,
+  persisted, returned by `recent()`, fixtures and the temporary conversation removed afterwards.
+- Honest limit: no real inbound calls have happened recently, so this is proved on a synthetic
+  transcript through the real model path, not on a customer call.
+
+### Next
+B (live call supervision panel), then E (payments on accepted quotes), then F (attributed revenue).
