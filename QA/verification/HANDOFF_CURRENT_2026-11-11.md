@@ -1114,3 +1114,71 @@ no Microsoft dependency and only free/GitHub services, so E must not force a pai
 implement tenant-supplied payment instructions/link + a "I have paid" declaration the owner confirms,
 which keeps the money trail for F. Stripe remains an optional later add-on (it needs an account and
 charges fees), never a dependency.
+
+### E. Money on an accepted quotation — SHIPPED (`04ba6d1`), deployed and live-proved
+**Deliberately processor-free**, because the operator's constraint is free/GitHub-only and no paid
+service may become a dependency. The state machine is `unpaid → declared → paid` (or `waived`);
+only an owner confirmation reaches `paid`, and a declaration is never treated as money.
+- **Code:** `api/app/quote_payments.py` (pure rules + declare/confirm/summary/notify).
+- **Schema:** `tenants.payment_instructions`/`payment_url`, `quotations.payment_status`,
+  `payment_reference`, `payment_declared_at`, `payment_confirmed_at`, and the append-only
+  `quote_payments` trail (kind, amount, reference, who) which item F reports on.
+- **Public quote page:** an accepted quotation shows the business's instructions and/or link plus an
+  "I have paid" form with an optional reference; the page states plainly that a declaration is not
+  a payment. Payment URLs are restricted to http(s), so `javascript:`/`data:`/relative values are
+  never rendered.
+- **Owner API:** `GET`/`PUT /owner/payment-settings` (with paid/claimed/outstanding summary),
+  `POST /owner/crm/quotations/{id}/payment` (confirm | waive). A customer's claim alerts the owner
+  immediately.
+- **Studio:** "Getting paid" card in Quotes (instructions, optional link, money totals) plus a
+  payment badge and "Confirm paid" on each quotation.
+- **Tests:** 13 new (`api/tests/test_quote_payments.py`); accepted-only rule mutation-checked.
+  **API 676 passed.**
+- **Live proof** (`scripts/vps/prove_quote_payments.py`): rendered the public page through the app
+  itself — instructions and "I have paid" both present; declare → `declared` with the reference
+  stored; confirm → `paid`; summary `paid 115000 / outstanding 0`; audit trail
+  `declared (customer)` → `paid (owner)`; a second confirm refused; fixtures deleted and the
+  tenant's payment settings restored. Health **43 ok / 0 warn / 0 fail**.
+
+### F. Attributed revenue — SHIPPED (`d502443`), deployed and live-proved
+- **Code:** `api/app/revenue.py` — enquiries by channel, quotes sent/accepted, accept rate, accepted
+  value, confirmed paid vs outstanding, value per enquiry, and percent change against the previous
+  window. No new event pipeline: every number is derived from rows written for other reasons, so the
+  report cannot drift from the records.
+- **Honesty rules:** no previous period reports `None` rather than a fake 0%; zero enquiries never
+  divides by zero; the window is clamped to 1–365 days (0 means the 30-day default); the note says
+  accepted value is not banked money.
+- **Surface:** `GET /owner/revenue?days=30`; Studio → Reports gained "What it earned — last 30 days"
+  with the channel split.
+- **Tests:** 8 new (`api/tests/test_revenue.py`); the no-basis rule mutation-checked.
+  **API 684 passed.**
+- **Live proof** (`scripts/vps/prove_revenue.py`): seeded two enquiries and two quotations (one
+  paid), report returned `enquiries 9, quotes sent 2, accepted 2, accept rate 100%, accepted value
+  2000 NZD, paid 1200, outstanding 800, value/enquiry 222.22`, with the payment trail
+  `declared → paid`; after deleting the fixtures it returned to the true baseline (7 enquiries,
+  0 paid), proving it reads real data. Health **43 ok / 0 warn / 0 fail**.
+
+## Session 2026-11-12 (ninth) — all six competitor-gap items shipped
+
+A, C, D, B, E, F are **implemented, tested, committed, pushed and deployed**, each with a live proof
+(see the sections above). Final state: **API 684 passed**, live healthcheck **43 ok / 0 warn /
+0 fail**, `/studio/` 200, every new owner route answering 401 (present and auth-gated).
+
+**The onboarding guarantee is live:** `provider_readiness.report()["areas"]["included"]` now lists
+all six capabilities for the customer —
+`See what it earned you` · `Get paid on an accepted quotation` (unconfigured until the tenant adds
+bank details) · `Watch a call while it happens` · `A summary of every call` ·
+`One timeline per customer` · `Missed-call text-back`
+— and a test asserts every shipped capability is advertised there, so future features cannot ship
+silently. Microsoft appears nowhere; Google Calendar remains the only calendar integration.
+
+**Honest limits, carried forward:**
+- A (text-back) is inert for `pukeko-construction` because that tenant has `sms_enabled = false`.
+- B has no audio listen-in: the provider offers call control (accept/hangup), not a SIP transfer.
+- E is not card payment; if card payments are wanted later, Stripe or similar can drive the same
+  state machine (the schema stores declarations and confirmations, not card data).
+- Proofs for D/E/F used synthetic rows on the real database and cleaned up afterwards; no real
+  customer call, payment or quote has exercised these paths yet.
+- The `GO_LIVE_HARDENING.md` items (Brevo secret/SMTP key/plan, DMARC `p=reject`, Cloudflare token
+  split, scratch tenants + `admin@trendibizz.com`) and the operator items (phone DID, social OAuth,
+  offsite backups, xAI key) are **unchanged and still open**.
