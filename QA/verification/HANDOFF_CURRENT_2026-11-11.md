@@ -1413,3 +1413,9 @@ the open item below.
   event at all.
 - `generated/manager.conf` must be readable by uid 100/gid 101 (`chown 100:101`, `chmod 640`).
 - Portal buttons for listen/whisper are **not** built yet; the API is ready for them.
+- **Live container vs compose, right now:** `manager.conf` was copied into the running
+  `asterisk-pbx-1` and the `trendi_default` attachment (with the `pbx` alias) was added by hand, so
+  the running container does not yet match the compose file. Both are in `compose.yml`, so the next
+  `docker compose -f compose.yml -f compose.public.yml up -d` (both files!) formalises them and
+  recreates the PBX once. Until then a container restart keeps AMI working (the file is inside the
+  container), but a recreate without compose would not.
