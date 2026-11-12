@@ -165,6 +165,7 @@ def test_owner_alerts_are_never_suppressed_by_takeover(monkeypatch):
     monkeypatch.setattr(outbox, "casetimeline", casetimeline, raising=False)
     finish = AsyncMock()
     monkeypatch.setattr(outbox, "_finish", finish)
+    monkeypatch.setattr(outbox.suppressions, "is_suppressed", AsyncMock(return_value=False))
     mail = AsyncMock()
     monkeypatch.setattr(outbox.mailer, "send_email", mail)
 

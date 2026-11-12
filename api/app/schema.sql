@@ -740,3 +740,68 @@ CREATE TABLE IF NOT EXISTS ui_translation_cache (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (locale, source)
 );
+
+-- ---------------------------------------------------------------------------
+-- Email operations (2026-11-12 assessment): bounce handling, suppression list,
+-- authoritative consent audit, per-mailbox inbound limits.
+-- ---------------------------------------------------------------------------
+
+-- An address that hard-bounced, was blocked by the provider, or complained. Outbound
+-- mail to a suppressed address is never attempted; a human may lift it.
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    address     text NOT NULL,
+    reason      text NOT NULL DEFAULT '',
+    source      text NOT NULL DEFAULT '',
+    detail      jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, address)
+);
+CREATE INDEX IF NOT EXISTS email_suppressions_created_idx
+    ON email_suppressions (tenant_id, created_at DESC);
+
+-- Which address an audit row is about (refused message, blocked sender, bounce).
+ALTER TABLE inbound_audit ADD COLUMN IF NOT EXISTS address text;
+
+-- The Message-ID we sent, so a DSN or provider event can be matched to its outbox row.
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS message_id text;
+CREATE INDEX IF NOT EXISTS outbox_message_id_idx
+    ON outbox (message_id) WHERE message_id IS NOT NULL;
+
+-- Rate limiting is per mailbox, which needs the recipient recorded on the draft.
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS recipient text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS email_drafts_recipient_idx
+    ON email_drafts (tenant_id, recipient, created_at DESC);
+
+-- Consent provenance: an operator may grant on a customer's behalf, which is NOT an
+-- owner principal, so actor_id is nullable and actor_kind/actor_label say who acted.
+ALTER TABLE tenant_channel_authorizations ALTER COLUMN actor_id DROP NOT NULL;
+ALTER TABLE tenant_channel_authorization_audit ALTER COLUMN actor_id DROP NOT NULL;
+ALTER TABLE tenant_channel_authorization_audit
+    ADD COLUMN IF NOT EXISTS actor_kind text NOT NULL DEFAULT 'owner';
+ALTER TABLE tenant_channel_authorization_audit
+    ADD COLUMN IF NOT EXISTS actor_label text NOT NULL DEFAULT '';
+
+-- The audit table is now written by the database, not by the application, so an
+-- out-of-band UPDATE (direct SQL) can no longer leave consent changes invisible.
+CREATE OR REPLACE FUNCTION concierge_consent_audit() RETURNS trigger AS $fn$
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NEW.authorized IS NOT DISTINCT FROM OLD.authorized
+       AND NEW.actor_id IS NOT DISTINCT FROM OLD.actor_id THEN
+        RETURN NEW;
+    END IF;
+    INSERT INTO tenant_channel_authorization_audit
+        (tenant_id, channel, authorized, actor_id, actor_kind, actor_label)
+    VALUES (NEW.tenant_id, NEW.channel, NEW.authorized, NEW.actor_id,
+            COALESCE(NULLIF(current_setting('concierge.actor_kind', true), ''), 'direct'),
+            COALESCE(current_setting('concierge.actor_label', true), ''));
+    RETURN NEW;
+END;
+$fn$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tenant_channel_authorization_audit_trg
+    ON tenant_channel_authorizations;
+CREATE TRIGGER tenant_channel_authorization_audit_trg
+    AFTER INSERT OR UPDATE ON tenant_channel_authorizations
+    FOR EACH ROW EXECUTE FUNCTION concierge_consent_audit();

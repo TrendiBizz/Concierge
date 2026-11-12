@@ -3,9 +3,10 @@
 import asyncio
 import logging
 from datetime import datetime, time, timedelta, timezone
+from email.utils import make_msgid
 from zoneinfo import ZoneInfo
 
-from . import casetimeline, channel_authorization, db, device_sms, mailer, sms, tenants, unsub
+from . import casetimeline, channel_authorization, db, device_sms, mailer, sms, suppressions, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -126,6 +127,13 @@ async def _deliver(row: dict) -> None:
         await _finish(row["id"], "skipped", "opted_out")
         return
 
+    # A supposedly-delivered email can still hard-bounce. Once an address is suppressed (DSN,
+    # provider webhook, or an operator block) nothing is sent to it again; without this a dead
+    # mailbox was retried forever and the outbox kept claiming delivery.
+    if row["channel"] == "email" and await suppressions.is_suppressed(row["tenant_id"], row["to_addr"]):
+        await _finish(row["id"], "suppressed", "address_suppressed")
+        return
+
     # Human takeover, rechecked at delivery time. A reply queued BEFORE the owner took over would
     # otherwise still arrive afterwards, which is the window that checking only at queue time leaves
     # open. Owner alerts are exempt: takeover silences replies to the CUSTOMER, never the owner's own
@@ -182,13 +190,30 @@ async def _deliver(row: dict) -> None:
         if row.get("campaign_id"):
             link = unsub.url_for(row["tenant_id"], row["to_addr"])
             headers = {"List-Unsubscribe": f"<{link}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
-        if row["kind"] in OWNER_KINDS and tenant.get("reply_address"):
+        if tenant.get("reply_address"):
+            # EVERY customer-visible message carries the tenant reply address, not only owner
+            # alerts. Without it, a customer answering an auto-reply went to the global admin@
+            # inbox, so the reply-<token> loop, tenant attribution and the consent gate were all
+            # bypassed (2026-11-12 email assessment, 3.3).
             headers = {**(headers or {}), "Reply-To": tenant["reply_address"]}
         body = row["body"]
         if row["kind"] in OWNER_KINDS and tenant.get("name"):
             body = body.rstrip() + f"\n\n— {tenant['name']}"
             if tenant.get("site_url"):
                 body += f"\n{tenant['site_url']}"
+        # Record the Message-ID before sending, so a bounce that comes back (through the
+        # Cloudflare Worker or the Brevo webhook) can be matched to exactly this outbox row.
+        sender = getattr(settings, "smtp_from", "") or ""
+        message_id = row.get("message_id") or make_msgid(
+            domain=(sender.rsplit("@", 1)[-1] or None))
+        if not row.get("message_id"):
+            try:
+                await db.pool().execute(
+                    "UPDATE outbox SET message_id=$2 WHERE id=$1", row["id"], message_id[:500])
+            except Exception:  # noqa: BLE001 - never lose a send over a bookkeeping write
+                # Matching then falls back to the recipient address; the mail still goes out.
+                log.warning("could not persist message id for outbox row %s", row["id"])
+        headers = {**(headers or {}), "Message-ID": message_id}
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", body, headers,
             from_name=tenant.get("name") or None,

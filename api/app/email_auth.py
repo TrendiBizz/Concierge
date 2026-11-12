@@ -33,7 +33,9 @@ def merge(auth: dict | None, verified: dict) -> dict:
     merged = dict(auth or {})
     for key in ("dkim", "dmarc"):
         value = verified.get(key)
-        if value in ("pass", "fail", "none"):
+        # "unaligned": a signature passed, but for a domain other than From. The sidecar does not
+        # fetch the From domain's DMARC policy, so this must never be reported as dmarc=fail.
+        if value in ("pass", "fail", "none", "unaligned"):
             merged[key] = value
     if verified.get("from"):
         merged["verified_from"] = verified["from"]

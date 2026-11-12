@@ -37,6 +37,7 @@ def test_only_successful_email_delivery_answers_the_recipient(monkeypatch):
         monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value=tenant))
         monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=True))
         monkeypatch.setattr(outbox, "is_opted_out", AsyncMock(return_value=False))
+        monkeypatch.setattr(outbox.suppressions, "is_suppressed", AsyncMock(return_value=False))
         monkeypatch.setattr(casetimeline, "is_paused_for", AsyncMock(return_value=False))
         monkeypatch.setattr(outbox, "_finish", AsyncMock())
         send = AsyncMock(side_effect=RuntimeError("mail server unavailable"))

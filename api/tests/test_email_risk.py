@@ -116,3 +116,27 @@ def test_dkim_pass_dmarc_none_is_low_when_aligned():
         size=41234)
     assert result["risk"] == "low"
     assert result["flags"] == []
+
+
+def test_unaligned_dkim_pass_is_medium_and_not_reported_as_dmarc_fail():
+    """A forwarded/list message: a genuine signature from another domain.
+
+    The sidecar emits dmarc="unaligned" for this; before 2026-11-12 it emitted
+    "fail", which forced high risk with a factually wrong dmarc_fail flag.
+    """
+    result = email_risk.assess(
+        {"verified_by": "email-auth", "aligned": "no", "dkim": "pass",
+         "dmarc": "unaligned", "spf": "pass"},
+        "a@example.com", None, "Fwd: hello", "hello")
+    assert result["risk"] == "medium"
+    assert "dkim_unaligned" in result["flags"]
+    assert "dmarc_fail" not in result["flags"]
+    assert "auth_fail" not in result["flags"]
+
+
+def test_aligned_pass_still_beats_an_unaligned_label():
+    result = email_risk.assess(
+        {"verified_by": "email-auth", "aligned": "yes", "dkim": "pass",
+         "dmarc": "pass", "spf": "pass"},
+        "a@example.com", None, "hi", "hello")
+    assert result["risk"] == "low"

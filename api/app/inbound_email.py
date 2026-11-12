@@ -44,6 +44,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             "REVIEW REQUIRED — write a verified response before approval.", key,
             auth=auth, risk=risk, flags=flags,
             status="quarantined" if risk == "high" else "draft",
+            recipient=recipient,
         )
         tenant = await tenants.get_by_id(tenant_id)
         conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)

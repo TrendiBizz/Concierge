@@ -14,16 +14,20 @@
 function authFrom(raw, headers) {
   // These are hints for the owner-facing risk label, never an authorisation.
   // The API treats every message as untrusted regardless of these values.
-  const lower = raw.toLowerCase();
+  // Read them from the Authentication-Results header only: the old version ran a
+  // regex over the whole raw message, so quoted text in the body could set hints.
+  const results = (headers.get("authentication-results") || "").slice(0, 500);
   const one = (key) => {
-    const match = lower.match(new RegExp(key + "=([a-z]+)"));
+    const match = results
+      .toLowerCase()
+      .match(new RegExp("(?:^|[;\\s])" + key + "=(pass|fail|none)(?![a-z])"));
     return match ? match[1] : "";
   };
   return {
     spf: one("spf"),
     dkim: one("dkim"),
     dmarc: one("dmarc"),
-    authentication_results: (headers.get("authentication-results") || "").slice(0, 500),
+    authentication_results: results,
     reply_to: (headers.get("reply-to") || "").slice(0, 320),
     content_type: (headers.get("content-type") || "").slice(0, 200),
   };

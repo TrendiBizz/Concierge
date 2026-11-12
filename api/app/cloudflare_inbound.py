@@ -4,6 +4,7 @@ The Worker authenticates to the API with a pre-shared HMAC key. Cloudflare
 routing and signing keys must be configured independently before enabling.
 An authenticated Worker is not evidence that the sender is trustworthy.
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -13,7 +14,8 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import channel_authorization, db, email_auth, email_risk, email_scan, inbound_email, inbound_policy
+from . import (bounces, channel_authorization, db, email_auth, email_risk, email_scan,
+               inbound_email, inbound_policy, suppressions)
 from .config import get_settings
 
 log = logging.getLogger("concierge.inbound")
@@ -112,6 +114,23 @@ async def handle(request: Request) -> dict:
         )
         if not mailbox:
             raise HTTPException(404, "Unknown mailbox")
+        # A delivery status notification is not customer mail. Handle it before the consent
+        # gate: our own outbound mail can bounce for a tenant whose consent was later revoked,
+        # and a bounce must never become a CRM draft, a 403, or an unanswered dead address.
+        if raw_b64 and bounces.looks_like_bounce(
+                payload["sender"], payload["subject"], (auth or {}).get("content_type", "")):
+            try:
+                parsed = bounces.parse(base64.b64decode(raw_b64))
+            except (ValueError, TypeError):
+                parsed = None
+            if parsed:
+                outcome = await suppressions.record_dsn(mailbox["tenant_id"], parsed)
+                await inbound_policy.audit(
+                    mailbox["tenant_id"], None, "bounce_received", "cloudflare-worker",
+                    {"address": parsed.get("address", ""), "status": parsed.get("status", ""),
+                     "hard": bool(parsed.get("hard")), "suppressed": outcome["suppressed"],
+                     "closed": outcome["closed"]})
+                return {"accepted": True, "dropped": "bounce"}
         if not await channel_authorization.is_authorized(mailbox["tenant_id"], "email_read"):
             # Record the refusal so it is visible in readiness/onboarding, not only in the
             # access log. A silently dropped customer message was the 2026-11-12 incident.
@@ -132,8 +151,27 @@ async def handle(request: Request) -> dict:
         tenant_id = mailbox["tenant_id"]
         policy = await inbound_policy.rule_for(tenant_id, payload["sender"])
         if policy == "block":
-            # Accept and drop: never bounce to a possibly spoofed address.
+            # Accept and drop: never bounce to a possibly spoofed address. The drop is still
+            # audited: silently discarding a customer's mail used to leave no trace at all.
+            await inbound_policy.audit(
+                mailbox["tenant_id"], None, "inbound_blocked", "api",
+                {"reason": "sender_blocked", "sender": payload.get("sender", "")[:320],
+                 "recipient": recipient, "message_id": payload.get("message_id", "")[:200]},
+            )
             return {"accepted": True, "dropped": "blocked"}
+        # Per-mailbox flood limit and per-sender limit, evaluated BEFORE the expensive
+        # DKIM/Rspamd/ClamAV work: a flood must cost a counter increment, not full verification.
+        # The mailbox limit counts this recipient (the Worker posts the exact address), not the
+        # whole tenant: 60/hour across five tenants is not the same as 60/hour per mailbox.
+        recent = await db.pool().fetchval(
+            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 AND lower(recipient)=lower($2) "
+            "AND created_at > now() - interval '1 hour'", tenant_id, recipient)
+        if recent >= MAILBOX_HOURLY_LIMIT:
+            raise HTTPException(429, "Too many inbound emails")
+        sender_recent = await db.pool().fetchval(
+            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
+            "AND lower(sender)=lower($2) AND created_at > now() - interval '1 hour'",
+            tenant_id, payload["sender"])
         # Cryptographic DKIM + DMARC alignment from the Rust sidecar. Failures
         # fall back to the header hints; they never block ingestion.
         scan_flags: list[str] = []
@@ -148,15 +186,6 @@ async def handle(request: Request) -> dict:
             scanned = await email_scan.scan(raw_b64)
             if scanned:
                 scan_risk, scan_flags = email_scan.classify(scanned)
-        recent = await db.pool().fetchval(
-            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
-            "AND created_at > now() - interval '1 hour'", tenant_id)
-        if recent >= MAILBOX_HOURLY_LIMIT:
-            raise HTTPException(429, "Too many inbound emails")
-        sender_recent = await db.pool().fetchval(
-            "SELECT count(*) FROM email_drafts WHERE tenant_id=$1 "
-            "AND lower(sender)=lower($2) AND created_at > now() - interval '1 hour'",
-            tenant_id, payload["sender"])
         assessment = email_risk.assess(
             auth, payload["sender"], reply_to, payload["subject"], payload["text"],
             size=size, has_attachments=bool(has_attachments))
@@ -168,9 +197,9 @@ async def handle(request: Request) -> dict:
         if sender_recent >= SENDER_HOURLY_LIMIT:
             flags.append("sender_rate_limited")
             risk = "high"
-        if policy == "allow":
-            # A listed sender still gets risk flags, but not quarantine.
-            risk = "medium" if risk == "high" else risk
+        # There is deliberately no allow-list downgrade here any more: an allow-listed sender
+        # already gets no more than medium from the risk engine, and downgrading a genuine HIGH
+        # (spoofing, malicious attachment, localhost link) defeated quarantine entirely.
         draft = await inbound_email.ingest_verified(
             tenant_id, "cloudflare", payload["message_id"],
             payload["sender"], recipient, payload["subject"], payload["text"],

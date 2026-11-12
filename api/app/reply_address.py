@@ -38,27 +38,38 @@ async def _cloudflare_rule(tenant: dict) -> None:
             raise ValueError(f"Cloudflare rejected the reply route: {response.text[:200]}")
 
 
+async def _claim_mailbox(tenant_id, address: str) -> bool:
+    """Insert the mailbox row only if nobody else owns it.
+
+    `ON CONFLICT DO NOTHING` used to be ignored: a collision (the address already
+    mapped to another tenant) silently left this tenant with no usable address.
+    """
+    result = await db.pool().execute(
+        """INSERT INTO inbound_mailboxes(recipient,tenant_id,provider,enabled)
+           VALUES($1,$2,'cloudflare',true)
+           ON CONFLICT(recipient) DO UPDATE SET enabled=true
+           WHERE inbound_mailboxes.tenant_id=EXCLUDED.tenant_id
+             AND inbound_mailboxes.provider=EXCLUDED.provider""",
+        address, tenant_id)
+    return result == "INSERT 0 1"
+
+
 async def ensure(tenant: dict) -> dict:
     """Give the tenant a reply address, mailbox row and Cloudflare route."""
     if tenant.get("reply_address"):
-        await db.pool().execute(
-            """INSERT INTO inbound_mailboxes(recipient,tenant_id,provider,enabled)
-               VALUES($1,$2,'cloudflare',true)
-               ON CONFLICT(recipient) DO UPDATE SET enabled=true
-               WHERE inbound_mailboxes.tenant_id=EXCLUDED.tenant_id""",
-            tenant["reply_address"], tenant["id"])
+        if not await _claim_mailbox(tenant["id"], tenant["reply_address"]):
+            raise ValueError("Reply address is assigned to another tenant")
         await _cloudflare_rule(tenant)
         return tenant
     import secrets
-    address = "reply-" + secrets.token_hex(12) + "@" + get_settings().reply_domain
-    row = await db.pool().fetchrow(
-        "UPDATE tenants SET reply_address=$2 WHERE id=$1 RETURNING *", tenant["id"], address)
-    updated = dict(row)
-    await db.pool().execute(
-        """INSERT INTO inbound_mailboxes(recipient,tenant_id,provider,enabled)
-           VALUES($1,$2,'cloudflare',true)
-           ON CONFLICT(recipient) DO NOTHING""",
-        address, tenant["id"])
-    await _cloudflare_rule(updated)
-    log.info("reply address ready for %s", tenant["slug"])
-    return updated
+    for _ in range(3):
+        address = "reply-" + secrets.token_hex(12) + "@" + get_settings().reply_domain
+        if not await _claim_mailbox(tenant["id"], address):
+            continue  # astronomically unlikely collision: try a different token
+        row = await db.pool().fetchrow(
+            "UPDATE tenants SET reply_address=$2 WHERE id=$1 RETURNING *", tenant["id"], address)
+        updated = dict(row)
+        await _cloudflare_rule(updated)
+        log.info("reply address ready for %s", tenant["slug"])
+        return updated
+    raise ValueError("Could not allocate a unique reply address")

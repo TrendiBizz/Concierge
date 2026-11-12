@@ -81,6 +81,20 @@ async def audit(tenant_id, draft_id, action: str, actor: str, detail: dict | Non
         pass
 
 
+async def recent(tenant_id, limit: int = 50) -> list[dict]:
+    """Audit rows a human can act on: refusals and blocked senders, newest first.
+
+    Before this existed the sender, subject and reason of a refused message were
+    visible only through SQL, so nobody could tell which customer mail was lost.
+    """
+    rows = await db.pool().fetch(
+        """SELECT id,draft_id,action,actor,detail,address,created_at
+           FROM inbound_audit WHERE tenant_id=$1
+           ORDER BY id DESC LIMIT $2""",
+        tenant_id, limit)
+    return [dict(row) for row in rows]
+
+
 def defang(text: str) -> str:
     """Make links inert for display. The server never fetches any URL."""
     return (text or "").replace("https://", "hxxps://").replace("http://", "hxxp://")

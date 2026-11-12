@@ -26,6 +26,9 @@ struct SignatureOut {
 #[derive(Serialize)]
 struct VerifyResponse {
     dkim: String,
+    /// "pass" (an aligned signature passed), "unaligned" (a signature passed but for a
+    /// different domain), or "none" (nothing passed). It is never "fail": this service does
+    /// not evaluate the From domain's DMARC policy, so it cannot conclude that DMARC failed.
     dmarc: String,
     from: String,
     /// True only when a passing signature's `d=` domain aligns with the `From`
@@ -97,11 +100,14 @@ async fn verify(State(state): State<AppState>, Json(req): Json<VerifyRequest>) -
 /// DKIM and DMARC verdicts relative to the `From` address.
 ///
 /// `aligned` is what the API trusts: a passing signature whose `d=` domain is
-/// the From domain (or a parent of it) authenticates that address. DMARC itself
-/// evaluates to `none` when the domain publishes no record, which is common for
-/// small-business mail and is not evidence of anything; the API treats
-/// `aligned` as the authentication signal and uses `dmarc` only to detect a
-/// genuine policy failure.
+/// the From domain (or a parent of it) authenticates that address.
+///
+/// `dmarc` deliberately never reports `fail`. This service verifies DKIM keys; it
+/// does not fetch the From domain's DMARC record, so "a signature passed for a
+/// different domain" says nothing about DMARC. Reporting that as `fail` (the
+/// pre-2026-11-12 behaviour) forced every forwarded or mailing-list message to
+/// high risk with a factually wrong `dmarc_fail` flag. The distinct `unaligned`
+/// verdict lets the API apply its own `dkim_unaligned` -> medium rule.
 fn verdict(signatures: &[SignatureOut], from: &str) -> (&'static str, &'static str, bool) {
     let from_domain = from.rsplit('@').next().unwrap_or("").to_ascii_lowercase();
     let aligned = !from_domain.is_empty()
@@ -120,10 +126,12 @@ fn verdict(signatures: &[SignatureOut], from: &str) -> (&'static str, &'static s
     };
     let dmarc = if aligned {
         "pass"
-    } else if signatures.is_empty() {
-        "none"
+    } else if any_pass {
+        // A signature passed, but not for the From domain: a forwarder, a mailing
+        // list or an ESP signed it. Authentication of From is unknown, not failed.
+        "unaligned"
     } else {
-        "fail"
+        "none"
     };
     (dkim, dmarc, aligned)
 }
@@ -171,10 +179,13 @@ mod tests {
     }
 
     #[test]
-    fn unaligned_pass_is_dkim_pass_dmarc_fail() {
+    fn unaligned_pass_is_dkim_pass_but_not_a_dmarc_failure() {
+        // A forwarded or mailing-list message: the signature is genuine but belongs to another
+        // domain. Reporting dmarc="fail" here (pre-2026-11-12) quarantined legitimate mail and
+        // set a flag that was factually wrong, because no DMARC policy was ever looked up.
         let (dkim, dmarc, aligned) =
             verdict(&[sig("esp.example", "pass")], "conrad@pukeko.example");
-        assert_eq!((dkim, dmarc, aligned), ("pass", "fail", false));
+        assert_eq!((dkim, dmarc, aligned), ("pass", "unaligned", false));
     }
 
     #[test]
@@ -184,15 +195,15 @@ mod tests {
     }
 
     #[test]
-    fn failing_signature_only_is_fail() {
+    fn failing_signature_only_is_fail_but_not_dmarc_fail() {
         let (dkim, dmarc, _) =
             verdict(&[sig("pukeko.example", "fail")], "conrad@pukeko.example");
-        assert_eq!((dkim, dmarc), ("fail", "fail"));
+        assert_eq!((dkim, dmarc), ("fail", "none"));
     }
 
     #[test]
     fn missing_from_is_never_aligned() {
         let (_, dmarc, aligned) = verdict(&[sig("", "pass")], "");
-        assert_eq!((dmarc, aligned), ("fail", false));
+        assert_eq!((dmarc, aligned), ("unaligned", false));
     }
 }

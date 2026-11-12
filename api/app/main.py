@@ -1,7 +1,9 @@
 import asyncio
-import time
 import base64
+import hashlib
+import hmac
 import html
+import time
 import json
 import logging
 import re
@@ -25,6 +27,7 @@ from . import (
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import suppressions
 from . import casetimeline, hermes_orchestrator, provider_readiness
 from .booking import DAYS
 from .config import get_settings
@@ -1627,6 +1630,102 @@ async def cloudflare_email_webhook(request: Request):
     return await cloudflare_inbound.handle(request)
 
 
+@app.post("/webhooks/brevo")
+async def brevo_email_webhook(request: Request, token: str = ""):
+    """Brevo delivery-event webhook: bounces, blocks, complaints, unsubscribes.
+
+    Brevo posts JSON, or form-encoded with the payload in a `json` field. The shared
+    secret is compared in constant time; with no secret configured the endpoint stays
+    closed, so an unauthenticated caller can never suppress a customer's address.
+    """
+    expected = get_settings().brevo_webhook_secret
+    if not expected:
+        raise HTTPException(503, "Brevo webhook is not configured")
+    supplied = token or request.query_params.get("token", "")
+    if not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(401, "Invalid webhook token")
+    raw = await request.body()
+    if len(raw) > 100_000:
+        raise HTTPException(413, "Payload too large")
+    try:
+        if "application/json" in request.headers.get("content-type", ""):
+            data = json.loads(raw or b"{}")
+        else:
+            form = parse_qs(raw.decode("utf-8", "replace"))
+            data = json.loads((form.get("json") or ["{}"])[0])
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, "Invalid payload") from None
+    events = data if isinstance(data, list) else [data]
+    results = []
+    for event in events[:50]:
+        if not isinstance(event, dict):
+            continue
+        event = dict(event)
+        if not event.get("tenant_id"):
+            message_id = str(event.get("message-id") or "")
+            address = str(event.get("email") or "")
+            row = None
+            if message_id:
+                row = await db.pool().fetchrow(
+                    "SELECT tenant_id FROM outbox WHERE message_id=$1 ORDER BY id DESC LIMIT 1",
+                    message_id)
+            if row is None and address:
+                row = await db.pool().fetchrow(
+                    "SELECT tenant_id FROM outbox WHERE lower(to_addr)=lower($1) "
+                    "ORDER BY id DESC LIMIT 1", address)
+            if row is None:
+                results.append({"ignored": "unknown tenant"})
+                continue
+            event["tenant_id"] = row["tenant_id"]
+        results.append(await suppressions.record_event(event))
+    return {"processed": len(results), "results": results}
+
+
+class ManualSuppression(BaseModel):
+    address: str = Field(max_length=320)
+    reason: str = Field(default="blocked by owner", max_length=200)
+
+
+@app.get("/owner/email-suppressions")
+async def owner_suppressions(limit: int = 100, user: dict = Depends(owner_auth.current_user)):
+    _email_feature_gate()
+    return await suppressions.list_suppressions(user["tenant_id"], max(1, min(limit, 500)))
+
+
+@app.post("/owner/email-suppressions", status_code=201)
+async def owner_add_suppression(
+    body: ManualSuppression, user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    _email_feature_gate()
+    try:
+        await suppressions.add(user["tenant_id"], body.address, body.reason, "owner")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return {"address": body.address, "suppressed": True}
+
+
+@app.delete("/owner/email-suppressions/{address}")
+async def owner_remove_suppression(
+    address: str, user: dict = Depends(owner_auth.current_user),
+):
+    owner_auth.require_role(user, "owner")
+    _email_feature_gate()
+    try:
+        removed = await suppressions.remove(user["tenant_id"], address)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    if not removed:
+        raise HTTPException(404, "Address is not suppressed")
+    return {"removed": True}
+
+
+@app.get("/admin/tenants/{slug}/email-suppressions", dependencies=admin)
+async def admin_suppressions(slug: str, limit: int = 200):
+    tenant = await _require_tenant(slug)
+    return await suppressions.list_suppressions(tenant["id"], max(1, min(limit, 500)))
+
+
 # ------------------------------------------------- tenant-owner access (separate from operator)
 class OwnerInvite(BaseModel):
     email: str = Field(max_length=320)
@@ -2035,6 +2134,65 @@ async def owner_inbound_readiness(user: dict = Depends(owner_auth.current_user))
 async def admin_inbound_readiness():
     """Operator view across every tenant; used by scripts/vps/check-inbound-chain.sh."""
     return await inbound_readiness.check_all()
+
+
+@app.get("/owner/inbound-audit")
+async def owner_inbound_audit(limit: int = 50, user: dict = Depends(owner_auth.current_user)):
+    """Refused and blocked inbound mail for this tenant: who, what and why.
+
+    A count alone told the owner that mail was lost but never which customer sent it.
+    """
+    _email_feature_gate()
+    return await inbound_policy.recent(user["tenant_id"], max(1, min(limit, 200)))
+
+
+@app.get("/admin/tenants/{slug}/inbound-audit", dependencies=admin)
+async def admin_inbound_audit(slug: str, limit: int = 100):
+    tenant = await _require_tenant(slug)
+    return await inbound_policy.recent(tenant["id"], max(1, min(limit, 200)))
+
+
+@app.get("/owner/onboarding/authorization-audit")
+async def owner_authorization_audit(
+    limit: int = 50, user: dict = Depends(owner_auth.current_user),
+):
+    """Who granted or revoked each channel, and how. The database writes these rows, so a
+    direct-SQL change is recorded too (actor_kind='direct') instead of vanishing."""
+    return await channel_authorization.audit_log(user["tenant_id"], max(1, min(limit, 200)))
+
+
+class OperatorAuthorization(channel_authorization.ChannelAuthorization):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@app.post("/admin/tenants/{slug}/channel-authorizations", dependencies=admin)
+async def admin_channel_authorization(
+    slug: str, body: OperatorAuthorization, request: Request,
+):
+    """Record a consent decision on the customer's behalf, attributed to the operator.
+
+    Before this existed consent could only be granted by logging in as the tenant's
+    owner, so the audit trail claimed the customer had clicked it. A real owner
+    clicking their own consent remains the preferred path; this one at least names
+    the person who acted.
+    """
+    tenant = await _require_tenant(slug)
+    operator = (request.headers.get("x-operator") or "").strip()[:200] or "operator-token"
+    owner = await channel_authorization.ownership(tenant["id"])
+    try:
+        result = await channel_authorization.record_authorization(
+            tenant["id"], owner["id"] if owner else None, body,
+            actor_kind="operator", actor_label=f"{operator}: {body.reason}",
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return {**result, "operator": operator, "owner_principal": bool(owner)}
+
+
+@app.get("/admin/tenants/{slug}/authorization-audit", dependencies=admin)
+async def admin_authorization_audit(slug: str, limit: int = 100):
+    tenant = await _require_tenant(slug)
+    return await channel_authorization.audit_log(tenant["id"], max(1, min(limit, 500)))
 
 
 @app.post("/owner/onboarding/authorizations")

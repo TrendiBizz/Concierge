@@ -72,10 +72,11 @@ def assess(auth: dict | None, sender: str, reply_to: str | None,
             # unverified_sender was the bug: dkim=pass + dmarc=none came back
             # medium with a "sender not verified" label.
             risk = "low"
-        elif dkim == "pass":
-            # Signature verified but its d= domain is not the From domain: the
-            # message really did travel through that signer, but nothing
-            # authenticates the From address itself.
+        elif dmarc == "unaligned" or dkim == "pass":
+            # Signature verified but its d= domain is not the From domain: the message really
+            # did travel through that signer (a forwarder, a mailing list, an ESP), but nothing
+            # authenticates the From address itself. This is NOT a DMARC failure: the sidecar
+            # does not look up the From domain's policy, so it reports "unaligned", never "fail".
             flags.append("dkim_unaligned")
             risk = "medium"
         else:

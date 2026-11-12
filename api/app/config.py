@@ -119,6 +119,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_security: str = "starttls"  # starttls | ssl | none
+    # Brevo webhook shared secret. Unset means the bounce webhook is closed (503), so an
+    # unauthenticated caller can never suppress a customer's address.
+    brevo_webhook_secret: str = ""
 
     # Reactivation campaigns
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
