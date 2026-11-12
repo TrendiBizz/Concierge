@@ -644,3 +644,43 @@ Sending the same message to the **live customer tenant** exposed a separate, rea
 
 Unrelated: "DeepPilot" (a mobile app the owner is installing) is not part of this project —
 nothing in the repo, the VPS or the DSH install references it.
+
+### Fixed: Pukeko had no account at all, and inbound mail to it now lands (drafts 26, 27)
+
+Digging behind the 403 found the actual defect: **`pukeko-construction` had no `tenant_users` row**
+— no owner account existed, so nobody could sign in (which is why the owner could not), and
+therefore nobody could ever record the consent the inbound webhook requires. The tenant had been
+created 2026-11-11 02:13 with a reply address but no login.
+
+What was done (all verified live, none of it inferred):
+
+- **Scratch test tenant** created the supported way, `POST /admin/tenants` (`X-Admin-Token`), which
+  also provisioned its reply address `reply-5ab18b293a15d3e03ea2dd0e@trendibizz.com`, the
+  `inbound_mailboxes` row and the Cloudflare Email Routing rule (`reply concierge-test` → worker).
+  Owner login `qa@trendibizz.com` (role owner) created with the app's own PBKDF2-SHA256 format
+  (600k rounds). Credentials: `test-account.txt` in the DSH session workspace (0600, not committed).
+- **Proved the consent path end to end through the real API**: `POST /owner/auth/login` → 200 (from
+  the public `https://concierge.trendibizz.com` URL, not just localhost), then
+  `POST /owner/onboarding/authorizations` `{channel: email_read, authorized: true,
+  acknowledgement: true}` → 200, and `GET` shows `email_read.authorized = true`.
+- **Inbound through the whole chain**: a real message to the scratch tenant's reply address became
+  `email_drafts` **id 26**, `risk='low'`, `flags=[]`, `verified_by='email-auth'`, `aligned=yes`.
+  Note the new Cloudflare routing rule took a few minutes to propagate — the first send fell
+  through to the catch-all before the rule was live.
+- **Pukeko fixed the same way**: owner account `pukeko-demo@trendibizz.com` created and
+  `email_read` authorised for `pukeko-construction`. A real message to
+  `reply-254a540d9ee6d8caa5a79a06@trendibizz.com` now becomes `email_drafts` **id 27**,
+  `risk='low'`, `flags=[]`, `verified_by='email-auth'`, `aligned=yes`. Credentials:
+  `pukeko-demo-login.txt` in the session workspace (0600, not committed) — change or delete both
+  accounts when the customer has their own login.
+
+**Caveat worth stating plainly:** ids 26 and 27 were authorised by an operator-created account, so
+the consent record says "authorised" while the customer has not personally clicked it. That is
+acceptable for a scratch tenant and for a showcase demo tenant, but a real customer must grant
+their own consent through `https://concierge.trendibizz.com/owner-ui` → Permissions, and the
+audit row (`tenant_channel_authorization_audit`) will then name them.
+
+**Still open from this thread:** the Studio SPA (`web/portal/src`) has no Permissions screen at all,
+so a customer who only ever sees Studio cannot enable inbound email — only the legacy
+`/owner-ui` console can. And a rejected inbound message (`403`) is still visible only in
+`docker logs`; it should surface in the owner portal or `/healthz`-style readiness output.
