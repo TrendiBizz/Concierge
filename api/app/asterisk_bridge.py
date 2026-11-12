@@ -27,6 +27,14 @@ from .telephone_recording import TelephoneRecording
 log = logging.getLogger('concierge.asterisk')
 FRAME_BYTES = 320  # 20ms PCM16 LE mono at 8kHz, native AudioSocket application format
 MAX_SECONDS = 600
+# A `response.cancel` that races the end of a response comes back as
+# "Cancellation failed: no active response found". That is not a dead call -- the
+# barge-in already achieved what it wanted -- so one error event must never end a
+# session. Only a session that keeps failing is treated as unusable.
+MAX_ERRORS = 5
+# Server VAD normally answers a caller turn on its own. If a cancelled or lost
+# response leaves the caller in silence, ask the model once for that turn.
+REPLY_NUDGE_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -67,7 +75,8 @@ async def send_packet(writer, kind, body=b''):
 
 class MediaBridge:
     """Bidirectional audio with bounded playback, pacing and barge-in flushing."""
-    def __init__(self, reader, writer, ws, session, on_transcript, on_tool, recording=None):
+    def __init__(self, reader, writer, ws, session, on_transcript, on_tool, recording=None,
+                 reply_nudge=REPLY_NUDGE_SECONDS):
         self.recording = recording
         self.reader, self.writer, self.ws = reader, writer, ws
         self.session = session
@@ -78,6 +87,20 @@ class MediaBridge:
         self.ending = False
         self.speaking = False
         self.pending = []
+        self.reply_nudge = reply_nudge
+        # A response is only cancellable while `response.created` is current. VAD
+        # can re-fire `speech_started` for an item that already finished, and the
+        # server may have completed the response before the cancel lands, so track
+        # both the live response and the caller turns that already ended.
+        self.response_id = None
+        self.ended_items = set()
+        self.caller_speaking = False
+        self.errors = 0
+        # A caller turn is owed a reply until the assistant actually produces
+        # audio or speech for it. A cancelled or dropped response keeps the debt,
+        # which is what the reply nudge in `watchdog` pays off.
+        self.reply_pending = False
+        self.reply_since = 0.0
 
     async def input(self):
         await asyncio.wait_for(self.ready.wait(), 15)
@@ -139,29 +162,67 @@ class MediaBridge:
                     self.ready.set()
                     await self.ws.send(json.dumps({'type': 'response.create'}))
             elif kind == 'error':
-                raise RuntimeError('Grok rejected telephone session')
+                # Log the server's words: the old code swallowed them and every
+                # failed call ended up as an undiagnosable "RuntimeError".
+                error = event.get('error') if isinstance(event.get('error'), dict) else {}
+                detail = str(error.get('message') or event.get('message') or '')[:500]
+                code = str(error.get('code') or error.get('type') or 'unknown')
+                self.errors += 1
+                log.warning('Grok telephone session error %s/%s: %s', code, self.errors, detail)
+                if self.errors >= MAX_ERRORS:
+                    raise RuntimeError(f'Grok telephone session failed {self.errors} times: {code} {detail}')
+                if self.reply_pending:
+                    self.reply_since = asyncio.get_running_loop().time()
             elif kind == 'response.created':
                 self.speaking = True
+                self.response_id = event.get('response_id') or 'active'
+            elif kind in ('response.canceled', 'response.cancelled'):
+                self.speaking = False
+                self.response_id = None
+                # The cancelled reply never reached the caller; keep the debt so
+                # the nudge can rebuild it if the caller stays silent.
+                self.reply_pending = True
+                self.reply_since = asyncio.get_running_loop().time()
             elif kind in ('response.output_audio.delta', 'response.audio.delta'):
                 audio = base64.b64decode(event['delta'], validate=True)
                 if len(audio) % 2 or len(self.playback)+len(audio) > 16000*30:
                     raise ValueError('Invalid or excessive Grok audio')
                 self.playback.extend(audio)
+                self.reply_pending = False
             elif kind == 'input_audio_buffer.speech_started':
+                item = event.get('item_id')
+                # The server can re-fire speech_started for a turn that already
+                # stopped. Cancelling then races the next response and, worse,
+                # leaves the caller with a half-played reply and no follow-up.
+                if item and item in self.ended_items:
+                    continue
+                self.caller_speaking = True
                 self.playback.clear()
                 self.ending = False
-                if self.speaking:
+                if self.response_id is not None and self.speaking:
+                    self.response_id = None
+                    self.reply_pending = True
+                    self.reply_since = asyncio.get_running_loop().time()
                     await self.ws.send(json.dumps({'type': 'response.cancel'}))
+            elif kind == 'input_audio_buffer.speech_stopped':
+                self.caller_speaking = False
+                if event.get('item_id'):
+                    self.ended_items.add(event['item_id'])
             elif kind in ('conversation.item.input_audio_transcription.completed',
                           'response.output_audio_transcript.done', 'response.audio_transcript.done'):
                 identity = (event.get('item_id') or event.get('response_id'),
                             'user' if kind.startswith('conversation') else 'assistant')
                 text = event.get('transcript')
+                if identity[1] == 'user':
+                    self.reply_pending = True
+                    self.reply_since = asyncio.get_running_loop().time()
                 if isinstance(text, str) and text and (not identity[0] or self.seen_transcripts.get(identity) != text):
                     # Grok can emit successive cumulative COMPLETED events for
                     # the same item. Replace that turn, rather than freezing its
                     # first few words or appending duplicate partial messages.
                     self.seen_transcripts[identity] = text
+                    if identity[1] == 'assistant':
+                        self.reply_pending = False
                     await self.on_transcript(identity[1], text[:10000], identity[0])
             elif kind == 'response.function_call_arguments.done':
                 ident = event.get('call_id')
@@ -181,6 +242,11 @@ class MediaBridge:
                 self.pending.append((ident, result))
             elif kind == 'response.done':
                 self.speaking = False
+                self.response_id = None
+                if self.reply_pending:
+                    # The response finished without saying anything the caller
+                    # could hear; start the nudge clock now.
+                    self.reply_since = asyncio.get_running_loop().time()
                 pending, self.pending = self.pending, []
                 for ident, result in pending:
                     await self.ws.send(json.dumps({'type': 'conversation.item.create', 'item': {
@@ -189,8 +255,31 @@ class MediaBridge:
                 if pending and not self.ending:
                     await self.ws.send(json.dumps({'type': 'response.create'}))
 
+    async def watchdog(self):
+        """Give a caller whose turn went unanswered one nudge, not dead air.
+
+        The cancel-versus-completion race, a lost response or a silently dropped
+        turn all leave the caller in silence. Re-asking the model once per turn
+        turns that into an answer; repeated nudges could talk over the caller, so
+        the debt is cleared when the nudge is sent.
+        """
+        while True:
+            await asyncio.sleep(.25)
+            if not self.reply_pending or self.speaking or self.caller_speaking or self.ending:
+                continue
+            if asyncio.get_running_loop().time() - self.reply_since < self.reply_nudge:
+                continue
+            self.reply_pending = False
+            log.warning('Caller turn went unanswered for %.0fs; prompting the model',
+                        self.reply_nudge)
+            try:
+                await self.ws.send(json.dumps({'type': 'response.create'}))
+            except Exception:
+                log.exception('Reply nudge could not be sent')
+                return
+
     async def run(self):
-        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, self.grok)]
+        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, self.grok, self.watchdog)]
         try:
             async with asyncio.timeout(MAX_SECONDS):
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -377,7 +466,9 @@ async def handle(reader, writer, route, networks):
     except asyncio.IncompleteReadError:
         status = 'disconnected'
     except Exception as error:
-        log.warning('Asterisk call ended (%s)', type(error).__name__)
+        # Keep the message: "RuntimeError" alone cost a whole debugging session
+        # after a real call went silent.
+        log.warning('Asterisk call ended (%s): %s', type(error).__name__, str(error)[:500])
     finally:
         if tenant and conversation:
             try:

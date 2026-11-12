@@ -5,7 +5,7 @@ import struct
 import uuid
 
 import pytest
-from app.asterisk_bridge import MediaBridge, routes_from_json, packet
+from app.asterisk_bridge import MAX_ERRORS, MediaBridge, routes_from_json, packet
 
 
 def test_routes_cannot_share_destination_or_port():
@@ -149,4 +149,76 @@ def test_silent_asterisk_endpoint_supplies_vad_silence_without_cancelling_partia
         finally:
             task.cancel()
             await asyncio.gather(task,return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def test_a_cancel_that_races_response_completion_does_not_end_the_call():
+    # A real call died in dead air: VAD re-fired speech_started right after a
+    # reply started, the bridge sent response.cancel, xAI answered
+    # "Cancellation failed: no active response found", and the old code treated
+    # any error event as fatal -- killing the whole call.
+    async def scenario():
+        ws = Socket()
+        bridge = MediaBridge(None, None, ws, {}, None, None)
+        task = asyncio.create_task(bridge.grok())
+        try:
+            await ws.inbox.put({'type':'session.updated'})
+            await until(lambda: any(e['type']=='response.create' for e in ws.sent))
+            await ws.inbox.put({'type':'response.created','response_id':'r1'})
+            await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
+            await until(lambda: any(e['type']=='response.cancel' for e in ws.sent))
+            await ws.inbox.put({'type':'response.done','response_id':'r1'})
+            benign = {'type':'error','error':{'type':'invalid_request_error',
+                                              'code':'invalid_request_error',
+                                              'message':'Cancellation failed: no active response found'}}
+            for _ in range(MAX_ERRORS-1):
+                await ws.inbox.put(benign)
+                await asyncio.sleep(.02)
+            assert not task.done(), 'one benign race must not end the call'
+            await ws.inbox.put(benign)
+            with pytest.raises(RuntimeError):
+                await asyncio.wait_for(task, 2)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def test_duplicate_speech_started_for_a_finished_turn_never_cancels_the_reply():
+    async def scenario():
+        ws = Socket()
+        bridge = MediaBridge(None, None, ws, {}, None, None)
+        task = asyncio.create_task(bridge.grok())
+        try:
+            await ws.inbox.put({'type':'session.updated'})
+            await until(lambda: any(e['type']=='response.create' for e in ws.sent))
+            await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
+            await ws.inbox.put({'type':'input_audio_buffer.speech_stopped','item_id':'u1'})
+            await ws.inbox.put({'type':'response.created','response_id':'r2'})
+            await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
+            await asyncio.sleep(.05)
+            assert not any(e['type']=='response.cancel' for e in ws.sent)
+            await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u2'})
+            await until(lambda: any(e['type']=='response.cancel' for e in ws.sent))
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def test_an_unanswered_caller_turn_is_prompted_once_instead_of_going_silent():
+    async def scenario():
+        ws = Socket()
+        bridge = MediaBridge(None, None, ws, {}, None, None, reply_nudge=.2)
+        bridge.reply_pending = True
+        bridge.reply_since = asyncio.get_running_loop().time()
+        task = asyncio.create_task(bridge.watchdog())
+        try:
+            await until(lambda: any(e['type']=='response.create' for e in ws.sent))
+            assert sum(e['type']=='response.create' for e in ws.sent) == 1
+            await asyncio.sleep(.4)
+            assert sum(e['type']=='response.create' for e in ws.sent) == 1, 'one nudge per turn'
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
     asyncio.run(scenario())
