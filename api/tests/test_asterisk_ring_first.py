@@ -73,6 +73,39 @@ def test_ring_first_needs_the_registration_trunk():
         render_routes.render([row], "bridge", "152.42.239.240", None)
 
 
+def _ring_body(**limits):
+    row = {**BASE, "ring_owner": {"number": "+6421824305", **limits}}
+    return "\n".join(_context(_render([row])[0], "business-pukeko-construction"))
+
+
+def test_ring_first_has_hard_limits_by_default():
+    text = _ring_body()
+    assert "ringall/${RF_HOUR})}>=12]?rf_skip" in text      # at most 12 owner rings an hour
+    assert "-${RF_FROM})}>=3]?rf_skip" in text              # at most 3 per caller an hour
+    assert "GROUP_COUNT(ringfirst)}>2]?rf_skip" in text     # at most 2 rings at once
+    assert text.index("rf_skip)") < text.index("Dial(")      # every limit is checked BEFORE ringing
+
+
+def test_the_limits_can_be_tuned():
+    text = _ring_body(max_per_hour=5, max_per_caller_hour=1, max_concurrent=1)
+    assert ">=5]?rf_skip" in text and ">=1]?rf_skip" in text and "GROUP_COUNT(ringfirst)}>1]?rf_skip" in text
+
+
+@pytest.mark.parametrize("bad", [{"max_per_hour": 0}, {"max_per_hour": 61}, {"max_per_caller_hour": 21},
+                                 {"max_concurrent": 6}, {"max_concurrent": True}, {"max_per_hour": "12"}])
+def test_bad_limits_are_rejected(bad):
+    with pytest.raises(ValueError):
+        _ring_body(**bad)
+
+
+def test_over_a_limit_the_call_still_reaches_the_assistant():
+    body = _context(_render([{**BASE, "ring_owner": {"number": "+6421824305"}}])[0], "business-pukeko-construction")
+    skip = next(i for i, line in enumerate(body) if line.startswith(" same => n(rf_skip)"))
+    answer = next(i for i, line in enumerate(body) if "Answer()" in line)
+    audio = next(i for i, line in enumerate(body) if "AudioSocket(" in line)
+    assert skip < answer < audio  # the skip label falls through to Answer and the assistant
+
+
 def test_registration_is_unaffected_by_ring_first():
     _, plain = _render([BASE])
     _, ringing = _render([{**BASE, "ring_owner": {"number": "+6421824305"}}])

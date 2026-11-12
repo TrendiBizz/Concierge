@@ -86,6 +86,10 @@ async def queue_twenty(tenant: dict, event: str, source_id: str,
         return False
     if not source_id:
         raise ValueError("Twenty event needs an idempotent source identifier")
+    from . import flood_guard  # local import: events is imported very early
+    if not flood_guard.memory_allow("twenty", tenant["slug"], 600, 3600):
+        log.warning("Twenty event %s for %s dropped: more than 600 an hour", event, tenant["slug"])
+        return False
     result=await (connection or db.pool()).execute(
         """INSERT INTO twenty_deliveries(tenant_id,event,source_id,payload)
            VALUES($1,$2,$3,$4::jsonb)

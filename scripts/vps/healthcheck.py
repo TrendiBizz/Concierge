@@ -339,6 +339,40 @@ def check_local_services() -> list[dict]:
 
 # ------------------------------------------------------------------------ plumbing
 
+def check_outbound_guard(api_env: dict) -> list[dict]:
+    """Flood guard: warn when sending is paused, anything was blocked, or volume nears a limit.
+
+    Details never contain counts, so the de-duplicated alert mail fires once per condition, not
+    once per run.
+    """
+    admin = api_env.get("ADMIN_TOKEN") or ""
+    if not admin:
+        return [_fail("outbound:guard", "ADMIN_TOKEN missing")]
+    status, body, _ = http("http://127.0.0.1:8000/admin/outbound/status", headers={"X-Admin-Token": admin})
+    if status != 200:
+        return [_fail("outbound:guard", f"HTTP {status}")]
+    try:
+        data = json.loads(body.decode())
+    except ValueError:
+        return [_fail("outbound:guard", "unparseable response")]
+    results = []
+    if data.get("paused"):
+        results.append(_warn("outbound:paused", "ALL email and text sending is paused (the kill switch is on)"))
+    blocked = sorted({f"{b.get('channel')}:{b.get('reason')}" for b in data.get("blocked_last_day") or []})
+    if blocked:
+        results.append(_warn("outbound:blocked",
+                             "the flood guard blocked messages in the last day: " + ", ".join(blocked)[:300]))
+    limits = data.get("limits") or {}
+    for channel, volume in (data.get("sent") or {}).items():
+        cap = (limits.get("global_hour") or {}).get(channel) or 0
+        if cap and (volume.get("last_hour") or 0) >= 0.6 * cap:
+            results.append(_warn(f"outbound:volume:{channel}",
+                                 f"{channel} volume is above 60% of the hourly limit ({cap})"))
+    if not results:
+        results.append(_ok("outbound:guard", "not paused, nothing blocked, volumes normal"))
+    return results
+
+
 def _ok(name: str, detail: str) -> dict:
     return {"check": name, "status": "ok", "detail": detail}
 
@@ -398,7 +432,8 @@ def main() -> int:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - a broken check must not stop the rest
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
-    for step, args in ((check_cloudflare, (api_env,)), (check_inbound, (api_env,)), (check_sidecar, (api_env,))):
+    for step, args in ((check_cloudflare, (api_env,)), (check_inbound, (api_env,)), (check_sidecar, (api_env,)),
+                      (check_outbound_guard, (api_env,))):
         try:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001

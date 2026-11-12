@@ -68,7 +68,44 @@ def _ring_owner(row, trunk):
         raise ValueError('ring_owner.number must be an international number such as +6421...')
     if not isinstance(seconds, int) or isinstance(seconds, bool) or not 5 <= seconds <= 45:
         raise ValueError('ring_owner.seconds must be between 5 and 45')
-    return {'digits': number[1:], 'seconds': seconds}
+    limits = {}
+    for key, default, low, high in (('max_per_hour', 12, 1, 60), ('max_per_caller_hour', 3, 1, 20),
+                                    ('max_concurrent', 2, 1, 5)):
+        found = value.get(key, default)
+        if not isinstance(found, int) or isinstance(found, bool) or not low <= found <= high:
+            raise ValueError(f'ring_owner.{key} must be between {low} and {high}')
+        limits[key] = found
+    return {'digits': number[1:], 'seconds': seconds, **limits}
+
+
+def _ring_lines(slug, ring):
+    """Dialplan that rings the owner first, with hard limits so nobody can use it to flood a phone.
+
+    A call is only rung through while: fewer than max_per_hour owner rings were placed this hour,
+    this caller has had fewer than max_per_caller_hour this hour, and fewer than max_concurrent
+    rings are in progress. Anything over a limit goes straight to the assistant. The counters live in
+    AstDB, keyed by the hour, so they need no cleanup to stay correct.
+    """
+    return [
+        'exten => s,1,NoOp(Ring owner first for ' + slug + ')',
+        ' same => n,Set(RF_HOUR=${STRFTIME(${EPOCH},,%Y%m%d%H)})',
+        ' same => n,Set(RF_FROM=${FILTER(0-9,${CALLERID(num)})})',
+        ' same => n,GotoIf($["${DB_EXISTS(ringall/${RF_HOUR})}"="1"]?rf_a)',
+        ' same => n,Set(DB(ringall/${RF_HOUR})=0)',
+        ' same => n(rf_a),GotoIf($[${DB(ringall/${RF_HOUR})}>=' + str(ring['max_per_hour']) + ']?rf_skip)',
+        ' same => n,GotoIf($["${DB_EXISTS(ringfrom/${RF_HOUR}-${RF_FROM})}"="1"]?rf_b)',
+        ' same => n,Set(DB(ringfrom/${RF_HOUR}-${RF_FROM})=0)',
+        ' same => n(rf_b),GotoIf($[${DB(ringfrom/${RF_HOUR}-${RF_FROM})}>=' + str(ring['max_per_caller_hour']) + ']?rf_skip)',
+        ' same => n,Set(GROUP()=ringfirst)',
+        ' same => n,GotoIf($[${GROUP_COUNT(ringfirst)}>' + str(ring['max_concurrent']) + ']?rf_skip)',
+        ' same => n,Set(DB(ringall/${RF_HOUR})=$[${DB(ringall/${RF_HOUR})}+1])',
+        ' same => n,Set(DB(ringfrom/${RF_HOUR}-${RF_FROM})=$[${DB(ringfrom/${RF_HOUR}-${RF_FROM})}+1])',
+        ' same => n,Dial(PJSIP/' + ring['digits'] + '@concierge-reg,' + str(ring['seconds']) + ',r)',
+        ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)',
+        ' same => n,GotoIf($["${DIALSTATUS}"="CANCEL"]?done)',
+        ' same => n(rf_skip),Set(GROUP()=aicall)',
+        ' same => n,Answer()',
+    ]
 
 
 def render(rows, bridge_host, public_ip=None, trunk=None):
@@ -113,11 +150,7 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
         groups.setdefault(source, []).append(row)
         ring = _ring_owner(row, trunk)
         if ring:
-            start = [f'exten => s,1,NoOp(Ring owner first for {slug})',
-                     f" same => n,Dial(PJSIP/{ring['digits']}@concierge-reg,{ring['seconds']},r)",
-                     ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)',
-                     ' same => n,GotoIf($["${DIALSTATUS}"="CANCEL"]?done)',
-                     ' same => n,Answer()']
+            start = _ring_lines(slug, ring)
             end = [' same => n,Hangup()', ' same => n(done),Hangup()']
         else:
             start = ['exten => s,1,Answer()']

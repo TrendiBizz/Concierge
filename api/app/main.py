@@ -1691,6 +1691,8 @@ async def brevo_email_webhook(request: Request, token: str = ""):
     supplied = token or request.query_params.get("token", "")
     if not hmac.compare_digest(supplied.encode(), expected.encode()):
         raise HTTPException(401, "Invalid webhook token")
+    if not flood_guard.memory_allow("brevo:webhook", "all", 120, 60):
+        raise HTTPException(429, "Too many webhook calls")
     raw = await request.body()
     if len(raw) > 100_000:
         raise HTTPException(413, "Payload too large")

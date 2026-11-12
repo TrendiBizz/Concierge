@@ -33,6 +33,9 @@ def _configuration() -> tuple[str, str]:
 
 
 async def _request(method: str, path: str, data: dict | None = None):
+    from . import flood_guard  # local import keeps module load order unchanged
+    if method.upper() != "GET" and not flood_guard.memory_allow("social:write", "all", 120, 600):
+        raise HTTPException(429, "Too many social changes in a short time; try again in a few minutes")
     base, key = _configuration()
     try:
         async with httpx.AsyncClient(timeout=150.0 if path.endswith("/media") else (75.0 if path.endswith("/compose") else 8.0), follow_redirects=False) as client:
