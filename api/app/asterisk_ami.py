@@ -73,7 +73,7 @@ def _clean(name, value, *, pattern=None, allow_empty=False):
     return text
 
 
-CHANNEL = r'[A-Za-z0-9_/.-]{1,200}'
+CHANNEL = r'[A-Za-z0-9_/.;@-]{1,200}'  # Local channels carry a ;1/;2 leg suffix
 VARIABLE = r'[A-Za-z0-9_]{1,64}'
 NUMBER = r'\+?[0-9]{3,20}'
 
@@ -153,9 +153,14 @@ async def action(fields, *, config, events=(), timeout=DEFAULT_TIMEOUT):
 
 
 async def channels(config, timeout=DEFAULT_TIMEOUT):
-    """Every live channel, as AMI reports it."""
-    _, events = await action({'Action': 'CoreShowChannels'},
-                             config=config, events=('CoreShowChannel',), timeout=timeout)
+    """Every live channel, as AMI reports it.
+
+    ``Status`` rather than ``CoreShowChannels``: the latter needs a read class this scoped user
+    deliberately does not have, while ``Status`` is covered by ``read = call`` and reports the
+    same channel names.
+    """
+    _, events = await action({'Action': 'Status'}, config=config,
+                             events=('Status',), timeout=timeout)
     return events
 
 

@@ -62,9 +62,9 @@ def test_login_and_action_round_trip_over_real_framing():
     async def scenario():
         sent = []
         server, config = await fake_ami(
-            b'Response: Success\r\nMessage: Channels listed\r\n\r\n'
-            b'Event: CoreShowChannel\r\nChannel: PJSIP/concierge-reg-00000001\r\nUniqueid: 1.1\r\n\r\n'
-            b'Event: CoreShowChannelsComplete\r\nEventList: Complete\r\nListItems: 1\r\n\r\n',
+            b'Response: Success\r\nMessage: Channel status will follow\r\n\r\n'
+            b'Event: Status\r\nChannel: PJSIP/concierge-reg-00000001\r\nUniqueid: 1.1\r\n\r\n'
+            b'Event: StatusComplete\r\nEventList: Complete\r\nListItems: 1\r\n\r\n',
             record=sent)
         try:
             channels = await asterisk_ami.channels(config)
@@ -72,7 +72,7 @@ def test_login_and_action_round_trip_over_real_framing():
             server.close()
             await server.wait_closed()
         assert [c['Channel'] for c in channels] == ['PJSIP/concierge-reg-00000001']
-        assert 'Action: Login' in sent[0] and 'Action: CoreShowChannels' in sent[1]
+        assert 'Action: Login' in sent[0] and 'Action: Status' in sent[1]
         assert 'Secret: secret' in sent[0]
     run(scenario())
 
@@ -197,7 +197,7 @@ def test_an_ended_call_is_refused_rather_than_dialling_the_owner(monkeypatch):
 
 
 def test_an_empty_channel_list_ends_on_quiet_not_on_a_missing_completion_event():
-    # Asterisk sends no CoreShowChannelsComplete when there is nothing to list, so waiting
+    # Asterisk sends no StatusComplete when there is nothing to list, so waiting
     # for one would hang every console poll on an idle line.
     async def scenario():
         server, config = await fake_ami(b'Response: Success\r\nMessage: Channels listed\r\n\r\n')

@@ -1390,8 +1390,9 @@ not a media product — it was the PBX's control plane. That is now built.
 **Verified.** 11 media-server tests (real AMI framing over TCP: login, action, refusal, injection,
 empty channel list terminating on quiet, take-over action order, spy options, ended-call refusal)
 plus 11 route-renderer tests and 9 bridge tests. On the VPS: `manager show user concierge` shows
-the scoped classes; AMI answers from the **api** container (`pbx:5038`); `CoreShowChannels` returns
-cleanly on an idle line; `business-trendi-oauth-staging-takeover` is in the live dialplan;
+the scoped classes; AMI answers from the **api** container (`pbx:5038`); a live originated test call
+was discovered by `channel_for()` through `Status` + `Getvar CONCIERGE_CALL` (Local legs carry a
+`;1`/`;2` suffix, which the channel pattern now allows); `business-trendi-oauth-staging-takeover` is in the live dialplan;
 `app_chanspy.so` is running.
 
 **Not yet verified end to end** — nobody has taken over or listened to a real PSTN call. That
@@ -1404,8 +1405,11 @@ the open item below.
   while the bridge and `trendi-shell-1` are still attached — the PBX ends up disconnected and the
   line is down. Recovery: `docker network connect --ip 172.30.91.2 asterisk_phone asterisk-pbx-1`,
   then start it; Hero re-registers within a minute.
-- AMI with `Events: on` is refused for this scoped user (no `system` read class), so event lists
-  end on a quiet window rather than a completion event; an **empty** `CoreShowChannels` sends no
-  completion event at all.
+- `CoreShowChannels` is **permission denied** to a scoped user even with `read = call,reporting`;
+  `Status` is covered by `read = call` and lists the same channels. That, not widening the AMI
+  user, is what the client uses.
+- AMI with `Events: on` is refused for the same reason (no `system` read class), so event lists end
+  on a quiet window rather than a completion event; an **empty** `Status` sends no completion
+  event at all.
 - `generated/manager.conf` must be readable by uid 100/gid 101 (`chown 100:101`, `chmod 640`).
 - Portal buttons for listen/whisper are **not** built yet; the API is ready for them.
