@@ -41,7 +41,7 @@ def test_attachments_are_not_stored():
 
 def test_oversized_is_high_risk():
     result = email_risk.assess({"dmarc": "pass"}, "a@example.com", None, "hi", "hello",
-                               size=50000)
+                               size=250000)
     assert result["risk"] == "high"
     assert "oversized" in result["flags"]
 
@@ -93,3 +93,26 @@ def test_sidecar_failure_is_reported_as_verification_unavailable():
         "a@example.com", None, "hi", "hello")
     assert result["risk"] == "medium"
     assert "verification_unavailable" in result["flags"]
+
+
+def test_normal_business_email_size_is_not_oversized():
+    # 85 KB is an ordinary HTML email with a signature; it must not be flagged.
+    body = "x" * 5000
+    result = email_risk.assess(
+        {"dmarc": "pass", "spf": "pass", "dkim": "pass", "verified_by": "email-auth",
+         "aligned": "yes"},
+        "a@example.com", "a@example.com", "hi", body, size=85000)
+    assert "oversized" not in result["flags"]
+    assert result["risk"] == "low"
+
+
+def test_dkim_pass_dmarc_none_is_low_when_aligned():
+    # The case the DKIM fix was built for: a real small-business sender with no
+    # DMARC record. dkim=pass + aligned must not be labelled unverified.
+    result = email_risk.assess(
+        {"dmarc": "none", "spf": "pass", "dkim": "pass", "verified_by": "email-auth",
+         "aligned": "yes"},
+        "owner@smallbiz.co.nz", "owner@smallbiz.co.nz", "Quote", "Kia ora, can you quote?",
+        size=41234)
+    assert result["risk"] == "low"
+    assert result["flags"] == []

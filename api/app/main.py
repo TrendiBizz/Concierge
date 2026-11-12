@@ -24,7 +24,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
-from . import mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import cloudflare_auth, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import casetimeline, hermes_orchestrator, provider_readiness
 from .booking import DAYS
 from .config import get_settings
@@ -236,7 +236,7 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
     missing = [value for value in requested if value not in found]
     if missing:
         settings = get_settings()
-        if settings.cloudflare_account_id and settings.cloudflare_api_key:
+        if settings.cloudflare_account_id and cloudflare_auth.configured(settings):
             try:
                 prompt = ("Translate these website strings into locale " + locale + ". "
                           "Keep brand names Trendi and Concierge. Return only a JSON object "
@@ -245,8 +245,7 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.post(
                         f"https://api.cloudflare.com/client/v4/accounts/{settings.cloudflare_account_id}/ai/run/@cf/meta/llama-3.1-8b-instruct",
-                        headers={"X-Auth-Email": settings.cloudflare_email, "X-Auth-Key": settings.cloudflare_api_key,
-                                 "Content-Type": "application/json"},
+                        headers={**cloudflare_auth.headers(settings), "Content-Type": "application/json"},
                         json={"messages": [{"role": "user", "content": prompt}], "max_tokens": 4096})
                 data = response.json()
                 result = data.get("result") or {}

@@ -14,7 +14,12 @@ const h = React.createElement;
 const PORT = Number(process.env.PORT || 8099);
 const CF_ACCOUNT = process.env.CF_ACCOUNT_ID || '';
 const CF_KEY = process.env.CF_API_KEY || '';
+const CF_TOKEN = process.env.CF_API_TOKEN || '';  // scoped token, preferred over the global key
 const CF_EMAIL = process.env.CF_EMAIL || '';
+// A scoped API token is sent as Bearer; the legacy global key uses X-Auth-*.
+const cfAuthHeaders = () => (CF_TOKEN
+  ? { Authorization: `Bearer ${CF_TOKEN}` }
+  : { 'X-Auth-Email': CF_EMAIL, 'X-Auth-Key': CF_KEY });
 const FONT_REG = process.env.FONT_REGULAR || '/usr/share/fonts/dejavu/DejaVuSans.ttf';
 const FONT_BOLD = process.env.FONT_BOLD || '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf';
 const FONTS = [
@@ -181,10 +186,10 @@ async function renderVideo(body) {
 }
 
 async function aiImage(body) {
-  if (!CF_ACCOUNT || !CF_KEY) throw Object.assign(new Error('AI images are not configured'), { status: 503 });
+  if (!CF_ACCOUNT || !(CF_TOKEN || CF_KEY)) throw Object.assign(new Error('AI images are not configured'), { status: 503 });
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
     method: 'POST',
-    headers: { 'X-Auth-Email': CF_EMAIL, 'X-Auth-Key': CF_KEY, 'Content-Type': 'application/json' },
+    headers: { ...cfAuthHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: String(body.prompt || '').slice(0, 2000), steps: 4 }),
   });
   const data = await response.json().catch(() => ({}));

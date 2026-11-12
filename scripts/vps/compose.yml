@@ -19,6 +19,9 @@ services:
     restart: unless-stopped
     environment:
       CF_ACCOUNT_ID: ${CF_ACCOUNT_ID:-}
+      # Scoped API token, preferred: server.js sends it as Bearer. The legacy
+      # global key (CF_API_KEY/CF_EMAIL) stays as a fallback until it is rolled.
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
       CF_API_KEY: ${CF_API_KEY:-}
       CF_EMAIL: ${CF_EMAIL:-}
     mem_limit: 512m

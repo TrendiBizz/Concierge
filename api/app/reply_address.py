@@ -8,7 +8,7 @@ import logging
 
 import httpx
 
-from . import db
+from . import cloudflare_auth, db
 from .config import get_settings
 
 log = logging.getLogger("concierge.reply_address")
@@ -16,10 +16,10 @@ log = logging.getLogger("concierge.reply_address")
 
 async def _cloudflare_rule(tenant: dict) -> None:
     settings = get_settings()
-    if not (settings.cloudflare_api_key and settings.cloudflare_email and settings.cloudflare_zone_id):
+    if not (cloudflare_auth.configured(settings) and settings.cloudflare_zone_id):
         raise ValueError("Cloudflare Email Routing is not configured for reply addresses")
     base = f"https://api.cloudflare.com/client/v4/zones/{settings.cloudflare_zone_id}/email/routing/rules"
-    headers = {"X-Auth-Key": settings.cloudflare_api_key, "X-Auth-Email": settings.cloudflare_email}
+    headers = cloudflare_auth.headers(settings)
     address = tenant["reply_address"]
     async with httpx.AsyncClient(timeout=15.0) as client:
         existing = await client.get(base, headers=headers)

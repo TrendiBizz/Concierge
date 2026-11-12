@@ -9,7 +9,14 @@ from urllib.parse import urlparse
 
 URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 MAX_LINKS = 5
-MAX_BYTES = 30000
+# A message larger than this is reported as oversized. It must match the point at
+# which the upstream Worker stops forwarding the raw message: the Worker sends
+# `raw_b64` only for messages up to 200_000 bytes, so a larger message can never
+# be cryptographically verified and its size is genuinely a risk signal.
+# Previously this was 30_000, which is smaller than a normal business email with
+# an HTML part and a signature image: every real inbound message was flagged
+# `oversized` and forced to "high", so nothing could ever come in as "low".
+MAX_BYTES = 200_000
 _RANK = {"low": 0, "medium": 1, "high": 2}
 
 
