@@ -269,3 +269,20 @@ already authenticate with an aligned DKIM signature; enforcement would not break
 (`Authentication error` on `/zones/{zone}/dns_records`), so the DMARC record must be changed in the
 Cloudflare dashboard, or a token with *Zone → DNS → Edit* must be issued. SPF apex is `~all` and
 can stay: DMARC enforcement, not SPF, is what closes the spoofing gap.
+
+## 9. DMARC enforcement live — 2026-11-12 20:10 NZ
+
+The operator changed the `_dmarc.trendibizz.com` TXT record in Cloudflare to
+`v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com`. Verified at both public resolvers
+(`dig @1.1.1.1` and `@8.8.8.8`), authoritative nameservers `gigi/vern.ns.cloudflare.com`.
+
+Then proved enforcement does not break our own mail: a real Brevo-sent message was looped back
+through the chain and Cloudflare's MTA reported
+`dmarc=pass header.from=trendibizz.com policy.dmarc=quarantine`,
+`dkim=pass header.d=trendibizz.com header.s=brevo1`, `spf=pass`; the sidecar stored
+`dkim=pass dmarc=pass aligned=yes`, draft risk `low`, no flags. Test rows removed.
+
+Open follow-up (operator): watch Brevo's DMARC aggregate reports for roughly a week; if nothing
+legitimate is failing, step `p` to `reject`. Anything else that sends as `@trendibizz.com`
+(the hosting form mail covered by `include:spf.web-hosting.com`) needs to keep passing SPF
+alignment before going to `reject`.
