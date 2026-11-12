@@ -214,6 +214,33 @@ Postgres and the API are not host-published (API bound to 127.0.0.1:8000); all `
 are `0600 root`; nothing world-writable under `/opt/trendi`; TLS certs valid to **22 Jan 2027**;
 password SSH off; disk 36% (54 G of 154 G); fail2ban active.
 
+## 7b. Added later in the same session (deployed and pushed; API suite now **748 passed**)
+
+New code in `api/app/channel_health.py` and `api/app/main.py`, tests in `test_owner_invite_email.py`
+and `test_go_live_gate.py`. Rollback: image `trendi-concierge-api:before-20261113-gate`, files in
+`/opt/trendi/backups/api-20261113b/`.
+
+- **Opt-in invitation email:** `POST /admin/tenants/{slug}/owner-invitations` accepts
+  `send_email: true` (default false, so the operator can still deliver the link by hand). The link is
+  single-use, 24 h, secret in the URL fragment (mail scanners cannot consume it). A failed send never
+  loses the link (`emailed`/`email_error` in the response); the token is never logged.
+- **`GET /owner/channel-health`** — email / SMS-device / voice status for the caller's business.
+  *Not yet shown in the portal UI or in `healthcheck.sh`.*
+- **Alert tests:** `POST /owner/alerts/test` (owner role) and `POST /admin/tenants/{slug}/test-alert`
+  queue a labelled test alert on each configured alert channel (dedupe key `test:<tenant>:<channel>:<ts>`).
+- **Go-live gate:** `PATCH /admin/tenants/{slug}` refuses `phone_enabled: true` (409,
+  `alerts_not_proven`, with reasons) unless the owner's mobile **and** alert email are set **and** at
+  least one owner alert was *delivered* (`status='sent'`) in the last 7 days. `?force=true` is the
+  operator override. `notify_phone` is now settable through the same endpoint (it was SQL-only).
+  Design note: one proven channel is enough, so Pukeko (6 real alert emails delivered, last 12 Nov)
+  already passes — tighten to "both channels" if you want SMS to be mandatory.
+- **Incident, fully reverted:** while verifying, a PATCH sent to production as a "safe 409 test"
+  was accepted and set Pukeko `phone_enabled = true`. It was reverted to `false` within minutes
+  (verified in the DB); the DID still routes to the staging tenant, so no customer call was affected.
+  The tenant JSON printed by that call also exposed Pukeko's `report_token` and `calendar_token`
+  (and the public widget key) in the session transcript — rotate those two tokens at go-live.
+  **Lesson: verify gates with unit tests or read-only queries, never with a mutating production call.**
+
 ## 8. Next action (in order)
 1. Operator: wake the SMS phone and unblock the Brevo address (§5a-1, 2).
 2. Operator: make the real test call and report what happened; read bridge/PBX logs during it
