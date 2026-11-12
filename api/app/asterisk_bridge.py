@@ -50,6 +50,9 @@ SILENCE_DURATION_MS = 700
 REPLY_NUDGE_SECONDS = 5.0
 
 
+from .speech_text import clean_speech
+
+
 # Say a number once. The test call of 2026-11-13 read the caller's number three times: the lead step,
 # the text-copy step and the confirmation each told the model to read it back. A caller who then
 # interrupts a read-back must not trigger a fresh one.
@@ -447,7 +450,7 @@ async def finish(tenant, call_id, conversation, status, record_session=None, rea
             if not row or row['ended_at']:
                 return
             turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role='user' ORDER BY id", conversation)
-            text = '\n'.join(r['content'] for r in turns)
+            text = '\n'.join(c for c in (clean_speech(r['content']) for r in turns) if c)
             if text:
                 lead = await c.fetchrow('UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *', tenant['id'], conversation, text[-1000:])
                 # Forward the voicemail as a private recording link when consent and

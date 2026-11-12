@@ -43,6 +43,9 @@ async def authenticate(session_id, token):
     return dict(row)
 
 
+from .speech_text import clean_speech
+
+
 def audio_type(content_type, body):
     mime = content_type.split(';', 1)[0].strip().lower()
     if mime not in MIME_TYPES or len(body) < 16:
@@ -115,7 +118,7 @@ async def complete_delivery(session, tenant, request, result):
 async def _finish_enquiry(c, session, tenant):
     """Run under the session row lock, in the caller's transaction."""
     turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id", session['conversation_id'])
-    caller = '\n'.join(r['content'] for r in turns if r['role'] == 'user').strip()
+    caller = '\n'.join(clean_speech(r['content']) for r in turns if r['role'] == 'user').strip()
     if not caller:
         return {'ok': True, 'empty': True}
     # An earlier capture_lead tool may already have created the enquiry.
@@ -124,7 +127,7 @@ async def _finish_enquiry(c, session, tenant):
         lead = await c.fetchrow(
             "INSERT INTO leads(tenant_id,conversation_id,channel,source_key,message) VALUES($1,$2,'voice',$3,$4) RETURNING *",
             tenant['id'], session['conversation_id'], 'voice:'+str(session['id']), caller[:1000])
-    transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)
+    transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+(clean_speech(r['content']) if r['role']=='user' else r['content']) for r in turns)
     from . import owner_notifications
     recording = await c.fetchval(
         'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
@@ -223,9 +226,9 @@ async def deliver(tenant, lead_id, *, recipient, channel, content, request_id, s
     else:
         turns = await db.pool().fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id LIMIT 300",lead['conversation_id'])
         if channel == 'sms':
-            body = 'Your enquiry with '+tenant['name']+':\n'+'\n'.join(r['content'] for r in turns if r['role']=='user')[:700]
+            body = 'Your enquiry with '+tenant['name']+':\n'+'\n'.join(clean_speech(r['content']) for r in turns if r['role']=='user')[:700]
         else:
-            body = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+r['content'] for r in turns)
+            body = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+(clean_speech(r['content']) if r['role']=='user' else r['content']) for r in turns)
         if not turns:
             raise HTTPException(409, 'No saved transcript for this enquiry')
     await outbox.enqueue(tenant['id'],kind,channel,recipient,body,
