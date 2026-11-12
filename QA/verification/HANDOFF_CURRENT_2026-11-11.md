@@ -800,3 +800,49 @@ Supersedes the "still open" notes above on monitoring and on the Permissions scr
   revocation rows**, and the restore of `concierge-test` at 18:12:42 NZ has no audit row — the
   guard test's revoke/restore were direct DB writes. Consent changes must go through the API or be
   captured by a trigger.
+
+## Session 2026-11-12 (fifth) — every email issue fixed, n8n fully removed
+
+Supersedes the email queue and n8n notes above. Full detail + evidence:
+`EMAIL_ASSESSMENT_2026-11-12.md` §7. Deployed 2026-11-12 19:24 NZ (06:24 UTC), health check
+**44 ok / 0 warn / 0 fail**.
+
+- **Bounces + suppression (the blocker) are real now.** Pure DSN parser (`api/app/bounces.py`),
+  suppression list + Brevo webhook + DSN ingress + outbox gating (`api/app/suppressions.py`,
+  `cloudflare_inbound.py`, `outbox.py`), `Message-ID` persisted per outbox row. Live-proved with a
+  synthetic hard bounce through the public webhook: 401 on a bad token, suppression + outbox
+  `failed` + audit row on the good one, idempotent on replay (test rows removed afterwards).
+  Brevo is **not subscribed yet** — the operator must add the webhook (URL + token in
+  `/opt/trendi/shared/api.env`); nothing else is missing.
+- **Unaligned DKIM is no longer "dmarc=fail".** Sidecar emits `unaligned`; API maps it to
+  `dkim_unaligned` → medium. Rust 6/6, deployed and verified on loopback.
+- **Reply-To on every customer-visible email** (not just owner alerts). Test: all kinds.
+- **Blocked senders are audited; refusals are listable.** `GET /owner/inbound-audit`,
+  `/admin/tenants/{slug}/inbound-audit`, and the Studio Permissions screen shows sender/subject/
+  reason plus the suppression list with "Allow again".
+- **Consent is attributable and the audit is authoritative.** New columns + a DB trigger (writes
+  owner/operator/direct), operator grant endpoint with reason + `X-Operator`, read endpoints.
+  Live-proved: operator grant recorded as `operator`, a direct SQL update recorded as `direct`.
+- **Rate limits moved before DKIM/Rspamd/ClamAV**, counted per recipient mailbox; the allow-list
+  high→medium downgrade is gone.
+- **Low items:** `reply_address` collision handling, Worker hint parsing restricted to the
+  Authentication-Results header (**worker not redeployed** — operator step), payload-cap doc fixed.
+- **Caddy allowlist** gained `/webhooks/brevo`; gateway restarted; Studio bundle rebuilt and
+  readable (`/opt/trendi/shared/studio` needed `chmod -R a+rX`).
+- **Health check gained two checks** (`email:bounce-webhook`, `email:suppressions`): 42 → 44 ok.
+- **n8n is now completely gone.** Repo: compose service/volume/profile, `postgres/init.sh`,
+  `scripts/backup.sh`, `gen-env.sh`, `.env.example`, `Caddyfile` block, `events.py` docstring.
+  VPS: `n8n`/`n8n-db` services removed from `/opt/trendi/auxiliary/compose.json`, both data
+  directories deleted after an 8.5 MB tarball backup in
+  `/opt/trendi/backups/n8n-removed-20261112-1930/` (compose.json.before included), and the legacy
+  dump copy removed from the auxiliary backup script. Kuma unaffected (302, healthy).
+- **DNS correction:** DKIM **is** published — `brevo1._domainkey.trendibizz.com` (Brevo's
+  selector); the earlier "no DKIM" claim missed it. DMARC stays `p=none`, SPF stays `~all`:
+  enforcement is a deliverability decision, not a code fix.
+- Tests: API **600 passed** (was 573), Rust 6/6, `cargo test --offline` green.
+
+### Still outstanding (carried, not closed)
+- Brevo webhook subscription (operator, dashboard) and Cloudflare Worker redeploy for the hint fix.
+- Phone DID (payment/KYC), Pukeko social OAuth, offsite backup credentials, SEO accounts, Astryx.
+- Rotate the xAI key; consent-copy review; old test phone route; richer admin console.
+- Tenant reply addresses still rely on the Cloudflare rule check; DMARC enforcement after reports.

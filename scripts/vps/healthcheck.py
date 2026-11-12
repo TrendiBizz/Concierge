@@ -271,6 +271,26 @@ def check_inbound(api_env: dict) -> list[dict]:
         results.append(_fail("inbound:rejections", f"{count} refused in the last hour"))
     else:
         results.append(_ok("inbound:rejections", "none in the last hour"))
+
+    # Bounce handling (added 2026-11-12). The health check never sends a real event; it proves
+    # the wiring: the secret exists, the route survives Caddy's path allowlist, and the
+    # suppression table is readable. A dead address with no suppression is the failure that
+    # matters, and it is reported as a warning only, because mail can be suppressed by hand.
+    if not (api_env.get("BREVO_WEBHOOK_SECRET") or "").strip():
+        results.append(_warn("email:bounce-webhook",
+                             "BREVO_WEBHOOK_SECRET not set: bounces cannot be ingested"))
+    else:
+        status, _, _ = http("https://concierge.trendibizz.com/webhooks/brevo")
+        # GET is rejected with 405 by the route, 401 without the token's secret. 404 means
+        # Caddy's allowlist dropped the path and Brevo could never deliver an event.
+        results.append(_ok("email:bounce-webhook", "endpoint routed") if status in (401, 405)
+                       else _fail("email:bounce-webhook", f"HTTP {status} (expected 401 or 405)"))
+        code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres",
+                         "-d", "concierge", "-tAc", "select count(*) from email_suppressions"])
+        suppressed = int(out.strip()) if code == 0 and out.strip().isdigit() else None
+        results.append(_ok("email:suppressions", f"{suppressed} address(es) suppressed")
+                       if suppressed is not None
+                       else _warn("email:suppressions", "could not read the suppression list"))
     return results
 
 

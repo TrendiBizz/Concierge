@@ -149,3 +149,85 @@ work (`:141-170`), so a flood still costs full verification. An allow-listed sen
 4. Audit gaps: blocked-sender rows (3.4) and a read endpoint for `inbound_audit` (3.5).
 5. Consent attribution and audit authority (3.6, 3.7).
 6. Rate-limit placement and the allow-list downgrade (3.8).
+
+## 7. Fixed 2026-11-12 (fifth session) — every §3 item closed, deployed and verified
+
+Deployed at 19:24 NZ (06:24 UTC): `trendi-concierge-api:vps` and `trendi-email-auth:vps` rebuilt
+from this tree, `api`+`email-auth` healthy, Studio bundle rebuilt (`Permissions-DlMXm99d.js`),
+Caddy allowlist updated, health check 44 ok / 0 warn / 0 fail. API suite 573 → **600 passed**;
+Rust sidecar **6/6**. db schema is applied by the API on startup (idempotent).
+
+### 3.1 BLOCKER — bounce handling and suppression now exist
+- `api/app/bounces.py` — pure DSN parser (multipart/report + message/delivery-status, Final/
+  Original-Recipient, Action, Status, Diagnostic-Code, original Message-ID). 5.x.x and 4.4.x are
+  hard; 4.2.x delays are not.
+- `api/app/suppressions.py` — `email_suppressions(tenant,address,reason,source,detail)` plus the
+  three entry points: inbound DSN, Brevo webhook, manual block. Every suppression writes an
+  `inbound_audit(action='address_suppressed')` row.
+- Ingress: a delivery report arriving at a tenant reply address is handled **before the consent
+  gate** and never becomes a draft or a 403 (`cloudflare_inbound.py`).
+- Outbound: `outbox._deliver` refuses a suppressed address (`status='suppressed'`) and stamps a
+  `Message-ID` on every email, persisted on `outbox.message_id`, so a later bounce closes the
+  right row (`status='failed', last_error='hard_bounce: …'`).
+- Brevo webhook: `POST /webhooks/brevo?token=…` (constant-time compare, 503 if no secret set,
+  accepts JSON or Brevo's form-encoded `json` field, batches of ≤50, idempotent).
+- Owner/operator API: `GET/POST/DELETE /owner/email-suppressions`, `GET /admin/tenants/{slug}/
+  email-suppressions`.
+- **Live proof** (synthetic event through the public URL, then cleaned up): wrong token → 401;
+  hard_bounce → `{"processed":1,"results":[{"suppressed":true,"closed":1}]}`; suppression row,
+  `outbox.status='failed'`, `inbound_audit` row all present; replaying the same event kept one row.
+- **Still operator work:** add the webhook in Brevo (URL above, with the token in
+  `/opt/trendi/shared/api.env`). The endpoint is live and authenticated; nothing is subscribed yet.
+
+### 3.2 HIGH — unaligned DKIM no longer reported as DMARC failure
+`services/email-auth/src/main.rs` `verdict()` now returns `dmarc="unaligned"` when a signature
+passes for another domain, `"pass"` when aligned, `"none"` otherwise — never `"fail"`, because the
+service does not evaluate the From domain's DMARC policy. `email_auth.merge()` carries the new
+value; `email_risk` maps `unaligned`/unaligned-pass to `dkim_unaligned` → **medium**. Tests feed
+the sidecar's real output (Rust 6/6, Python cases in `test_email_risk.py`). Deployed sidecar
+verified on loopback.
+
+### 3.3 HIGH — every customer-visible message carries Reply-To
+`outbox._deliver` sets `Reply-To: <tenant reply_address>` for **all** email kinds (owner alerts,
+`email_secretary_reply`, `approved_reply`, campaigns), not just `owner_alert`. Tests:
+`api/tests/test_email_reply_to.py` (per-kind, absent-address, suppressed-address, Message-ID).
+
+### 3.4/3.5 MEDIUM — blocked mail and refusals are visible
+- Blocked sender: `inbound_audit(action='inbound_blocked', detail={reason,sender,recipient,
+  message_id})` is written before the drop.
+- Refusals list: `GET /owner/inbound-audit` (tenant) and `GET /admin/tenants/{slug}/inbound-audit`
+  (operator); `inbound_audit.address` was added. Studio's Permissions screen shows the last
+  refusals/blocked/bounces with sender, subject, reason and time, plus the suppression list with
+  an "Allow again" action.
+
+### 3.6/3.7 MEDIUM — consent attribution and an authoritative audit
+- `tenant_channel_authorization_audit` gained `actor_kind` (`owner` | `operator` | `direct`) and
+  `actor_label`; `actor_id` is nullable (an operator is not an owner principal).
+- The audit row is now written by a **database trigger**, not by the application, so a direct-SQL
+  change can no longer be invisible. The API sets `concierge.actor_kind`/`actor_label` in its
+  transaction (owner click vs operator grant).
+- New `POST /admin/tenants/{slug}/channel-authorizations` (operator grant, required `reason`,
+  `X-Operator` header recorded) and read endpoints `GET /admin/tenants/{slug}/authorization-audit`
+  and `GET /owner/onboarding/authorization-audit`.
+- **Live proof:** operator grant → audit row `operator | qa-operator@…: verifying…`; a direct SQL
+  UPDATE → audit row `direct`; both served by the admin endpoint. (Test rows removed afterwards.)
+
+### 3.8 MEDIUM — rate limits moved in front of the expensive work
+Mailbox and sender counts are computed before DKIM/Rspamd/ClamAV; the mailbox limit counts the
+**recipient** (`email_drafts.recipient`, new column) rather than the tenant; the allow-list
+`high → medium` downgrade is gone, so an allow-listed sender can no longer defeat quarantine.
+
+### 3.9 LOW
+- `reply_address.ensure` now checks the insert result and retries a fresh token on collision
+  instead of silently leaving the tenant with an unusable address.
+- Worker `authFrom()` reads only the `Authentication-Results` header instead of regexing the whole
+  raw message (quoted body text can no longer set hints). Repo copy updated; **worker deploy still
+  pending** (see outstanding).
+- Payload-cap doc drift fixed (`INBOUND_EMAIL_SECURITY_2026-11-11.md`).
+
+### §4 DNS — one assessment claim was wrong
+**DKIM is published.** `brevo1._domainkey.trendibizz.com` returns a 2048-bit RSA key (CNAME chain
+to `*.dkim.brevo.com`), so authentication does **not** rest on SPF alone. The earlier "no DKIM at
+any common selector" missed Brevo's `brevo1` selector. SPF is still `~all` on the apex and DMARC
+is still `p=none`; moving to `p=quarantine` is a deliverability decision for the operator, not a
+code fix, and should follow a week of DMARC reports.

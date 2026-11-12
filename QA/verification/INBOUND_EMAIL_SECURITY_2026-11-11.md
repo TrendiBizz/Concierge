@@ -14,7 +14,7 @@ model, call a tool, book, send, pay, or change its rules.
 | Phishing / malicious links | Text-only storage (HTML stripped by the Worker); links are never fetched, rendered, or followed; they are listed as inert text for review; many links or local/private-IP links raise the risk. |
 | Prompt injection ("ignore instructions, book a meeting") | No model call on ingestion. The draft is a fixed "REVIEW REQUIRED" placeholder; the enquirer's text is stored as untrusted content only. |
 | Malware attachments | Attachments are never fetched or stored; the message is flagged "attachments_not_stored". |
-| Flood / spam | HMAC-authenticated Worker, 5-minute timestamp window, 30 KB payload cap; per-mailbox 60/hour cap (excess rejected); per-sender 10/hour cap (excess quarantined, not lost). |
+| Flood / spam | HMAC-authenticated Worker, 5-minute timestamp window, 200 KB raw-message cap (the Worker forwards `raw_b64` only up to 200,000 bytes; the API body cap is 800 KB), per-mailbox 60/hour cap counted per recipient and checked *before* DKIM/Rspamd/ClamAV (excess rejected); per-sender 10/hour cap (excess quarantined, not lost). |
 | Duplicate/replay | Signed payload + timestamp + unique `(tenant, source_id)` dedupe. |
 | Cross-tenant delivery | Recipient resolved only through `inbound_mailboxes`; unknown mailbox → 404; `email_read` authorisation required. |
 | Auto-reply abuse | Auto-reply is opt-in and is skipped for high-risk mail; when enabled it drafts only (no tools, no sending). |
