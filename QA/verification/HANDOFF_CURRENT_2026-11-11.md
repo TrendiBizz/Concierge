@@ -765,3 +765,38 @@ Health sweep at the end: no api 5xx in 6 hours, zero container restarts, backups
 (2026-11-11 14:30, 59 MB; daily 14:30 UTC cron) — but they are **local-only**, still no offsite
 copy. Portal lint is pre-existing noisy: 24 warnings + 3 errors already on `main`, and the new
 `Permissions.tsx` adds 0 errors and 1 warning of the same class the other panels have.
+
+## Session 2026-11-12 (fourth) — monitoring landed, email assessed end to end
+
+Supersedes the "still open" notes above on monitoring and on the Permissions screen.
+
+- **The monitoring the operator asked for exists now.** `scripts/vps/healthcheck.py` + `.sh` run
+  every 5 minutes from cron and write `/opt/trendi/monitoring/{health.log,status.json,state.json}`;
+  ~40 checks over containers, six public URLs, api, Postgres, disk/mem, TLS expiry, Cloudflare
+  token/routing/worker, the inbound chain + refusals, email-auth, Hermes and Kuma. Alerts go by
+  Brevo mail with de-dup; **delivery is proven in production** — the `[Concierge FAIL]` mail at
+  18:26 NZ was this system, triggered by the deliberate consent-revocation guard test.
+- **Outside-in probe was dead in the repo and is now live** (commit `0286e34`):
+  `.github/workflows/uptime.yml` probes six public URLs from GitHub Actions every 20 min and opens
+  a labelled issue on failure. It had been written by a session that was killed mid-compaction and
+  was never committed — the checkpoint script refuses untracked paths outside its allowlist.
+  `.github/` added to `UNTRACKED_ALLOWED_PREFIXES`; committed and pushed.
+- **Bounces no longer page.** `inbound:rejections` now ignores `bounces-*`, `mailer-daemon@` and
+  `postmaster@` senders; the refusal still lands in `inbound_audit`. Health is 42 ok / 0 warn / 0
+  fail as of 19:03 NZ.
+- **n8n is gone** — containers and image removed on the operator's instruction; the `recovery`
+  profile in `/opt/trendi/auxiliary/compose.json` can still recreate it, and `./n8n-db` data is
+  untouched.
+- **Full assessment: `EMAIL_ASSESSMENT_2026-11-12.md`** (same directory). Headline findings:
+  no bounce handling or suppression list at all (blocker); unaligned DKIM pass is misreported as
+  `dmarc=fail` and forced to `high`, so forwarded/list mail is quarantined and the
+  `dkim_unaligned → medium` branch is unreachable; customer-facing `email_secretary_reply` carries
+  no `Reply-To`, so replies leave the `reply-<token>` loop; blocked senders are dropped without an
+  audit row; `inbound_audit` has no read endpoint.
+- **Doc corrections:** the Studio SPA *does* have a Permissions screen (`App.tsx:130`, deployed
+  chunk 200) — the earlier "no Permissions screen" note is stale. `INBOUND_EMAIL_SECURITY` still
+  says the cap is 30 KB; it is 200,000.
+- **Audit gap proved:** `tenant_channel_authorization_audit` contains **13 grant rows and zero
+  revocation rows**, and the restore of `concierge-test` at 18:12:42 NZ has no audit row — the
+  guard test's revoke/restore were direct DB writes. Consent changes must go through the API or be
+  captured by a trigger.
