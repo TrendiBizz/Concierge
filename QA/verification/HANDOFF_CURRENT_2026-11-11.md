@@ -943,3 +943,44 @@ phone DID, social OAuth, offsite backups, xAI key, consent-copy review.
 - Remaining: all operator dashboard/payment/decision items (§2 Brevo secret + ADMIN_TOKEN,
   §3 DMARC reject, §4 Brevo plan/IP/key, §5 staging tenants + admin@ owner, §6 token split),
   phone DID, social OAuth, offsite backups, xAI key.
+
+## Session 2026-11-12 (seventh) — competitor gap analysis, no code changed
+
+Operator asked what Octovox and GoHighLevel have that is worth adding to Concierge, explicitly
+**without bloat**. Deliverable: **`COMPETITOR_GAP_2026-11-12.md`** (ranked, with effort and
+acceptance tests) plus raw sourced evidence in **`COMPETITORS_RAW_2026-11-12.md`**. Nothing was
+built or deployed this session; this section is a worklist, not a changelog.
+
+**Headline:** Octovox is not an SMB competitor — NZ SIP overlay, channel-only ("we don't sell
+direct"), no published pricing, zero independent reviews. Its one good idea is the **Switchboard**
+(live human supervision + one-click takeover of AI calls). GoHighLevel is $97/$297/$497 (top tier
+now branded "Founder"), but its cost model is the metered wallet ($0.01/workflow execution, AI
+agents excluded from the plan) and its loudest complaint is the learning curve. Concierge is
+already ahead on the things GHL charges for: human approval before send, consent provenance with an
+audit trigger, DMARC/bounce/suppression handling.
+
+**Ranked additions (value ÷ effort), none of which adds a new module family:**
+| # | Item | Effort | Builds on |
+|---|---|---|---|
+| A | **Missed-call text-back** — no-answer/abandoned call → one SMS + lead + timeline event (opt-out, rate-limit, channel auth honoured) | 2–3 d | `phone_sip.py`, `outbox.py`, `sms.py`, `casetimeline.py`, `automation.py` |
+| B | **Live call supervision** — Studio panel of in-progress calls with live transcript + "take over, call me" via existing `call_control` | 4–6 d | `phone_sip.serve_call` already writes every transcript turn live via `convo.save_message`; no media server needed |
+| C | **One contact timeline screen** in Studio (+ optional per-tenant "suggest only" mode) | 2 d | `casetimeline.timeline()` already merges all channels — backend done |
+| D | **After-call intelligence** — summary, outcome label, sentiment → follow-up task / digest | 2–3 d | `llm.py`, `voice_records.py`, `tasks`, `tenants.voice_daily_limit` |
+| E | **Stripe Checkout on accepted quotations** (deposits) — hosted only, no invoicing | 3–5 d | `quotations.py`, public `/quote/{token}`, `outbox` |
+| F | **Attributed revenue report** — AI-handled enquiries → quotes → accepted → $ value | 2 d | `quotations.py`, `leads`, `sales.py`, `Reports` |
+
+Suggested order **A → C → D → B → E → F** (~2 weeks total). A and C alone close the two gaps an
+owner would notice in a trial.
+
+**Explicitly rejected as bloat:** funnels/site builder, courses/memberships/communities, affiliate
+and ad managers, SEO/listing resale, marketplace, IVR menu trees, custom objects, drag-drop workflow
+palette, live audio listen-in/whisper (needs a media server), white-label agency hierarchy + SaaS
+reselling, and **any metering of automation or AI** — the flat all-in price is the differentiator.
+
+**Triggers, not backlog:** A2P 10DLC wizard (first US customer), Microsoft calendar (first Microsoft
+shop), snapshot/reseller mode (only if the operator decides to sell through partners).
+
+### Test coverage gap found while auditing (independent of the above)
+`HANDOFF.md` still claims Studio has no Permissions screen — it does (`web/portal/src/Permissions.tsx`,
+wired in `App.tsx`). Stale doc statement, corrected there. No capability was added this session, so
+**the 606 API / Rust / email-auth baselines and 43/43 health are unchanged and were not re-run.**
