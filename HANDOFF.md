@@ -1,17 +1,18 @@
 # Trendi Concierge — current handoff (repo root)
 
 Updated 2026-11-12. **Read first:** `QA/verification/HANDOFF_CURRENT_2026-11-11.md` — its last
-section, "Session 2026-11-12 (third) — Cloudflare rotation, risk bug, phone stack back up",
-supersedes every older pointer below.
+section, "Session 2026-11-12 (seventh) — competitor gap analysis", supersedes every older pointer
+below. That section also holds the ranked product additions from `COMPETITOR_GAP_2026-11-12.md`.
 
 ## Outstanding (current)
 - **Phone DID (paid)** — `scripts/vps/order-phone-did.sh`; needs a payment method/KYC. The SIP
   stack itself is up (Asterisk pbx/bridge + Rust shell), so this is the last item before a
   customer-dialable number.
-- **Studio SPA has no Permissions screen** — inbound email consent can only be granted from the
-  legacy `/owner-ui` console, so a customer who only uses Studio can never enable it.
-- **Inbound rejections are invisible** — a `403` from `/api/v1/inbound/cloudflare` only appears in
-  `docker logs`; surface it in the owner portal or readiness output.
+- ~~**Studio SPA has no Permissions screen**~~ — **STALE, corrected 2026-11-12**: it exists and is
+  wired (`web/portal/src/Permissions.tsx`, `App.tsx:130`) and shows consents, refusals and the
+  suppression list. Only the legacy `/owner-ui` duplicate remains.
+- ~~**Inbound rejections are invisible**~~ — **DONE 2026-11-12**: `GET /owner/inbound-audit` plus
+  the Studio Permissions screen show sender/subject/reason (`inbound_audit` table).
 - **Rotate the xAI/api keys** — `docker inspect` prints every service secret in clear text, and
   those values reached a session transcript on 2026-11-12.
 - **Full-stack deploys must pass `--profile crm --profile public`** — otherwise
@@ -23,8 +24,10 @@ supersedes every older pointer below.
   Astryx Native watch (weekly Monday 09:00 NZ, still not production).
 
 ## Next action
-Add the Permissions screen to `web/portal` and surface inbound `403` rejections in readiness output,
-then finish the phone DID purchase.
+Build item **A** of `COMPETITOR_GAP_2026-11-12.md`: missed-call text-back (2–3 days, builds on
+`managed_phone.py`/`outbox.py`/`casetimeline.py`), then the timeline screen (C). The remaining
+operator-dashboard items (Brevo secret/key/plan, DMARC `p=reject`, Cloudflare token split, phone DID
+payment/KYC) are unchanged and summarised in the workspace `HANDOFF.md`.
 
 # Older pointers (historical)
 
