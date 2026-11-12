@@ -82,6 +82,44 @@ async def sms_copy_available(tenant_id) -> bool:
         return True
 
 
+QUICK_QUESTIONS = (
+    'After the greeting, ask only what is needed to help, one short question at a time and under ten '
+    'words each: what they need, their name, and the best number to call back (or an email if they '
+    'prefer). Skip anything they have already told you and never ask for the same thing twice. '
+    'Acknowledge in a word or two ("Got it."), never in a sentence. Do not offer a text copy, a '
+    'recording link or any other extra unless the caller asks. If the caller asks to be contacted by '
+    'email or text, save that as their contact preference with the number or address; that is a callback '
+    'preference, not a copy of the conversation. If they do ask for a copy of the conversation, capture '
+    'their contact, get one clear yes to the format and destination (say "the same number" if you already '
+    'have it), then request_conversation_copy. Never claim a text was sent without a confirmed result. '
+    'Once you have what they need, their name and how to reach them, say goodbye in one short sentence '
+    'and call end_call. Do not end with an open question.')
+
+
+def phone_instructions(name: str, *, recording_ok: bool, listen_in: bool, sms_ok: bool) -> str:
+    """The telephone receptionist's instructions after the shared business prompt.
+
+    The opening is two short sentences. "Recorded" is only ever said when recording will really happen
+    (the business authorised it and the platform has it switched on); otherwise the notice says
+    "transcribed", which is always true. Listen-in is added only while a human really can listen in.
+    """
+    business = (name or 'the business').replace('"', '').strip() or 'the business'
+    listen = ' and a team member may listen in' if listen_in else ''
+    verb = 'recorded' if recording_ok else 'transcribed'
+    text = (
+        "\nYou are this business's automated receptionist. Open the call with exactly this, warmly and with "
+        f'nothing added: "Hello, I\'m the AI assistant for {business}. Our calls are {verb} for quality and '
+        f'training purposes{listen}." ')
+    if recording_ok:
+        text += (
+            'Right after saying it, call set_call_recording with enabled=true and confirmed=true: the caller '
+            'has been told. If they object to recording or ask you to stop, call set_call_recording with '
+            'enabled=false at once (it discards the audio), say "No problem" and carry on. ')
+    else:
+        text += 'Audio is not recorded on this line; never say or imply that it is. '
+    return text + QUICK_QUESTIONS + READBACK_RULES + ('' if sms_ok else SMS_OFFLINE_RULE)
+
+
 @dataclass(frozen=True)
 class Route:
     tenant: str
@@ -397,22 +435,14 @@ async def prepare(route, call_id):
     session['turn_detection'] = {'type': 'server_vad', 'silence_duration_ms': SILENCE_DURATION_MS,
                                  'prefix_padding_ms': 300}
     sms_ok = await sms_copy_available(tenant['id'])
-    session['instructions'] = build_system_prompt(tenant, None, channel='phone') + (
-        '\nYou are this business\'s automated Grok receptionist. Greet the caller with this business name. '
-        'Disclose transcription. Ask permission to record the message. No audio is recorded before consent. '
-        'Only after an explicit yes, call set_call_recording with enabled=true and confirmed=true. '
-        'If unavailable or declined, take a text message without recording. '
-        'If permission is withdrawn, call set_call_recording with enabled=false; it discards captured audio. '
-        'Ask whether they want a text copy, recording link, or callback. Save callback preference in their enquiry. '
-        'For a copy, capture their contact and permission, then get one clear yes to the format and destination '
-        '(if it is the number or email already given on this call, just say "to the same number"), then request_conversation_copy. '
-        'Collect their message and callback details. Never claim a text was sent without a confirmed result. '
-        'When finished, say goodbye then call end_call. Do not end with an open question.'
-        + READBACK_RULES + ('' if sms_ok else SMS_OFFLINE_RULE) + greeting_disclosure(call_control.enabled()))
+    recording_ok = bool(get_settings().voice_recording_enabled
+                        and await channel_authorization.is_authorized(tenant['id'], 'call_recording'))
+    session['instructions'] = build_system_prompt(tenant, None, channel='phone') + phone_instructions(
+        tenant['name'], recording_ok=recording_ok, listen_in=call_control.enabled(), sms_ok=sms_ok)
     session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
                              'parameters':{'type':'object','properties':{},'additionalProperties':False}})
     session['tools'].append({'type':'function','name':'set_call_recording',
-        'description':'Start recording only after explicit caller consent. Disable to discard audio if consent is withdrawn.',
+        'description':'Start recording once the caller has been told calls are recorded (the greeting does this). Disable to discard audio if they object.',
         'parameters':{'type':'object','properties':{'enabled':{'type':'boolean'},'confirmed':{'type':'boolean'}},
                       'required':['enabled','confirmed'],'additionalProperties':False}})
     return {'tenant': tenant, 'conversation': conversation,
