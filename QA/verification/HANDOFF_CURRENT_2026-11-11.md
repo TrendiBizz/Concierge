@@ -1315,3 +1315,47 @@ reply and the session stayed up for the whole test.
 `pjsip show registrations` still **Registered** against `sip.hero.co.nz`, bridge listener up on
 9510. Test calls and their owner-alert outbox rows (unsent) were deleted; no CRM leads left behind.
 **Not yet re-tested by a human on the PSTN line** — that is the outstanding item.
+
+## Session 2026-11-12 (thirteenth) — second real call got 58 s in, then hit the error budget
+
+**What the second call did.** The operator dialled again at 09:23 UTC and spoke to the assistant
+properly this time: greeting → "may I record this call for quality purposes?" → "Yes." → recording
+consent → callback preference → name → dictating a phone number → starting to give an email address
+(`messages` 135–149, `phone_calls` `ast:56777971…`, `failed`, 58 s). Then dead air again.
+
+**Cause — our own guard rail.** `docker logs asterisk-bridge-1` named it exactly (this is the
+logging added in the previous session):
+
+```
+Grok telephone session error invalid_request_error/1..5: Cancellation failed: no active response found
+Asterisk call ended (RuntimeError): Grok telephone session failed 5 times: invalid_request_error ...
+```
+
+Those are the **benign** barge-in cancels from the twelfth session, not faults. The 5-error budget
+from that fix counted them, so a talkative caller exhausted it in a minute. Two related faults
+visible in the same call:
+- The cancels were frequent because the bridge cancelled responses that had **not started playing**
+  yet — those races are exactly what produces the error.
+- The transcript segmented the caller's dictation into fragments ("0 2", "0 2, 0 2 7", …) and the
+  assistant interrupted with "That looks like it got cut off after zero two seven". xAI's default
+  VAD ends a turn after **200 ms** of silence, which is too short for someone reading out digits.
+
+**Fix** (`api/app/asterisk_bridge.py`):
+- `BENIGN_ERRORS` (`cancellation failed`, `no active response found`) are logged at INFO, capped at
+  3 log lines, and **never count toward `MAX_ERRORS`** — a cancel that lost a race is now a no-op.
+- A reply is only cancelled once it is **audible**: `response_audible` is set when the first frame of
+  that response actually reaches the caller, so a response still being generated is left alone.
+- The telephone session negotiates `turn_detection: {"type":"server_vad","silence_duration_ms":700,
+  "prefix_padding_ms":300}` (`SILENCE_DURATION_MS`) instead of xAI's 200 ms default. Measured, not
+  assumed: the live session echoes it back in `session.updated`.
+
+**Verification.** 9 bridge tests pass (new: benign cancels never end the call / a real fault still
+does at `MAX_ERRORS`; an inaudible reply is never cancelled; a finished turn's duplicate
+`speech_started` cannot cancel). Phone/voice subset **152 passed**. Live session check: prepared
+`turn_detection` and the negotiated `session.updated` both carry 700 ms; tools (9) and 8 kHz PCM
+in/out are unchanged. Deployed to `/opt/trendi/releases/20261108-vps/product/api/app/` and the
+bridge restarted. Diagnostic calls and their unsent owner alerts were deleted again.
+
+**Open.** Still no clean end-to-end human call (greeting → message → lead → owner alert). Next
+dial should get through; if anything fails, `docker logs asterisk-bridge-1` now separates
+`Benign Grok cancel race` (INFO) from `Grok telephone session error` (WARNING).

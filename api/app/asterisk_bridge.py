@@ -32,6 +32,13 @@ MAX_SECONDS = 600
 # barge-in already achieved what it wanted -- so one error event must never end a
 # session. Only a session that keeps failing is treated as unusable.
 MAX_ERRORS = 5
+# These are not failures at all: xAI refuses a cancel that raced the end of the
+# response, which happens whenever a caller correctly stops the assistant
+# mid-sentence. Counting them ended a real 58-second call.
+BENIGN_ERRORS = ('cancellation failed', 'no active response found')
+# xAI's default VAD ends a turn after 200ms of quiet, which splits a caller
+# dictating a phone number into three "turns" and makes the assistant interrupt.
+SILENCE_DURATION_MS = 700
 # Server VAD normally answers a caller turn on its own. If a cancelled or lost
 # response leaves the caller in silence, ask the model once for that turn.
 REPLY_NUDGE_SECONDS = 5.0
@@ -96,6 +103,10 @@ class MediaBridge:
         self.ended_items = set()
         self.caller_speaking = False
         self.errors = 0
+        self.benign_errors = 0
+        # Only an audible reply is worth cancelling; cancelling one the caller
+        # has not heard yet is what produces the benign error above.
+        self.response_audible = False
         # A caller turn is owed a reply until the assistant actually produces
         # audio or speech for it. A cancelled or dropped response keeps the debt,
         # which is what the reply nudge in `watchdog` pays off.
@@ -143,6 +154,8 @@ class MediaBridge:
                 del self.playback[:FRAME_BYTES]
                 played = body.ljust(FRAME_BYTES, b'\0')
                 await send_packet(self.writer, 0x10, played)
+                if self.response_id is not None:
+                    self.response_audible = True
                 if self.recording:
                     self.recording.append(played)
                 idle_since = None
@@ -167,6 +180,13 @@ class MediaBridge:
                 error = event.get('error') if isinstance(event.get('error'), dict) else {}
                 detail = str(error.get('message') or event.get('message') or '')[:500]
                 code = str(error.get('code') or error.get('type') or 'unknown')
+                if any(marker in f'{code} {detail}'.lower() for marker in BENIGN_ERRORS):
+                    self.benign_errors += 1
+                    if self.benign_errors <= 3:
+                        log.info('Benign Grok cancel race (%s): %s', self.benign_errors, detail)
+                    if self.reply_pending:
+                        self.reply_since = asyncio.get_running_loop().time()
+                    continue
                 self.errors += 1
                 log.warning('Grok telephone session error %s/%s: %s', code, self.errors, detail)
                 if self.errors >= MAX_ERRORS:
@@ -176,6 +196,7 @@ class MediaBridge:
             elif kind == 'response.created':
                 self.speaking = True
                 self.response_id = event.get('response_id') or 'active'
+                self.response_audible = False
             elif kind in ('response.canceled', 'response.cancelled'):
                 self.speaking = False
                 self.response_id = None
@@ -199,8 +220,9 @@ class MediaBridge:
                 self.caller_speaking = True
                 self.playback.clear()
                 self.ending = False
-                if self.response_id is not None and self.speaking:
+                if self.response_id is not None and self.speaking and self.response_audible:
                     self.response_id = None
+                    self.response_audible = False
                     self.reply_pending = True
                     self.reply_since = asyncio.get_running_loop().time()
                     await self.ws.send(json.dumps({'type': 'response.cancel'}))
@@ -326,6 +348,11 @@ async def prepare(route, call_id):
     session = voice.build_session(tenant, website=True)
     for direction in ('input', 'output'):
         session['audio'][direction]['format'] = {'type': 'audio/pcm', 'rate': 8000}
+    # Telephone pacing needs a longer end-of-turn silence than the browser: a
+    # caller dictating a number or an email address pauses mid-sentence. xAI
+    # echoes these values back in session.updated.
+    session['turn_detection'] = {'type': 'server_vad', 'silence_duration_ms': SILENCE_DURATION_MS,
+                                 'prefix_padding_ms': 300}
     session['instructions'] = build_system_prompt(tenant, None, channel='phone') + (
         '\nYou are this business\'s automated Grok receptionist. Greet the caller with this business name. '
         'Disclose transcription. Ask permission to record the message. No audio is recorded before consent. '

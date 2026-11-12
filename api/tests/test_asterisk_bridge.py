@@ -82,8 +82,15 @@ def test_two_concurrent_businesses_audio_transcript_tools_and_barge_in_are_isola
                 assert base64.b64decode(next(e['audio'] for e in ws.sent if e['type']=='input_audio_buffer.append'))==audio
                 outputs=[json.loads(e['item']['output']) for e in ws.sent if e['type']=='conversation.item.create']
                 assert outputs==[{'business':business}]
+                # Only a reply the caller can actually hear is worth cancelling.
                 await ws.inbox.put({'type':'response.created'})
-                await ws.inbox.put({'type':'input_audio_buffer.speech_started'})
+                await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
+                await asyncio.sleep(.05)
+                assert not any(e['type']=='response.cancel' for e in ws.sent)
+                await ws.inbox.put({'type':'response.output_audio.delta',
+                                    'delta':base64.b64encode(audio).decode()})
+                await asyncio.wait_for(packet(reader),2)
+                await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u2'})
                 await until(lambda:any(e['type']=='response.cancel' for e in ws.sent))
                 writer.write(b'\x00\x00\x00')
                 await writer.drain()
@@ -152,57 +159,101 @@ def test_silent_asterisk_endpoint_supplies_vad_silence_without_cancelling_partia
     asyncio.run(scenario())
 
 
+class Writer:
+    """Captures the AudioSocket packets the bridge would send to the caller."""
+    def __init__(self):
+        self.sent = bytearray()
+    def write(self, data):
+        self.sent.extend(data)
+    async def drain(self):
+        pass
+
+
 def test_a_cancel_that_races_response_completion_does_not_end_the_call():
     # A real call died in dead air: VAD re-fired speech_started right after a
     # reply started, the bridge sent response.cancel, xAI answered
     # "Cancellation failed: no active response found", and the old code treated
-    # any error event as fatal -- killing the whole call.
+    # any error event as fatal -- killing the whole call. The 58-second call that
+    # followed proved the cancel is a *routine* barge-in event, not a fault.
     async def scenario():
         ws = Socket()
-        bridge = MediaBridge(None, None, ws, {}, None, None)
-        task = asyncio.create_task(bridge.grok())
+        writer = Writer()
+        bridge = MediaBridge(None, writer, ws, {}, None, None)
+        tasks = [asyncio.create_task(bridge.grok()), asyncio.create_task(bridge.output())]
         try:
             await ws.inbox.put({'type':'session.updated'})
             await until(lambda: any(e['type']=='response.create' for e in ws.sent))
             await ws.inbox.put({'type':'response.created','response_id':'r1'})
+            await ws.inbox.put({'type':'response.output_audio.delta','delta':base64.b64encode(b'\x01\x00'*160).decode()})
+            await until(lambda: len(writer.sent) >= 320)
             await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
             await until(lambda: any(e['type']=='response.cancel' for e in ws.sent))
             await ws.inbox.put({'type':'response.done','response_id':'r1'})
             benign = {'type':'error','error':{'type':'invalid_request_error',
                                               'code':'invalid_request_error',
                                               'message':'Cancellation failed: no active response found'}}
-            for _ in range(MAX_ERRORS-1):
+            for _ in range(10):
                 await ws.inbox.put(benign)
-                await asyncio.sleep(.02)
-            assert not task.done(), 'one benign race must not end the call'
-            await ws.inbox.put(benign)
+                await asyncio.sleep(.01)
+            assert not tasks[0].done(), 'a cancelled cancel must never end the call'
+            # A genuine session fault still ends it, at MAX_ERRORS.
+            for _ in range(MAX_ERRORS):
+                await ws.inbox.put({'type':'error','error':{'code':'server_error','message':'boom'}})
+                await asyncio.sleep(.01)
             with pytest.raises(RuntimeError):
-                await asyncio.wait_for(task, 2)
+                await asyncio.wait_for(tasks[0], 2)
         finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
     asyncio.run(scenario())
 
 
 def test_duplicate_speech_started_for_a_finished_turn_never_cancels_the_reply():
     async def scenario():
         ws = Socket()
-        bridge = MediaBridge(None, None, ws, {}, None, None)
-        task = asyncio.create_task(bridge.grok())
+        writer = Writer()
+        bridge = MediaBridge(None, writer, ws, {}, None, None)
+        tasks = [asyncio.create_task(bridge.grok()), asyncio.create_task(bridge.output())]
         try:
             await ws.inbox.put({'type':'session.updated'})
             await until(lambda: any(e['type']=='response.create' for e in ws.sent))
             await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
             await ws.inbox.put({'type':'input_audio_buffer.speech_stopped','item_id':'u1'})
             await ws.inbox.put({'type':'response.created','response_id':'r2'})
+            await ws.inbox.put({'type':'response.output_audio.delta','delta':base64.b64encode(b'\x01\x00'*160).decode()})
+            await until(lambda: len(writer.sent) >= 320)
             await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
             await asyncio.sleep(.05)
             assert not any(e['type']=='response.cancel' for e in ws.sent)
             await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u2'})
             await until(lambda: any(e['type']=='response.cancel' for e in ws.sent))
         finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def test_a_reply_the_caller_has_not_heard_is_never_cancelled():
+    # The benign xAI error is produced by cancelling a response that has not
+    # started playing yet; nothing is lost by leaving that one alone.
+    async def scenario():
+        ws = Socket()
+        writer = Writer()
+        bridge = MediaBridge(None, writer, ws, {}, None, None)
+        tasks = [asyncio.create_task(bridge.grok()), asyncio.create_task(bridge.output())]
+        try:
+            await ws.inbox.put({'type':'session.updated'})
+            await until(lambda: any(e['type']=='response.create' for e in ws.sent))
+            await ws.inbox.put({'type':'response.created','response_id':'r1'})
+            await ws.inbox.put({'type':'input_audio_buffer.speech_started','item_id':'u1'})
+            await asyncio.sleep(.1)
+            assert not any(e['type']=='response.cancel' for e in ws.sent)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
     asyncio.run(scenario())
 
 
