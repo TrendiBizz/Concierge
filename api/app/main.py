@@ -24,7 +24,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
-from . import cloudflare_auth, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import casetimeline, hermes_orchestrator, provider_readiness
 from .booking import DAYS
 from .config import get_settings
@@ -2022,6 +2022,19 @@ async def owner_knowledge_delete(document_id: str,
     if not await owner_knowledge.remove(user["tenant_id"], document_id):
         raise HTTPException(404, "Business document not found")
     return {"ok": True}
+
+
+@app.get("/owner/onboarding/inbound-readiness")
+async def owner_inbound_readiness(user: dict = Depends(owner_auth.current_user)):
+    """Whole-chain check for this tenant's inbound email. Onboarding must not claim
+    email is ready unless every link is green: a missing consent row drops real mail."""
+    return await inbound_readiness.check(user["tenant_id"])
+
+
+@app.get("/admin/inbound-readiness", dependencies=admin)
+async def admin_inbound_readiness():
+    """Operator view across every tenant; used by scripts/vps/check-inbound-chain.sh."""
+    return await inbound_readiness.check_all()
 
 
 @app.post("/owner/onboarding/authorizations")

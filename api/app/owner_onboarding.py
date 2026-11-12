@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 log = logging.getLogger("concierge.onboarding")
 
-from . import channel_authorization, db, tenants
+from . import channel_authorization, db, inbound_readiness, tenants
 from .config import get_settings
 
 
@@ -155,7 +155,15 @@ async def overview(tenant_id) -> dict:
     telephone_ready=bool(tenant.get("phone_enabled") and any(r["enabled"] for r in numbers) and
                          (phone_relay.configured() or phone_sip.configured_for_tenant(tenant,numbers)))
     phone_verified=tenant.get("slug") in {v.strip() for v in settings.phone_verified_tenants.split(',') if v.strip()}
+    try:
+        inbound = await inbound_readiness.check(tenant_id)
+    except Exception:  # noqa: BLE001 - onboarding must still render if the check fails
+        log.exception("inbound readiness unavailable during onboarding")
+        inbound = {"ok": False, "blocked": [{"check": "inspection",
+                                             "message": "inbound readiness check failed"}],
+                   "warnings": [], "checks": {}}
     return {
+        "inbound_email": inbound,
         "business": {
             "name": tenant["name"],
             "site_url": tenant.get("site_url") or "",

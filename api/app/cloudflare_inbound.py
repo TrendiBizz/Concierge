@@ -7,6 +7,7 @@ An authenticated Worker is not evidence that the sender is trustworthy.
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 
@@ -14,6 +15,8 @@ from fastapi import HTTPException, Request
 
 from . import channel_authorization, db, email_auth, email_risk, email_scan, inbound_email, inbound_policy
 from .config import get_settings
+
+log = logging.getLogger("concierge.inbound")
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 MAX_BYTES = 800_000
@@ -110,6 +113,19 @@ async def handle(request: Request) -> dict:
         if not mailbox:
             raise HTTPException(404, "Unknown mailbox")
         if not await channel_authorization.is_authorized(mailbox["tenant_id"], "email_read"):
+            # Record the refusal so it is visible in readiness/onboarding, not only in the
+            # access log. A silently dropped customer message was the 2026-11-12 incident.
+            try:
+                await db.pool().execute(
+                    "INSERT INTO inbound_audit(tenant_id,action,actor,detail) VALUES($1,$2,$3,$4::jsonb)",
+                    mailbox["tenant_id"], "inbound_rejected", "api",
+                    json.dumps({"reason": "email_read_not_authorized",
+                                "sender": payload.get("sender", "")[:320],
+                                "recipient": recipient,
+                                "message_id": payload.get("message_id", "")[:200]}),
+                )
+            except Exception:  # noqa: BLE001 - never turn an audit failure into a 500
+                log.exception("could not record rejected inbound message")
             raise HTTPException(403, "Business has not authorized inbound email")
         # Per-mailbox flood limit and per-sender limit. The sender limit does not
         # reject mail (which would lose it); it quarantines for human review.

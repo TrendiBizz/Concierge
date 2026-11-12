@@ -26,6 +26,7 @@ const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./loc
 const Home = lazy(() => import('./Home'));
 const Designs = lazy(() => import('./Designs'));
 const ProductsPage = lazy(() => import('./Products'));
+const PermissionsPage = lazy(() => import('./Permissions'));
 const Crm = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Crm})));
 const Quotes = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Quotes})));
 const Media = lazy(() => import('./Engage').then((m) => ({default: m.Media})));
@@ -126,6 +127,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
             <Tab value="reports" label={tr('Reports')} />
             <Tab value="quotes" label={tr('Quotes')} />
             <Tab value="crm" label={tr('Enquiries')} />
+            <Tab value="permissions" label={tr('Permissions')} />
             <Tab value="social" label={tr('Social')} />
             <Tab value="media" label={tr('Marketing media')} />
           </TabList> : null}
@@ -681,7 +683,7 @@ function Shell() {
   const content = (
     <>
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );
   const header = (
