@@ -4,11 +4,11 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import db, outbox, owner_auth
+from . import db, outbox, owner_auth, quote_payments
 from .config import get_settings
 from urllib.parse import urlsplit
 
@@ -368,7 +368,9 @@ async def public_quote(token: str):
     if not row:
         raise HTTPException(404, 'Quotation not found')
     quote = view(row)
-    tenant = await db.pool().fetchrow('SELECT id,name,site_url FROM tenants WHERE id=$1', quote['tenant_id'])
+    tenant = await db.pool().fetchrow(
+        'SELECT id,name,site_url,payment_instructions,payment_url FROM tenants WHERE id=$1',
+        quote['tenant_id'])
     brand = await db.pool().fetchrow('SELECT name,accent,contact,logo_data FROM media_brand WHERE tenant_id=$1', quote['tenant_id'])
     brand = dict(brand) if brand else {}
     name = html.escape(brand.get('name') or (tenant['name'] if tenant else '') or 'Quotation')
@@ -395,6 +397,26 @@ async def public_quote(token: str):
     else:
         actions = '<p>This quotation is not ready for acceptance yet.</p>'
         note = 'The business owner still needs to review it.'
+    paying = quote_payments.instructions_for(dict(tenant) if tenant else {})
+    payment_line = quote_payments.customer_message(quote, dict(tenant) if tenant else {})
+    payment_block = ''
+    if status == 'accepted':
+        pieces = ['<div class="pay"><h2>Paying this quotation</h2>']
+        if payment_line:
+            pieces.append(f'<p><strong>{html.escape(payment_line)}</strong></p>')
+        if paying['available'] and quote_payments.can_declare(quote):
+            if paying['instructions']:
+                pieces.append('<p>' + html.escape(paying['instructions']).replace(chr(10), '<br>') + '</p>')
+            if paying['url']:
+                pieces.append(f'<p><a href="{html.escape(paying["url"])}" rel="noopener noreferrer nofollow" target="_blank" style="color:#15191f">Open the payment page</a></p>')
+            pieces.append(f"""<form method="post" action="/quote/{html.escape(token)}/payment-declared">
+<p><label>Payment reference (optional)<br><input name="reference" maxlength="200" style="padding:10px;width:100%;border:1px solid #c9d1da;border-radius:8px"></label></p>
+<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">I have paid</button></form>""")
+        elif not paying['available']:
+            pieces.append('<p class="muted">The business has not added payment details yet. Contact them to arrange payment.</p>')
+        pieces.append('</div>')
+        payment_block = ''.join(pieces)
+
     document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(quote['title'])} — {name}</title>
 <style>
@@ -405,6 +427,7 @@ h1{{margin:8px 0 4px;font-size:28px}} .muted{{color:#5a6673}} table{{width:100%;
 th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
 .num{{text-align:right}} .totals{{margin-left:auto;margin-top:18px;width:320px}} .totals td{{border:0;padding:6px 8px}}
 .grand{{font-weight:700;font-size:20px;border-top:2px solid {accent}}} .actions{{margin-top:32px;padding-top:24px;border-top:1px solid #e3e7ec}}
+.pay{{margin-top:24px;padding:20px;border-radius:12px;background:#f6f8fa}} .pay h2{{margin:0 0 8px;font-size:18px}}
 </style></head><body><div class="page">
 <header><div>{logo_tag}<h1>{html.escape(quote['title'])}</h1><p class="muted">{name}{(' · ' + contact) if contact else ''}</p></div>
 <div class="muted">{quote['created_at']:%d %b %Y}<br>Version {quote['version']}</div></header>
@@ -415,6 +438,7 @@ th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{fo
 <tr class="grand"><td>Total</td><td class="num">{cash(quote['total_cents'])}</td></tr></table>
 {('<p><strong>Notes</strong><br>' + html.escape(quote['notes']).replace(chr(10), '<br>') + '</p>') if quote.get('notes') else ''}
 <div class="actions">{actions}<p class="muted">{html.escape(note)}</p></div>
+{payment_block}
 </div></body></html>"""
     return HTMLResponse(document)
 
@@ -441,6 +465,30 @@ async def public_accept(token: str):
 @public_router.post('/{token}/decline')
 async def public_decline(token: str):
     return await _decide(token, 'declined')
+
+
+@public_router.post('/{token}/payment-declared')
+async def public_payment_declared(token: str, request: Request):
+    """The customer says they have paid. Never marks the quotation paid — the owner confirms."""
+    row = await db.pool().fetchrow('SELECT * FROM quotations WHERE public_token=$1', token)
+    if not row:
+        raise HTTPException(404, 'Quotation not found')
+    quote = view(row)
+    reference = ''
+    try:
+        form = await request.form()
+        reference = str(form.get('reference') or '')[:200]
+    except Exception:
+        reference = ''
+    result = await quote_payments.declare(quote, reference=reference)
+    if result.get('ok'):
+        await quote_payments.notify_declared(quote, reference)
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Payment noted</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:24px">
+<h1>{'Thank you' if result.get('ok') else 'Already noted'}</h1>
+<p>{html.escape(result.get('reason') or 'We have told the business you have paid. They will confirm it.') if not result.get('ok') else 'We have told the business you have paid. They will confirm it — nothing else is needed.'}</p>
+<p><a href="/quote/{html.escape(token)}">Back to the quotation</a></p></body></html>"""
+    return HTMLResponse(document)
 
 
 @router.post('/{quote_id}/send')

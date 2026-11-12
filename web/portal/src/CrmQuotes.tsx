@@ -13,7 +13,7 @@ type Brand = {name: string; accent: string; contact: string};
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
 type Turn = {role: string; content: string};
 type QuoteLine = {description: string; quantity: number; unit_price_cents: number; amount_cents?: number};
-type Quote = {id: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number; public_token?: string; sent_at?: string};
+type Quote = {id: string; payment_status?: string; payment_reference?: string; id2?: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number; public_token?: string; sent_at?: string};
 type Product = {id: string; name: string; sku?: string; unit?: string; sale_price_cents: number};
 
 function useApi(token: string) {
@@ -111,11 +111,13 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
   const [pendingSignoff, setPendingSignoff] = useState<Quote | null>(null);
   const [brief, setBrief] = useState('');
   const [draftNote, setDraftNote] = useState('');
+  const [pay, setPay] = useState<{instructions?: string; url?: string; summary?: Record<string, number>}>({});
 
   async function load() {
     try {
-      const [q, c, p, me] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me')]);
+      const [q, c, p, me, payment] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me'), api('/owner/payment-settings')]);
       setQuotes(q as Quote[]);
+      setPay(payment as {instructions?: string; url?: string; summary?: Record<string, number>});
       setLeads(((c as {leads?: Lead[]}).leads || []) as Lead[]);
       setProducts(p as Product[]);
       setRole((me as {role: string}).role);
@@ -189,6 +191,22 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
     setBusy(false);
   }
 
+  async function savePaymentSettings(instructions: string, url: string) {
+    try {
+      await api('/owner/payment-settings', 'PUT', {instructions, url});
+      setStatus('Payment details saved. Accepted quotations now show them to the customer.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save payment details'); }
+  }
+
+  async function confirmPayment(id: string, action: 'confirm' | 'waive') {
+    try {
+      await api('/owner/crm/quotations/' + id + '/payment', 'POST', {action});
+      setStatus(action === 'waive' ? 'Marked as no payment due.' : 'Payment confirmed.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not update that quotation'); }
+  }
+
   async function signOff(id: string, version: number) {
     setBusy(true); setStatus('');
     try {
@@ -237,6 +255,20 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
           <Button label={busy ? 'Saving…' : 'Save quotation'} variant="primary" onClick={save} />
         </Card>
         <Card>
+          <Heading level={2}>Getting paid</Heading>
+          <p>An accepted quotation shows these details to the customer, with an "I have paid" button. You confirm it once the money lands — no card processor, no fees.</p>
+          <TextArea label="Payment instructions (bank details, how to pay)" value={pay.instructions || ''} onChange={(v) => setPay({...pay, instructions: v})} rows={3} />
+          <TextInput label="Payment link (optional, https://…)" value={pay.url || ''} onChange={(v) => setPay({...pay, url: v})} />
+          <Button label="Save payment details" variant="primary" onClick={() => savePaymentSettings(pay.instructions || '', pay.url || '')} />
+          {pay.summary ? (
+            <p>
+              <strong>{money(Number(pay.summary.paid_cents || 0), 'NZD')}</strong> confirmed ·
+              {' '}<strong>{money(Number(pay.summary.declared_cents || 0), 'NZD')}</strong> claimed, awaiting you ·
+              {' '}<strong>{money(Number(pay.summary.outstanding_cents || 0), 'NZD')}</strong> outstanding
+            </p>
+          ) : null}
+        </Card>
+        <Card>
           <Heading level={2}>How sign-off works</Heading>
           <p>Draft → reviewed (owner only) → accepted or declined.</p>
           <p>Concierge never sends a price without the owner's approval. Your branding: <strong>{brand.name || 'your business'}</strong>.</p>
@@ -251,6 +283,13 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
           {key: 'title', header: 'Quotation', width: proportional(2, {minWidth: 180}), renderCell: (row) => <strong>{String(row.title || '')}</strong>},
           {key: 'status', header: 'Status', width: proportional(1, {minWidth: 100}), renderCell: (row) => <Badge label={String(row.status || '')} variant={row.status === 'accepted' ? 'success' : row.status === 'declined' ? 'error' : row.status === 'reviewed' ? 'info' : 'neutral'} />},
           {key: 'total_cents', header: 'Total', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.total_cents), String(row.currency || 'NZD'))},
+          {key: 'payment_status', header: 'Paid?', width: proportional(1, {minWidth: 110}), renderCell: (row) => (
+            <span>
+              <Badge label={String(row.payment_status || 'unpaid')} variant={row.payment_status === 'paid' ? 'success' : row.payment_status === 'declared' ? 'info' : 'neutral'} />
+              {role === 'owner' && row.status === 'accepted' && ['unpaid', 'declared'].includes(String(row.payment_status || 'unpaid'))
+                ? <Button label="Confirm paid" variant="secondary" onClick={() => confirmPayment(String(row.id), 'confirm')} /> : null}
+            </span>
+          )},
           {key: 'id', header: 'Actions', width: proportional(1, {minWidth: 260}), renderCell: (row) => (
             <span style={{display: 'inline-flex', gap: 4, flexWrap: 'wrap'}}>
               <Button label="PDF" variant="secondary" onClick={() => printQuote(String(row.id))} />

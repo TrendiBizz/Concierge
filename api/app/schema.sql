@@ -845,3 +845,24 @@ CREATE TABLE IF NOT EXISTS call_insights (
     UNIQUE (tenant_id, call_sid)
 );
 CREATE INDEX IF NOT EXISTS call_insights_tenant_idx ON call_insights (tenant_id, created_at DESC);
+
+-- Getting paid on an accepted quotation (competitor-gap item E, 2026-11-12).
+-- Processor-free by design: the customer declares, the owner confirms, and every transition is
+-- appended to quote_payments so revenue can be reported (item F) rather than guessed.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS payment_instructions text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS payment_url text NOT NULL DEFAULT '';
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'unpaid';
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_reference text NOT NULL DEFAULT '';
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_declared_at timestamptz;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_confirmed_at timestamptz;
+CREATE TABLE IF NOT EXISTS quote_payments (
+    id            bigserial PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    quotation_id  uuid NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+    kind          text NOT NULL,
+    amount_cents  bigint NOT NULL DEFAULT 0,
+    reference     text NOT NULL DEFAULT '',
+    by_kind       text NOT NULL DEFAULT '',
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS quote_payments_tenant_idx ON quote_payments (tenant_id, created_at DESC);

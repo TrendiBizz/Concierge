@@ -173,6 +173,14 @@ def _included() -> dict:
     """
     steps = [
         _step(
+            "Get paid on an accepted quotation",
+            "unconfigured",
+            "Add your bank details or your own payment link in Studio, Quotes. An accepted "
+            "quotation then shows the customer how to pay and a 'I have paid' button; you confirm "
+            "it once the money lands. No card processor, no fees, and no data leaves this system.",
+            "tenants.payment_instructions / payment_url",
+        ),
+        _step(
             "Watch a call while it happens",
             "ready",
             "Studio → Bookings shows any call in progress with the conversation so far, and a "

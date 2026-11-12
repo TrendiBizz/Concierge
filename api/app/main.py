@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness
+from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -2068,6 +2068,63 @@ async def owner_live_takeover(
     by = user.get("email") or user.get("role") or "owner"
     result = await live_calls.take_over(tenant, call, by=str(by))
     return {"ok": True, **result}
+
+
+class PaymentSettings(BaseModel):
+    instructions: str = ""
+    url: str = ""
+
+
+class QuotePaymentAction(BaseModel):
+    action: str = "confirm"       # confirm | waive
+    reference: str = ""
+
+
+@app.get("/owner/payment-settings")
+async def owner_payment_settings(user: dict = Depends(owner_auth.current_user)):
+    """How this business asks to be paid, and what money is in flight. Processor-free by design."""
+    tenant = await db.pool().fetchrow(
+        "SELECT payment_instructions, payment_url FROM tenants WHERE id=$1", user["tenant_id"])
+    return {
+        "instructions": (tenant["payment_instructions"] if tenant else "") or "",
+        "url": (tenant["payment_url"] if tenant else "") or "",
+        "summary": await quote_payments.summary(user["tenant_id"]),
+    }
+
+
+@app.put("/owner/payment-settings")
+async def owner_set_payment_settings(
+    body: PaymentSettings, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    url = body.url.strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        raise HTTPException(422, "The payment link must start with http:// or https://")
+    await db.pool().execute(
+        "UPDATE tenants SET payment_instructions=$2, payment_url=$3 WHERE id=$1",
+        user["tenant_id"], body.instructions.strip()[:2000], url[:500])
+    return {"ok": True}
+
+
+@app.post("/owner/crm/quotations/{quote_id}/payment")
+async def owner_quote_payment(
+    quote_id: str, body: QuotePaymentAction, user: dict = Depends(owner_auth.current_user)
+):
+    """Confirm the money arrived (the only path to paid) or waive it."""
+    owner_auth.require_role(user, "owner")
+    if body.action not in ("confirm", "waive"):
+        raise HTTPException(422, "action must be confirm or waive")
+    row = await db.pool().fetchrow(
+        "SELECT * FROM quotations WHERE tenant_id=$1 AND id=$2::uuid",
+        user["tenant_id"], quote_id)
+    if not row:
+        raise HTTPException(404, "Quotation not found")
+    quote = quotations.view(row)
+    result = await quote_payments.confirm(
+        quote, by=user.get("email") or "owner", waive=body.action == "waive")
+    if not result.get("ok"):
+        raise HTTPException(409, result.get("reason") or "That quotation cannot be updated")
+    return result
 
 
 @app.get("/owner/call-insights")
