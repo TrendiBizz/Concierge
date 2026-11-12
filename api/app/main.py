@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue
+from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -2034,14 +2034,22 @@ class LiveTakeover(BaseModel):
     reason: str = ""
 
 
+class LiveSupervise(BaseModel):
+    """How an owner wants to join a live call: hear it, coach it, or join it."""
+    mode: Literal["listen", "whisper", "join"] = "listen"
+
+
 @app.get("/owner/live-calls")
 async def owner_live_calls(user: dict = Depends(owner_auth.current_user)):
     """Calls happening right now, with the conversation so far — the Switchboard, narrowed.
 
-    Honest limit (see live_calls.py): the provider exposes call control, not a SIP transfer, so
-    "take over" stops the AI and alerts the owner to ring back. There is no audio listen-in.
+    Each call says which engine it is on and which controls are real for it (see live_calls.py).
+    On the Asterisk line (`ast:`) the PBX owns the media, so take-over, listen-in and whisper are
+    genuine audio actions; on Grok SIP calls (`sip:`) take-over stops the AI and alerts the owner
+    to ring back, because that provider exposes no transfer or audio join.
     """
-    return {"calls": await live_calls.active(user["tenant_id"])}
+    return {"calls": await live_calls.active(user["tenant_id"]),
+            "media_control": call_control.enabled()}
 
 
 @app.get("/owner/live-calls/{call_sid}")
@@ -2050,6 +2058,34 @@ async def owner_live_call(call_sid: str, user: dict = Depends(owner_auth.current
     if not found:
         raise HTTPException(404, "Call not found")
     return found
+
+
+@app.post("/owner/live-calls/{call_sid}/supervise")
+async def owner_live_supervise(
+    call_sid: str, body: LiveSupervise, user: dict = Depends(owner_auth.current_user)
+):
+    """Ring the owner's phone and join it to the live call: listen, whisper, or join.
+
+    The media server does the work (Asterisk `ChanSpy` on the caller's channel through the same
+    carrier trunk). Nothing is written to the caller's transcript — this is the owner listening.
+    """
+    tenant = await _require_tenant(user["slug"])
+    row = await db.pool().fetchrow(
+        "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",
+        user["tenant_id"], call_sid)
+    if not row:
+        raise HTTPException(404, "Call not found")
+    call = dict(row)
+    if not live_calls.is_live(call):
+        raise HTTPException(409, "That call has already ended")
+    try:
+        result = await live_calls.supervise(tenant, call, body.mode)
+    except call_control.CallControlUnavailable as error:
+        raise HTTPException(409, str(error))
+    except asterisk_ami.AmiError as error:
+        log.warning("supervise failed for %s: %s", call_sid, error)
+        raise HTTPException(502, f"The switchboard did not answer: {error}")
+    return {"ok": True, **result}
 
 
 @app.post("/owner/live-calls/{call_sid}/takeover")
@@ -2066,7 +2102,10 @@ async def owner_live_takeover(
     if not live_calls.is_live(call):
         raise HTTPException(409, "That call has already ended; use Contacts to follow it up")
     by = user.get("email") or user.get("role") or "owner"
-    result = await live_calls.take_over(tenant, call, by=str(by))
+    try:
+        result = await live_calls.take_over(tenant, call, by=str(by))
+    except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+        raise HTTPException(502, f"The switchboard did not answer: {error}")
     return {"ok": True, **result}
 
 

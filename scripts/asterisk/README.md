@@ -63,6 +63,48 @@ chosen private subnet doesn't overlap the deployment's other networks.
 Without Docker, run `PYTHONPATH=api python -m app.asterisk_bridge`; default bind
 and allowed peers are loopback. One process owns these ports, not HTTP workers.
 
+## Media server — take-over, listen-in, whisper (AMI)
+
+The PBX is the only place that owns the caller's media, so call *control* lives here. A scoped
+Asterisk Manager Interface user is generated into `generated/manager.conf` and mounted into the
+PBX; the listener is **never published to the host** and is reachable only over the private
+application network, where the API talks to it at `AMI_HOST=pbx`, `AMI_PORT=5038`.
+
+```
+python3 scripts/asterisk/render_routes.py <routes.json> scripts/asterisk/generated bridge \
+        <public-ip> --manager-secret-file <file-with-32-byte-secret>
+chown 100:101 scripts/asterisk/generated/manager.conf   # the asterisk user in the image
+chmod 640 scripts/asterisk/generated/manager.conf
+```
+
+The AMI user is limited to `read = call,reporting` and `write = call,originate`: enough to list
+channels, read/set a channel variable, redirect a call and originate a supervisor leg — and not
+enough to run CLI commands or change configuration.
+
+What the API does with it (`api/app/call_control.py`):
+
+| Mode | AMI action | Effect for the caller |
+|---|---|---|
+| take-over | `Setvar CONCIERGE_TRANSFER` + `Redirect` to `business-<slug>-takeover` | The assistant is cut off and the owner's phone rings through the same trunk; the caller is bridged to the human. Nobody answers in 30 s? The caller falls back into the assistant. |
+| listen | `Originate … ChanSpy(<channel>,qr)` | The owner hears the live call; the caller hears nothing and is not told a supervisor joined. |
+| whisper | `… ChanSpy(<channel>,qw)` | The owner is audible to the caller only — coaching the caller without the assistant hearing. |
+| join | `… ChanSpy(<channel>,qB)` | The owner barges in as a third party. |
+
+The console sees this per call (`/owner/live-calls`): `engine` is `asterisk` for the carrier line
+and `sip` for Grok SIP calls, and `media_control` states which of the four controls are real for
+that call. Grok SIP calls keep the honest ring-back take-over — that provider exposes no transfer
+or audio join.
+
+Ops gotchas learned the hard way:
+
+- **Bring this stack up with both compose files** (`-f compose.yml -f compose.public.yml`). With
+  only `compose.yml`, Compose treats the `phone` network as disposable and tries to remove it
+  while the bridge and the internal voice shell are still attached; the PBX ends up disconnected.
+- The PBX is on both `phone` (media, internal) and the application network (AMI). It is still not
+  host-published, so nothing about the SIP exposure changes.
+- `ChanSpy` needs `app_chanspy.so`, which the Debian/Ubuntu `asterisk` package loads by default.
+  Verify with `asterisk -rx "module show like chanspy"`.
+
 ## Behavior
 
 - Standard AudioSocket PCM16 little-endian mono 8kHz is sent directly to Grok

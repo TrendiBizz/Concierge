@@ -8,9 +8,13 @@ services:
       - ./generated/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./generated/pjsip.conf:/etc/asterisk/pjsip.conf:ro
       - ./generated/rtp.conf:/etc/asterisk/rtp.conf:ro
+      # AMI: the control plane for take-over / listen-in / whisper. Never published to
+      # the host; the API reaches it over the private application network.
+      - ./generated/manager.conf:/etc/asterisk/manager.conf:ro
     networks:
       phone:
         ipv4_address: 172.30.91.2
+      concierge:
   bridge:
     image: ${CONCIERGE_API_IMAGE:?Set the existing API image}
     command: [python, -m, app.asterisk_bridge]

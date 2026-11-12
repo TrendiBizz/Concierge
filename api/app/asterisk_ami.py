@@ -26,6 +26,11 @@ import re
 log = logging.getLogger('concierge.ami')
 
 DEFAULT_TIMEOUT = 8.0
+# Event lists end either with a "...Complete" event or, when the list is empty, with silence:
+# Asterisk sends no completion event for an empty CoreShowChannels. A short quiet window is
+# what terminates those, and it is why Events: on is not used (it needs a read class this
+# scoped user deliberately does not have).
+EVENT_IDLE = 0.8
 MAX_LINE = 8192
 # AMI is header/key-value, so these are the characters we refuse to interpolate.
 _UNSAFE = re.compile(r'[\r\n\x00]')
@@ -125,7 +130,11 @@ async def action(fields, *, config, events=(), timeout=DEFAULT_TIMEOUT):
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 break
-            message = await _read_message(reader, remaining)
+            try:
+                message = await _read_message(reader, min(remaining, EVENT_IDLE))
+            except AmiError:
+                # Quiet: the list is finished (empty lists have no completion event).
+                break
             kind = (message.get('Event') or '').lower()
             if kind in wanted:
                 collected.append(message)

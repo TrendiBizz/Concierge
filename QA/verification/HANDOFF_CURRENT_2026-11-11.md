@@ -1359,3 +1359,53 @@ bridge restarted. Diagnostic calls and their unsent owner alerts were deleted ag
 **Open.** Still no clean end-to-end human call (greeting → message → lead → owner alert). Next
 dial should get through; if anything fails, `docker logs asterisk-bridge-1` now separates
 `Benign Grok cancel race` (INFO) from `Grok telephone session error` (WARNING).
+
+## Session 2026-11-12 (fourteenth) — the media server: take-over, listen-in and whisper on the PBX
+
+**What was actually missing.** The console could only ring the owner back, because the Grok SIP
+provider exposes call control but no transfer and no audio join. The Hero DID is a different
+animal: it terminates on **our Asterisk**, which owns the caller's media. So the missing piece was
+not a media product — it was the PBX's control plane. That is now built.
+
+**What exists now.**
+
+- `api/app/asterisk_ami.py` — one AMI client (login, one action per short connection, event
+  collection). Header injection is refused by `_clean`; the secret is never logged; the AMI user is
+  scoped to `read = call,reporting`, `write = call,originate` — no CLI, no configuration.
+- `api/app/call_control.py` — the media-server actions. Finds the live channel by the
+  `CONCIERGE_CALL` marker the dialplan writes, then:
+  - **take-over** `Setvar CONCIERGE_TRANSFER` + `Redirect` into `business-<slug>-takeover`, which
+    `Dial`s the owner through the same carrier trunk for 30 s and **falls back into the assistant**
+    if nobody answers (the old behaviour dropped the caller into silence);
+  - **listen** `Originate … ChanSpy(<channel>,qr)` (owner hears, caller hears nothing),
+    **whisper** `qw` (owner audible only to the caller), **join** `qB` (barge in).
+- `scripts/asterisk/render_routes.py` — renders the take-over contexts and a `manager.conf`
+  (`--manager-secret-file`); the compose file mounts it and attaches the PBX to the application
+  network for AMI.
+- `live_calls.py` / `main.py` — every call now reports `engine` (`asterisk`|`sip`) and a
+  `media_control` map of which controls are real for it; `POST /owner/live-calls/{id}/takeover`
+  transfers on the Asterisk line and keeps ring-back on SIP; new
+  `POST /owner/live-calls/{id}/supervise {mode: listen|whisper|join}`.
+
+**Verified.** 11 media-server tests (real AMI framing over TCP: login, action, refusal, injection,
+empty channel list terminating on quiet, take-over action order, spy options, ended-call refusal)
+plus 11 route-renderer tests and 9 bridge tests. On the VPS: `manager show user concierge` shows
+the scoped classes; AMI answers from the **api** container (`pbx:5038`); `CoreShowChannels` returns
+cleanly on an idle line; `business-trendi-oauth-staging-takeover` is in the live dialplan;
+`app_chanspy.so` is running.
+
+**Not yet verified end to end** — nobody has taken over or listened to a real PSTN call. That
+needs the operator on the phone (call the DID, then hit take-over/listen from the console) and is
+the open item below.
+
+**Ops notes learned here.**
+- Bring the Asterisk stack up with **both** compose files (`-f compose.yml -f compose.public.yml`).
+  With only `compose.yml`, Compose treats the `phone` network as disposable and tries to remove it
+  while the bridge and `trendi-shell-1` are still attached — the PBX ends up disconnected and the
+  line is down. Recovery: `docker network connect --ip 172.30.91.2 asterisk_phone asterisk-pbx-1`,
+  then start it; Hero re-registers within a minute.
+- AMI with `Events: on` is refused for this scoped user (no `system` read class), so event lists
+  end on a quiet window rather than a completion event; an **empty** `CoreShowChannels` sends no
+  completion event at all.
+- `generated/manager.conf` must be readable by uid 100/gid 101 (`chown 100:101`, `chmod 640`).
+- Portal buttons for listen/whisper are **not** built yet; the API is ready for them.

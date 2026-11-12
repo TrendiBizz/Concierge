@@ -100,3 +100,35 @@ def test_a_single_line_trunk_accepts_any_dnis_but_a_multi_line_one_does_not():
     two_ext, _ = routes.render(two, 'bridge', None, TRUNK)
     assert "exten => _.,1,Hangup(21)" in two_ext
     assert "exten => _.,1,Goto(business-other" not in two_ext
+
+
+def test_the_trunk_route_carries_a_take_over_context_and_a_fallback():
+    import runpy
+    from pathlib import Path
+    renderer = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/asterisk/render_routes.py'))
+    trunk = {'server': 'sip.hero.co.nz', 'username': '092431347', 'password': 'longenoughpass'}
+    extensions, _ = renderer['render'](
+        [{'tenant': 'alpha', 'number': '+6495550100', 'port': 9101}], 'bridge', None, trunk)
+    lines = extensions.splitlines()
+    assert '[business-alpha-takeover]' in lines
+    assert ' same => n,Dial(PJSIP/${CONCIERGE_TRANSFER}@concierge-reg,30,r)' in lines
+    # Nobody answered: the caller goes back to the assistant instead of being dropped.
+    assert ' same => n(ai),Goto(business-alpha,s,1)' in lines
+    assert ' same => n(done),Hangup()' in lines
+    # The redirect target is sanitised before it is used in a dial string.
+    assert 'exten => s,1,Set(CONCIERGE_TRANSFER=${FILTER(0-9,${CONCIERGE_TRANSFER})})' in lines
+
+
+def test_manager_config_is_scoped_and_refuses_weak_secrets():
+    import runpy
+    from pathlib import Path
+    renderer = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/asterisk/render_routes.py'))
+    manager = renderer['render_manager']('a' * 40)
+    assert 'enabled = yes' in manager
+    assert 'read = call,reporting' in manager
+    assert 'write = call,originate' in manager
+    assert 'webenabled = no' in manager
+    assert 'command' not in manager.split('[concierge]')[1]
+    for bad in ('short', 'has space in it ' * 3, 'x' * 23):
+        with __import__('pytest').raises(ValueError):
+            renderer['render_manager'](bad)

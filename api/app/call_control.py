@@ -124,7 +124,7 @@ async def attach_supervisor(call_sid, number, mode, *, channel_dial, config=None
     if not channel:
         raise CallControlUnavailable('That call is no longer on the switchboard')
     dial = str(channel_dial).replace('<number>', number.lstrip('+'))
-    if not re.fullmatch(r'[A-Za-z0-9_/.-]{3,200}', dial):
+    if not re.fullmatch(r'[A-Za-z0-9_/.@-]{3,200}', dial):
         raise CallControlUnavailable('Unsupported outbound dialling pattern')
     await asterisk_ami.originate(
         config, dial, 'ChanSpy', f'{channel},{options}', timeout_ms=60_000)
