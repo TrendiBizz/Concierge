@@ -192,6 +192,10 @@ async def _post(tenant: dict, event: str, sections: dict, lead_id=None) -> None:
     url = tenant.get("lead_webhook_url")
     if not url:
         return
+    from . import flood_guard  # local import: events is imported very early
+    if not flood_guard.memory_allow("webhook", tenant["slug"], 60, 3600):
+        log.warning("webhook %s for %s dropped: more than 60 an hour", event, tenant["slug"])
+        return
     payload = {"event": event, "tenant": {"slug": tenant["slug"], "name": tenant["name"]}, **sections}
     status = "error"
     try:

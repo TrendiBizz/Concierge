@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta, timezone
 from email.utils import make_msgid
 from zoneinfo import ZoneInfo
 
-from . import casetimeline, channel_authorization, db, device_sms, mailer, sms, suppressions, tenants, unsub
+from . import casetimeline, channel_authorization, db, device_sms, flood_guard, mailer, sms, suppressions, tenants, unsub
 from .config import get_settings
 from .contact import contact_key
 
@@ -156,6 +156,18 @@ async def _deliver(row: dict) -> None:
         await _finish(row["id"], "skipped", "campaigns_disabled")  # kill switch, checked at send time
         return
 
+    # Flood guard: every email and text leaves through here, so the limits live here.
+    if row["channel"] in ("email", "sms"):
+        if row["kind"] == "email_secretary_reply" and flood_guard.automated_message(row["to_addr"]):
+            await _finish(row["id"], "skipped", "flood_guard:automated_recipient")
+            return
+        reason = await flood_guard.check(row)
+        if reason:
+            log.warning("flood guard blocked outbox %s (%s, %s): %s",
+                        row["id"], row["channel"], row["kind"], reason)
+            await _finish(row["id"], "skipped", f"flood_guard:{reason}")
+            return
+
     if row["channel"] == "sms":
         if not sms.sender_ready(tenant):
             await _finish(row["id"], "skipped", "sms_not_configured")
@@ -232,6 +244,8 @@ async def _deliver(row: dict) -> None:
 
 async def process_once() -> int:
     """Send everything that is due. Safe to run from several workers (SKIP LOCKED)."""
+    if await flood_guard.paused():
+        return 0  # operator kill switch: everything stays queued
     pool = db.pool()
     # Recover rows claimed by a worker that died mid-send.
     await pool.execute(

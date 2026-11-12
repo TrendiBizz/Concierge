@@ -17,10 +17,15 @@ import time
 
 import httpx
 
+from . import flood_guard
 from .config import get_settings
 
 
 class SmsNotConfigured(RuntimeError):
+    pass
+
+
+class SmsRateLimited(RuntimeError):
     pass
 
 
@@ -46,6 +51,8 @@ async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
                    tenant: dict | None = None, request_key: str | None = None,
                    outbox_id: int | None = None) -> str:
     """Send one text through the configured provider. Returns the provider's message id (may be empty)."""
+    if not flood_guard.memory_allow("sms:recipient", (to_e164 or "").strip(), 10, 600):
+        raise SmsRateLimited("Too many texts to this number in 10 minutes")
     if (tenant or {}).get("sms_transport") == "device":
         from . import device_sms
         if not request_key:

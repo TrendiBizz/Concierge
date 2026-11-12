@@ -894,3 +894,13 @@ CREATE INDEX IF NOT EXISTS supervision_sessions_open_idx
 -- A business whose owner works in writing only (for example a Deaf owner): no human is ever rung,
 -- the assistant never offers a transfer or a phone call-back, and take-over/listen-in are refused.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS owner_text_only boolean NOT NULL DEFAULT false;
+
+-- Operator switches (outbound_paused: the flood kill switch) and the index the flood guard counts with.
+CREATE TABLE IF NOT EXISTS system_flags (
+    key        text PRIMARY KEY,
+    value      text NOT NULL DEFAULT '',
+    updated_by text NOT NULL DEFAULT '',
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS outbox_claimed_idx ON outbox (channel, claimed_at)
+    WHERE status IN ('sent', 'awaiting_receipt');

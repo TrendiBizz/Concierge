@@ -3,10 +3,15 @@ import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
 
+from . import flood_guard
 from .config import get_settings
 
 
 class EmailNotConfigured(RuntimeError):
+    pass
+
+
+class EmailRateLimited(RuntimeError):
     pass
 
 
@@ -43,4 +48,9 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
 async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None, from_name: str | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
+    # Last resort for anything that bypasses the outbox: the same address, and the whole process.
+    if not flood_guard.memory_allow("email:recipient", (to_addr or "").lower(), 10, 600):
+        raise EmailRateLimited("Too many emails to this address in 10 minutes")
+    if not flood_guard.memory_allow("email:all", "all", 200, 3600):
+        raise EmailRateLimited("Too many emails in the last hour")
     await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name)

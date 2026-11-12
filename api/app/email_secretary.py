@@ -1,7 +1,7 @@
 """Opt-in email receptionist. Verified ingress only; deliveries use the outbox."""
 import asyncio
 import hashlib
-from . import channel_authorization, chat, db, outbox, tenants
+from . import channel_authorization, chat, db, flood_guard, outbox, tenants
 
 
 async def process_once():
@@ -19,6 +19,11 @@ async def process_once():
             draft_status = await db.pool().fetchval('SELECT status FROM email_drafts WHERE tenant_id=$1 AND source_id=$2', tenant['id'], job['source_key'])
             if draft_status != 'draft':
                 await db.pool().execute("UPDATE email_secretary_jobs SET status='held',error='Already reviewed by owner' WHERE id=$1", job['id'])
+                continue
+            if flood_guard.automated_message(job['sender'], job['subject']):
+                # Never auto-reply to a robot (noreply, mailer-daemon, out-of-office): two
+                # auto-responders will answer each other forever.
+                await db.pool().execute("UPDATE email_secretary_jobs SET status='held',error='Automated sender: no automatic reply' WHERE id=$1", job['id'])
                 continue
             session = 'email' + hashlib.sha256(job['sender'].lower().encode()).hexdigest()[:50]
             result = await chat.run_turn(tenant, session, 'email', 'Subject: ' + job['subject'] + '\n\n' + job['body'], sender_email=job['sender'])

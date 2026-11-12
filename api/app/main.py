@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import channel_health, mailer
+from . import channel_health, flood_guard, mailer
 from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
 from .booking import DAYS
 from .config import get_settings
@@ -43,7 +43,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 settings = get_settings()
 ip_limiter = RateLimiter(settings.chat_rate_per_minute_ip, 60)
 session_limiter = RateLimiter(settings.chat_rate_per_day_session, 86_400)
-sms_limiter = RateLimiter(30, 3600)
+sms_limiter = RateLimiter(12, 3600)  # AI replies per contact per hour (was 30): stops bot-to-bot SMS loops
 
 LEAD_STATUSES = ("new", "contacted", "booked", "won", "lost")
 APPT_STATUSES = ("booked", "completed", "cancelled", "no_show")
@@ -939,6 +939,25 @@ async def admin_status():
             stat = item.stat()
             backups.append({"name": item.name, "bytes": stat.st_size, "modified": int(stat.st_mtime)})
     return {"counts": dict(counts), "backups": backups}
+
+
+@app.get("/admin/outbound/status", dependencies=admin)
+async def admin_outbound_status():
+    """Paused or not, volumes against the limits, and what the flood guard blocked."""
+    return await flood_guard.status()
+
+
+@app.post("/admin/outbound/pause", dependencies=admin)
+async def admin_outbound_pause():
+    """Kill switch: stop ALL email and text sending now. Everything stays queued."""
+    await flood_guard.set_paused(True, "admin")
+    return {"paused": True}
+
+
+@app.post("/admin/outbound/resume", dependencies=admin)
+async def admin_outbound_resume():
+    await flood_guard.set_paused(False, "admin")
+    return {"paused": False}
 
 
 @app.get("/admin/tenants/{slug}", dependencies=admin)
