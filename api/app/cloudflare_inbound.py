@@ -75,6 +75,31 @@ def is_own_mail(sender: str, raw: bytes | None) -> bool:
     return bool(own) and parseaddr(sender or "")[1].strip().lower() == own
 
 
+AUTOMATED_PRECEDENCE = {"bulk", "junk", "list", "auto_reply"}
+
+
+def has_automated_headers(raw: bytes | None) -> bool:
+    """True when another system marked this message as automatic (RFC 3834 and friends).
+
+    `Auto-Submitted` anything but `no`, `Precedence: bulk|junk|list|auto_reply`, an
+    `X-Auto-Response-Suppress` header or a `List-Id` means a robot or a mailing list sent it.
+    The message is still kept for the owner; it only loses the automatic reply, because two
+    auto-responders will answer each other forever.
+    """
+    if not raw:
+        return False
+    try:
+        headers = BytesHeaderParser().parsebytes(raw[:65536])
+    except Exception:  # noqa: BLE001 - an unparsable message is simply not marked
+        return False
+    auto = str(headers.get("Auto-Submitted") or "").strip().lower()
+    if auto and not auto.startswith("no"):
+        return True
+    if str(headers.get("Precedence") or "").strip().lower() in AUTOMATED_PRECEDENCE:
+        return True
+    return headers.get("X-Auto-Response-Suppress") is not None or headers.get("List-Id") is not None
+
+
 async def handle(request: Request) -> dict:
     settings = get_settings()
     if not settings.inbound_cloudflare_enabled or len(settings.inbound_cloudflare_secret) < 32:
@@ -230,6 +255,8 @@ async def handle(request: Request) -> dict:
             auth, payload["sender"], reply_to, payload["subject"], payload["text"],
             size=size, has_attachments=bool(has_attachments))
         flags = list(assessment["flags"]) + scan_flags
+        if has_automated_headers(raw_bytes):
+            flags.append("automated_sender")
         risk = assessment["risk"]
         order = {"low": 0, "medium": 1, "high": 2}
         if order.get(scan_risk, 0) > order.get(risk, 0):

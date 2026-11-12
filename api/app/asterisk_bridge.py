@@ -409,7 +409,7 @@ async def run_phone_tool(tenant, record_session, conversation, call_id, name, ar
                                               'channel':'phone', 'sender_phone':None})
 
 
-async def finish(tenant, call_id, conversation, status, record_session=None):
+async def finish(tenant, call_id, conversation, status, record_session=None, reason=''):
     async with db.pool().acquire() as c:
         async with c.transaction():
             row = await c.fetchrow('SELECT ended_at FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2 FOR UPDATE', tenant['id'], call_id)
@@ -448,13 +448,14 @@ async def finish(tenant, call_id, conversation, status, record_session=None):
                                     tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000] + tail, call_id+':owner-email')
                 if lead:
                     await events.queue_twenty(tenant, 'voice.completed', call_id, {'lead': dict(lead)}, connection=c)
-            await c.execute('UPDATE phone_calls SET status=$3,ended_at=now() WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status)
+            await c.execute('UPDATE phone_calls SET status=$3,ended_at=now(),failure_reason=$4 WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status, reason[:500])
 
 
 async def handle(reader, writer, route, networks):
     tenant = conversation = call_id = record_session = None
     recording = TelephoneRecording()
     status = 'failed'
+    reason = ''
     try:
         peer = ipaddress.ip_address(writer.get_extra_info('peername')[0])
         if not any(peer in net for net in networks):
@@ -504,10 +505,12 @@ async def handle(reader, writer, route, networks):
         status = 'completed'
     except asyncio.IncompleteReadError:
         status = 'disconnected'
+        reason = 'The audio stream closed before the call ended'
     except Exception as error:
         # Keep the message: "RuntimeError" alone cost a whole debugging session
         # after a real call went silent.
         log.warning('Asterisk call ended (%s): %s', type(error).__name__, str(error)[:500])
+        reason = f'{type(error).__name__}: {str(error)[:300]}'
     finally:
         if tenant and conversation:
             try:
@@ -517,7 +520,7 @@ async def handle(reader, writer, route, networks):
                         await voice_records.store_audio(record_session, body, 'audio/wav')
                     except Exception:
                         log.exception('Telephone recording could not be saved')
-                await finish(tenant, call_id, conversation, status, record_session)
+                await finish(tenant, call_id, conversation, status, record_session, reason=reason)
                 if record_session:
                     request = await db.pool().fetchval('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 RETURNING delivery_request', record_session['id'])
                     await voice_records.complete_delivery(record_session, tenant, request, {'ok':True})

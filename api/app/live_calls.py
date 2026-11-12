@@ -177,14 +177,16 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
         )
     turns = await _turns(tenant["id"], call.get("session_id"))
     tail = "\n".join(f"{t['who']}: {t['text']}" for t in transcript_tail(turns, limit=6))
+    text_only = text_only_owner(tenant)
+    follow_up = "Reply to them by text or email now." if text_only else "Ring them back now."
     await owner_notifications.queue(
         tenant,
         f"Take over now: {caller}",
         f"You asked to take over a live call from {caller}.\n"
-        f"We have stopped Concierge on this call. Ring them back now.\n\n{tail}\n",
+        f"We have stopped Concierge on this call. {follow_up}\n\n{tail}\n",
         f"takeover:{call.get('call_sid')}",
     )
-    await _callback_task(tenant["id"], case, caller, tail, call)
+    await _callback_task(tenant["id"], case, caller, tail, call, text_only=text_only)
     transferred = False
     if engine(call) == "asterisk":
         try:
@@ -197,7 +199,7 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
         except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
             # The alert and callback task are already filed; say plainly why the audio
             # hand-over did not happen instead of pretending the caller was transferred.
-            ended, note = False, f"The call could not be transferred: {error}. Ring them back."
+            ended, note = False, f"The call could not be transferred: {error}. {follow_up}"
             log.warning("asterisk take-over failed for %s: %s", caller, error)
     else:
         ended, note = await _hang_up(call)
@@ -208,11 +210,22 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
             "case_key": case["case_key"] if case else None}
 
 
+def text_only_owner(tenant: dict) -> bool:
+    """The owner works in writing only: every hand-off message must say "reply", never "ring"."""
+    return bool(tenant.get("owner_text_only"))
+
+
 async def owner_voice_number(tenant: dict) -> str:
-    """The number a human can be rung on for this business: managed setup, else the alert number."""
+    """The number a human can be rung on for this business.
+
+    Managed setup first, then the dedicated call number (`owner_call_phone`), and only then the
+    alert number: alerts and transfers used to share `notify_phone`, which a text-first owner
+    cannot separate.
+    """
     row = await db.pool().fetchrow(
         "SELECT owner_number FROM managed_phone_setups WHERE tenant_id = $1", tenant["id"])
-    number = ((row["owner_number"] if row else "") or tenant.get("notify_phone") or "").strip()
+    number = ((row["owner_number"] if row else "") or tenant.get("owner_call_phone")
+              or tenant.get("notify_phone") or "").strip()
     return number if re.fullmatch(r"\+?[0-9]{3,20}", number) else ""
 
 
@@ -306,13 +319,14 @@ async def reconcile_supervision(tenant_id) -> int:
     return closed + await supervision_audit.close_missing_legs(tenant_id, live)
 
 
-async def _callback_task(tenant_id, case, caller: str, tail: str, call: dict) -> None:
+async def _callback_task(tenant_id, case, caller: str, tail: str, call: dict,
+                         text_only: bool = False) -> None:
     lead_id = None
     if case:
         lead_id = await db.pool().fetchval(
             "SELECT id FROM leads WHERE tenant_id = $1 AND case_id = $2 "
             "ORDER BY created_at DESC LIMIT 1", tenant_id, case["id"])
-    title = f"Ring back: {caller}"
+    title = f"Reply to: {caller}" if text_only else f"Ring back: {caller}"
     existing = None
     if lead_id:
         existing = await db.pool().fetchval(

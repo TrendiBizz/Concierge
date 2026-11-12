@@ -56,7 +56,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             detail["envelope_from"] = envelope_from[:320]
         await inbound_policy.audit(
             tenant_id, draft["id"], "received", "cloudflare-worker", detail)
-        if tenant.get('email_auto_reply') and risk != "high":
+        if tenant.get('email_auto_reply') and risk != "high" and "automated_sender" not in (flags or []):
             await db.pool().execute(
                 'INSERT INTO email_secretary_jobs(tenant_id,source_key,sender,subject,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
                 tenant_id, key, draft['sender'], subject[:250], text_body)
