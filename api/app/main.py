@@ -2024,6 +2024,128 @@ async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_
     }
 
 
+class ContactTakeover(BaseModel):
+    paused: bool
+    reason: str = ""
+
+
+@app.get("/owner/contacts")
+async def owner_contacts(
+    limit: int = 50, q: str = "", user: dict = Depends(owner_auth.current_user)
+):
+    """One row per customer, not per enquiry — the list behind the unified timeline.
+
+    Covers the competitor-gap item C: GoHighLevel's real moat is a single Conversations inbox, and
+    Concierge already merges the channels at the case level (casetimeline). This exposes it.
+    """
+    rows = await db.pool().fetch(
+        """
+        SELECT c.case_key, c.display_name, c.primary_phone, c.primary_email,
+               c.automation_paused, c.takeover_at, c.updated_at,
+               (SELECT count(*) FROM case_events e WHERE e.case_id = c.id) AS event_count,
+               (SELECT string_agg(DISTINCT e.channel, ',') FROM case_events e
+                 WHERE e.case_id = c.id) AS channels,
+               (SELECT max(e.occurred_at) FROM case_events e WHERE e.case_id = c.id) AS last_at
+        FROM customer_cases c
+        WHERE c.tenant_id = $1
+          AND ($2 = '' OR c.display_name ILIKE '%' || $2 || '%'
+               OR c.primary_phone LIKE '%' || $2 || '%'
+               OR c.primary_email ILIKE '%' || $2 || '%')
+        ORDER BY COALESCE(last_at, c.updated_at) DESC
+        LIMIT $3
+        """,
+        user["tenant_id"], q.strip(), max(1, min(limit, 200)),
+    )
+    contacts = []
+    for row in rows:
+        item = dict(row)
+        channels = [c for c in (item.pop("channels", "") or "").split(",") if c]
+        item["channels"] = sorted(channels)
+        item["label"] = casetimeline.contact_label(item)
+        item["last_at"] = item["last_at"].isoformat() if item.get("last_at") else None
+        item["updated_at"] = item["updated_at"].isoformat() if item.get("updated_at") else None
+        item["takeover_at"] = item["takeover_at"].isoformat() if item.get("takeover_at") else None
+        contacts.append(item)
+    return {"contacts": contacts, "count": len(contacts)}
+
+
+@app.get("/owner/contacts/{case_key}/timeline")
+async def owner_contact_timeline(
+    case_key: str, limit: int = 200, user: dict = Depends(owner_auth.current_user)
+):
+    """Everything that ever happened with one customer, newest first, across every channel."""
+    case = await db.pool().fetchrow(
+        "SELECT * FROM customer_cases WHERE tenant_id=$1 AND case_key=$2",
+        user["tenant_id"], case_key,
+    )
+    if not case:
+        raise HTTPException(404, "Contact not found")
+    events = await casetimeline.timeline(user["tenant_id"], case_key, limit=limit)
+    leads = await db.pool().fetch(
+        "SELECT id, status, channel, message, created_at FROM leads "
+        "WHERE tenant_id=$1 AND case_id=$2 ORDER BY created_at DESC LIMIT 50",
+        user["tenant_id"], case["id"],
+    )
+    lead_ids = [row["id"] for row in leads]
+    appointments = await db.pool().fetch(
+        "SELECT starts_at, status, name FROM appointments "
+        "WHERE tenant_id=$1 AND lead_id = ANY($2::uuid[]) ORDER BY starts_at DESC LIMIT 50",
+        user["tenant_id"], lead_ids,
+    ) if lead_ids else []
+    summary = casetimeline.summarise(events)
+    return {
+        "case_key": case_key,
+        "label": casetimeline.contact_label(dict(case)),
+        "phone": case["primary_phone"],
+        "email": case["primary_email"],
+        "automation_paused": bool(case["automation_paused"]),
+        "takeover_at": case["takeover_at"].isoformat() if case["takeover_at"] else None,
+        **summary,
+        "events": [
+            {
+                "channel": e["channel"],
+                "channel_label": casetimeline.CHANNEL_LABELS.get(e["channel"], e["channel"].title()),
+                "direction": e["direction"],
+                "body": e["body"],
+                "occurred_at": e["occurred_at"].isoformat() if e["occurred_at"] else None,
+                "answered_at": e["answered_at"].isoformat() if e["answered_at"] else None,
+            }
+            for e in events
+        ],
+        "enquiries": [
+            {"id": str(row["id"]), "status": row["status"], "channel": row["channel"],
+             "message": row["message"],
+             "created_at": row["created_at"].isoformat() if row["created_at"] else None}
+            for row in leads
+        ],
+        "appointments": [
+            {"starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+             "status": row["status"], "name": row["name"]}
+            for row in appointments
+        ],
+    }
+
+
+@app.put("/owner/contacts/{case_key}/takeover")
+async def owner_contact_takeover(
+    case_key: str, body: ContactTakeover, user: dict = Depends(owner_auth.current_user)
+):
+    """Pause or resume the assistant for one customer, from the unified timeline.
+
+    Same store as the enquiry-level takeover, so the two screens can never disagree about who is
+    handling the customer.
+    """
+    if body.paused and not body.reason.strip():
+        raise HTTPException(422, "Say why you are taking over; it is recorded for the customer's history")
+    changed = await casetimeline.set_takeover(
+        user["tenant_id"], case_key=case_key, paused=body.paused,
+        by=f"{user.get('email') or user.get('role') or 'owner'}: {body.reason}".strip(": "),
+    )
+    if not changed:
+        raise HTTPException(404, "Contact not found")
+    return {"paused": body.paused, "case_key": case_key}
+
+
 @app.post("/owner/crm/leads/{lead_id}/takeover")
 async def owner_lead_takeover(
     lead_id: str, body: CaseTakeoverRequest, user: dict = Depends(owner_auth.current_user)

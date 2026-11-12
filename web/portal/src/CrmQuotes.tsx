@@ -274,4 +274,97 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
   );
 }
 
+type TimelineEvent = {channel: string; channel_label?: string; direction: string; body: string; occurred_at?: string | null};
+type Contact = {case_key: string; label: string; primary_phone?: string; primary_email?: string;
+  channels: string[]; event_count: number; automation_paused: boolean; last_at?: string | null};
+type ContactDetail = Contact & {event_count: number; channels: string[]; events: TimelineEvent[];
+  enquiries: {id: string; status: string; channel: string; message: string; created_at?: string | null}[];
+  appointments: {starts_at?: string | null; status: string; name: string}[]};
+
+export function Contacts({token}: {token: string}) {
+  const api = useApi(token);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selected, setSelected] = useState<ContactDetail | null>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('');
+  const [reason, setReason] = useState('');
+
+  async function load(search: string) {
+    try {
+      const data = await api('/owner/contacts?limit=100&q=' + encodeURIComponent(search)) as {contacts: Contact[]};
+      setContacts(data.contacts || []);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load contacts'); }
+  }
+  useEffect(() => { load(query); }, [token, query]);
+
+  async function open(contact: Contact) {
+    try {
+      setSelected(await api('/owner/contacts/' + encodeURIComponent(contact.case_key) + '/timeline') as ContactDetail);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load that contact'); }
+  }
+
+  async function takeover(paused: boolean) {
+    if (!selected) return;
+    if (paused && !reason.trim()) { setStatus('Say why you are taking over before pausing the assistant.'); return; }
+    try {
+      await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/takeover', 'PUT', {paused, reason});
+      setStatus(paused ? 'Assistant paused for this customer.' : 'Assistant resumed.');
+      await open(selected);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not change that'); }
+  }
+
+  return (
+    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+      <Heading level={1}>Contacts</Heading>
+      <p>
+        One record per person, with every email, text, call, chat, quote and appointment in one
+        thread — so a returning customer is recognised instead of appearing as a new enquiry.
+      </p>
+      <TextInput label="Search people" value={query} onChange={setQuery} />
+      <Table
+        data={contacts as unknown as Record<string, unknown>[]}
+        idKey="case_key"
+        density="compact"
+        columns={[
+          {key: 'label', header: 'Customer', width: proportional(1, {minWidth: 160}), renderCell: (row) => <strong>{String(row.label || '')}</strong>},
+          {key: 'channels', header: 'Channels', width: proportional(1, {minWidth: 120}), renderCell: (row) => (Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : '')},
+          {key: 'event_count', header: 'Messages', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.event_count || 0)},
+          {key: 'automation_paused', header: 'Assistant', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Badge label={row.automation_paused ? 'paused' : 'replying'} variant={row.automation_paused ? 'warning' : 'neutral'} />},
+          {key: 'last_at', header: 'Last contact', width: proportional(1, {minWidth: 150}), renderCell: (row) => row.last_at ? new Date(String(row.last_at)).toLocaleString() : '—'},
+          {key: 'case_key', header: '', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Button label="Open" variant="secondary" onClick={() => open(row as unknown as Contact)} />},
+        ] as TableColumn<Record<string, unknown>>[]}
+      />
+      {!contacts.length ? <p>No contacts yet. Each enquiry creates one, and repeat customers are merged onto it.</p> : null}
+
+      {selected ? (
+        <Card>
+          <Heading level={2}>{selected.label}</Heading>
+          <p>{selected.primary_phone || 'no phone'} · {selected.primary_email || 'no email'} · {selected.event_count} events across {(selected.channels || []).join(', ') || 'no channels yet'}</p>
+          <label style={{display: 'block', margin: '8px 0'}}>
+            Why (recorded in the customer's history)
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. rang them back myself" style={{display: 'block', padding: 8, width: '100%'}} />
+          </label>
+          {selected.automation_paused
+            ? <Button label="Resume the assistant" variant="primary" onClick={() => takeover(false)} />
+            : <Button label="Take over (pause the assistant)" variant="secondary" onClick={() => takeover(true)} />}
+          <Heading level={2}>Timeline</Heading>
+          {selected.events.length ? selected.events.map((event, index) => (
+            <p key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>
+              <strong>{event.channel_label || event.channel}</strong> · {event.direction} · {(event.occurred_at || '').slice(0, 16)}
+              <br />{event.body}
+            </p>
+          )) : <p>Nothing recorded on this contact yet.</p>}
+          {selected.enquiries.length ? <><Heading level={2}>Enquiries</Heading>
+            {selected.enquiries.map((enquiry) => <p key={enquiry.id}>{enquiry.channel} · {enquiry.status} · {enquiry.message}</p>)}
+          </> : null}
+          {selected.appointments.length ? <><Heading level={2}>Appointments</Heading>
+            {selected.appointments.map((appointment, index) => <p key={index}>{appointment.name || 'Appointment'} · {appointment.status} · {(appointment.starts_at || '').slice(0, 16)}</p>)}
+          </> : null}
+          <Button label="Close" variant="ghost" onClick={() => setSelected(null)} />
+        </Card>
+      ) : null}
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
 

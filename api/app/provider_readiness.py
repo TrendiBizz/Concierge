@@ -173,6 +173,14 @@ def _included() -> dict:
     """
     steps = [
         _step(
+            "One timeline per customer",
+            "ready",
+            "Studio → Contacts shows every email, text, call, chat, quote and appointment for a "
+            "person in one thread, and a repeat customer is merged onto the same record instead of "
+            "appearing twice. Take over pauses the assistant for that one customer.",
+            "GET /owner/contacts",
+        ),
+        _step(
             "Missed-call text-back",
             "ready",
             "A caller who hangs up before saying anything gets one text back with the booking link, "

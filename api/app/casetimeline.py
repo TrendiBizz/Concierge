@@ -381,6 +381,33 @@ async def mark_replied(tenant_id, *, phone: str = "", email: str = "", channel: 
         logging.getLogger(__name__).warning("could not record reply for tenant %s", tenant_id)
 
 
+CHANNEL_LABELS = {
+    "email": "Email", "sms": "SMS", "phone": "Phone", "chat": "Website chat",
+}
+
+
+def contact_label(case: dict | None) -> str:
+    """How a customer is named in the unified timeline. Never blank."""
+    if not case:
+        return "Unknown contact"
+    return (case.get("display_name") or case.get("primary_phone")
+            or case.get("primary_email") or case.get("case_key") or "Unknown contact")
+
+
+def summarise(events: list[dict]) -> dict:
+    """Counts for a contact's history. Pure, so the inbox list and the drill-down agree."""
+    counts: dict[str, int] = {}
+    for event in events:
+        channel = event.get("channel") or "other"
+        counts[channel] = counts.get(channel, 0) + 1
+    return {
+        "event_count": len(events),
+        "by_channel": counts,
+        "channels": sorted(counts),
+        "labels": [CHANNEL_LABELS.get(c, c.title()) for c in sorted(counts)],
+    }
+
+
 async def timeline(tenant_id, case_key: str, limit: int = 200) -> list[dict]:
     """The customer's full history across every channel, newest first."""
     rows = await db.pool().fetch(

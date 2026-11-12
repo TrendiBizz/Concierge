@@ -29,6 +29,7 @@ const ProductsPage = lazy(() => import('./Products'));
 const PermissionsPage = lazy(() => import('./Permissions'));
 const Crm = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Crm})));
 const Quotes = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Quotes})));
+const Contacts = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Contacts})));
 const Media = lazy(() => import('./Engage').then((m) => ({default: m.Media})));
 const Social = lazy(() => import('./Engage').then((m) => ({default: m.Social})));
 
@@ -127,6 +128,7 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
             <Tab value="reports" label={tr('Reports')} />
             <Tab value="quotes" label={tr('Quotes')} />
             <Tab value="crm" label={tr('Enquiries')} />
+            <Tab value="contacts" label={tr('Contacts')} />
             <Tab value="permissions" label={tr('Permissions')} />
             <Tab value="social" label={tr('Social')} />
             <Tab value="media" label={tr('Marketing media')} />
@@ -715,7 +717,7 @@ function Shell() {
   const content = (
     <>
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );
   const header = (
@@ -729,6 +731,7 @@ function Shell() {
       </SideNavSection>
       <SideNavSection title={tr('Customers')}>
         <SideNavItem label={tr('Enquiries')} isSelected={tab === 'crm'} onClick={() => setTab('crm')} />
+        <SideNavItem label={tr('Contacts')} isSelected={tab === 'contacts'} onClick={() => setTab('contacts')} />
         <SideNavItem label={tr('Bookings')} isSelected={tab === 'bookings'} onClick={() => setTab('bookings')} />
       </SideNavSection>
       <SideNavSection title={tr('Revenue')}>
