@@ -5,6 +5,9 @@
 #   bash cutover_to_tenant.sh <tenant-slug>            apply (refuses if preconditions fail)
 #   bash cutover_to_tenant.sh --rollback <backup-dir>  undo using the directory the apply printed
 #
+# Ring-first (owner answers if they want; busy/declined/no answer -> assistant at once):
+#   RING_OWNER=+6421xxxxxxx [RING_SECONDS=15] bash cutover_to_tenant.sh <tenant-slug>
+#
 # What it changes (nothing else):
 #   1. tenants.phone_enabled for the new tenant, through the ADMIN API so the go-live gate runs
 #   2. phone_numbers.tenant_id for the line (the number is a primary key: one tenant at a time)
@@ -30,7 +33,7 @@ admin_patch() {                               # $1 slug  $2 json body  -> prints
 
 swap_routes_tenant() {                        # $1 from-slug  $2 to-slug : edits routes json + phone.env
   python3 - "$1" "$2" <<'PY'
-import json, re, sys
+import json, os, re, sys
 old, new = sys.argv[1], sys.argv[2]
 path = '/opt/trendi/shared/asterisk-routes.json'
 d = json.load(open(path))
@@ -38,6 +41,11 @@ changed = 0
 for r in d['routes']:
     if r['tenant'] == old:
         r['tenant'] = new; changed += 1
+        ring = os.environ.get('RING_OWNER', '').strip()
+        if ring:
+            r['ring_owner'] = {'number': ring, 'seconds': int(os.environ.get('RING_SECONDS', '15'))}
+        else:
+            r.pop('ring_owner', None)
 assert changed == 1, f'expected exactly one route for {old}, found {changed}'
 json.dump(d, open(path, 'w'))
 routes = [{'tenant': r['tenant'], 'number': r['number'], 'port': r['port']} for r in d['routes']]

@@ -251,3 +251,21 @@ and `test_go_live_gate.py`. Rollback: image `trendi-concierge-api:before-2026111
 4. Claude: build §5c then §5d (onboarding); full file edits, run the full API suite (735
    baseline), deploy with the §2 procedure, push. (Work continued in the same session; context was
    only ~20% when this file was written.)
+
+## 9. Pukeko's owner (Conrad) is Deaf: text-first, but he may always answer
+
+The whole product exists for this. Design (decided with the operator, 2026-11-13):
+- **Ring-first, AI on decline:** `ring_owner` on a route in `/opt/trendi/shared/asterisk-routes.json`
+  rings the owner's own phone first (default 15 s). If he answers he has the call and the assistant is
+  not engaged. Declined, busy, unreachable or no answer: the assistant takes the call at once. The
+  caller hanging up while it rings ends the call. Apply with
+  `RING_OWNER=+6421824305 bash scripts/asterisk/cutover_to_tenant.sh pukeko-construction`.
+  **Caveat:** if his phone is off the carrier may answer with voicemail, which would be treated as an
+  answer. Disable voicemail on that mobile or keep the ring short. The outbound number format
+  (`6421...` without `+`, as take-over uses) is untested on Hero: a failure falls safely to the assistant.
+  Calls the owner answers himself leave no `phone_calls` row (not logged in the CRM yet).
+- **`tenants.owner_text_only`** (new, settable via `PATCH /admin/tenants/{slug}`): the assistant never
+  offers a transfer or a phone call-back and never explains why; it offers a written reply by text or
+  email. It does **not** stop the owner taking over or listening in. Set it for Pukeko after deploy.
+- Still to do: after-call tasks and the take-over alert say "ring them back" (should say "reply by
+  text or email" for text-only owners); portal UI toggle for the setting.

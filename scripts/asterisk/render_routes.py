@@ -48,6 +48,29 @@ def _trunk(value):
             'transport': transport, 'port': port}
 
 
+def _ring_owner(row, trunk):
+    """Optional per-route ``ring_owner``: ring the owner's own phone first.
+
+    Anything other than an answered call (declined, busy, unreachable, no answer) falls straight
+    through to the assistant, so the caller is never left waiting. Needs the registration trunk
+    because the outbound leg goes out over it.
+    """
+    value = row.get('ring_owner')
+    if not value:
+        return None
+    if trunk is None:
+        raise ValueError('Ring-first needs the registration trunk to place the outbound call')
+    if not isinstance(value, dict):
+        raise ValueError('ring_owner must be an object')
+    number = str(value.get('number') or '')
+    seconds = value.get('seconds', 15)
+    if not re.fullmatch(r'\+[1-9]\d{6,14}', number):
+        raise ValueError('ring_owner.number must be an international number such as +6421...')
+    if not isinstance(seconds, int) or isinstance(seconds, bool) or not 5 <= seconds <= 45:
+        raise ValueError('ring_owner.seconds must be between 5 and 45')
+    return {'digits': number[1:], 'seconds': seconds}
+
+
 def render(rows, bridge_host, public_ip=None, trunk=None):
     if not HOST.fullmatch(bridge_host):
         raise ValueError('Invalid private bridge hostname')
@@ -88,9 +111,21 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
         numbers.add(number)
         slugs.add(slug)
         groups.setdefault(source, []).append(row)
-        contexts += [f'[business-{slug}]', 'exten => s,1,Answer()', ' same => n,Set(TIMEOUT(absolute)=600)',
-                     ' same => n,Set(CONCIERGE_CALL=${FILTER(0-9a-f-,${SHELL(cat /proc/sys/kernel/random/uuid)})})',
-                     f' same => n,AudioSocket(${{CONCIERGE_CALL}},{bridge_host}:{port})', ' same => n,Hangup()']
+        ring = _ring_owner(row, trunk)
+        if ring:
+            start = [f'exten => s,1,NoOp(Ring owner first for {slug})',
+                     f" same => n,Dial(PJSIP/{ring['digits']}@concierge-reg,{ring['seconds']},r)",
+                     ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)',
+                     ' same => n,GotoIf($["${DIALSTATUS}"="CANCEL"]?done)',
+                     ' same => n,Answer()']
+            end = [' same => n,Hangup()', ' same => n(done),Hangup()']
+        else:
+            start = ['exten => s,1,Answer()']
+            end = [' same => n,Hangup()']
+        contexts += ([f'[business-{slug}]'] + start +
+                     [' same => n,Set(TIMEOUT(absolute)=600)',
+                      ' same => n,Set(CONCIERGE_CALL=${FILTER(0-9a-f-,${SHELL(cat /proc/sys/kernel/random/uuid)})})',
+                      f' same => n,AudioSocket(${{CONCIERGE_CALL}},{bridge_host}:{port})'] + end)
     if not rows:
         raise ValueError('No business routes')
     if trunk:
