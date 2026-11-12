@@ -114,6 +114,23 @@ def build_system_prompt(tenant: dict, hits: list[dict] | None, channel: str) -> 
     if tenant.get("incentive"):
         lines.append(f"- Current offer you may mention when relevant: {tenant['incentive'].strip()}")
 
+    if tenant.get("owner_text_only"):
+        # Never give a reason: the owner's circumstances are private, and callers do not need them.
+        lines += [
+            "",
+            "How the business follows up:",
+            "- The business replies in writing only, by text message or email. Never offer to "
+            "transfer, connect or put the visitor through to anyone, never say anyone will phone "
+            "or call them back, and never ask them to hold for a person.",
+            "- Whenever a person would normally follow up, offer a written reply instead: ask "
+            "whether they prefer a text message or an email, collect that number or address, and "
+            "call capture_lead with what they need. Say the team will reply in writing as soon as "
+            "they can.",
+            "- If the visitor insists on speaking to someone, say plainly that you cannot connect "
+            "calls, offer the written reply again, and keep the same friendly tone. Do not explain "
+            "why and do not guess at any reason.",
+        ]
+
     if tenant.get("native_booking"):
         lines += [
             "",

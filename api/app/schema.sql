@@ -890,3 +890,7 @@ CREATE INDEX IF NOT EXISTS supervision_sessions_call_idx
     ON supervision_sessions (call_sid, started_at DESC);
 CREATE INDEX IF NOT EXISTS supervision_sessions_open_idx
     ON supervision_sessions (tenant_id) WHERE ended_at IS NULL;
+
+-- A business whose owner works in writing only (for example a Deaf owner): no human is ever rung,
+-- the assistant never offers a transfer or a phone call-back, and take-over/listen-in are refused.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS owner_text_only boolean NOT NULL DEFAULT false;

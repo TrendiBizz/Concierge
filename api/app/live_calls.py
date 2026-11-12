@@ -164,6 +164,10 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
     is best-effort — if it fails the call is still marked for the owner, and the after-call
     analysis records what happened.
     """
+    if tenant.get("owner_text_only"):
+        # Refuse BEFORE changing anything: pausing the assistant and then failing to ring would
+        # leave the caller on a live line with nobody answering.
+        raise call_control.CallControlUnavailable(TEXT_ONLY_MESSAGE)
     caller = caller_label(call)
     case = await casetimeline.reconcile(
         tenant["id"], phone=call.get("from_number") or "",
@@ -208,8 +212,18 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
             "case_key": case["case_key"] if case else None}
 
 
+TEXT_ONLY_MESSAGE = ("This business works in writing only, so no call is ever transferred or rung. "
+                     "Read the live transcript and reply by text or email.")
+
+
 async def owner_voice_number(tenant: dict) -> str:
-    """The number a human can be rung on for this business: managed setup, else the alert number."""
+    """The number a human can be rung on for this business: managed setup, else the alert number.
+
+    A text-only owner (for example a Deaf owner) has none, whatever number is on file: the alert
+    number is still used for texts, but nothing may ever ring it.
+    """
+    if tenant.get("owner_text_only"):
+        return ""
     row = await db.pool().fetchrow(
         "SELECT owner_number FROM managed_phone_setups WHERE tenant_id = $1", tenant["id"])
     number = ((row["owner_number"] if row else "") or tenant.get("notify_phone") or "").strip()
@@ -224,6 +238,8 @@ async def supervise(tenant: dict, call: dict, mode: str, *, supervisor: str = "o
     row is closed immediately and the error propagates — the console must not show a listener who
     is not there.
     """
+    if tenant.get("owner_text_only"):
+        raise call_control.CallControlUnavailable(TEXT_ONLY_MESSAGE)
     if engine(call) != "asterisk":
         raise call_control.CallControlUnavailable(
             "Listen-in needs the Asterisk line; this call is on the SIP provider")
