@@ -1262,3 +1262,56 @@ decide whether the DID should answer as `pukeko-construction` (its `notify_phone
 owner alerts would be email-only until set). Take-over on this path is Asterisk-side (AMI
 `Redirect` + outbound leg through the same Hero trunk), **not** the xAI `refer` — the Octovox
 take-over PR must be re-scoped for whichever ingress a tenant is on.
+
+## Session 2026-11-12 (twelfth) — the first real PSTN call went silent; the cancel race is fixed
+
+**Symptom.** The operator dialled **+64 9 243 1347** from a real phone. The assistant answered
+correctly ("Hello, you've reached Trendi Concierge… may I record your message?"). The caller
+answered — the bridge transcribed it — and then **dead silence**: no reply, and the caller's
+"thank you" got nothing either.
+
+**Evidence, from the live VPS.**
+- `asterisk-bridge-1`: `WARNING:concierge.asterisk:Asterisk call ended (RuntimeError)` — the only
+  text logged, because the bridge logged `type(error).__name__` and never the server's message.
+- `phone_calls`: `ast:ac2429e5…` → `failed`, 09:03:14 → 09:03:33 UTC (19 s).
+- `messages`: the greeting, then one user turn ("Yes, I'd like someone to call me back."), then
+  nothing. So audio in, VAD, and transcription all worked — the failure was after the caller's turn.
+- `asterisk-pbx-1`: `Failed to forward frame to channel PJSIP/concierge-reg-00000002` as the bridge
+  dropped the AudioSocket, i.e. the dead air was the bridge exiting, not a carrier problem.
+
+**Root cause (reproduced against live xAI).** `MediaBridge.grok()` treated **any** `error` event as
+fatal. xAI sends one during a normal barge-in race:
+
+```
+input_audio_buffer.speech_started  → bridge sends response.cancel
+{"type":"error","error":{"message":"Cancellation failed: no active response found",
+                         "type":"invalid_request_error","code":"invalid_request_error"}}
+```
+
+The VAD re-fires `speech_started` for an item that already reached `speech_stopped`, often
+immediately after `response.created` — and the server may have completed that response before the
+cancel lands. The cancel is harmless; `raise RuntimeError('Grok rejected telephone session')` was
+not. The call died mid-conversation.
+
+**Fix** (`api/app/asterisk_bridge.py`, tests `api/tests/test_asterisk_bridge.py`):
+- Error events are logged with the server's `code`/`message` and tolerated; only `MAX_ERRORS` (5)
+  in one call make the session unusable. The old silent `RuntimeError` is gone, and `handle()` now
+  logs the exception message too.
+- The live response is tracked (`response_id`, `speaking`) and `speech_started` is **ignored for an
+  item that already stopped**, so a duplicate VAD fire can no longer cancel a fresh reply.
+- A **reply-debt watchdog** nudges the model once (`response.create`) when a caller turn has had no
+  audible answer for 5 s — cancel races, lost responses and dropped turns become an answer instead
+  of dead air. One nudge per turn, never while the caller is speaking.
+
+**Verification.** 8 bridge tests pass (4 pre-existing, 4 new: benign error keeps the call / 5 errors
+end it, duplicate `speech_started` does not cancel, unanswered turn is nudged once). Live
+reproduction through the deployed bridge and real xAI: before the patch the run died at 6.25 s with
+exactly the error above; after it the same audio survived two such errors, the assistant produced a
+reply and the session stayed up for the whole test.
+
+**Deployed.** Patched `asterisk_bridge.py` copied to
+`/opt/trendi/releases/20261108-vps/product/api/app/` (backup
+`/opt/trendi/backups/asterisk_bridge.py.bak-20261112-0912`), `docker restart asterisk-bridge-1`;
+`pjsip show registrations` still **Registered** against `sip.hero.co.nz`, bridge listener up on
+9510. Test calls and their owner-alert outbox rows (unsent) were deleted; no CRM leads left behind.
+**Not yet re-tested by a human on the PSTN line** — that is the outstanding item.
