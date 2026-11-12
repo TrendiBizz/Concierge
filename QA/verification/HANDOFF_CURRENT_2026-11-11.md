@@ -1508,9 +1508,11 @@ live-PBX fix (`300bb51`).
    caller-channel bug (`300bb51`). What remains is the real-carrier ring and a human reading the
    card.
 5. **Per-tenant `transfer_number`.** Transfers use `managed_phone_setups.owner_number`, else
-   `tenants.notify_phone`; `pukeko-construction` has neither set.
+   `tenants.notify_phone`; `pukeko-construction` has neither set. Supervision uses the same
+   fallback, so the tenant that will ring today is `trendi-oauth-staging` (`notify_phone`
+   +64278817368, the tenant the DID currently reaches).
 6. **Decide the DID's tenant** — currently the internal `trendi-oauth-staging`; production should be
-   `pukeko-construction` (set `notify_phone` with it).
+   `pukeko-construction` (set `notify_phone` with it, or supervision refuses to ring).
 7. **SIP exposure** — no fail2ban on 5060/udp; consider a DOCKER-USER restriction to Hero's ranges.
 8. Missed-call text-back inert for `pukeko-construction` (`sms_enabled=false`) — business decision,
    not a defect.
