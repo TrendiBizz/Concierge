@@ -50,6 +50,35 @@ SILENCE_DURATION_MS = 700
 REPLY_NUDGE_SECONDS = 5.0
 
 
+# Say a number once. The test call of 2026-11-13 read the caller's number three times: the lead step,
+# the text-copy step and the confirmation each told the model to read it back. A caller who then
+# interrupts a read-back must not trigger a fresh one.
+READBACK_RULES = (
+    ' Say any phone number or email address back at most once on the whole call, in short groups, '
+    'then carry on. After that, call it "that number" or "the same number" and never recite it again; '
+    'these rules override any tool instruction to read back again. If the caller interrupts while you '
+    'are reading something back, stop at once, treat what they said as the answer, and do not start '
+    'the read-back over. If they correct a number, read only the corrected number, once. '
+    'Never mention devices, queues, delivery systems or limits to the caller; say the team will follow up.')
+SMS_OFFLINE_RULE = (
+    ' Text messages cannot be sent right now. Do not offer a text copy or a recording link by SMS and '
+    'do not promise any text. Offer a callback, or an email copy if the caller gives an email address.')
+
+
+async def sms_copy_available(tenant_id) -> bool:
+    """True when the business's SMS phone has checked in recently enough to send a text copy.
+
+    A check that fails is treated as available, so a database hiccup never changes what callers hear.
+    """
+    try:
+        return bool(await db.pool().fetchval(
+            'SELECT 1 FROM sms_devices WHERE tenant_id=$1 AND enabled AND last_seen > now() - interval \'2 hours\' LIMIT 1',
+            tenant_id))
+    except Exception:  # noqa: BLE001
+        log.exception('could not check the SMS device; assuming it is available')
+        return True
+
+
 @dataclass(frozen=True)
 class Route:
     tenant: str
@@ -364,6 +393,7 @@ async def prepare(route, call_id):
     # echoes these values back in session.updated.
     session['turn_detection'] = {'type': 'server_vad', 'silence_duration_ms': SILENCE_DURATION_MS,
                                  'prefix_padding_ms': 300}
+    sms_ok = await sms_copy_available(tenant['id'])
     session['instructions'] = build_system_prompt(tenant, None, channel='phone') + (
         '\nYou are this business\'s automated Grok receptionist. Greet the caller with this business name. '
         'Disclose transcription. Ask permission to record the message. No audio is recorded before consent. '
@@ -371,10 +401,11 @@ async def prepare(route, call_id):
         'If unavailable or declined, take a text message without recording. '
         'If permission is withdrawn, call set_call_recording with enabled=false; it discards captured audio. '
         'Ask whether they want a text copy, recording link, or callback. Save callback preference in their enquiry. '
-        'For a copy, capture their contact and permission, read back destination and format, wait for yes, then request_conversation_copy. '
+        'For a copy, capture their contact and permission, then get one clear yes to the format and destination '
+        '(if it is the number or email already given on this call, just say "to the same number"), then request_conversation_copy. '
         'Collect their message and callback details. Never claim a text was sent without a confirmed result. '
         'When finished, say goodbye then call end_call. Do not end with an open question.'
-        + greeting_disclosure(call_control.enabled()))
+        + READBACK_RULES + ('' if sms_ok else SMS_OFFLINE_RULE) + greeting_disclosure(call_control.enabled()))
     session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
                              'parameters':{'type':'object','properties':{},'additionalProperties':False}})
     session['tools'].append({'type':'function','name':'set_call_recording',
