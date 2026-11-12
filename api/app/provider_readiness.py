@@ -173,6 +173,14 @@ def _included() -> dict:
     """
     steps = [
         _step(
+            "See what it earned you",
+            "ready",
+            "Studio → Reports shows enquiries by channel, quotes sent and accepted, the value "
+            "accepted, money confirmed and still outstanding, and the change against the previous "
+            "period — computed from the records, not typed in.",
+            "GET /owner/revenue",
+        ),
+        _step(
             "Get paid on an accepted quotation",
             "unconfigured",
             "Add your bank details or your own payment link in Studio, Quotes. An accepted "

@@ -571,13 +571,15 @@ function Reports({token}: {token: string}) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [money30, setMoney30] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
-    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets')])
-      .then(([crm, q, p, a]) => {
+    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets'), api('/owner/revenue?days=30')])
+      .then(([crm, q, p, a, rev]) => {
         setLeads(((crm as {leads?: Lead[]}).leads || []));
         setQuotes(q as Quote[]); setPosts(p as Post[]); setAssets(a as Asset[]);
+        setMoney30(rev as Record<string, unknown>);
       }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load reports'));
   }, [token]);
 
@@ -599,6 +601,27 @@ function Reports({token}: {token: string}) {
           <Card key={label}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
         ))}
       </div>
+      {money30 ? (
+        <>
+          <Heading level={2}>What it earned — last 30 days</Heading>
+          <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
+            <Card><strong style={{fontSize: 28}}>{String(money30.enquiries ?? 0)}</strong>
+              <p>Enquiries {money30.enquiries_change_percent === null ? '' : `(${Number(money30.enquiries_change_percent) > 0 ? '+' : ''}${money30.enquiries_change_percent}% vs previous)`}</p></Card>
+            <Card><strong style={{fontSize: 28}}>{money(Number(money30.accepted_cents || 0), String(money30.currency || 'NZD'))}</strong>
+              <p>Accepted value {money30.accepted_change_percent === null ? '' : `(${Number(money30.accepted_change_percent) > 0 ? '+' : ''}${money30.accepted_change_percent}% vs previous)`}</p></Card>
+            <Card><strong style={{fontSize: 28}}>{String(money30.accept_rate_percent ?? 0)}%</strong>
+              <p>Accepted of {String(money30.quotes_sent ?? 0)} quotes sent</p></Card>
+            <Card><strong style={{fontSize: 28}}>{money(Number(money30.paid_cents || 0), String(money30.currency || 'NZD'))}</strong>
+              <p>Confirmed paid · {money(Number(money30.outstanding_cents || 0), String(money30.currency || 'NZD'))} outstanding</p></Card>
+          </div>
+          <p>
+            {(Object.entries((money30.by_channel || {}) as Record<string, {enquiries: number}>)).map(([channel, value]) => (
+              <span key={channel} style={{marginRight: 16}}>{channel}: <strong>{value.enquiries}</strong></span>
+            ))}
+          </p>
+          <p role="note"><em>{String(money30.note || '')}</em></p>
+        </>
+      ) : null}
       <Heading level={2}>Quotations by status</Heading>
       {['draft', 'reviewed', 'accepted', 'declined', 'void'].map((state) => (
         <p key={state}>{state}: {quotes.filter((quote) => quote.status === state).length}</p>

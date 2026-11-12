@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments
+from . import call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -2078,6 +2078,12 @@ class PaymentSettings(BaseModel):
 class QuotePaymentAction(BaseModel):
     action: str = "confirm"       # confirm | waive
     reference: str = ""
+
+
+@app.get("/owner/revenue")
+async def owner_revenue(days: int = 30, user: dict = Depends(owner_auth.current_user)):
+    """What the AI brought in, in money, with the previous period beside it."""
+    return await revenue.report(user["tenant_id"], days)
 
 
 @app.get("/owner/payment-settings")
