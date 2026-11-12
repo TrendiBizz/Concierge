@@ -812,8 +812,9 @@ Supersedes the email queue and n8n notes above. Full detail + evidence:
   `cloudflare_inbound.py`, `outbox.py`), `Message-ID` persisted per outbox row. Live-proved with a
   synthetic hard bounce through the public webhook: 401 on a bad token, suppression + outbox
   `failed` + audit row on the good one, idempotent on replay (test rows removed afterwards).
-  Brevo is **not subscribed yet** — the operator must add the webhook (URL + token in
-  `/opt/trendi/shared/api.env`); nothing else is missing.
+  The operator subscribed it in Brevo on 2026-11-12 19:45 NZ and it was proved end to end at
+  06:46 UTC: real mail to `no-such-mailbox-9f3a2@gmail.com`, Gmail 550-5.1.1, Brevo webhook in
+  5 s, Message-ID match, suppression + outbox `failed` + audit row; test rows removed.
 - **Unaligned DKIM is no longer "dmarc=fail".** Sidecar emits `unaligned`; API maps it to
   `dkim_unaligned` → medium. Rust 6/6, deployed and verified on loopback.
 - **Reply-To on every customer-visible email** (not just owner alerts). Test: all kinds.

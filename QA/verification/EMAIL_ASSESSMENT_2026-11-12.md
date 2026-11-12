@@ -177,8 +177,15 @@ Rust sidecar **6/6**. db schema is applied by the API on startup (idempotent).
 - **Live proof** (synthetic event through the public URL, then cleaned up): wrong token → 401;
   hard_bounce → `{"processed":1,"results":[{"suppressed":true,"closed":1}]}`; suppression row,
   `outbox.status='failed'`, `inbound_audit` row all present; replaying the same event kept one row.
-- **Still operator work:** add the webhook in Brevo (URL above, with the token in
-  `/opt/trendi/shared/api.env`). The endpoint is live and authenticated; nothing is subscribed yet.
+- **Brevo subscription: DONE 2026-11-12 19:45 NZ**, configured by the account owner in
+  Integrations → Webhooks (transactional email: hard/soft bounce, blocked, invalid, complaint,
+  unsubscribed, deferred, error). **Proved end to end on production** at 06:46 UTC: a real
+  message to `no-such-mailbox-9f3a2@gmail.com` was accepted by Brevo, Gmail rejected it
+  550-5.1.1, Brevo's webhook arrived **5 seconds later**, matched on our Message-ID
+  (`<179446598393.1.1501604019952140317@trendibizz.com>`), the address was suppressed with
+  `source='brevo'`, the outbox row closed as `failed` with Gmail's diagnostic, and an
+  `inbound_audit(address_suppressed)` row was written. Test rows were then removed and the
+  scratch tenant's `email_send` grant revoked (both audited as `operator`).
 
 ### 3.2 HIGH — unaligned DKIM no longer reported as DMARC failure
 `services/email-auth/src/main.rs` `verdict()` now returns `dmarc="unaligned"` when a signature
