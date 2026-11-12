@@ -842,6 +842,16 @@ Supersedes the email queue and n8n notes above. Full detail + evidence:
   enforcement is a deliverability decision, not a code fix.
 - Tests: API **600 passed** (was 573), Rust 6/6, `cargo test --offline` green.
 
+- **Go-live hardening checklist created:** `QA/verification/GO_LIVE_HARDENING.md`. These are
+  deliberately deferred until the switch to real customers, and every one must be closed then:
+  move the Worker's `CONCIERGE_INBOUND_SECRET` from a plain-text binding to a Cloudflare
+  **secret binding**; rotate the secrets handled in chat during setup (`BREVO_WEBHOOK_SECRET`,
+  `INBOUND_CLOUDFLARE_SECRET`, `ADMIN_TOKEN`); DMARC `p=quarantine` → `p=reject` and SPF `~all` →
+  `-all` after clean reports; Brevo plan/dedicated IP + SMTP-key rotation + authorized-IP lockdown;
+  delete the scratch tenants (`concierge-test`, staging fixtures) and decide who owns
+  `admin@trendibizz.com`; split the Cloudflare token (read-only for health, narrow write for
+  deploys).
+
 ### Still outstanding (carried, not closed)
 - Brevo webhook subscription (operator, dashboard) and Cloudflare Worker redeploy for the hint fix.
 - Phone DID (payment/KYC), Pukeko social OAuth, offsite backup credentials, SEO accounts, Astryx.
