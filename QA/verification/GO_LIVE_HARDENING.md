@@ -77,3 +77,12 @@ SPF from `~all` to `-all`.
 - Kuma removed (had 0 monitors); healthcheck is 43/43.
 - CI now runs on push to `main`.
 - **Host reboot required** by package upgrades.
+
+## Third pass 2026-11-12 21:05 NZ
+- **§5 partially done**: tenant `concierge-test` and its routing rule are gone (Catch-all intact).
+  Staging tenants and `admin@trendibizz.com` still need the operator's decision.
+- **§6 blocked**: `GET /accounts/{id}/tokens` → 403; the token cannot create another token.
+  It *does* have Email-Routing write (contrary to the earlier note) but no DNS.
+- **Host rebooted** to kernel 6.8.0-149; health 43/43.
+- **Deploy rule learned**: after copying `api/app`, `chmod -R a+rX` it or the Asterisk bridge
+  (runs as uid `app`) crashes on the bind mount.

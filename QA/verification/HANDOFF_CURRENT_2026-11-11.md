@@ -922,3 +922,24 @@ phone DID, social OAuth, offsite backups, xAI key, consent-copy review.
   phone DID (payment/KYC), Pukeko social OAuth, offsite backups, xAI key.
 - Ambiguous, not changed: "old test phone route" — `/owner/sms-phone/test` is live and covered by
   a passing test; clarify which route the note meant before removing anything.
+
+### Session 2026-11-12 (sixth, third pass) — reboot + scratch cleanup executed
+
+- **Tenant `concierge-test` deleted** (all 45 tenant FKs cascade); pre-delete dump
+  `/opt/trendi/backups/pre-scratch-delete-20261112-075303.dump`. Its Cloudflare routing rule
+  deleted too. Catch-all and Concierge intake intact. Four tenants remain.
+- **Host rebooted** to activate kernel 6.8.0-149; health **43/43**, all public URLs 200,
+  CRM 200 after its ~3-minute Twenty boot.
+- **Latent bugs exposed by the reboot and fixed**:
+  - `asterisk-bridge-1` crash-looped: `PermissionError /srv/app/suppressions.py`. The bind-mounted
+    `api/app` was owned 501:staff `-rw-------` (rsync-preserved Mac umask) and the bridge runs as
+    uid `app`. `chmod -R a+rX <release>/api/app` + restart. **Deploy rule: always chmod after
+    copying api/app.**
+  - `trendi-social-1` (`network_mode: service:api`) held a stale netns → recreate with
+    `up -d --force-recreate --no-deps social`.
+- **Proved not possible with current access**: Cloudflare DNS 403 (DMARC/SPF manual), token
+  list 403 (cannot split token), no BREVO_API_KEY (webhook rotation needs the Brevo dashboard).
+  The token *does* have Email-Routing write.
+- Remaining: all operator dashboard/payment/decision items (§2 Brevo secret + ADMIN_TOKEN,
+  §3 DMARC reject, §4 Brevo plan/IP/key, §5 staging tenants + admin@ owner, §6 token split),
+  phone DID, social OAuth, offsite backups, xAI key.

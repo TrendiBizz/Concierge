@@ -184,3 +184,37 @@ Postgres per suite (previously 15/17 on the same DB); node widget **9/9**; Rust 
 - Phone DID — payment/KYC. Pukeko social OAuth — external. Offsite backups — needs a
   destination + credentials. xAI key rotation — provider dashboard.
 - **Reboot** — required by the upgrades; schedule it.
+
+## Third pass — 2026-11-12 21:05 NZ (execute everything reachable)
+
+### Done
+- **Scratch tenant `concierge-test` deleted** (`DELETE 1`; all 45 tenant FKs are `ON DELETE
+  CASCADE`, so its outbox/audit/mailbox rows went with it). Pre-delete dump:
+  `/opt/trendi/backups/pre-scratch-delete-20261112-075303.dump`. Four tenants remain:
+  `concierge`, `trendi-oauth-staging`, `trendi-meta-review`, `pukeko-construction`.
+- **Cloudflare routing rule `reply concierge-test` deleted** (HTTP 200). Six rules remain and
+  **Catch-all + Concierge intake are intact**. Note: the token *does* have Email-Routing write
+  (the doc said read-only) — so §5's routing-rule half was possible after all.
+- **Host rebooted** to activate kernel **6.8.0-149** (host back in ~26 s). Health afterwards:
+  **43/43, 0 warn, 0 fail**.
+
+### Post-reboot regressions found and fixed (the reboot was worth doing)
+1. **`asterisk-bridge-1` crash-looped**: `PermissionError: /srv/app/suppressions.py`. Cause: the
+   bind-mounted `api/app` source was owned `501:staff` with `-rw-------` (an earlier `rsync -a`
+   preserved the Mac umask), and the bridge runs as user `app`. Fixed with
+   `chmod -R a+rX <release>/api/app` and a restart. **Deploy rule: after copying `api/app`,
+   always `chmod -R a+rX` it** (same trap as `/opt/trendi/shared/studio`).
+2. **`trendi-social-1` could not start**: it uses `network_mode: service:api`, so it held a stale
+   netns reference to the pre-reboot api container. Recreated with
+   `docker compose … up -d --force-recreate --no-deps social`.
+3. `asterisk-pbx-1` (exit 128) and CRM (slow Twenty boot) recovered on their own / after start.
+
+### Verified
+All four public URLs 200 (CRM took ~3 min to migrate); api, email-auth, crm, crm-db healthy;
+social, asterisk-pbx, asterisk-bridge, shell all up; healthcheck **43/43**.
+
+### Still impossible from here (proven by API probe)
+- **DNS: 403** — so DMARC `p=reject` / SPF `-all` cannot be changed with this token.
+- **Token list: 403** — the Cloudflare token cannot be split (§6).
+- No `BREVO_API_KEY` in `api.env` (SMTP creds only), so the Brevo webhook URL cannot be updated
+  programmatically → `BREVO_WEBHOOK_SECRET` rotation still needs the Brevo dashboard.
