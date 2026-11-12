@@ -128,3 +128,29 @@ def test_hourly_limit_counts_the_mailbox_not_the_tenant(monkeypatch):
     asyncio.run(cloudflare_inbound.handle(_request(_payload())))
     # The limit counts the recipient mailbox; a tenant-wide count was the old bug.
     assert any("lower(recipient)=lower($2)" in query for query in pool.fetches)
+
+
+def test_envelope_sender_is_carried_into_the_audit_detail(monkeypatch):
+    """From is what we display; the envelope is kept because From != envelope is a
+    spoofing signal, and an ESP relay puts its bounce address in the envelope."""
+    _patch(monkeypatch)
+    monkeypatch.setattr(cloudflare_inbound.inbound_policy, "rule_for", AsyncMock(return_value=None))
+    ingest = AsyncMock(return_value={"id": 1})
+    monkeypatch.setattr(cloudflare_inbound.inbound_email, "ingest_verified", ingest)
+    asyncio.run(cloudflare_inbound.handle(
+        _request(_payload(envelope_from="bounces-1@send.trendibizz.com"))))
+    assert ingest.await_args.kwargs["envelope_from"] == "bounces-1@send.trendibizz.com"
+
+
+def test_unknown_payload_fields_are_rejected(monkeypatch):
+    _patch(monkeypatch)
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(cloudflare_inbound.handle(_request(_payload(surprise="x"))))
+    assert excinfo.value.status_code == 400
+
+
+def test_oversized_envelope_sender_is_rejected(monkeypatch):
+    _patch(monkeypatch)
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(cloudflare_inbound.handle(_request(_payload(envelope_from="a" * 400))))
+    assert excinfo.value.status_code == 400

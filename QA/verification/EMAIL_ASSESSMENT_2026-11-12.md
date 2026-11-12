@@ -239,3 +239,33 @@ to `*.dkim.brevo.com`), so authentication does **not** rest on SPF alone. The ea
 any common selector" missed Brevo's `brevo1` selector. SPF is still `~all` on the apex and DMARC
 is still `p=none`; moving to `p=quarantine` is a deliverability decision for the operator, not a
 code fix, and should follow a week of DMARC reports.
+
+## 8. Worker redeployed and DMARC readiness proved — 2026-11-12 20:05 NZ
+
+The last code-side item is now done, and it uncovered two more real defects.
+
+**Worker deployed** (Cloudflare API, `concierge-inbound-worker`, bindings preserved:
+`CONCIERGE_INBOUND_SECRET`, `CONCIERGE_INBOUND_URL`, `FORWARD_TO`). Two fixes went with it:
+
+1. **Hints come only from `Authentication-Results`** (repo fix from earlier, previously
+   undeployed) — the old code regexed the whole raw message, so quoted body text could set them.
+2. **The sender is the `From:` header, not the SMTP envelope.** For anything relayed by an ESP
+   the envelope is the provider's bounce address, so every such draft was stored as
+   `bounces-…@send.trendibizz.com` with the customer's name nowhere. The envelope is now sent as
+   `envelope_from` and kept in the inbound audit (From ≠ envelope is a spoofing signal).
+3. **Angle brackets in Reply-To** broke risk scoring: `email_risk._domain()` read
+   `<reply-abc@trendibizz.com>` as domain `trendibizz.com>`, so every reply was flagged
+   `reply_to_mismatch` → medium. Fixed in `_domain()` and normalised in the Worker. Verified end
+   to end: draft 30 → `sender=admin@trendibizz.com`, `reply_to=reply-254a…@trendibizz.com`,
+   `risk=low`, `flags=[]`.
+
+**DMARC readiness — evidence for `p=quarantine`:** a real Brevo-sent message was looped back into
+our own inbound chain and Cloudflare's MTA reported on it:
+`dkim=pass header.d=trendibizz.com header.s=brevo1`, `dmarc=pass header.from=trendibizz.com`,
+`spf=pass smtp.mailfrom=bounces-…@send.trendibizz.com`, sidecar `aligned=yes`. So our own sends
+already authenticate with an aligned DKIM signature; enforcement would not break them.
+
+**Blocker for enforcement: DNS permissions.** The scoped Cloudflare token cannot read or write DNS
+(`Authentication error` on `/zones/{zone}/dns_records`), so the DMARC record must be changed in the
+Cloudflare dashboard, or a token with *Zone → DNS → Edit* must be issued. SPF apex is `~all` and
+can stay: DMARC enforcement, not SPF, is what closes the spoofing gap.

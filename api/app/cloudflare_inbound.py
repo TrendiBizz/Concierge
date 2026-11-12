@@ -23,7 +23,7 @@ log = logging.getLogger("concierge.inbound")
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 MAX_BYTES = 800_000
 REQUIRED_FIELDS = {"message_id", "recipient", "sender", "subject", "text"}
-OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments", "raw_b64"}
+OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments", "raw_b64", "envelope_from"}
 AUTH_KEYS = {"spf", "dkim", "dmarc", "authentication_results", "reply_to", "content_type"}
 MAILBOX_HOURLY_LIMIT = 60
 SENDER_HOURLY_LIMIT = 10
@@ -85,6 +85,10 @@ async def handle(request: Request) -> dict:
             raise ValueError("Invalid field types")
         if len(payload["sender"]) > 320 or len(payload["subject"]) > 250:
             raise ValueError("Invalid fields")
+        envelope_from = payload.get("envelope_from")
+        if envelope_from is not None and (not isinstance(envelope_from, str)
+                                          or len(envelope_from) > 320):
+            raise ValueError("Invalid envelope sender")
         # Body text has its own cap: an oversized message is a payload-size
         # problem (413), not a malformed-field problem (400).
         if len(payload["text"]) > 20000:
@@ -203,7 +207,7 @@ async def handle(request: Request) -> dict:
         draft = await inbound_email.ingest_verified(
             tenant_id, "cloudflare", payload["message_id"],
             payload["sender"], recipient, payload["subject"], payload["text"],
-            auth=auth, risk=risk, flags=flags,
+            auth=auth, risk=risk, flags=flags, envelope_from=envelope_from,
         )
     except (ValueError, TypeError, inbound_email.InboundError) as exc:
         raise HTTPException(400, "Invalid email payload") from exc

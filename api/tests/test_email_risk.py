@@ -140,3 +140,21 @@ def test_aligned_pass_still_beats_an_unaligned_label():
          "dmarc": "pass", "spf": "pass"},
         "a@example.com", None, "hi", "hello")
     assert result["risk"] == "low"
+
+
+def test_angle_bracket_reply_to_on_the_same_domain_is_not_a_mismatch():
+    """Reply-To arrives as "<reply-abc@trendibizz.com>"; a literal domain read
+    turned that into "trendibizz.com>" and flagged every reply (draft 29)."""
+    result = email_risk.assess(
+        {"verified_by": "email-auth", "aligned": "yes", "dkim": "pass", "dmarc": "pass",
+         "reply_to": "<reply-abc@trendibizz.com>"},
+        "admin@trendibizz.com", "<reply-abc@trendibizz.com>", "hi", "hello")
+    assert "reply_to_mismatch" not in result["flags"]
+    assert result["risk"] == "low"
+
+
+def test_named_reply_to_on_another_domain_is_still_a_mismatch():
+    result = email_risk.assess(
+        {"verified_by": "email-auth", "aligned": "yes", "dkim": "pass", "dmarc": "pass"},
+        "alice@customer.example", "Acme <support@acme.example>", "hi", "hello")
+    assert "reply_to_mismatch" in result["flags"]

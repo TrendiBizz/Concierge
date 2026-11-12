@@ -28,9 +28,17 @@ function authFrom(raw, headers) {
     dkim: one("dkim"),
     dmarc: one("dmarc"),
     authentication_results: results,
-    reply_to: (headers.get("reply-to") || "").slice(0, 320),
+    reply_to: (addressFrom(headers.get("reply-to")) || "").slice(0, 320),
     content_type: (headers.get("content-type") || "").slice(0, 200),
   };
+}
+
+function addressFrom(value) {
+  // "Name <a@b.c>" -> "a@b.c"; a bare address is returned unchanged.
+  const text = String(value || "").trim();
+  const angle = text.match(/<([^<>]+)>/);
+  const candidate = (angle ? angle[1] : text).trim();
+  return candidate.includes("@") ? candidate : "";
 }
 
 function textFromRaw(raw) {
@@ -65,7 +73,13 @@ export default {
     const body = {
       message_id: message.headers.get("message-id") || crypto.randomUUID(),
       recipient: (message.to || "").toLowerCase(),
-      sender: message.from || "",
+      // `message.from` is the SMTP envelope sender. For mail relayed by an ESP that is
+      // the provider's bounce address (e.g. bounces-…@send.trendibizz.com), not the
+      // person who wrote the message, so the From header is what a human should see
+      // and what the reply address must match. The envelope is kept for the audit log:
+      // From != envelope is itself a spoofing signal worth recording.
+      sender: addressFrom(message.headers.get("from")) || message.from || "",
+      envelope_from: message.from || "",
       subject: message.headers.get("subject") || "",
       text: textFromRaw(raw),
       reply_to: auth.reply_to,

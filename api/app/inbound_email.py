@@ -18,7 +18,8 @@ class InboundError(ValueError):
 async def ingest_verified(tenant_id, provider: str, message_id: str,
                           sender: str, recipient: str, subject: str,
                           text_body: str, auth: dict | None = None,
-                          risk: str = "low", flags: list | None = None) -> dict:
+                          risk: str = "low", flags: list | None = None,
+                          envelope_from: str | None = None) -> dict:
     """Persist an untrusted email as a non-sending human-review draft.
 
     Tenant identity must come from a private recipient mapping, not user input.
@@ -50,9 +51,11 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
                                 conversation_id=conversation_id, email=draft["sender"])
+        detail = {"risk": risk, "flags": flags, "status": draft.get("status")}
+        if envelope_from:
+            detail["envelope_from"] = envelope_from[:320]
         await inbound_policy.audit(
-            tenant_id, draft["id"], "received", "cloudflare-worker",
-            {"risk": risk, "flags": flags, "status": draft.get("status")})
+            tenant_id, draft["id"], "received", "cloudflare-worker", detail)
         if tenant.get('email_auto_reply') and risk != "high":
             await db.pool().execute(
                 'INSERT INTO email_secretary_jobs(tenant_id,source_key,sender,subject,body) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',

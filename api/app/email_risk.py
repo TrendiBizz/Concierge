@@ -30,7 +30,18 @@ def links(text: str) -> list[str]:
 
 
 def _domain(address: str) -> str:
-    value = (address or "").strip().lower()
+    """The domain of an address, tolerating "Name <a@b>" and angle brackets.
+
+    Reply-To arrives from the Worker as the raw header value, which is often
+    `<reply-abc@trendibizz.com>`. Reading that literally produced the domain
+    "trendibizz.com>" and flagged every reply as reply_to_mismatch, even when the
+    reply address was on the sender's own domain (2026-11-12 verification draft 29).
+    """
+    value = (address or "").strip()
+    angle = re.search(r"<([^<>]+)>", value)
+    if angle:
+        value = angle.group(1)
+    value = value.strip().strip("<>").strip().lower()
     if "@" not in value:
         return ""
     return value.rsplit("@", 1)[1].strip(" .")
