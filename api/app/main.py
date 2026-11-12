@@ -807,6 +807,7 @@ class TenantUpdate(BaseModel):
     max_days_ahead: int | None = Field(default=None, ge=1, le=365)
     native_booking: bool | None = None
     notify_email: str | None = None
+    notify_phone: str | None = Field(default=None, max_length=32)
     sms_enabled: bool | None = None
     sms_from: str | None = None
     lead_sms_template: str | None = None
@@ -947,9 +948,16 @@ async def admin_get_tenant(slug: str):
 
 
 @app.patch("/admin/tenants/{slug}", dependencies=admin)
-async def admin_update_tenant(slug: str, body: TenantUpdate):
-    await _require_tenant(slug)
-    updated = await tenants.update(slug, body.model_dump(exclude_unset=True))
+async def admin_update_tenant(slug: str, body: TenantUpdate, force: bool = False):
+    current = await _require_tenant(slug)
+    changes = body.model_dump(exclude_unset=True)
+    # Go-live gate: never switch a phone line on for a business whose owner cannot be told about
+    # the enquiries it takes. `?force=true` is the operator's explicit override.
+    if changes.get("phone_enabled") and not current.get("phone_enabled") and not force:
+        blockers = await channel_health.go_live_blockers({**current, **changes})
+        if blockers:
+            raise HTTPException(409, {"error": "alerts_not_proven", "blockers": blockers})
+    updated = await tenants.update(slug, changes)
     if updated.get("notify_email") and not updated.get("reply_address"):
         try:
             updated = await reply_address.ensure(updated)
@@ -1929,6 +1937,21 @@ async def owner_me(user: dict = Depends(owner_auth.current_user)):
 async def owner_channel_health(user: dict = Depends(owner_auth.current_user)):
     """Plain status of email alerts, the SMS phone and voice calls for this business."""
     return await channel_health.channel_report(user["tenant_id"])
+
+
+@app.post("/owner/alerts/test", status_code=202)
+async def owner_test_alert(user: dict = Depends(owner_auth.current_user)):
+    """Send a test alert to the owner's own email and mobile so they can confirm it arrives."""
+    owner_auth.require_role(user, "owner")
+    tenant = await _require_tenant(user["slug"])
+    return await channel_health.send_test_alert(tenant)
+
+
+@app.post("/admin/tenants/{slug}/test-alert", dependencies=admin, status_code=202)
+async def admin_test_alert(slug: str):
+    tenant = await _require_tenant(slug)
+    result = await channel_health.send_test_alert(tenant)
+    return {**result, "go_live_blockers": await channel_health.go_live_blockers(tenant)}
 
 
 @app.get("/owner/crm")

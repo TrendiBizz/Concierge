@@ -14,7 +14,7 @@ Two jobs, both read-mostly and safe to run repeatedly:
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from . import db, outbox
 
@@ -147,3 +147,60 @@ async def channel_report(tenant_id) -> dict:
     }
     report["all_ok"] = all(item["ok"] for item in report.values())
     return report
+
+
+# A delivered owner alert (real or test) within this window proves the business can be reached.
+PROOF_WINDOW_DAYS = 7
+
+
+async def proven_channels(tenant_id) -> list[str]:
+    """Alert channels that actually delivered (status 'sent') to this business recently.
+
+    'sent' for SMS means the phone itself confirmed it, so this is delivery evidence, not intent.
+    """
+    rows = await db.pool().fetch(
+        """SELECT DISTINCT channel FROM outbox
+           WHERE tenant_id = $1 AND kind = 'owner_alert' AND status = 'sent'
+             AND created_at > now() - make_interval(days => $2)""",
+        tenant_id, PROOF_WINDOW_DAYS,
+    )
+    return sorted(row["channel"] for row in rows)
+
+
+async def go_live_blockers(tenant: dict) -> list[str]:
+    """Reasons a business must not have its phone switched on yet. Empty list = ready.
+
+    A phone line that answers customers but cannot tell the owner is worse than no phone line:
+    the enquiry is taken and then silently lost.
+    """
+    problems = []
+    if not (tenant.get("notify_phone") or "").strip():
+        problems.append("Set the owner's mobile number for alerts.")
+    if not (tenant.get("notify_email") or "").strip():
+        problems.append("Set the owner's alert email address.")
+    if not await proven_channels(tenant["id"]):
+        problems.append("Send a test alert and confirm it arrived: no alert has been delivered "
+                        f"in the last {PROOF_WINDOW_DAYS} days.")
+    return problems
+
+
+async def send_test_alert(tenant: dict) -> dict:
+    """Queue a clearly labelled test alert on every configured alert channel."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    text = (f"Test alert from Trendi Concierge for {tenant.get('name') or 'your business'}. "
+            "If you can read this, new enquiries will reach you.")
+    queued = []
+    for channel, target, subject in (
+        ("email", tenant.get("notify_email"), "Test alert - Trendi Concierge"),
+        ("sms", tenant.get("notify_phone"), ""),
+    ):
+        target = (target or "").strip()
+        if not target:
+            continue
+        created = await outbox.enqueue(
+            tenant["id"], "owner_alert", channel, target, text, subject=subject,
+            dedupe_key=f"test:{tenant['id']}:{channel}:{stamp}",
+        )
+        if created:
+            queued.append(channel)
+    return {"queued": queued}
