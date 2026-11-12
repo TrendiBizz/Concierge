@@ -1,3 +1,33 @@
+# Trendi Concierge — current handoff (repo root)
+
+Updated 2026-11-12. **Read first:** `QA/verification/HANDOFF_CURRENT_2026-11-11.md` — its last
+section, "Session 2026-11-12 (third) — Cloudflare rotation, risk bug, phone stack back up",
+supersedes every older pointer below.
+
+## Outstanding (current)
+- **Phone DID (paid)** — `scripts/vps/order-phone-did.sh`; needs a payment method/KYC. The SIP
+  stack itself is up (Asterisk pbx/bridge + Rust shell), so this is the last item before a
+  customer-dialable number.
+- **Studio SPA has no Permissions screen** — inbound email consent can only be granted from the
+  legacy `/owner-ui` console, so a customer who only uses Studio can never enable it.
+- **Inbound rejections are invisible** — a `403` from `/api/v1/inbound/cloudflare` only appears in
+  `docker logs`; surface it in the owner portal or readiness output.
+- **Rotate the xAI/api keys** — `docker inspect` prints every service secret in clear text, and
+  those values reached a session transcript on 2026-11-12.
+- **Full-stack deploys must pass `--profile crm --profile public`** — otherwise
+  `docker compose up -d --remove-orphans` deletes the CRM and the Cloudflare tunnels.
+- **Replace the operator-created demo logins** for `pukeko-construction` and `concierge-test` with
+  real customer accounts.
+- Carried forward: Pukeko social OAuth + live publishing; richer internal admin console; removal of
+  the old test phone route; consent-copy review; offsite backup credentials; off-site SEO accounts;
+  Astryx Native watch (weekly Monday 09:00 NZ, still not production).
+
+## Next action
+Add the Permissions screen to `web/portal` and surface inbound `403` rejections in readiness output,
+then finish the phone DID purchase.
+
+# Older pointers (historical)
+
 > **Current status (10 November 2026):** [WORKFLOW_STATUS_2026-11-10.md](QA/verification/WORKFLOW_STATUS_2026-11-10.md).
 > Read that first. The **Rust port is abandoned** — do not continue it and do not treat
 > `scripts/rust-gate.sh` as a requirement; the Python API on `main` is the product.
