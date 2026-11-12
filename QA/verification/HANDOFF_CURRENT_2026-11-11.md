@@ -1442,10 +1442,12 @@ endpoint); caller disclosure for live listening plus corrected capability claims
 2. **Prove the media server on a real call.** On that live call: take-over (owner's phone rings
    through Hero, caller bridged), then listen, then whisper, then join; and a no-answer transfer
    must fall back into the assistant after 30 s.
-3. **Console buttons** for supervise — API only today (`POST /owner/live-calls/{call_sid}/supervise
-   {mode: listen|whisper|join}`); nothing in `web/portal` calls it.
-4. **Supervision audit trail** — who listened to which call, for how long. The greeting now promises
-   listening can happen, so this is the next compliance gap.
+3. ~~**Console buttons** for supervise~~ — **built 2026-11-12 (fifteenth session), in the repo,
+   not deployed.** Listen in / Whisper / Join / Stop listening in the console's "Happening now"
+   panel, with live legs shown per call.
+4. ~~**Supervision audit trail**~~ — **built 2026-11-12 (fifteenth session), in the repo, not
+   deployed.** `supervision_sessions` + `GET /owner/supervision` + a "Who listened" console card.
+   Still unproven on a real PBX leg; the hangup of a spy channel has never run against Asterisk.
 5. **Per-tenant `transfer_number`.** Transfers use `managed_phone_setups.owner_number`, else
    `tenants.notify_phone`; `pukeko-construction` has neither set.
 6. **Decide the DID's tenant** — currently the internal `trendi-oauth-staging`; production should be
@@ -1492,3 +1494,41 @@ new live-listen disclosure copy (now customer-facing).
 
 Dial +64 9 243 1347 and give the full enquiry, dictation included; then, on that same call, exercise
 take-over → listen → whisper and confirm the fallback when nobody answers.
+
+## Session 2026-11-12 (fifteenth) — console supervise buttons and the supervision audit trail
+
+**What was missing.** Two things the previous session left as API-only: the console had no way to
+ask to listen (`web/portal` never called `/supervise`), and nothing recorded who listened to which
+call or for how long — a real compliance gap now that the greeting tells every caller a team member
+may listen.
+
+**Built** (`413b004`, in the repo, **not deployed**):
+
+- `api/app/supervision.py` — the audit record. A leg is a `supervision_sessions` row: tenant, call,
+  mode, who asked, the number their phone was rung on, the AMI marker, the PBX channel, start and
+  end. Duration is **only** `ended_at - started_at`; an open leg reports "so far" at read time and
+  is never stored as finished. Every leg closes for a recorded reason: stopped by the supervisor,
+  their phone hung up, the call ended (at the call's own `ended_at`), or the ring never connected.
+- `POST /owner/live-calls/{call_sid}/supervise/stop` and `GET /owner/supervision`.
+- The supervise leg now carries `CONCIERGE_SPY=<marker>` from the originate (`asterisk_ami`
+  gained a `variables` argument), so the PBX channel for a leg can be found by that marker alone
+  and hung up with a scoped `Hangup` — no CLI, no wider permissions.
+- Live-call summaries carry their open supervision legs; the console's "Happening now" panel shows
+  Listen in / Whisper / Join, switches to "Listening: …" with Stop listening, and a "Who listened"
+  card lists the audit trail with durations.
+
+**Why the ordering is what it is.** The audit row is written *before* the phone is dialled, so an
+attempted listen that never connected is on the record (zero duration, reason `could not be rung`)
+rather than a phantom listener — and the ring has to succeed before the console claims anyone is
+listening. Stopping closes the row even if the Hangup fails, because the console must stop
+claiming a listener; the reconcile pass notices a leg that outlives it.
+
+**Verified.** API **724 passed** (709 before; 15 new in `api/tests/test_supervision.py`). Two
+mutations were seen to fail as they should: removing the non-negative clamp on duration, and
+closing a leg at "now" instead of the call's end time. Portal `npm run build` (tsc + vite) clean;
+the three oxlint errors are pre-existing in the login/invite components, untouched here.
+
+**Not verified — this is the catch.** Nothing has run against a real PBX yet: the `Hangup` action
+on a spy channel, the `CONCIERGE_SPY` marker being readable back from an originated leg, and the
+end-to-end console flow all need the live Asterisk box and a human on a phone. The API tests pin
+the logic, not the carrier.
