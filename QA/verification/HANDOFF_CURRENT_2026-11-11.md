@@ -614,3 +614,33 @@ Worth rotating the xAI key when convenient; it is the same value in every contai
 `asterisk-pbx` up; `/studio/` 200; `/owner-ui` 200; `chat…/demo/puko-construction` 200;
 `trendibizz.com` 200; `chat…/healthz` and `concierge…/healthz` 404 **by design** (Caddyfile
 allowlist, unchanged). 565 api tests pass; 15 email-risk tests pass.
+
+### First real low-risk inbound email — DONE (draft 25), and the customer tenant is blocked by consent
+
+Instead of waiting, a real message was sent through the whole chain (Brevo SMTP → Cloudflare
+Email Routing → inbound Worker → api → Rust DKIM/DMARC sidecar):
+
+- `email_drafts` **id 25**, `risk='low'`, `flags=[]`, `auth->>'verified_by'='email-auth'`,
+  `dkim=pass`, `dmarc=pass`, `aligned=yes`, subject "Inbound verification test (authorized
+  tenant)". `POST /api/v1/inbound/cloudflare` → 200. The `oversized` bug fixed earlier is
+  confirmed gone in production.
+
+Sending the same message to the **live customer tenant** exposed a separate, real bug:
+
+- `pukeko-construction` (the tenant at `chat.trendibizz.com`) has **no rows at all** in
+  `tenant_channel_authorizations`. `cloudflare_inbound.handle` therefore refuses its mail:
+  `POST /api/v1/inbound/cloudflare` → **`403 Forbidden`**, logged, and the Worker falls through to
+  `message.forward(env.FORWARD_TO)` with the log line "concierge inbound not stored; forwarding
+  only". Nothing is lost from the owner's inbox, but **no CRM draft is ever created** — reply
+  routing to that customer has never worked, and would never have shown up as a "low risk draft"
+  because it never becomes a draft at all.
+- The consent control exists but only in the legacy owner console: `/owner-ui` → **Permissions** →
+  "Customer channel permissions" (`POST /owner/onboarding/authorizations`, owner role). The newer
+  Studio SPA (`web/portal/src/*`) has no such screen, so a customer who only ever sees Studio can
+  never turn inbound email on. Owner action required for `pukeko-construction`: sign in at
+  `https://concierge.trendibizz.com/owner-ui` → Permissions → enable email read.
+- Worth a follow-up: the 403 is invisible to everyone except the api log. A rejected inbound
+  message should surface in the owner portal/health output, not only in `docker logs`.
+
+Unrelated: "DeepPilot" (a mobile app the owner is installing) is not part of this project —
+nothing in the repo, the VPS or the DSH install references it.
