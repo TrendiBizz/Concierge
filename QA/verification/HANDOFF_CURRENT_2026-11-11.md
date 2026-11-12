@@ -1174,7 +1174,11 @@ silently. Microsoft appears nowhere; Google Calendar remains the only calendar i
 
 **Honest limits, carried forward:**
 - A (text-back) is inert for `pukeko-construction` because that tenant has `sms_enabled = false`.
-- B has no audio listen-in: the provider offers call control (accept/hangup), not a SIP transfer.
+- B has no audio listen-in, and that remains true — but **the transfer claim was wrong**: xAI
+  documents `POST /v1/realtime/calls/{call_id}/refer` (a real SIP REFER to `tel:`/`sip:`, blocking
+  until the destination answers). The ring-back-only take-over is therefore a scoping choice made on
+  a false premise, not a provider limit. See the tenth session below and
+  `VOICE_TAKEOVER_2026-11-12.md`.
 - E is not card payment; if card payments are wanted later, Stripe or similar can drive the same
   state machine (the schema stores declarations and confirmations, not card data).
 - Proofs for D/E/F used synthetic rows on the real database and cleaned up afterwards; no real
@@ -1182,3 +1186,44 @@ silently. Microsoft appears nowhere; Google Calendar remains the only calendar i
 - The `GO_LIVE_HARDENING.md` items (Brevo secret/SMTP key/plan, DMARC `p=reject`, Cloudflare token
   split, scratch tenants + `admin@trendibizz.com`) and the operator items (phone DID, social OAuth,
   offsite backups, xAI key) are **unchanged and still open**.
+
+## Session 2026-11-12 (tenth) — Octovox console / call take-over research
+
+Operator asked what the Octovox console actually requires, what Astryx or GitHub offers, and whether
+a real take-over is worth building into Concierge. **Full analysis:
+`QA/verification/VOICE_TAKEOVER_2026-11-12.md`.** No code changed, nothing deployed; the 684 API /
+live 43-ok baseline is untouched.
+
+**Headline — the shipped premise was wrong.** xAI documents
+`POST /v1/realtime/calls/{call_id}/refer` `{"target_uri":"tel:+64…"}`, a real SIP REFER that blocks
+until the destination answers (`200` only if answered, `502` + carrier SIP code on rejection, `504`
+timeout, and the realtime session stays usable after a failed transfer). Call control is exactly
+`refer` + `hangup` — so **transfer is available; listen-in/whisper/conference is not**, and never was.
+`provider_readiness`, `live_calls.py` docstring and `main.py` still say "no SIP transfer" and must be
+corrected when the feature is built (list in §8 of the new doc).
+
+**Astryx** — design system only (`@astryxdesign/core`, `theme-neutral`); no audio, media or
+telephony package. It contributes the console UI (Dialog, Toast, Badge), nothing else.
+
+**GitHub** — nothing to adopt. LiveKit (Apache-2.0) has a real `TransferSIPParticipant` but adds an
+SFU; Fonoster (MIT) adds a whole CPaaS incl. RTPEngine; jambonz is licence-key-gated self-hosting;
+FreeSWITCH is a second PBX; JsSIP/SIP.js only matter for a browser softphone. No mature OSS
+"AI call supervisor" console exists. The gap was a provider endpoint, not an open-source component.
+
+**Recommendation: build a real take-over (REFER), 2–4 dev-days, no new infrastructure.** Details:
+`refer()` in `phone_sip.py` (background, 20 s timeout, status mapping); `transfer_state/target/at/
+error` columns on `phone_calls`; `take_over(mode='transfer'|'ring_back')` keeping the
+pause → audit → alert → transfer order; async takeover endpoint with the existing 3 s poll showing
+`requesting → connected|failed`; Astryx Dialog/Toast in "Happening now"; a per-tenant
+`transfer_number` (blank = `notify_phone`); status-mapping, fallback, idempotency and capability-honesty
+tests. **Do not build listen-in** — it needs owned media (Asterisk AMI `Redirect` + `ChanSpy`, or a
+CPaaS conference), and it changes what callers must be told. Build it only on a paying trigger.
+
+**Constraints that stay:** no Microsoft; free/GitHub only; no metered AI/automation; the phone DID is
+still the only thing between the project and a customer-dialable number, and **no `refer` request was
+sent** — the endpoint is documented, not proved from here. Acceptance for this feature is a real
+forwarded call transferred to a real mobile that answers.
+
+**Next action (repo):** implement the REFER take-over as one small PR — start with the `refer()`
+status mapping + `take_over(mode=...)` tests, then the Studio state. Correct the four stale "no SIP
+transfer" claims in the same PR.
