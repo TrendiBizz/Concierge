@@ -317,6 +317,12 @@ async def run_forever(stop: asyncio.Event) -> None:
                     log.warning("reconciled %s unconfirmed SMS row(s) as failed", stalled)
             except Exception:
                 log.exception("sms receipt reconciliation error")
+            try:
+                # Imported here: channel_health imports this module.
+                from . import channel_health
+                await channel_health.escalate_failed_owner_alerts()
+            except Exception:
+                log.exception("owner alert escalation error")
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
         except asyncio.TimeoutError:
