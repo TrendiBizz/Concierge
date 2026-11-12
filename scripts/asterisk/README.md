@@ -12,9 +12,34 @@ business's public mobile number. `source_cidr` is the verified carrier/PBX SIP
 source. Use separate exact destinations for separate businesses; shared trunks
 are routed by trusted source and exact destination. Unknown calls are rejected.
 
+**Registration trunks.** A carrier that authenticates a line by number and
+password (Hero Internet, and most residential/small-business VoIP lines)
+registers instead of exposing a fixed signalling network. Use the object form:
+
+```json
+{
+  "routes": [{"tenant": "example-business", "number": "+6492431347", "port": 9510}],
+  "trunk":  {"server": "sip.hero.co.nz", "username": "092431347",
+             "password": "<line password>", "transport": "udp", "port": 5060}
+}
 ```
-python3 scripts/asterisk/render_routes.py /private/business-routes.json scripts/asterisk/generated
+
+The renderer emits a `registration`/`auth`/`aor`/`endpoint`/`identify` set and
+pins `match=<server>`, so the registrar is the only accepted source. A trunk
+with exactly **one** route also accepts any dialled form (`+64…`, `0…`, `64…`)
+on its own authenticated line, because carriers differ in what they put in the
+Request-URI; with two or more routes only the exact DID entries map, and
+anything else hangs up. Only UDP registration is rendered — TLS needs
+certificates this script does not place.
+
 ```
+python3 scripts/asterisk/render_routes.py /private/business-routes.json scripts/asterisk/generated bridge 152.42.239.240
+```
+
+The routes file contains the line password: keep it `0600` outside the repo
+(e.g. `/opt/trendi/shared/asterisk-routes.json`). Verify the registration with
+`asterisk -rx "pjsip show registrations"` — it must say `Registered` — before
+creating any `phone_numbers` row.
 
 Set `ASTERISK_ROUTES` to the same rows without `source_cidr` (tenant, number,
 port), `CONCIERGE_API_IMAGE`, `CONCIERGE_ENV_FILE` and `CONCIERGE_NETWORK`.
