@@ -6,13 +6,19 @@ from app import channel_health
 
 
 class FakePool:
-    def __init__(self, rows=None, row=None):
+    def __init__(self, rows=None, row=None, fb_recent=0):
         self.rows = rows or []
         self.row = row
+        self.fb_recent = fb_recent
         self.fetch_sql = ""
+        self.fetch_args = ()
+
+    async def fetchval(self, sql, *args):
+        return self.fb_recent
 
     async def fetch(self, sql, *args):
         self.fetch_sql = " ".join(sql.split())
+        self.fetch_args = args
         return self.rows
 
     async def fetchrow(self, sql, *args):
@@ -132,3 +138,34 @@ def test_email_and_voice_health(monkeypatch):
     assert _health(monkeypatch, channel_health.voice_health, {"bad": 3, "good": 0})["state"] == "failing"
     assert _health(monkeypatch, channel_health.voice_health, {"bad": 0, "good": 0})["state"] == "untested"
     assert _health(monkeypatch, channel_health.voice_health, {"bad": 1, "good": 2})["ok"] is True
+
+
+def _capped(monkeypatch, rows, fb_recent):
+    queued = []
+
+    async def enqueue(tenant_id, kind, channel, to_addr, body, subject="", dedupe_key=None, **kw):
+        queued.append(dedupe_key)
+        return True
+
+    pool = FakePool(rows=rows, fb_recent=fb_recent)
+    monkeypatch.setattr(channel_health.db, "pool", lambda: pool)
+    monkeypatch.setattr(channel_health.outbox, "enqueue", enqueue)
+    return asyncio.run(channel_health.escalate_failed_owner_alerts()), queued, pool
+
+
+def test_escalation_stops_at_the_hourly_cap_per_business(monkeypatch):
+    rows = [_row("sms", id=i) for i in range(1, 8)]
+    count, queued, _ = _capped(monkeypatch, rows, fb_recent=0)
+    assert channel_health.MAX_ESCALATIONS_PER_TENANT_HOUR == 3
+    assert count == 3 and len(queued) == 3
+
+
+def test_nothing_is_escalated_when_the_hourly_cap_is_already_used(monkeypatch):
+    count, queued, _ = _capped(monkeypatch, [_row("sms")], fb_recent=3)
+    assert count == 0 and queued == []
+
+
+def test_newest_alerts_first_in_a_small_batch(monkeypatch):
+    _, _, pool = _capped(monkeypatch, [], fb_recent=0)
+    assert "ORDER BY o.id DESC" in pool.fetch_sql and "LIMIT $3" in pool.fetch_sql
+    assert pool.fetch_args[2] == channel_health.MAX_PER_SWEEP == 10

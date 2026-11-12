@@ -25,6 +25,10 @@ DEVICE_OFFLINE_AFTER = timedelta(minutes=15)
 # Only recent alerts are worth escalating; older ones are history, not live enquiries.
 ESCALATION_WINDOW_HOURS = 24
 FAILED_STATES = ("failed", "held", "suppressed")
+# Escalation must never amplify a storm: newest alerts first, few per sweep, and a hard hourly cap
+# per business (2026-11-13: an uncapped sweep re-queued dozens of alerts during a mail loop).
+MAX_PER_SWEEP = 10
+MAX_ESCALATIONS_PER_TENANT_HOUR = 3
 
 
 def _fallback(row: dict) -> tuple[str, str, str, str] | None:
@@ -57,14 +61,23 @@ async def escalate_failed_owner_alerts() -> int:
           AND o.status = ANY($1::text[])
           AND o.created_at > now() - make_interval(hours => $2)
           AND COALESCE(o.dedupe_key, '') NOT LIKE 'fb:%'
-        ORDER BY o.id
-        LIMIT 50
+        ORDER BY o.id DESC
+        LIMIT $3
         """,
-        list(FAILED_STATES), ESCALATION_WINDOW_HOURS,
+        list(FAILED_STATES), ESCALATION_WINDOW_HOURS, MAX_PER_SWEEP,
     )
     queued = 0
+    recent: dict[str, int] = {}
     for record in rows:
         row = dict(record)
+        tenant_key = str(row["tenant_id"])
+        if tenant_key not in recent:
+            recent[tenant_key] = int(await db.pool().fetchval(
+                """SELECT count(*) FROM outbox WHERE tenant_id = $1
+                   AND dedupe_key LIKE 'fb:%' AND created_at > now() - interval '1 hour'""",
+                row["tenant_id"]) or 0)
+        if recent[tenant_key] >= MAX_ESCALATIONS_PER_TENANT_HOUR:
+            continue
         fallback = _fallback(row)
         if fallback is None:
             continue
@@ -79,6 +92,7 @@ async def escalate_failed_owner_alerts() -> int:
             continue
         if created:
             queued += 1
+            recent[tenant_key] += 1
             log.warning("owner alert %s failed on %s; re-queued on %s", row["id"], row["channel"], channel)
     return queued
 
