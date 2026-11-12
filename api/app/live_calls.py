@@ -21,9 +21,11 @@ So the console has two engines, and it says which one a call is on:
 
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from . import asterisk_ami, call_control, casetimeline, db, owner_notifications
+from . import supervision as supervision_audit
 from .config import get_settings
 
 log = logging.getLogger("concierge.live_calls")
@@ -78,7 +80,7 @@ def engine(call: dict) -> str:
 
 
 def summarise(call: dict, turns: list[dict], now: datetime | None = None,
-              media_control: bool = False) -> dict:
+              media_control: bool = False, supervision: list[dict] | None = None) -> dict:
     """One call as the console shows it. Pure, so the list and the drill-down cannot disagree."""
     tail = transcript_tail(turns)
     asterisk = engine(call) == "asterisk"
@@ -100,10 +102,14 @@ def summarise(call: dict, turns: list[dict], now: datetime | None = None,
             "join": asterisk and media_control,
             "ring_back": True,
         },
+        # Who is listening right now — the console shows it and the audit trail owns it.
+        "supervision": [supervision_audit.summarise(row, now)
+                        for row in (supervision or [])],
     }
 
 
 async def active(tenant_id, now: datetime | None = None, limit: int = 20) -> list[dict]:
+    await supervision_audit.close_ended_calls(tenant_id)
     rows = await db.pool().fetch(
         """SELECT * FROM phone_calls
            WHERE tenant_id = $1 AND status = 'in_progress'
@@ -111,13 +117,15 @@ async def active(tenant_id, now: datetime | None = None, limit: int = 20) -> lis
            ORDER BY started_at DESC LIMIT $2""",
         tenant_id, max(1, min(limit, 50)),
     )
+    legs = await supervision_audit.active_by_call(tenant_id)
     calls = []
     for row in rows:
         call = dict(row)
         if not is_live(call, now):
             continue
         calls.append(summarise(call, await _turns(tenant_id, call.get("session_id")), now,
-                               media_control=call_control.enabled()))
+                               media_control=call_control.enabled(),
+                               supervision=legs.get(str(call.get("call_sid")), [])))
     return calls
 
 
@@ -139,9 +147,11 @@ async def one(tenant_id, call_sid: str) -> dict | None:
         "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2", tenant_id, call_sid)
     if not row:
         return None
+    await supervision_audit.close_ended_calls(tenant_id)
     call = dict(row)
     data = summarise(call, await _turns(tenant_id, call.get("session_id")),
-                     media_control=call_control.enabled())
+                     media_control=call_control.enabled(),
+                     supervision=await supervision_audit.open_for_call(tenant_id, call_sid))
     data["live"] = is_live(call)
     return data
 
@@ -206,8 +216,14 @@ async def owner_voice_number(tenant: dict) -> str:
     return number if re.fullmatch(r"\+?[0-9]{3,20}", number) else ""
 
 
-async def supervise(tenant: dict, call: dict, mode: str) -> dict:
-    """Join the owner's phone to a live Asterisk call: listen, whisper, or join."""
+async def supervise(tenant: dict, call: dict, mode: str, *, supervisor: str = "owner") -> dict:
+    """Join the owner's phone to a live Asterisk call: listen, whisper, or join.
+
+    The audit row is opened *before* the phone is dialled, so an attempted listen that never
+    connected is still on the record (with a zero duration and the reason). If the ring fails the
+    row is closed immediately and the error propagates — the console must not show a listener who
+    is not there.
+    """
     if engine(call) != "asterisk":
         raise call_control.CallControlUnavailable(
             "Listen-in needs the Asterisk line; this call is on the SIP provider")
@@ -215,11 +231,73 @@ async def supervise(tenant: dict, call: dict, mode: str) -> dict:
     number = await owner_voice_number(tenant)
     if not number:
         raise call_control.CallControlUnavailable("No owner phone number is set for supervision")
-    channel = await call_control.attach_supervisor(
-        call["call_sid"], number, mode, channel_dial=get_settings().asterisk_channel_dial)
-    log.info("supervisor %s on %s (%s)", number, channel, mode)
-    return {"mode": str(mode).lower(), "channel": channel, "number": number,
-            "options": options, "engine": "asterisk"}
+    mode = str(mode).strip().lower()
+    marker = secrets.token_hex(8)
+    record = await supervision_audit.start(
+        tenant["id"], call["call_sid"], mode,
+        supervisor=supervisor, number=number, marker=marker)
+    try:
+        channel = await call_control.attach_supervisor(
+            call["call_sid"], number, mode, channel_dial=get_settings().asterisk_channel_dial,
+            spy_marker=marker)
+    except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+        await supervision_audit.stop(tenant["id"], record["id"],
+                                     f"{supervision_audit.RING_FAILED}: {error}")
+        raise
+    await supervision_audit.attach_channel(record["id"], channel)
+    log.info("supervisor %s on %s (%s, id=%s)", number, channel, mode, record["id"])
+    return {"mode": mode, "channel": channel, "number": number, "options": options,
+            "engine": "asterisk", "supervision_id": record["id"],
+            "supervision": {"id": record["id"], "mode": mode,
+                            "supervisor": supervisor, "open": True}}
+
+
+async def stop_supervision(tenant: dict, call_sid: str, *, by: str = "owner") -> dict:
+    """End every supervision leg on this call and close its audit rows."""
+    legs = await supervision_audit.open_for_call(tenant["id"], call_sid)
+    if not legs:
+        return {"stopped": 0, "note": "Nobody is listening to this call."}
+    live = None
+    stopped = 0
+    for row in legs:
+        channel = (row.get("spy_channel") or "").strip()
+        if not channel:
+            # The leg was recorded before it was dialled; find it by its marker instead.
+            try:
+                live = live if live is not None else await call_control.spy_legs()
+            except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+                log.warning("could not ask the PBX for supervision legs: %s", error)
+                live = {}
+            channel = next((name for name, marker in live.items()
+                            if marker == (row.get("marker") or "")), "")
+        if channel:
+            try:
+                await call_control.hangup_leg(channel)
+            except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+                # The row still closes: the console stops claiming a listener either way, and
+                # the reconcile pass will notice if the leg outlives it.
+                log.warning("could not hang up supervision leg %s: %s", channel, error)
+        if await supervision_audit.stop(tenant["id"], row["id"],
+                                        f"{supervision_audit.STOPPED} ({by})"):
+            stopped += 1
+    log.info("supervision stopped by %s on %s (%s leg(s))", by, call_sid, stopped)
+    return {"stopped": stopped, "note": ""}
+
+
+async def reconcile_supervision(tenant_id) -> int:
+    """Close legs whose call ended, and legs the PBX no longer carries (the phone hung up)."""
+    closed = await supervision_audit.close_ended_calls(tenant_id)
+    open_legs = await supervision_audit.active_by_call(tenant_id)
+    if not open_legs or not call_control.enabled():
+        return closed
+    try:
+        live = set(await call_control.spy_legs())
+    except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+        # The audit trail must never fail a page load because the PBX is briefly unavailable;
+        # the legs stay open and the next read tries again.
+        log.warning("supervision reconcile skipped: %s", error)
+        return closed
+    return closed + await supervision_audit.close_missing_legs(tenant_id, live)
 
 
 async def _callback_task(tenant_id, case, caller: str, tail: str, call: dict) -> None:

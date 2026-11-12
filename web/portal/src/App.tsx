@@ -356,6 +356,8 @@ function Bookings({token}: {token: string}) {
   const [textback, setTextback] = useState<{enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]}>({});
   const [insights, setInsights] = useState<{insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>}>({});
   const [live, setLive] = useState<Record<string, unknown>[]>([]);
+  const [audit, setAudit] = useState<Record<string, unknown>[]>([]);
+  const [supervising, setSupervising] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const days: Array<[string, string]> = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']];
@@ -386,6 +388,8 @@ function Bookings({token}: {token: string}) {
         return next;
       });
       setRole((me as {role: string}).role);
+      const aud = await api('/owner/supervision?limit=10') as {sessions?: Record<string, unknown>[]};
+      setAudit(aud.sessions || []);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load bookings'); }
   }
   useEffect(() => { load(); }, [token]);
@@ -411,6 +415,33 @@ function Bookings({token}: {token: string}) {
       notify('Take over: ring ' + (result.caller || 'the caller') + ' back now.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not take over that call'); }
+  }
+
+  // Listening is an audio action on the media server, not a transcript view: the owner's own
+  // phone rings and is joined to the caller. The caller has already been told this may happen.
+  async function superviseLive(callSid: string, mode: 'listen' | 'whisper' | 'join') {
+    setSupervising(callSid);
+    const said = mode === 'listen'
+      ? 'Your phone is ringing — answer to listen. The caller will not hear you.'
+      : mode === 'whisper'
+        ? 'Your phone is ringing — answer to whisper. Only the caller hears you.'
+        : 'Your phone is ringing — answer to join. Everyone on the call hears you.';
+    try {
+      const result = await api('/owner/live-calls/' + encodeURIComponent(callSid) + '/supervise', 'POST', {mode}) as {number?: string};
+      setStatus(said + (result.number ? ' Ringing ' + result.number + '.' : ''));
+      notify(said);
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not join that call'); }
+    setSupervising('');
+  }
+
+  async function stopSupervising(callSid: string) {
+    try {
+      const result = await api('/owner/live-calls/' + encodeURIComponent(callSid) + '/supervise/stop', 'POST', {}) as {stopped?: number; note?: string};
+      setStatus(result.stopped ? 'Stopped listening. The call carries on without you.' : (result.note || 'Nobody was listening to that call.'));
+      notify(result.stopped ? 'Stopped listening.' : 'Nobody was listening.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not stop listening'); }
   }
 
   async function connectCalendar() {
@@ -506,6 +537,7 @@ function Bookings({token}: {token: string}) {
       {live.length ? (
         <Card>
           <Heading level={2}>Happening now</Heading>
+          <p>Listening in rings your own phone and joins it to the call. The caller has been told a team member may listen.</p>
           {live.map((call, index) => (
             <div key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 8, marginBottom: 8}}>
               <strong>{String(call.caller || 'Caller')}</strong> · {Math.round(Number(call.seconds || 0) / 60)}m {Number(call.seconds || 0) % 60}s
@@ -516,10 +548,47 @@ function Bookings({token}: {token: string}) {
                 ))}
               </div>
               <Button label="Take over — ring them back" variant="primary" onClick={() => takeOverLive(String(call.call_sid))} />
+              {(() => {
+                const control = (call.media_control || {}) as Record<string, boolean>;
+                if (!control.listen) return null;
+                const listening = (Array.isArray(call.supervision) ? call.supervision : []) as Array<Record<string, unknown>>;
+                if (listening.length) {
+                  return (
+                    <p style={{margin: '8px 0 0'}}>
+                      <Badge label={'Listening: ' + listening.map((leg) => String(leg.mode_label || leg.mode || '')).join(', ')} variant="success" />
+                      {' '}<Button label="Stop listening" variant="secondary" onClick={() => stopSupervising(String(call.call_sid))} />
+                    </p>
+                  );
+                }
+                const sid = String(call.call_sid);
+                return (
+                  <p style={{margin: '8px 0 0'}}>
+                    <Button label={supervising === sid ? 'Ringing…' : 'Listen in'} variant="secondary" onClick={() => superviseLive(sid, 'listen')} />
+                    {' '}<Button label="Whisper" variant="secondary" onClick={() => superviseLive(sid, 'whisper')} />
+                    {' '}<Button label="Join" variant="secondary" onClick={() => superviseLive(sid, 'join')} />
+                  </p>
+                );
+              })()}
             </div>
           ))}
         </Card>
       ) : null}
+
+      <Card>
+        <Heading level={2}>Who listened</Heading>
+        <p>Every time someone listens to a live call it is recorded here — who, which call, and for how long.</p>
+        {audit.length ? audit.map((session, index) => {
+          const seconds = Number(session.seconds || 0);
+          const when = String(session.started_at || '').slice(0, 16).replace('T', ' ');
+          return (
+            <p key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>
+              <strong>{String(session.supervisor || 'Owner')}</strong> · {String(session.mode_label || session.mode || '')} · {String(session.caller || session.call_sid || 'call')} · {when}
+              {' '}<Badge label={session.open ? 'listening now' : seconds ? Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's' : 'did not connect'} variant={session.open ? 'success' : seconds ? 'neutral' : 'warning'} />
+              {!session.open && session.ended_reason ? <><br /><em>{String(session.ended_reason)}</em></> : null}
+            </p>
+          );
+        }) : <p>Nobody has listened to a call yet. When someone does, it appears here.</p>}
+      </Card>
 
       <Card>
         <Heading level={2}>Recent calls</Heading>

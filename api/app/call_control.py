@@ -109,16 +109,26 @@ async def transfer_call(call_sid, tenant_slug, number, *, config=None):
     return channel
 
 
-async def attach_supervisor(call_sid, number, mode, *, channel_dial, config=None):
+CHANNEL_NAME = re.compile(r'[A-Za-z0-9_/.@:;-]{1,200}')
+
+
+async def attach_supervisor(call_sid, number, mode, *, channel_dial, spy_marker=None,
+                            config=None):
     """Ring the owner and join them to the live media in ``mode``.
 
     ``channel_dial`` is the outbound pattern for the carrier trunk (``PJSIP/<number>@concierge-reg``);
     it is supplied by the caller so this module does not have to hard-code a trunk name.
+
+    ``spy_marker`` is written to the new leg as ``CONCIERGE_SPY`` before ``ChanSpy`` runs, so the
+    leg can be found again (and hung up) knowing nothing but the marker the audit trail stored.
     """
     options = spy_options(mode)
     number = str(number or '').strip()
     if not re.fullmatch(r'\+?[0-9]{3,20}', number):
         raise CallControlUnavailable('A valid supervisor number is required')
+    marker = str(spy_marker or '').strip()
+    if marker and not re.fullmatch(r'[A-Za-z0-9_.:@-]{1,40}', marker):
+        raise CallControlUnavailable('Unsupported supervision marker')
     config = config or _config()
     channel = await channel_for(call_sid, config)
     if not channel:
@@ -126,7 +136,39 @@ async def attach_supervisor(call_sid, number, mode, *, channel_dial, config=None
     dial = str(channel_dial).replace('<number>', number.lstrip('+'))
     if not re.fullmatch(r'[A-Za-z0-9_/.@-]{3,200}', dial):
         raise CallControlUnavailable('Unsupported outbound dialling pattern')
+    variables = {'CONCIERGE_SUPERVISOR': '1'}
+    if marker:
+        variables['CONCIERGE_SPY'] = marker
     await asterisk_ami.originate(
-        config, dial, 'ChanSpy', f'{channel},{options}', timeout_ms=60_000)
+        config, dial, 'ChanSpy', f'{channel},{options}', timeout_ms=60_000, variables=variables)
     log.info('%s leg opened for %s on %s', mode, number, channel)
     return channel
+
+
+async def spy_legs(config=None):
+    """``{channel: marker}`` for every live supervision leg the PBX is carrying."""
+    config = config or _config()
+    legs = {}
+    for event in await asterisk_ami.channels(config):
+        channel = (event.get('Channel') or '').strip()
+        if not channel or channel.startswith('AsyncGoto'):
+            continue
+        try:
+            marker = await asterisk_ami.get_variable(config, channel, 'CONCIERGE_SPY')
+        except asterisk_ami.AmiError:
+            continue
+        if marker:
+            legs[channel] = marker.strip()
+    return legs
+
+
+async def hangup_leg(channel, config=None):
+    """End one supervision leg. The caller and the AI are untouched: only the spy channel goes."""
+    channel = str(channel or '').strip()
+    if not CHANNEL_NAME.fullmatch(channel):
+        raise CallControlUnavailable('A PBX channel is required to end supervision')
+    config = config or _config()
+    response, _ = await asterisk_ami.action(
+        {'Action': 'Hangup', 'Channel': channel}, config=config)
+    log.info('supervision leg hung up on %s', channel)
+    return response

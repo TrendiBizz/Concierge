@@ -200,11 +200,15 @@ async def hangup(config, channel, timeout=DEFAULT_TIMEOUT):
 
 
 async def originate(config, channel, application, data, *, caller_id=None, apply_vars=False,
-                    timeout_ms=30000, timeout=DEFAULT_TIMEOUT):
+                    variables=None, timeout_ms=30000, timeout=DEFAULT_TIMEOUT):
     """Ring ``channel`` and, when answered, run ``application`` with ``data`` on that leg.
 
     This is how a supervisor's phone is joined to a live call: the supervisor leg answers and
     immediately runs ``ChanSpy`` on the caller's channel.
+
+    ``variables`` are set on the new channel *before* the application runs, so a leg can carry
+    its own identity (the audit trail writes ``CONCIERGE_SPY=<marker>`` and finds the channel
+    again by asking the PBX for that value).
     """
     channel = _clean('channel', channel, pattern=CHANNEL)
     application = _clean('application', application, pattern=r'[A-Za-z0-9_]{1,40}')
@@ -212,8 +216,13 @@ async def originate(config, channel, application, data, *, caller_id=None, apply
     fields = {'Action': 'Originate', 'Channel': channel, 'Application': application,
               'Data': data, 'Async': 'true', 'Timeout': str(int(timeout_ms))}
     if apply_vars:
-        # Variables set *before* the application runs (Used with Application/Data).
-        fields['Variable'] = 'CONCIERGE_SUPERVISOR=1'
+        # Kept for existing callers; `variables` supersedes it.
+        variables = {'CONCIERGE_SUPERVISOR': '1', **(variables or {})}
+    if variables:
+        pairs = ','.join(f'{_clean("variable name", str(key), pattern=r"[A-Za-z0-9_]{1,64}")}='
+                         f'{_clean("variable value", str(value), pattern=r"[A-Za-z0-9_.:@-]{0,200}")}'
+                         for key, value in variables.items())
+        fields['Variable'] = pairs
     if caller_id:
         fields['CallerID'] = _clean('caller id', caller_id, pattern=r'[^"\r\n]{1,64}')
     response, _ = await action(fields, config=config, timeout=timeout)

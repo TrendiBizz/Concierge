@@ -866,3 +866,27 @@ CREATE TABLE IF NOT EXISTS quote_payments (
     created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS quote_payments_tenant_idx ON quote_payments (tenant_id, created_at DESC);
+
+-- Supervision audit trail (2026-11-12). The phone greeting tells callers a team member may
+-- listen, so every listen/whisper/join is recorded: who, which call, which mode, and — from
+-- the two timestamps, never a guess — how long. `marker` is the value the originate writes to
+-- CONCIERGE_SPY so the PBX channel carrying a leg can be found and ended again.
+CREATE TABLE IF NOT EXISTS supervision_sessions (
+    id                bigserial PRIMARY KEY,
+    tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    call_sid          text NOT NULL,
+    mode              text NOT NULL,
+    supervisor        text NOT NULL DEFAULT '',
+    supervisor_number text NOT NULL DEFAULT '',
+    marker            text NOT NULL DEFAULT '',
+    spy_channel       text NOT NULL DEFAULT '',
+    started_at        timestamptz NOT NULL DEFAULT now(),
+    ended_at          timestamptz,
+    ended_reason      text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS supervision_sessions_tenant_idx
+    ON supervision_sessions (tenant_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS supervision_sessions_call_idx
+    ON supervision_sessions (call_sid, started_at DESC);
+CREATE INDEX IF NOT EXISTS supervision_sessions_open_idx
+    ON supervision_sessions (tenant_id) WHERE ended_at IS NULL;

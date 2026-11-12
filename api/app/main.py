@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue
+from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -2078,14 +2078,46 @@ async def owner_live_supervise(
     call = dict(row)
     if not live_calls.is_live(call):
         raise HTTPException(409, "That call has already ended")
+    by = user.get("email") or user.get("role") or "owner"
     try:
-        result = await live_calls.supervise(tenant, call, body.mode)
+        result = await live_calls.supervise(tenant, call, body.mode, supervisor=str(by))
     except call_control.CallControlUnavailable as error:
         raise HTTPException(409, str(error))
     except asterisk_ami.AmiError as error:
         log.warning("supervise failed for %s: %s", call_sid, error)
         raise HTTPException(502, f"The switchboard did not answer: {error}")
     return {"ok": True, **result}
+
+
+@app.post("/owner/live-calls/{call_sid}/supervise/stop")
+async def owner_live_supervise_stop(
+    call_sid: str, user: dict = Depends(owner_auth.current_user)
+):
+    """End every supervision leg on this call (the owner hanging up their own listening).
+
+    The audit row closes with who stopped it; the caller and the assistant are untouched.
+    """
+    tenant = await _require_tenant(user["slug"])
+    row = await db.pool().fetchrow(
+        "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",
+        user["tenant_id"], call_sid)
+    if not row:
+        raise HTTPException(404, "Call not found")
+    by = user.get("email") or user.get("role") or "owner"
+    result = await live_calls.stop_supervision(tenant, call_sid, by=str(by))
+    return {"ok": True, **result}
+
+
+@app.get("/owner/supervision")
+async def owner_supervision(limit: int = 20, user: dict = Depends(owner_auth.current_user)):
+    """The supervision audit trail: who listened to which call, in what mode, and for how long.
+
+    Legs are closed against the PBX before they are read, so a supervisor who simply hung up
+    their phone cannot leave a session showing as still listening.
+    """
+    await live_calls.reconcile_supervision(user["tenant_id"])
+    return {"sessions": await supervision.recent(user["tenant_id"], limit),
+            "media_control": call_control.enabled()}
 
 
 @app.post("/owner/live-calls/{call_sid}/takeover")
