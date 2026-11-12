@@ -257,7 +257,13 @@ def check_inbound(api_env: dict) -> list[dict]:
 
     code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select count(*) from inbound_audit where action='inbound_rejected' "
-                             "and created_at > now() - interval '1 hour'"])
+                             "and created_at > now() - interval '1 hour' "
+                             # Bounces are not customer mail: Brevo delivers DSNs to the tenant
+                             # reply address, and a report that counts them as refusals cries
+                             # wolf every time an address goes bad. They still get audited.
+                             "and coalesce(detail->>'sender','') not like 'bounces-%' "
+                             "and coalesce(detail->>'sender','') not like 'mailer-daemon@%' "
+                             "and coalesce(detail->>'sender','') not like 'postmaster@%'"])
     count = int(out.strip()) if code == 0 and out.strip().isdigit() else None
     if count is None:
         results.append(_warn("inbound:rejections", "could not count rejections"))

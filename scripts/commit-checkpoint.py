@@ -50,6 +50,7 @@ SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 # Untracked files may only enter under these prefixes (tracked edits are
 # always allowed because they are already in the repository).
 UNTRACKED_ALLOWED_PREFIXES = (
+    ".github/",
     "api/",
     "scripts/",
     "QA/",

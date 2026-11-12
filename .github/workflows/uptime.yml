@@ -1,0 +1,107 @@
+name: uptime
+
+# Outside-in monitoring: this runs on GitHub's infrastructure, not on the VPS, so it is
+# the only check that notices when the whole box is unreachable (a dead host cannot report
+# that it is dead). The deep checks live in scripts/vps/healthcheck.py on the VPS itself.
+#
+# On failure it opens a labelled GitHub issue (which emails the owner) and fails the run,
+# which also notifies by email. Free on GitHub-hosted runners; every 20 minutes keeps a
+# private repo inside the free monthly Actions minutes.
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe public endpoints
+        id: probe
+        run: |
+          set -uo pipefail
+          failed=""
+          urls=(
+            "https://trendibizz.com/"
+            "https://chat.trendibizz.com/demo/pukeko-construction"
+            "https://chat.trendibizz.com/widget.js"
+            "https://concierge.trendibizz.com/studio/"
+            "https://concierge.trendibizz.com/owner-ui"
+            "https://crm.trendibizz.com/"
+          )
+          for url in "${urls[@]}"; do
+            code=""
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$url" || echo 000)
+              [ "$code" = "200" ] && break
+              sleep 10
+            done
+            # CRM may legitimately answer with a redirect depending on auth state.
+            case "$url" in
+              https://crm.trendibizz.com/) ok="200 302 307";;
+              *) ok="200";;
+            esac
+            if ! echo " $ok " | grep -q " $code "; then
+              failed="$failed\n- $url -> HTTP $code"
+            fi
+            echo "$url -> $code"
+          done
+          if [ -n "$failed" ]; then
+            printf 'endpoints down:%b\n' "$failed"
+            { echo "FAILED=1"; printf "DETAIL<<EOF\n%b\nEOF\n" "$failed"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "FAILED=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check TLS certificates
+        run: |
+          set -uo pipefail
+          for host in trendibizz.com chat.trendibizz.com concierge.trendibizz.com crm.trendibizz.com; do
+            expiry=$(echo | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
+              | openssl x509 -noout -enddate | cut -d= -f2)
+            if [ -z "$expiry" ]; then
+              echo "Could not read certificate for $host"; exit 1
+            fi
+            days=$(( ( $(date -d "$expiry" +%s) - $(date +%s) ) / 86400 ))
+            echo "$host certificate expires in $days days"
+            if [ "$days" -lt 7 ]; then echo "Certificate for $host expires in $days days"; exit 1; fi
+          done
+
+      - name: Open an incident issue on failure
+        if: failure() || steps.probe.outputs.FAILED == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          existing=$(gh issue list --label uptime-down --state open --limit 1 --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "An open uptime incident already exists; not opening another."
+            exit 0
+          fi
+          gh issue create \
+            --title "Uptime check failed $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --label uptime-down \
+            --body "The scheduled outside-in uptime check failed. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          Check the VPS deep checks too: \`/opt/trendi/monitoring/health.log\` and
+          \`/opt/trendi/monitoring/status.json\` on 152.42.239.240." || true
+
+      - name: Close the incident issue once healthy
+        if: success() && steps.probe.outputs.FAILED == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          for number in $(gh issue list --label uptime-down --state open --limit 20 --json number --jq '.[].number'); do
+            gh issue close "$number" --comment "Recovered: every probed endpoint answered correctly."
+          done
