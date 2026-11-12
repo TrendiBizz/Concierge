@@ -350,14 +350,17 @@ function Bookings({token}: {token: string}) {
     sun: {start: '09:00', end: '17:00', open: false},
   });
   const [ack, setAck] = useState(false);
+  const [textback, setTextback] = useState<{enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]}>({});
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const days: Array<[string, string]> = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']];
 
   async function load() {
     try {
-      const [cal, crm, onboarding, me] = await Promise.all([
-        api('/owner/calendar'), api('/owner/crm'), api('/owner/onboarding'), api('/owner/me')]);
+      const [cal, crm, onboarding, me, missed] = await Promise.all([
+        api('/owner/calendar'), api('/owner/crm'), api('/owner/onboarding'), api('/owner/me'),
+        api('/owner/missed-calls')]);
+      setTextback(missed as {enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]});
       setCalendar(cal as {configured?: boolean; connected?: boolean; provider?: string});
       setAppointments(((crm as {appointments?: Record<string, unknown>[]}).appointments || []));
       const business = (onboarding as {business?: Record<string, unknown>}).business || {};
@@ -427,6 +430,16 @@ function Bookings({token}: {token: string}) {
     setBusy(false);
   }
 
+  async function saveTextback(next: boolean) {
+    if (role !== 'owner') { setStatus('Only the business owner can change this.'); return; }
+    try {
+      await api('/owner/missed-calls/textback', 'PUT', {enabled: next});
+      setTextback({...textback, enabled: next});
+      setStatus(next ? 'Missed-call text-back is on.' : 'Missed-call text-back is off.');
+      notify(next ? 'Missed-call text-back is on.' : 'Missed-call text-back is off.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save that setting'); }
+  }
+
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Bookings</Heading>
@@ -459,6 +472,25 @@ function Bookings({token}: {token: string}) {
           <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> The hours and rules are correct, and Concierge may book appointments.
         </label>
         <Button label={busy ? 'Saving…' : 'Save booking settings'} variant="primary" onClick={saveBooking} />
+      </Card>
+
+      <Card>
+        <Heading level={2}>Missed-call text-back</Heading>
+        <p>
+          When someone calls and hangs up before Concierge can help, we text them once with your
+          booking link and record it as an enquiry — so the job is not lost. This is included;
+          you can switch it off here.
+        </p>
+        <label style={{display: 'block', margin: '8px 0'}}>
+          <input type="checkbox" checked={textback.enabled !== false}
+                 onChange={(e) => saveTextback(e.target.checked)} /> Text back callers we miss
+        </label>
+        <p><strong>{textback.count_30d || 0}</strong> missed caller{(Number(textback.count_30d) === 1) ? '' : 's'} texted back in the last 30 days.</p>
+        {(textback.recoveries || []).slice(0, 5).map((row, index) => (
+          <p key={index} style={{margin: '4px 0'}}>
+            {String(row.contact || '')} · {String(row.status || '')} · {String(row.created_at || '').slice(0, 16)}
+          </p>
+        ))}
       </Card>
 
       <Heading level={2}>Appointments</Heading>

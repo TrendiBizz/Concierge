@@ -19,6 +19,7 @@ from websockets.exceptions import ConnectionClosedOK
 from fastapi import APIRouter, HTTPException, Request
 
 from . import channel_authorization, convo, db, enquiries, events, tenants, voice, voice_records
+from . import missed_calls
 from .config import get_settings
 from .rag import build_system_prompt
 from .tools import run_tool
@@ -194,6 +195,13 @@ async def serve_call(call_id,tenant,caller):
             status="hangup_unconfirmed"
             log.warning("Telephone hangup needs provider reconciliation")
         await db.pool().execute("UPDATE phone_calls SET status=$2,ended_at=now() WHERE call_sid=$1",session_id,status)
+        # Missed-call text-back (competitor-gap item A). A call that ends without a conversation
+        # is a lost job; this gives the caller one reply and the owner a lead. Never let it change
+        # the recorded outcome of the call.
+        try:
+            await missed_calls.evaluate_call_sid(session_id)
+        except Exception:
+            log.warning("Missed-call recovery needs reconciliation for %s",session_id)
         if caller_turns and conversation:
             await db.pool().execute(
                 "UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 "

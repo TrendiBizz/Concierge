@@ -38,7 +38,20 @@ def _settings(**over):
 def test_the_report_covers_every_area_the_audit_names():
     with patch.object(provider_readiness, "get_settings", lambda: _settings()):
         rep = provider_readiness.report()
-    assert set(rep["areas"]) == {"social", "telephony", "payments"}
+    # "included" is the customer-facing half of the report: what Concierge already does, so a
+    # business never has to read a changelog to find out. It grows with every shipped capability.
+    assert set(rep["areas"]) == {"social", "telephony", "payments", "included"}
+
+
+def test_every_shipped_capability_is_advertised_in_the_report():
+    """New features must be discoverable from onboarding, not only from a release note."""
+    with patch.object(provider_readiness, "get_settings", lambda: _settings()):
+        rep = provider_readiness.report()
+    included = {step["what"] for step in rep["areas"]["included"]["steps"]}
+    assert "Missed-call text-back" in included
+    for step in rep["areas"]["included"]["steps"]:
+        assert step["status"] in ("ready", "action_needed", "unconfigured")
+        assert "Studio" in step["detail"] or "switch" in step["detail"].lower()
 
 
 def test_every_step_has_a_status_and_an_explanation():

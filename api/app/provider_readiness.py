@@ -164,9 +164,35 @@ def _payments() -> dict:
     }
 
 
+def _included() -> dict:
+    """What Concierge already does for a business, so nobody has to read a changelog to know.
+
+    One step per shipped capability. A capability whose only dependency is a per-tenant toggle is
+    `ready`; one that needs an account or setting is reported by the area that owns it. Keep this
+    list to things a customer would recognise as a benefit, not to internals.
+    """
+    steps = [
+        _step(
+            "Missed-call text-back",
+            "ready",
+            "A caller who hangs up before saying anything gets one text back with the booking link, "
+            "and is recorded as an enquiry. On by default for every business with SMS enabled; "
+            "switch it off per business in Studio, Setup.",
+            "tenants.missed_call_textback",
+        ),
+    ]
+    return {
+        "area": "included",
+        "summary": "Capabilities that are already live for every business, and how to switch them off.",
+        "steps": steps,
+        "verifiable_here": ["runtime_behaviour"],
+    }
+
+
 def report() -> dict:
     """Provider checks, configuration and code work. Reads configuration; changes nothing."""
-    areas = {"social": _social(), "telephony": _telephony(), "payments": _payments()}
+    areas = {"social": _social(), "telephony": _telephony(), "payments": _payments(),
+             "included": _included()}
     blocking = [
         {"area": name, "what": step["what"]}
         for name, area in areas.items()

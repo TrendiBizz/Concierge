@@ -27,7 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
 from . import suppressions
-from . import casetimeline, hermes_orchestrator, provider_readiness
+from . import casetimeline, hermes_orchestrator, missed_calls, provider_readiness
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -70,6 +70,7 @@ async def lifespan(_: FastAPI):
     worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
     sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
+    missed_worker = asyncio.create_task(missed_calls.run_forever(stop)) if settings.outbox_enabled else None
     twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
         settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
     email_worker = asyncio.create_task(email_secretary.run_forever(stop))
@@ -1523,6 +1524,10 @@ async def twilio_phone_ended(request: Request):
     if not phone_relay.signed(uri, form, request.headers.get("X-Twilio-Signature", "")):
         raise HTTPException(status_code=403, detail="Invalid telephone webhook signature")
     await phone_relay.finish(form.get("CallSid", ""), "completed")
+    try:
+        await missed_calls.evaluate_call_sid(form.get("CallSid", ""))
+    except Exception:
+        log.warning("Missed-call recovery needs reconciliation for a Twilio call")
     return Response(content='<Response><Hangup/></Response>', media_type="application/xml")
 
 
@@ -2449,6 +2454,35 @@ class PhoneSmsTest(BaseModel):
     model_config = {"extra":"forbid"}
     acknowledgement: Literal[True]
     request_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+
+
+class MissedCallTextback(BaseModel):
+    enabled: bool
+
+
+@app.get("/owner/missed-calls")
+async def owner_missed_calls(limit: int = 20, user: dict = Depends(owner_auth.current_user)):
+    """What we did about calls nobody answered, so the owner is never guessing."""
+    tenant = await _require_tenant(user["slug"])
+    rows = await missed_calls.recent(user["tenant_id"], max(1, min(limit, 100)))
+    return {
+        "enabled": bool(tenant.get("missed_call_textback")),
+        "template": tenant.get("missed_call_template") or "",
+        "count_30d": await db.pool().fetchval(
+            "SELECT count(*) FROM missed_call_recoveries WHERE tenant_id=$1 AND status='queued' "
+            "AND created_at>now()-interval '30 days'", user["tenant_id"]),
+        "recoveries": rows,
+    }
+
+
+@app.put("/owner/missed-calls/textback")
+async def owner_set_missed_textback(
+    body: MissedCallTextback, user: dict = Depends(owner_auth.current_user)
+):
+    owner_auth.require_role(user, "owner")
+    await db.pool().execute(
+        "UPDATE tenants SET missed_call_textback=$2 WHERE id=$1", user["tenant_id"], body.enabled)
+    return {"enabled": body.enabled}
 
 
 @app.post("/owner/sms-phone/test",status_code=202)

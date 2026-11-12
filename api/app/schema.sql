@@ -805,3 +805,26 @@ DROP TRIGGER IF EXISTS tenant_channel_authorization_audit_trg
 CREATE TRIGGER tenant_channel_authorization_audit_trg
     AFTER INSERT OR UPDATE ON tenant_channel_authorizations
     FOR EACH ROW EXECUTE FUNCTION concierge_consent_audit();
+
+-- Missed-call text-back (competitor-gap item A, 2026-11-12).
+-- One reply per caller number per day, and a row for every decision so the owner can see what
+-- happened and the audit can explain why (see api/app/missed_calls.py).
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS missed_call_textback boolean NOT NULL DEFAULT true;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS missed_call_template text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS missed_call_recoveries (
+    id         bigserial PRIMARY KEY,
+    call_sid   text NOT NULL,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    contact    text NOT NULL DEFAULT '',
+    lead_id    uuid REFERENCES leads(id) ON DELETE SET NULL,
+    outbox_id  bigint,
+    status     text NOT NULL DEFAULT 'queued',
+    reason     text NOT NULL DEFAULT '',
+    day        date NOT NULL DEFAULT current_date,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, call_sid)
+);
+CREATE INDEX IF NOT EXISTS missed_call_recoveries_tenant_idx
+    ON missed_call_recoveries (tenant_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS missed_call_recoveries_one_per_day
+    ON missed_call_recoveries (tenant_id, contact, day) WHERE status = 'queued' AND contact <> '';
