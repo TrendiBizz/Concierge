@@ -525,14 +525,30 @@ tokens, read/edit DNS, Workers, Email Routing. It existed in **three** places, n
 6. Backups: `/opt/trendi/backups/cf-rotation-20261112-0404/` (both env files, compose.yml,
    server.js) and image tag `trendi-concierge-api:before-20261112-bearer`.
 
-**What only a human can do now — this is the whole remaining Cloudflare item.** A global key
-cannot be rolled through the API. Someone with dashboard access must: Cloudflare dashboard →
-My Profile → API Tokens → Global API Key → *Change* → update the 2FA confirmation. Then, because
-no service needs it any more, delete the legacy lines (`CLOUDFLARE_API_KEY`/`CLOUDFLARE_EMAIL`
-from `api.env`; `CF_API_KEY`/`CF_EMAIL` from `compose.env`), delete
-`/opt/trendi/shared/cloudflare.key`, and restart `api` + `media-render` to confirm nothing
-regressed. Until the roll happens the *old* key remains valid for anyone who has a copy; the
-services simply never use it.
+**Rolled the same afternoon — the Cloudflare item is closed.** A global key cannot be rolled
+via the API, so the owner rolled it in the dashboard (My Profile → API Tokens → *API Keys* →
+Global API Key → **Change**; the account page under *Manage account → Account API tokens* is a
+different, account-scoped page and has no global key on it). Verified from the VPS, old key vs
+new credential:
+
+| check | before roll | after roll |
+|---|---|---|
+| `GET /user` with `X-Auth-Key` (the retired key) | 200 | **403, error 9103** |
+| `/user/tokens/verify` with the scoped token | 200 | 200 |
+| Email Routing rules with the scoped token | 200 | 200 |
+| Workers AI (`/ai/models/search`, and `/ai-image` on media-render) | 200 | 200 |
+
+Then cleaned up: legacy lines deleted from `api.env` (`CLOUDFLARE_API_KEY`/`CLOUDFLARE_EMAIL`)
+and `compose.env` (`CF_API_KEY`/`CF_EMAIL`), `/opt/trendi/shared/cloudflare.key` deleted, and
+the fallback removed from the code altogether (`cloudflare_auth.headers()` now raises if no
+token is set; `config.py` no longer has `cloudflare_api_key`/`cloudflare_email`;
+`media-render` passes only `CF_API_TOKEN`). `api` + `media-render` rebuilt and restarted, then
+re-verified **on the token alone**: inside the api container `legacy key still set: False`,
+headers `['Authorization']`, Email Routing rules 200; `/ai-image` 200 (800,121-byte JPEG);
+`/studio/` 200, `/owner-ui` 200, `/demo/puko-construction` 200, `trendibizz.com` 200; 565 api
+tests pass. Backups of the pre-cleanup env files and the old key:
+`/opt/trendi/backups/cf-rotation-20261112-0404/*.pre-cleanup` (all now worthless, since the key
+they contain is dead — delete whenever).
 
 ### The real reason no low-risk inbound email was appearing (fixed)
 

@@ -19,11 +19,8 @@ services:
     restart: unless-stopped
     environment:
       CF_ACCOUNT_ID: ${CF_ACCOUNT_ID:-}
-      # Scoped API token, preferred: server.js sends it as Bearer. The legacy
-      # global key (CF_API_KEY/CF_EMAIL) stays as a fallback until it is rolled.
+      # Scoped API token, sent as Bearer. The global API key is retired.
       CF_API_TOKEN: ${CF_API_TOKEN:-}
-      CF_API_KEY: ${CF_API_KEY:-}
-      CF_EMAIL: ${CF_EMAIL:-}
     mem_limit: 512m
     cpus: 1
   # DKIM/DMARC sidecar. The api reaches it at EMAIL_AUTH_URL (http://email-auth:8090).

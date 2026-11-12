@@ -105,10 +105,8 @@ class Settings(BaseSettings):
     media_ai_limit: int = 50
     media_storage_limit_bytes: int = 2 * 1024 * 1024 * 1024
     reply_domain: str = "trendibizz.com"
-    cloudflare_email: str = ""
     cloudflare_account_id: str = ""
-    cloudflare_api_key: str = ""  # legacy global API key; rotating to a scoped token
-    cloudflare_api_token: str = ""  # scoped token, preferred (Bearer) when set
+    cloudflare_api_token: str = ""  # scoped API token (Bearer); the global key is retired
     cloudflare_zone_id: str = ""
     cloudflare_worker_name: str = "concierge-inbound-worker"
     rspamd_url: str = ""
