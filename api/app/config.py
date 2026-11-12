@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     # Any carrier/PBX can route SIP to Grok; blank keeps this path disabled.
     xai_sip_connections: str = ""
     phone_verified_tenants: str = ""  # populated only after a genuine carrier call test
+    # Asterisk Manager Interface — the control plane for take-over/listen-in/whisper.
+    # Blank host or secret keeps every media-server action disabled.
+    ami_host: str = ""          # e.g. "pbx" (private Docker network, never published)
+    ami_port: int = 5038
+    ami_user: str = ""
+    ami_secret: str = ""
+    # Outbound pattern for a supervisor leg / take-over through the carrier trunk.
+    # <number> is replaced with the dialled party.
+    asterisk_channel_dial: str = "PJSIP/<number>@concierge-reg"
 
     # Grok Voice Agent API
     xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"

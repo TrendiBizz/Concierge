@@ -111,6 +111,21 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
                   f"from_user={trunk['username']}", 'aors=concierge-reg-aor',
                   '[concierge-reg]', 'type=identify', 'endpoint=concierge-reg',
                   f"match={trunk['server']}"]
+        # One control context per business. The API redirects a live caller channel here
+        # after writing CONCIERGE_TRANSFER (AMI Setvar): ring the human through the same
+        # trunk, bridge them, and fall back to the assistant if nobody answers. Dropping a
+        # caller into silence because the owner missed the ring is not acceptable.
+        for row in rows:
+            slug = row['tenant']
+            contexts += [
+                f'[business-{slug}-takeover]',
+                'exten => s,1,Set(CONCIERGE_TRANSFER=${FILTER(0-9,${CONCIERGE_TRANSFER})})',
+                f' same => n,NoOp(Take-over for {slug} from ${{CALLERID(num)}} to ${{CONCIERGE_TRANSFER}})',
+                ' same => n,GotoIf($["${CONCIERGE_TRANSFER}"=""]?ai)',
+                ' same => n,Dial(PJSIP/${CONCIERGE_TRANSFER}@concierge-reg,30,r)',
+                ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done:ai)',
+                f' same => n(ai),Goto(business-{slug},s,1)',
+                ' same => n(done),Hangup()']
         ingress = [(row['number'], row['tenant']) for row in rows]
         contexts.append('[concierge-ingress-1]')
         contexts += [f"exten => {number},1,Goto(business-{slug},s,1)" for number, slug in ingress]
@@ -137,6 +152,31 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
     return '\n'.join(contexts) + '\n', '\n'.join(pjsip) + '\n'
 
 
+def render_manager(secret, user='concierge', port=5038):
+    """Render ``manager.conf`` for the private AMI listener.
+
+    The listener is never published to the host: the PBX and the API share a private Docker
+    network. The AMI user gets exactly the classes call control needs and nothing else, so a
+    leaked secret cannot run CLI commands or touch configuration.
+    """
+    if not re.fullmatch(r'[A-Za-z0-9_]{1,32}', str(user or '')):
+        raise ValueError('Invalid AMI user name')
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError('Invalid AMI port')
+    if not isinstance(secret, str) or len(secret) < 24 or re.search(r'[^\x21-\x7e]', secret):
+        raise ValueError('AMI secret must be at least 24 printable characters')
+    return ('[general]\n'
+            'enabled = yes\n'
+            f'port = {port}\n'
+            'bindaddr = 0.0.0.0\n'
+            'displayconnects = no\n'
+            'webenabled = no\n'
+            f'[{user}]\n'
+            f'secret = {secret}\n'
+            'read = call,reporting\n'
+            'write = call,originate\n')
+
+
 def load(path):
     """Accept the legacy bare list or the documented object form."""
     value = json.loads(Path(path).read_text())
@@ -151,13 +191,23 @@ def load(path):
 
 
 if __name__ == '__main__':
-    rows, trunk = load(sys.argv[1])
-    extensions, pjsip = render(rows, sys.argv[3] if len(sys.argv) > 3 else 'bridge',
-                               sys.argv[4] if len(sys.argv) > 4 else None, trunk)
-    target = Path(sys.argv[2])
+    args = list(sys.argv[1:])
+    manager_secret = None
+    if '--manager-secret-file' in args:
+        index = args.index('--manager-secret-file')
+        manager_secret = Path(args[index + 1]).read_text().strip()
+        del args[index:index + 2]
+    rows, trunk = load(args[0])
+    extensions, pjsip = render(rows, args[2] if len(args) > 2 else 'bridge',
+                               args[3] if len(args) > 3 else None, trunk)
+    target = Path(args[1])
     target.mkdir(parents=True, exist_ok=True)
     (target / 'extensions.conf').write_text(extensions)
     (target / 'pjsip.conf').write_text(pjsip)
     # Restrict media to a small published range instead of the 10000-20000
     # default, so the public firewall/port mapping stays tight.
     (target / 'rtp.conf').write_text('[general]\nrtpstart=10000\nrtpend=10099\n')
+    if manager_secret:
+        manager = target / 'manager.conf'
+        manager.write_text(render_manager(manager_secret))
+        manager.chmod(0o600)

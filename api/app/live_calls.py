@@ -6,21 +6,25 @@ and takes over in one click. Two facts shape what is honest to build here:
   * The API is already inside the media path for every Grok SIP call (`phone_sip.serve_call`
     receives every transcript event and writes it with `convo.save_message`), so a live transcript
     costs nothing but a read.
-  * The provider's call API exposes call control (accept/hangup), **not** a SIP transfer or audio
-    join. Pretending otherwise would be a lie in the UI.
+  * The provider's SIP call API exposes call control (accept/hangup), **not** a SIP transfer or
+    an audio join. Pretending otherwise would be a lie in the UI.
 
-So "take over" means, honestly: stop the AI on this call, ring the owner now with the caller's
-number and the conversation so far, give them a callback task, and let them dial the caller back.
-That is what a small business actually does, and it needs no new provider capability.
+So the console has two engines, and it says which one a call is on:
 
-No media server, no audio listen-in. That is deliberate: it is the difference between a feature and
-an infrastructure project.
+  * **Grok SIP calls** (`sip:`) — "take over" stops the AI, alerts the owner with the transcript,
+    files a callback task and ends the call. No audio join exists on that path.
+  * **Asterisk calls** (`ast:`, the Hero DID) — the PBX owns the media, so call control is real:
+    the caller is redirected to the owner through the carrier trunk (take-over), or the owner's
+    phone is joined to the live call with `ChanSpy` (listen-in, whisper, join). See
+    ``call_control``.
 """
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
-from . import casetimeline, db, owner_notifications
+from . import asterisk_ami, call_control, casetimeline, db, owner_notifications
+from .config import get_settings
 
 log = logging.getLogger("concierge.live_calls")
 
@@ -64,9 +68,20 @@ def transcript_tail(turns: list[dict], limit: int = TAIL) -> list[dict]:
     return rows
 
 
-def summarise(call: dict, turns: list[dict], now: datetime | None = None) -> dict:
+def engine(call: dict) -> str:
+    call_sid = call.get("call_sid") or ""
+    if call_sid.startswith("ast:"):
+        return "asterisk"
+    if call_sid.startswith("sip:"):
+        return "sip"
+    return "unknown"
+
+
+def summarise(call: dict, turns: list[dict], now: datetime | None = None,
+              media_control: bool = False) -> dict:
     """One call as the console shows it. Pure, so the list and the drill-down cannot disagree."""
     tail = transcript_tail(turns)
+    asterisk = engine(call) == "asterisk"
     return {
         "call_sid": call.get("call_sid"),
         "caller": caller_label(call),
@@ -76,6 +91,15 @@ def summarise(call: dict, turns: list[dict], now: datetime | None = None) -> dic
         "caller_has_spoken": any(turn.get("role") == "user" for turn in turns),
         "transcript": tail,
         "ring_back_available": (call.get("call_sid") or "").startswith("sip:"),
+        "engine": engine(call),
+        # What the console may honestly offer for this call, on this engine, right now.
+        "media_control": {
+            "transfer": asterisk and media_control,
+            "listen": asterisk and media_control,
+            "whisper": asterisk and media_control,
+            "join": asterisk and media_control,
+            "ring_back": True,
+        },
     }
 
 
@@ -92,7 +116,8 @@ async def active(tenant_id, now: datetime | None = None, limit: int = 20) -> lis
         call = dict(row)
         if not is_live(call, now):
             continue
-        calls.append(summarise(call, await _turns(tenant_id, call.get("session_id")), now))
+        calls.append(summarise(call, await _turns(tenant_id, call.get("session_id")), now,
+                               media_control=call_control.enabled()))
     return calls
 
 
@@ -115,7 +140,8 @@ async def one(tenant_id, call_sid: str) -> dict | None:
     if not row:
         return None
     call = dict(row)
-    data = summarise(call, await _turns(tenant_id, call.get("session_id")))
+    data = summarise(call, await _turns(tenant_id, call.get("session_id")),
+                     media_control=call_control.enabled())
     data["live"] = is_live(call)
     return data
 
@@ -149,10 +175,51 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
         f"takeover:{call.get('call_sid')}",
     )
     await _callback_task(tenant["id"], case, caller, tail, call)
-    ended, note = await _hang_up(call)
-    log.info("live takeover by %s for %s (paused=%s, ended=%s)", by, caller, paused, ended)
-    return {"caller": caller, "paused": paused, "ended": ended, "note": note,
+    transferred = False
+    if engine(call) == "asterisk":
+        try:
+            number = await owner_voice_number(tenant)
+            if not number:
+                raise call_control.CallControlUnavailable(
+                    "No owner phone number is set for transfers")
+            await call_control.transfer_call(call["call_sid"], tenant["slug"], number)
+            transferred, ended, note = True, False, ""
+        except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
+            # The alert and callback task are already filed; say plainly why the audio
+            # hand-over did not happen instead of pretending the caller was transferred.
+            ended, note = False, f"The call could not be transferred: {error}. Ring them back."
+            log.warning("asterisk take-over failed for %s: %s", caller, error)
+    else:
+        ended, note = await _hang_up(call)
+    log.info("live takeover by %s for %s (paused=%s, transferred=%s, ended=%s)",
+             by, caller, paused, transferred, ended)
+    return {"caller": caller, "paused": paused, "ended": ended, "transferred": transferred,
+            "note": note, "engine": engine(call),
             "case_key": case["case_key"] if case else None}
+
+
+async def owner_voice_number(tenant: dict) -> str:
+    """The number a human can be rung on for this business: managed setup, else the alert number."""
+    row = await db.pool().fetchrow(
+        "SELECT owner_number FROM managed_phone_setups WHERE tenant_id = $1", tenant["id"])
+    number = ((row["owner_number"] if row else "") or tenant.get("notify_phone") or "").strip()
+    return number if re.fullmatch(r"\+?[0-9]{3,20}", number) else ""
+
+
+async def supervise(tenant: dict, call: dict, mode: str) -> dict:
+    """Join the owner's phone to a live Asterisk call: listen, whisper, or join."""
+    if engine(call) != "asterisk":
+        raise call_control.CallControlUnavailable(
+            "Listen-in needs the Asterisk line; this call is on the SIP provider")
+    options = call_control.spy_options(mode)
+    number = await owner_voice_number(tenant)
+    if not number:
+        raise call_control.CallControlUnavailable("No owner phone number is set for supervision")
+    channel = await call_control.attach_supervisor(
+        call["call_sid"], number, mode, channel_dial=get_settings().asterisk_channel_dial)
+    log.info("supervisor %s on %s (%s)", number, channel, mode)
+    return {"mode": str(mode).lower(), "channel": channel, "number": number,
+            "options": options, "engine": "asterisk"}
 
 
 async def _callback_task(tenant_id, case, caller: str, tail: str, call: dict) -> None:
