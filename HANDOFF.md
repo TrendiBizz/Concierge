@@ -55,7 +55,7 @@ live sandbox demo.
 - `api/app/`: FastAPI service (`main, rag, voice, tools, crawler, ingest, chunking, embeddings, llm, tenants, security, db, config, cli`, `schema.sql`)
 - `api/static/widget.js`: embeddable chat + Grok voice widget (shadow DOM, AudioWorklet mic capture, tool-call round trip)
 - `api/tests/test_units.py`: 20 passing unit tests (run from `api/`: `pytest -q tests`)
-- Core services: caddy, postgres+pgvector, redis, api. Optional profiles: n8n, chatwoot, twenty, uptime-kuma.
+- Core services: caddy, postgres+pgvector, redis, api. Optional profiles: chatwoot, twenty, uptime-kuma. (n8n was removed on 2026-11-12: it never ran a workflow and its service, volume and data are gone.)
 
 ### Verified for real
 Unit tests; the API against real Postgres 16 + pgvector with the real local embedding model
@@ -65,7 +65,7 @@ origin allow-lists, auth failures; the widget in headless Chromium with a fake m
 
 ### Only tested against mocks
 The LLM (mock OpenAI-compatible server) and the Grok Voice WebSocket (mock). **No real xAI key was
-used. Nothing has run against real Grok.** The Docker image build and the Chatwoot / Twenty / n8n /
+used. Nothing has run against real Grok.** The Docker image build and the Chatwoot / Twenty /
 Caddy containers were never booted (no Docker daemon in that environment).
 
 ### Assumptions to confirm on the first real run (xAI docs are silent)
@@ -119,7 +119,7 @@ Test-only mocks live outside the repo (scratchpad): a scriptable mock LLM (`TOOL
 - Real xAI chat/voice (no key); the 5 voice assumptions listed above.
 - Real Twilio and real SMTP delivery; Twilio signature validation only against our own implementation
   (public_base_url must exactly match the URL configured in Twilio).
-- `docker build`, and Chatwoot / Twenty / n8n / Caddy containers.
+- `docker build`, and Chatwoot / Twenty / Caddy containers.
 - The eval scenarios against a real model (2 of 6 failed against the dumb mock, as expected).
 - Voice replies are not covered by the quote-guard (prompt + `search_knowledge` only).
 
