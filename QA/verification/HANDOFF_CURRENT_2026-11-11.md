@@ -1227,3 +1227,38 @@ forwarded call transferred to a real mobile that answers.
 **Next action (repo):** implement the REFER take-over as one small PR — start with the `refer()`
 status mapping + `take_over(mode=...)` tests, then the Studio state. Correct the four stale "no SIP
 transfer" claims in the same PR.
+
+## Session 2026-11-12 (eleventh) — Hero Internet DID bought and answering
+
+A real NZ number now exists: **+64 9 243 1347** (Hero Internet account 81007287, free-trial line,
+plan `Number518`, SIP username `092431347`, extension 100, CLI name "Concierge"). The line
+password is in the operator's private notes, never in this repo.
+
+**Topology (this matters):** a Hero line is delivered to the **registered SIP device**, not to a
+third-party SIP URI. So calls terminate on **our Asterisk**, not at xAI — the `refer` endpoint from
+the Octovox research is *not* in play for this number. The verified path is
+`Hero → PJSIP registration on the VPS → AudioSocket bridge → Grok`.
+
+- `scripts/asterisk/render_routes.py` gained **registration trunks** (object-form routes file:
+  `{"routes":[…],"trunk":{server,username,password,transport,port}}`) with the registrar pinned as
+  the only identified source. UDP only; TLS needs certificates the renderer does not place.
+  A one-route trunk accepts any dialled form (`+64…`/`0…`/`64…`); two or more routes require the
+  exact DID. Tests: `api/tests/test_asterisk_routes.py` (9, pass).
+- On the VPS: `pjsip show registrations` → **Registered (exp. 3583s)** against `sip.hero.co.nz`
+  (103.212.52.17). `pjsip show endpoints` → `concierge-reg`, match `103.212.52.17/32`.
+- `/opt/trendi/shared/asterisk-routes.json` (0600) is the private routes file;
+  `ASTERISK_ROUTES` in `/opt/trendi/shared/phone.env` points the bridge at the DID (backup:
+  `phone.env.bak-20261112-0900`). `phone_numbers`, `phone_enabled` and the operator telephone
+  authorization were set through the admin API (audited, actor `operator-token`).
+- **Live proof (self-loop):** `channel originate PJSIP/6492431347@concierge-reg` made Hero ring the
+  line straight back into our registration. Asterisk logged
+  `PJSIP/concierge-reg-00000001 → business-trendi-oauth-staging,s,4 → AudioSocket`, the bridge
+  created `phone_calls … in_progress`, the lead, and the assistant turn
+  "Hello, you've reached Trendi Concierge…". Call ended `disconnected` when the originating leg
+  hung up. **No human was on the call; no external caller has dialled it yet.**
+
+**Open on this item:** the route currently serves the internal tenant `trendi-oauth-staging`;
+decide whether the DID should answer as `pukeko-construction` (its `notify_phone` is empty, so
+owner alerts would be email-only until set). Take-over on this path is Asterisk-side (AMI
+`Redirect` + outbound leg through the same Hero trunk), **not** the xAI `refer` — the Octovox
+take-over PR must be re-scoped for whichever ingress a tenant is on.
