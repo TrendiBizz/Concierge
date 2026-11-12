@@ -18,6 +18,7 @@ but the *channel* can — the dialplan writes ``CONCIERGE_CALL``, and the channe
 ``CALLERID(num)`` is available to the PBX. So this module finds the channel by the call's UUID and
 lets the PBX do the work.
 """
+import asyncio
 import logging
 import re
 
@@ -121,6 +122,11 @@ async def attach_supervisor(call_sid, number, mode, *, channel_dial, spy_marker=
 
     ``spy_marker`` is written to the new leg as ``CONCIERGE_SPY`` before ``ChanSpy`` runs, so the
     leg can be found again (and hung up) knowing nothing but the marker the audit trail stored.
+
+    Returns **the supervisor's leg**, not the caller's channel, or ``''`` when the PBX has not
+    listed it yet. Returning the caller's channel here was a live bug: "Stop listening" would
+    then hang up the customer, and the reconcile pass would decide nobody was listening while
+    the owner's phone still was.
     """
     options = spy_options(mode)
     number = str(number or '').strip()
@@ -141,8 +147,33 @@ async def attach_supervisor(call_sid, number, mode, *, channel_dial, spy_marker=
         variables['CONCIERGE_SPY'] = marker
     await asterisk_ami.originate(
         config, dial, 'ChanSpy', f'{channel},{options}', timeout_ms=60_000, variables=variables)
-    log.info('%s leg opened for %s on %s', mode, number, channel)
-    return channel
+    leg = ''
+    if marker:
+        found = await legs_for_marker(marker, config=config)
+        leg = found[0] if found else ''
+    log.info('%s leg opened for %s on %s (spy channel %r)', mode, number, channel, leg)
+    return leg
+
+
+async def legs_for_marker(marker, *, config=None, attempts=8, delay=0.25):
+    """Every live channel carrying this supervision marker, polled briefly after the originate.
+
+    The originate returns before the phone answers, but the channel exists (ringing) as soon as
+    it is queued, so a short poll learns the leg's name. A Local channel pair carries the marker
+    on both legs, which is why this returns a list rather than one name.
+    """
+    marker = str(marker or '').strip()
+    if not marker:
+        return []
+    config = config or _config()
+    for attempt in range(max(1, attempts)):
+        live = await spy_legs(config)
+        found = [name for name, value in live.items() if value == marker]
+        if found:
+            return found
+        if attempt + 1 < attempts:
+            await asyncio.sleep(delay)
+    return []
 
 
 async def spy_legs(config=None):

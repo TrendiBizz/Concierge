@@ -103,8 +103,8 @@ def test_a_call_ending_closes_its_legs_at_the_call_end_time(monkeypatch):
 
 def test_a_leg_the_pbx_no_longer_has_is_closed_but_a_live_one_is_left_alone(monkeypatch):
     pool = _pool(monkeypatch, Pool(
-        fetch=[{"id": 1, "spy_channel": "PJSIP/gone-00000001"},
-               {"id": 2, "spy_channel": "PJSIP/live-00000002"}]))
+        fetch=[{"id": 1, "spy_channel": "PJSIP/gone-00000001", "marker": ""},
+               {"id": 2, "spy_channel": "PJSIP/live-00000002", "marker": ""}]))
     pool.fetchrow = AsyncMock(return_value=row(id=1))
     closed = asyncio.run(supervision.close_missing_legs("t1", {"PJSIP/live-00000002"}))
     assert closed == 1
@@ -113,6 +113,18 @@ def test_a_leg_the_pbx_no_longer_has_is_closed_but_a_live_one_is_left_alone(monk
 
     assert asyncio.run(supervision.close_missing_legs(
         "t1", {"PJSIP/gone-00000001", "PJSIP/live-00000002"})) == 0
+
+
+def test_a_leg_is_live_when_the_pbx_still_carries_its_marker_under_another_name(monkeypatch):
+    # What the live probe found: the PBX identifies the leg by CONCIERGE_SPY, and a leg that was
+    # stored under a stale or wrong channel name must not be declared hung up while it is live.
+    pool = _pool(monkeypatch, Pool(fetch=[
+        {"id": 3, "spy_channel": "PJSIP/stale-00000003", "marker": "aa11"},
+        {"id": 4, "spy_channel": "PJSIP/other-00000004", "marker": "bb22"}]))
+    pool.fetchrow = AsyncMock(return_value=row(id=4))
+    closed = asyncio.run(supervision.close_missing_legs("t1", {"PJSIP/renamed-00000005": "aa11"}))
+    assert closed == 1
+    assert [c.args[2] for c in pool.fetchrow.call_args_list] == [4]
 
 
 # ------------------------------------------------------------------ starting a listen
@@ -197,6 +209,27 @@ def test_stopping_hangs_up_the_leg_and_closes_the_record(monkeypatch):
     assert result["stopped"] == 1
     hangup.assert_awaited_once_with("PJSIP/concierge-reg-00000009")
     assert "owner@example.test" in live_calls.supervision_audit.stop.call_args.args[2]
+
+
+def test_stopping_ends_every_channel_carrying_the_marker_and_never_the_callers(
+        monkeypatch):
+    # What the live probe found: the stored channel used to be the *caller's*. Stop must act on
+    # the leg's marker, and must end every channel that carries it (a Local leg is a pair).
+    _arm_supervise(monkeypatch, Pool())
+    monkeypatch.setattr(live_calls.supervision_audit, "open_for_call", AsyncMock(return_value=[
+        row(marker="aa11", spy_channel="PJSIP/stale-00000009")]))
+    monkeypatch.setattr(live_calls.call_control, "spy_legs", AsyncMock(return_value={
+        "PJSIP/spy-00000009": "aa11",
+        "Local/spy-00000009;2": "aa11",
+        "PJSIP/caller-00000001": "",
+    }))
+    hangup = AsyncMock(return_value="Success")
+    monkeypatch.setattr(live_calls.call_control, "hangup_leg", hangup)
+    result = asyncio.run(live_calls.stop_supervision(_tenant(), "ast:abc"))
+    assert result["stopped"] == 1
+    ended = [call.args[0] for call in hangup.await_args_list]
+    assert ended == ["PJSIP/spy-00000009", "Local/spy-00000009;2"]
+    assert all("caller" not in channel for channel in ended)
 
 
 def test_stopping_when_nobody_is_listening_says_so_without_inventing_a_leg(monkeypatch):

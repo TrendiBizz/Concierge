@@ -149,21 +149,35 @@ async def close_ended_calls(tenant_id) -> int:
     return closed
 
 
-async def close_missing_legs(tenant_id, live_channels, reason: str = HUNG_UP) -> int:
+async def close_missing_legs(tenant_id, live_legs, reason: str = HUNG_UP) -> int:
     """Close legs whose PBX channel has gone — the supervisor hung up their own phone.
 
-    ``live_channels`` is the set of channels the PBX still reports; a leg with a known channel
-    that is no longer in it has ended, whatever the console still thinks.
+    ``live_legs`` is what ``call_control.spy_legs()`` returned: the ``{channel: marker}`` mapping,
+    or a plain collection of channel names. A leg is still live when **either** identity is in
+    the list, because the marker is set on the channel and the channel name is a weaker second
+    witness. Rows younger than the grace window are left alone: the row is written before the
+    leg is dialled, so a newborn leg is not yet evidence of anything.
     """
-    live = {str(channel) for channel in (live_channels or set()) if channel}
+    if isinstance(live_legs, dict):
+        live_channels = {str(channel) for channel in live_legs if channel}
+        live_markers = {str(marker).strip() for marker in live_legs.values() if marker}
+    else:
+        live_channels = {str(channel) for channel in (live_legs or []) if channel}
+        live_markers = set()
     rows = await db.pool().fetch(
-        """SELECT id, spy_channel FROM supervision_sessions
-            WHERE tenant_id = $1 AND ended_at IS NULL AND spy_channel <> ''""",
+        """SELECT id, spy_channel, marker FROM supervision_sessions
+            WHERE tenant_id = $1 AND ended_at IS NULL
+              AND started_at < now() - interval '15 seconds'""",
         tenant_id,
     )
     closed = 0
     for row in rows:
-        if row["spy_channel"] in live:
+        marker = (row["marker"] or "").strip()
+        channel = (row["spy_channel"] or "").strip()
+        if (marker and marker in live_markers) or (channel and channel in live_channels):
+            continue
+        if not marker and not channel:
+            # Nothing identifies this leg, so nothing can honestly say it has ended.
             continue
         if await stop(tenant_id, row["id"], reason):
             closed += 1

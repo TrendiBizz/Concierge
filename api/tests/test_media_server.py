@@ -154,15 +154,22 @@ def test_take_over_sets_the_target_then_redirects_the_caller(monkeypatch):
     run(scenario())
 
 
-def test_supervision_rings_the_owner_and_spies_the_caller(monkeypatch):
+def test_supervision_rings_the_owner_and_returns_the_spy_leg_not_the_caller(monkeypatch):
+    # The live probe caught this: attach_supervisor used to return the *caller's* channel, which
+    # the audit trail then stored as the spy channel — so "Stop" would have hung up the customer.
     async def scenario():
         originated = []
+        caller = 'PJSIP/concierge-reg-00000002'
+        spy = 'PJSIP/concierge-reg-00000003'
 
         async def channels(config):
-            return [{'Channel': 'PJSIP/concierge-reg-00000002'}]
+            return [{'Channel': caller}, {'Channel': spy}]
 
         async def get_variable(config, channel, variable):
-            return '3f2b8c1e-0000-4000-8000-000000000000'
+            if variable == 'CONCIERGE_CALL':
+                return ('3f2b8c1e-0000-4000-8000-000000000000'
+                        if channel == caller else '')
+            return 'aa11bb22cc33dd44' if channel == spy else ''
 
         async def originate(config, channel, application, data, **kwargs):
             originated.append((channel, application, data))
@@ -171,11 +178,13 @@ def test_supervision_rings_the_owner_and_spies_the_caller(monkeypatch):
         monkeypatch.setattr(call_control.asterisk_ami, 'channels', channels)
         monkeypatch.setattr(call_control.asterisk_ami, 'get_variable', get_variable)
         monkeypatch.setattr(call_control.asterisk_ami, 'originate', originate)
-        await call_control.attach_supervisor(
+        leg = await call_control.attach_supervisor(
             'ast:3f2b8c1e-0000-4000-8000-000000000000', '+64278817368', 'whisper',
-            channel_dial='PJSIP/<number>@concierge-reg', config=Settings())
+            channel_dial='PJSIP/<number>@concierge-reg', spy_marker='aa11bb22cc33dd44',
+            config=Settings())
         assert originated == [('PJSIP/64278817368@concierge-reg', 'ChanSpy',
-                               'PJSIP/concierge-reg-00000002,qw')]
+                               f'{caller},qw')]
+        assert leg == spy, "the record must name the supervisor's leg, not the caller's channel"
     run(scenario())
 
 

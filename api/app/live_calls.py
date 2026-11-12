@@ -260,17 +260,23 @@ async def stop_supervision(tenant: dict, call_sid: str, *, by: str = "owner") ->
     live = None
     stopped = 0
     for row in legs:
-        channel = (row.get("spy_channel") or "").strip()
-        if not channel:
-            # The leg was recorded before it was dialled; find it by its marker instead.
+        marker = (row.get("marker") or "").strip()
+        channels = []
+        if marker:
+            # The marker is the leg's identity: the PBX can be asked which channel carries it.
+            # This is preferred over the stored name because the originate can return before the
+            # leg is listed, and a Local leg is a pair of channels.
             try:
                 live = live if live is not None else await call_control.spy_legs()
             except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
                 log.warning("could not ask the PBX for supervision legs: %s", error)
                 live = {}
-            channel = next((name for name, marker in live.items()
-                            if marker == (row.get("marker") or "")), "")
-        if channel:
+            channels = [name for name, value in live.items() if value == marker]
+        if not channels:
+            channel = (row.get("spy_channel") or "").strip()
+            if channel:
+                channels = [channel]
+        for channel in channels:
             try:
                 await call_control.hangup_leg(channel)
             except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
@@ -291,7 +297,7 @@ async def reconcile_supervision(tenant_id) -> int:
     if not open_legs or not call_control.enabled():
         return closed
     try:
-        live = set(await call_control.spy_legs())
+        live = await call_control.spy_legs()
     except (call_control.CallControlUnavailable, asterisk_ami.AmiError) as error:
         # The audit trail must never fail a page load because the PBX is briefly unavailable;
         # the legs stay open and the next read tries again.
