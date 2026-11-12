@@ -1,5 +1,6 @@
 """An SMS whose phone never sends a receipt must not stay "in flight" forever."""
 import asyncio
+from datetime import timedelta
 
 from app import outbox
 
@@ -32,7 +33,9 @@ def test_stalled_sms_rows_are_failed_not_left_in_flight(monkeypatch):
     sql, args = pool.fetch_args
     assert "o.channel='sms'" in sql
     assert "awaiting_receipt" in sql
-    assert args == (outbox.STALE_SMS_INTERVAL,)
+    # asyncpg must receive a timedelta for an interval parameter; a string was
+    # silently accepted by the fake and only failed on the live database.
+    assert isinstance(args[0], timedelta)
 
 
 def test_rows_without_an_outbox_link_are_skipped(monkeypatch):
