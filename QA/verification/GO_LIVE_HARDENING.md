@@ -70,3 +70,10 @@ SPF from `~all` to `-all`.
 - **§2 partially done.** `INBOUND_CLOUDFLARE_SECRET` rotated. `BREVO_WEBHOOK_SECRET` and
   `ADMIN_TOKEN` still to rotate. `ADMIN_TOKEN` is still a single shared token.
 - §3–§6 unchanged.
+
+## Second pass 2026-11-12 20:50 NZ
+- §6 (token split) still needs account token-admin rights; not possible with the scoped token.
+- §5 (scratch tenants) still needs the deletion decision and an Email-Routing-write token.
+- Kuma removed (had 0 monitors); healthcheck is 43/43.
+- CI now runs on push to `main`.
+- **Host reboot required** by package upgrades.

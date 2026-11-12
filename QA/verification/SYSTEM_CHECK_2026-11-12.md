@@ -154,3 +154,33 @@ Postgres per suite (previously 15/17 on the same DB); node widget **9/9**; Rust 
   recommendation is to remove it (or leave it stopped) rather than configure a third monitor.
 - Brevo plan/IP/SMTP key, DMARC `p=reject`, scratch tenants, `admin@trendibizz.com`, token split
   — unchanged, still `GO_LIVE_HARDENING.md` §3–§6.
+
+## Second pass — 2026-11-12 20:50 NZ ("finish what you can")
+
+- **CI now runs on push to `main`** (was `pull_request` only — that is why three stale tests sat
+  red unnoticed). `.github/workflows/concierge-isolated.yml`.
+- **Uptime Kuma removed.** Stopped (`Exited (0)`); its health probe dropped from
+  `healthcheck.py`, so the deep check is now **43/43**. Real monitoring is healthcheck.py +
+  the GitHub Actions outside-in probe. Restore with `docker start trendi-auxiliary-kuma-1`.
+- **email-auth**: removed the dead `any_pass` accumulator (two compiler warnings), rebuilt and
+  redeployed; **6/6** tests.
+- **OS updates**: 9 of 12 packages upgraded; 3 remain (`distro-info`, `python3-distro-info` —
+  phased; `snapd`). **`/var/run/reboot-required` is set — reboot in a quiet window.** No service
+  was restarted by the upgrade; all public URLs and containers verified after.
+- **Stale `.lock` files** in `/opt/trendi/backups` removed (the current backup script has no
+  lock logic, so they were inert).
+- **API suite still 606 passed**; healthcheck 43/43; all public URLs 200.
+
+### Still open (cannot be finished from here without a dashboard, payment, or a decision)
+- `BREVO_WEBHOOK_SECRET` rotation — must change the webhook URL in Brevo at the same time or
+  bounce ingestion 401s.
+- `ADMIN_TOKEN` — single shared token; needs a per-operator-token decision or disabling the
+  admin surface.
+- DMARC `p=quarantine` → `p=reject` — needs ~a week of clean aggregate reports.
+- Brevo paid plan / dedicated IP / SMTP-key rotation / IP allowlist — dashboard + billing.
+- Scratch tenants and the `admin@trendibizz.com` owner — a business decision; the Cloudflare
+  routing rule also needs an Email-Routing-write token the current one does not have.
+- Cloudflare token split — needs API-token admin rights on the account.
+- Phone DID — payment/KYC. Pukeko social OAuth — external. Offsite backups — needs a
+  destination + credentials. xAI key rotation — provider dashboard.
+- **Reboot** — required by the upgrades; schedule it.

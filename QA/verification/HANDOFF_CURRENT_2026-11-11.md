@@ -907,3 +907,18 @@ Operator asked for all tests plus all needed changes. Done and live-verified:
 Still open: Kuma decision (0 monitors), `BREVO_WEBHOOK_SECRET` + `ADMIN_TOKEN` rotation, DMARC
 `p=reject`, Brevo plan/IP/key, scratch tenants + `admin@trendibizz.com`, Cloudflare token split,
 phone DID, social OAuth, offsite backups, xAI key, consent-copy review.
+
+### Session 2026-11-12 (sixth, second pass) — "finish what you can"
+
+- CI now runs on **push to main** too (it was pull_request-only, which hid the stale tests).
+- **Uptime Kuma removed** (0 monitors): stopped, probe dropped from `healthcheck.py` → **43/43**.
+- email-auth unused-accumulator warnings removed; rebuilt and redeployed, 6/6.
+- 9/12 OS packages upgraded; 3 remain (phased `distro-info` x2, `snapd`).
+  **`/var/run/reboot-required` is set — reboot in a quiet window.**
+- Stale `/opt/trendi/backups/*.lock` removed; API suite still **606 passed**; public URLs 200.
+- Left for the operator (dashboard/payment/decision): `BREVO_WEBHOOK_SECRET`, `ADMIN_TOKEN`,
+  DMARC `p=reject`, Brevo plan/IP/SMTP key, scratch tenants + `admin@trendibizz.com`
+  (needs Email-Routing-write token), Cloudflare token split (needs token-admin),
+  phone DID (payment/KYC), Pukeko social OAuth, offsite backups, xAI key.
+- Ambiguous, not changed: "old test phone route" — `/owner/sms-phone/test` is live and covered by
+  a passing test; clarify which route the note meant before removing anything.
