@@ -10,8 +10,10 @@ an older doc disagree, **this file wins** (it records corrections). Evidence doc
 ## 0. Read this first (60 seconds)
 
 * The platform is **healthy** (19 containers, Hero registered, API suite **798 passed**, healthcheck green).
-* **No real customer call has ever completed.** The cause of the 3 failures on 12 Nov is still unknown.
-  The human test call is still the most important unfinished item.
+* **Two real test calls completed on 13 Nov** (operator, 12:31 NZDT 59 s and 12:39 NZDT 82 s, both
+  `phone_calls.status = completed`, each produced a phone lead, a call insight and an owner email alert). The
+  cause of the 3 failures on 12 Nov is **still unknown**. What is still unproven on a live call: supervision /
+  take-over, SMS alerts (device offline), the no-answer fallback, and any call to Pukeko.
 * **Pukeko (Conrad) is not live on the phone.** Blocked by one thing only he can do: authorise *telephone
   answering* in his owner portal (a consent record; never write it for him). Everything else for the cutover
   is built, tested and waiting (`scripts/asterisk/cutover_to_tenant.sh`).
@@ -88,7 +90,7 @@ card "USD 400" is deliberate styling (not a bug); the `llms.txt` "USD 00/month" 
 * **SMS phone device:** silent since **2026-11-11 00:20 UTC**, `inbound_verified_at` empty. All SMS alerts
   fail/`uncertain` until a human opens the app on that phone. 46 `uncertain`, 39 cancelled device jobs.
 * **Email:** Brevo block on the staging address removed by the operator. Our own `email_suppressions` row for it
-  exists/does not exist **depending on the loop test result** (section 4). Test email id 496 was `sent`.
+  **does not exist**: removed 2026-11-13 23:39 UTC for the loop test, which passed (section 4). Test email id 496 was `sent`.
 * **Flood guard:** limits per recipient 8/10 min and 25/h; identical 6/10 min (email) and 3/10 min (SMS); per
   business 100/h and 120/day email (40/150 SMS); global 150/h and 270/day email (60/400 SMS). Kill switch is
   **off** (`system_flags.outbound_paused` = 0). `GET /admin/outbound/status` shows volumes and blocks.
@@ -112,6 +114,19 @@ card "USD 400" is deliberate styling (not a bug); the `llms.txt` "USD 00/month" 
   * If it says *no drafts and no loop-guard drops*, the test email never re-entered: inconclusive.
 * A scheduled check-in (`trig_01KnPALGjJ7e6gh1mbPDKusQ`, ~12:13 NZDT) will report the result into this session.
   Step 7 of that script (commit/push) finds nothing to commit because the checkpoint agent already did.
+* **RESULT (13 Nov, 23:39-23:42 UTC): LOOP TEST PASSED.** The first run was skipped (guard still holding the
+  address). The re-run found the window clear, removed the suppression, sent one test alert and watched 150 s:
+  alert rows rose to 3 and then stayed at 3; **0 junk drafts**; **2 loop-guard drops recorded** (our own mail
+  coming back was dropped); no pause needed. Of the 3 rows, 1 was the test; the other 2 were **not a loop** but the
+  alerts for the operator's real phone call at 12:39 NZDT (`Phone message...` + the caller's text copy). The staging
+  address is **left unsuppressed** (staging email alerts work again) and the kill switch is **off**.
+* **What the two test calls showed (12:31 and 12:39 NZDT):** callback number heard correctly (027 881 7368) and
+  email heard correctly; summaries accurate (`quote_requested`); lead saved with consent; owner email alert and the
+  caller's email copy sent. **Gaps seen:** *no caller name was captured on either call* (consider prompting for
+  it); the caller asked for a **text copy** and the insight says "the text was queued", but SMS is stuck
+  `awaiting_receipt` because the phone device is offline, so that promise is not kept until the device is back
+  (3 SMS rows pending on the staging tenant; they will go `uncertain` after 15 min, then the capped escalation
+  may re-send them by email). Quality of the voice (dead air, read-back) was not assessed from logs.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -122,7 +137,7 @@ card "USD 400" is deliberate styling (not a bug); the `llms.txt` "USD 00/month" 
 2. **Conrad must authorise telephone answering** in his owner portal (he has the invite; **the email does not
    mention this step — message him**). Without it the bridge rejects every call to Pukeko.
 3. **Wake the SMS phone** (open the app) and confirm `sms_devices.last_seen` advances and `inbound_verified_at` is set.
-4. **Make the real test call** to **+64 9 243 1347** (full enquiry, callback number and email read aloud). Expect
+4. *(Two test calls already completed on 13 Nov: see section 4. Still do these.)* **Make the real test call** to **+64 9 243 1347** (full enquiry, callback number and email read aloud). Expect
    no dead air, details read back, lead saved, owner alert fired, `phone_calls.status = completed`. Read the
    logs during it: `docker logs -f asterisk-bridge-1`, and `pjsip set logger on` on the PBX (turn it off after).
    If it never rings: `iptables -L TRENDI-SIP -v -n` on the VPS (a rising DROP count with Hero traffic means widen
