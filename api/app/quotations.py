@@ -523,10 +523,10 @@ async def public_accept(token: str, request: Request):
     """
     choice = (request.query_params.get('option') or '').strip().lower()
     if choice not in ('deposit', 'full'):
-        try:
-            form = await request.form()
-            choice = str(form.get('payment_option') or form.get('option') or 'full')
-        except Exception:
+        from . import forms
+        form = await forms.read_form(request)
+        choice = (form.get('payment_option') or form.get('option') or 'full').strip().lower()
+        if choice not in ('deposit', 'full'):
             choice = 'full'
     return await _decide(token, 'accepted', choice)
 

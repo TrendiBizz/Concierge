@@ -80,7 +80,8 @@ business, who must respond.</p>
 @public_router.post("/request", response_class=HTMLResponse)
 async def privacy_request(request: Request):
     """Record the request and tell the business. Never silently absorb it."""
-    form = await request.form()
+    from . import forms
+    form = await forms.read_form(request)
     email = str(form.get("email") or "").strip().lower()
     kind = str(form.get("kind") or "delete")
     note = str(form.get("note") or "")[:2000]
