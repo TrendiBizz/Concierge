@@ -27,6 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
+from . import guides
 from . import quote_profiles
 from . import portability
 from . import channel_health, flood_guard, mailer
@@ -105,6 +106,7 @@ app.include_router(mobile_connections.router)
 app.include_router(quotations.router)
 app.include_router(quotations.public_router)
 app.include_router(products.router)
+app.include_router(guides.router)
 app.include_router(quote_profiles.router)
 app.include_router(designs.router)
 app.include_router(designs.public_router)

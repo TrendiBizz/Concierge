@@ -197,6 +197,17 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
         {link ? <p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null}
       </Card>
       <Card>
+        <Heading level={2}>New to this? Start here</Heading>
+        <p>You draw the house once in a free 3D program; Concierge measures the outside clad area and prices it at your rate. Four steps:</p>
+        <ol>
+          <li><strong>Install</strong> <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer">Blender</a> (free) and the <a href="https://bonsaibim.org/" target="_blank" rel="noreferrer">Bonsai</a> add-on (free). Bonsai is what writes the wall areas we measure.</li>
+          <li><strong>Draw</strong> the outside walls, cast them as walls, and cut doors and windows as openings.</li>
+          <li><strong>Export</strong> as IFC4 with quantities switched on, then upload it below and press <em>IFC takeoff</em>.</li>
+          <li><strong>Price</strong> it: set your rate in the card below, pick the customer, press <em>Price this model</em>.</li>
+        </ol>
+        <p><a href="/guide/bonsai-cladding" target="_blank" rel="noreferrer"><strong>Open the full walkthrough (printable)</strong></a> — the same steps in detail, with what to check before you trust a number.</p>
+      </Card>
+      <Card>
         <Heading level={2}>How your quotes are worked out</Heading>
         <p>Measured models are priced by the square metre. Set your rate once; every quote from a model uses it.</p>
         <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
