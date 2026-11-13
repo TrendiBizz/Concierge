@@ -420,8 +420,7 @@ async def public_quote(token: str):
             f'<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">'
             f'Accept and pay {deposit_pct}% deposit ({cash(deposit_cents)})</button></form>'
             if (tenant or {}).get('allow_deposit') else '')
-        actions = f"""<form method="post" action="/quote/{html.escape(token)}/accept" style="display:inline">
-<input type="hidden" name="payment_option" value="full">
+        actions = f"""<form method="post" action="/quote/{html.escape(token)}/accept?option=full" style="display:inline">
 <button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Accept quotation — pay in full</button></form>
 {deposit_choice}
 <form method="post" action="/quote/{html.escape(token)}/decline" style="display:inline;margin-left:8px">
@@ -516,11 +515,19 @@ async def _decide(token: str, status: str, payment_option: str = 'full'):
 
 @public_router.post('/{token}/accept')
 async def public_accept(token: str, request: Request):
-    try:
-        form = await request.form()
-        choice = str(form.get('payment_option') or 'full')
-    except Exception:
-        choice = 'full'
+    """Read the customer's choice from the URL first, then the body.
+
+    The choice used to live only in the posted form. Middleware that reads the request body can
+    consume it, so a customer who chose "pay 50% deposit" was issued a full-price invoice. The URL
+    is the one place the choice cannot be lost.
+    """
+    choice = (request.query_params.get('option') or '').strip().lower()
+    if choice not in ('deposit', 'full'):
+        try:
+            form = await request.form()
+            choice = str(form.get('payment_option') or form.get('option') or 'full')
+        except Exception:
+            choice = 'full'
     return await _decide(token, 'accepted', choice)
 
 

@@ -73,3 +73,22 @@ def test_invoice_routes_exist():
     paths = main.app.openapi()["paths"]
     assert "/invoice/{token}" in paths
     assert "/owner/invoices" in paths
+
+
+def test_quote_lines_are_not_double_encoded():
+    """asyncpg returns jsonb as text; json.dumps(text) would store a JSON string, not a list."""
+    import json
+
+    from app.invoices import _json
+
+    assert _json('[{"description": "cladding"}]') == '[{"description": "cladding"}]'
+    assert json.loads(_json([{"description": "cladding"}])) == [{"description": "cladding"}]
+
+
+def test_the_page_survives_lines_that_are_still_text():
+    import inspect
+
+    from app import invoices
+
+    source = inspect.getsource(invoices.page)
+    assert "isinstance(invoice[\"lines\"], str)" in source

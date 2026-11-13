@@ -11,6 +11,7 @@ not card data, so a processor can be added later without throwing any of this aw
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import date, timedelta
 
@@ -71,7 +72,12 @@ async def issue(quote: dict, tenant: dict, kind: str) -> dict:
 
 
 def _json(value):
-    import json
+    """Quote lines arrive from asyncpg as JSON text; dumping that text would double-encode it."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            value = []
     return json.dumps(value)
 
 
@@ -123,6 +129,15 @@ async def page(token: str) -> HTMLResponse:
         ("GST " + issuer["gst_number"]) if issuer["gst_number"] else "",
         ("NZBN " + issuer["nzbn"]) if issuer["nzbn"] else "") if value]
     currency = invoice["currency"]
+    # asyncpg hands jsonb back as text; the quote module parses its own, so do the same here.
+    for _ in range(2):  # tolerate a value that was encoded twice
+        if not isinstance(invoice["lines"], str):
+            break
+        try:
+            invoice["lines"] = json.loads(invoice["lines"])
+        except ValueError:
+            invoice["lines"] = []
+            break
     lines = "".join(
         f"<tr><td>{html.escape(str(line.get('description', '')))}</td>"
         f"<td class='num'>{line.get('quantity', '')}</td>"
