@@ -27,6 +27,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
+from . import owner_invites
 from . import guides
 from . import quote_profiles
 from . import portability
@@ -1857,6 +1858,20 @@ async def admin_owner_recovery(slug: str, body: OwnerRecovery):
         raise HTTPException(400, str(exc))
     return {"recovery_token": link["token"], "invitation_url": owner_auth.invitation_link(link["token"]),
             "purpose": link["purpose"], "role": link["role"], "expires_in_hours": 24}
+
+
+@app.post("/admin/tenants/{slug}/owner-invite", dependencies=admin)
+async def admin_owner_invite(slug: str, body: OwnerRecovery):
+    """Send a client owner their sign-in link — queued in the outbox, so it is recorded and retried."""
+    if not get_settings().email_configured:
+        raise HTTPException(503, "Email is not configured on this deployment")
+    try:
+        result = await owner_invites.send(slug, body.email)
+    except ValueError:
+        raise HTTPException(404, "No such business") from None
+    if not result["queued"]:
+        raise HTTPException(409, "An invitation is already queued for that address")
+    return result
 
 
 @app.get("/owner-ui")
