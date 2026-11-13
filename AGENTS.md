@@ -29,6 +29,22 @@ control blocks it. That is not permission to defer quietly: record the exact blo
 tried, why it could not proceed, and an explicit open item with a next action in the handoff's
 Outstanding list. Evidence, then deferral — never a shrug.
 
+## Fix first, report second
+
+**Never stop to ask whether a defect should be fixed.** If it is a defect we can fix from this
+repository, fix it, prove it, and report it afterwards in the same turn. Reporting a defect with a
+question attached ("shall I fix this?", "your call") is the failure this rule exists to prevent: the
+operator should not have to grant permission for work the bug rule already requires.
+
+Two narrow exceptions, both of which still require evidence and an entry in the handoff:
+
+* the fix needs a **decision only the operator can make** — a legal consent for a *third party's*
+  account, money, or an irreversible destructive action;
+* the fix lies **outside this repository** — record the exact blocker, what was tried, and a next
+  action.
+
+When in doubt, fix it and say what you fixed.
+
 ## Session length limit
 
 **Work in units of at most ~25 tool calls, or one coherent unit of work — whichever comes first.**

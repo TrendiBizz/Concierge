@@ -32,7 +32,7 @@ _COMPANY = re.compile(
 # words that mark a business are accepted, and the name in front must be capitalised, so a phrase
 # like "the plumbing is old" cannot become a company called "The Plumbing".
 _COMPANY_BARE = re.compile(
-    r"\b([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,3}\s+"
+    r"\b([A-Z][\w&.'’-]*(?:[ \t]+[A-Z][\w&.'’-]*){0,3}[ \t]+"
     r"(?:Ltd|Limited|LLC|Inc|Group|Co|Company|Construction|Builders|Building|Plumbing|Electrical|"
     r"Joinery|Roofing|Landscaping|Painting|Contracting|Contractors|Services|Solutions|Engineering|"
     r"Design|Studio|Agency|Consulting|Enterprises|Holdings|Partners|Associates))\b")
