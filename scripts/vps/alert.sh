@@ -69,6 +69,10 @@ message = EmailMessage()
 message["Subject"] = "ALERT: Concierge health check failing" + (f" ({', '.join(failing)})" if failing else "")
 message["From"] = sender
 message["To"] = to_addr
+# Marks this as our own mail: the inbound pipeline drops it instead of turning a health alert into
+# a customer enquiry and texting the owner a wall of RFC822 headers.
+message["X-Concierge-Mail"] = "1"
+message["Auto-Submitted"] = "auto-generated"
 message.set_content(body)
 
 if port == 465 or security in ("ssl", "smtps"):

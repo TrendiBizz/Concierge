@@ -24,6 +24,47 @@ log = logging.getLogger("concierge.inbound")
 
 ADDRESS = re.compile(r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
 MAX_BYTES = 800_000
+HEADER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]{1,40}:\s")
+# Names that only ever appear in a real message's header block. A customer writing "Budget: 20k" is
+# not a header, so the decision cannot rest on the shape "Word: value" alone.
+KNOWN_HEADERS = {
+    "received", "arc-seal", "arc-message-signature", "arc-authentication-results", "dkim-signature",
+    "from", "to", "subject", "date", "message-id", "return-path", "reply-to", "mime-version",
+    "content-type", "content-transfer-encoding", "authentication-results", "received-spf",
+}
+
+
+def strip_headers(text: str) -> str:
+    """Return the readable body of a message that arrived as raw RFC822 source.
+
+    On 13 Nov a health-check alert looped into a monitored mailbox and reached the owner's phone as
+    "Email enquiry" whose body was the Received chain, ARC-Seal and DKIM signatures — because the
+    whole raw message was used as the customer's text. Headers are never the customer's message.
+    """
+    if not text:
+        return ""
+    normalised = text.replace("\r\n", "\n")
+    if "\n" not in normalised:
+        return text.strip()
+    lines = normalised.split("\n")
+    first_name = lines[0].split(":", 1)[0].strip().lower() if ":" in lines[0] else ""
+    looks_like_headers = (
+        first_name in KNOWN_HEADERS and HEADER_LINE.match(lines[0]) is not None
+    ) or (
+        # Two or more header-shaped lines followed by the blank line that ends a header block.
+        sum(1 for line in lines[:40] if HEADER_LINE.match(line)) >= 2
+        and any(line.strip() == "" for line in lines[:40])
+    )
+    if not looks_like_headers:
+        return text.strip()
+    index = 0
+    while index < len(lines) and lines[index].strip() != "":
+        index += 1
+    # A header block with nothing after it has no customer message in it — return empty rather
+    # than falling back to the headers, which is how the wall of Received lines reached the owner.
+    return "\n".join(lines[index + 1:]).strip()
+
+
 REQUIRED_FIELDS = {"message_id", "recipient", "sender", "subject", "text"}
 OPTIONAL_FIELDS = {"auth", "reply_to", "size", "has_attachments", "raw_b64", "envelope_from"}
 AUTH_KEYS = {"spf", "dkim", "dmarc", "authentication_results", "reply_to", "content_type"}
@@ -147,6 +188,8 @@ async def handle(request: Request) -> dict:
         # problem (413), not a malformed-field problem (400).
         if len(payload["text"]) > 20000:
             raise HTTPException(413, "Email body too large")
+        # Whatever the relay sent, the customer's message is the body — never the header block.
+        payload["text"] = strip_headers(payload["text"])
         auth = payload.get("auth")
         if auth is not None:
             if not isinstance(auth, dict) or len(auth) > 10:
