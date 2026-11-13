@@ -1848,11 +1848,11 @@ async def admin_invite_owner(slug: str, body: OwnerInvite):
 async def admin_owner_recovery(slug: str, body: OwnerRecovery):
     tenant = await _require_tenant(slug)
     try:
-        token = await owner_auth.make_invite(tenant["id"], body.email, "viewer", "recovery")
+        link = await owner_auth.owner_link(tenant["id"], body.email)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"recovery_token": token, "invitation_url": owner_auth.invitation_link(token),
-            "expires_in_hours": 24}
+    return {"recovery_token": link["token"], "invitation_url": owner_auth.invitation_link(link["token"]),
+            "purpose": link["purpose"], "role": link["role"], "expires_in_hours": 24}
 
 
 @app.get("/owner-ui")

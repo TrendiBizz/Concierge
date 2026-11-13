@@ -81,6 +81,24 @@ async def make_invite(tenant_id, email: str, role: str, purpose: str = "invite")
     return token
 
 
+async def owner_link(tenant_id, email: str) -> dict:
+    """Give an operator a working link for a client's owner, whether or not one exists yet.
+
+    `recovery` deliberately refuses to invent a user. That is right for "I lost my password" and
+    wrong for the operator's real first step — creating a client and handing the owner their way in.
+    On 13 Nov a brand-new tenant answered "Active user not found" and the owner could not be given
+    access at all, so onboarding could not start.
+    """
+    email = clean_email(email)
+    user = await db.pool().fetchrow(
+        "SELECT role FROM tenant_users WHERE tenant_id=$1 AND email=$2 AND active", tenant_id, email)
+    if user:
+        token = await make_invite(tenant_id, email, user["role"], "recovery")
+        return {"token": token, "purpose": "recovery", "role": user["role"]}
+    token = await make_invite(tenant_id, email, "owner", "invite")
+    return {"token": token, "purpose": "invite", "role": "owner"}
+
+
 async def redeem(token: str, password: str) -> dict:
     pwd = password_hash(password)
     async with db.pool().acquire() as conn:
