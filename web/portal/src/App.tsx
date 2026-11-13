@@ -1436,6 +1436,14 @@ function Shell() {
     sessionStorage.removeItem('concierge.startAtSetup');
     return newcomer ? 'setup' : 'home';
   });
+  // The invitation sets that flag *after* this component has mounted, so the initialiser above
+  // almost never saw it and a brand-new owner landed on an empty dashboard instead of Setup.
+  useEffect(() => {
+    if (!token) return;
+    if (sessionStorage.getItem('concierge.startAtSetup') !== '1') return;
+    sessionStorage.removeItem('concierge.startAtSetup');
+    setTab('setup');
+  }, [token]);
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
   const [locale, setLocaleState] = useState(initialLocale);
@@ -1509,7 +1517,8 @@ function Shell() {
 
   const content = (
     <>
-      <PauseStrip token={token} />
+      {/* Pausing something that has never run is not a first step: keep it off the setup wizard. */}
+      {tab !== 'setup' ? <PauseStrip token={token} /> : null}
       <TranslationNote locale={locale} />
       {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>

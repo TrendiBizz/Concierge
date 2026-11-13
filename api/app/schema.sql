@@ -82,7 +82,10 @@ CREATE INDEX IF NOT EXISTS voice_tokens_idx ON voice_tokens (tenant_id, minted_a
 -- ===================================================================
 -- Phase 2 additions (idempotent): booking, automation, SMS/email, CRM
 -- ===================================================================
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'America/Chicago';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Pacific/Auckland';
+-- A new client is a New Zealand business until somebody tells us otherwise: a US default made every
+-- booking, reminder and business-hours calculation wrong for a customer who never noticed the setting.
+ALTER TABLE tenants ALTER COLUMN timezone SET DEFAULT 'Pacific/Auckland';
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_hours jsonb NOT NULL DEFAULT
     '{"mon":[["09:00","17:00"]],"tue":[["09:00","17:00"]],"wed":[["09:00","17:00"]],"thu":[["09:00","17:00"]],"fri":[["09:00","17:00"]],"sat":[],"sun":[]}'::jsonb;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slot_minutes integer NOT NULL DEFAULT 30;

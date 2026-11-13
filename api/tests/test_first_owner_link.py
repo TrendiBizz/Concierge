@@ -55,3 +55,20 @@ def test_a_new_client_gets_a_working_owner_invite():
         await pool.close()
 
     asyncio.run(run())
+
+
+def test_a_new_client_is_not_put_in_a_us_timezone():
+    """The schema defaulted to America/Chicago, so a new client's bookings were in US Central time."""
+    async def run():
+        import pathlib as _pathlib
+        schema = (_pathlib.Path(__file__).resolve().parents[1] / "app" / "schema.sql").read_text()
+        pool = await _fresh_pool()
+        db._pool = pool
+        tenant = await pool.fetchrow(
+            "INSERT INTO tenants (slug, name, public_key) VALUES ($1,$2,$3) "
+            "RETURNING timezone", "tzco", "TZ Co", "pk_" + uuid.uuid4().hex[:8])
+        assert tenant["timezone"] == "Pacific/Auckland", "a new client was put in a US timezone"
+        assert "DEFAULT 'Pacific/Auckland'" in schema
+        await pool.close()
+
+    asyncio.run(run())
