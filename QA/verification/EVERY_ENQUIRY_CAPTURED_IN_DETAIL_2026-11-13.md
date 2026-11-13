@@ -73,3 +73,38 @@ from a paused tenant by design, and my harness muted the database row while stil
 tenant dict read before the change. `scripts/qa/capture_check.py` is the corrected, reusable version:
 it mutes the object the tool receives, restores it in a `finally`, and cleans up its own rows. Run it
 from the api container — it prints PASS or FAIL and sends nothing.
+
+## Correction: texts are working — I tested the wrong door
+
+I previously wrote that SMS "cannot be exercised — not configured". That was wrong, and the operator
+was right to push back.
+
+**What is actually true:**
+
+* `SMS_PROVIDER=none` has been the value in **every** `api.env` copy on disk since at least 9 Nov —
+  checked across ten backups. Nothing changed it, and it is not a regression.
+* Texts are sent through the **paired-phone (device) transport**, which ignores that global setting.
+  `trendi-oauth-staging` has `sms_enabled=t`, `sms_transport=device`, `sms_from=+64278817368`, and
+  **47 owner-alert texts were sent today**, with the phone polling as recently as 04:32 UTC.
+* My capture check posted to `/api/v1/sms/{key}`, which is the **Twilio** webhook. That route
+  legitimately returns 503 when `sms_provider` is not `twilio`. The 503 was correct behaviour for a
+  transport the platform does not use; I reported it as though SMS itself were unconfigured.
+
+**The real SMS gap is inbound, and it is now visible.** `sms_devices.inbound_verified_at` is `null`:
+the paired phone has never delivered a single inbound text — `device_sms_inbound` has 0 rows and no
+`channel='sms'` conversation exists. Outbound working proves nothing about inbound, because the phone
+polls our queue either way. A customer replying to a text would currently be talking to nobody, and
+nothing said so.
+
+Two things are now true that were not before:
+
+1. `scripts/vps/healthcheck.py` gained a `sms:inbound` check. It fails while a paired phone has never
+   delivered a text in, and its message says what to do. It reports today:
+   `1 of 1 paired phone(s) have never delivered a text in; send one text to the business number to
+   prove the reply path`.
+2. The inbound code path itself is sound and covered: `tests/test_device_sms_inbound.py`,
+   `tests/test_inbound_sms_route.py` and the receipt tests pass (49 SMS/device tests green), and
+   `_sms_reply` captures the sender, reconciles the customer and runs the normal consent/STOP path.
+
+**What is still needed, and only the operator can do it:** send one text to `+64278817368` and watch
+`sms:inbound` turn green. That single message proves the reply path end to end.
