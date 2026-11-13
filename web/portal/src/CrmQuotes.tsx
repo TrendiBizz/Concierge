@@ -327,7 +327,7 @@ export function Contacts({token}: {token: string}) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [reason, setReason] = useState('');
-  const [addresses, setAddresses] = useState<{id: number; kind: string; value: string; label: string}[]>([]);
+  const [addresses, setAddresses] = useState<{id: number; kind: string; value: string; label: string; source: string}[]>([]);
   const [newKind, setNewKind] = useState('phone');
   const [newValue, setNewValue] = useState('');
 
@@ -348,7 +348,7 @@ export function Contacts({token}: {token: string}) {
 
   async function loadAddresses(caseKey: string) {
     try {
-      const data = await api('/owner/contacts/' + encodeURIComponent(caseKey) + '/addresses') as {addresses: {id: number; kind: string; value: string; label: string}[]};
+      const data = await api('/owner/contacts/' + encodeURIComponent(caseKey) + '/addresses') as {addresses: {id: number; kind: string; value: string; label: string; source: string}[]};
       setAddresses(data.addresses || []);
     } catch { setAddresses([]); }
   }
@@ -420,7 +420,17 @@ export function Contacts({token}: {token: string}) {
           <p style={{fontSize: 14}}>Every phone number and email that belongs to this person. Anything arriving from one of these is treated as the same customer, not a stranger.</p>
           {addresses.map((address) => (
             <div key={address.id} style={{display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid var(--color-border)', padding: '6px 0'}}>
-              <span style={{flex: 1}}>{address.kind === 'phone' ? 'phone' : 'email'} · <strong>{address.value}</strong>{address.label ? ' · ' + address.label : ''}</span>
+              <span style={{flex: 1}}>
+                {address.kind === 'phone' ? 'phone' : 'email'} · <strong>{address.value}</strong>
+                {' · '}
+                <span style={{opacity: 0.75}}>{
+                  {phone: 'captured from a call', voice: 'captured from a call',
+                   email: 'captured from an email', sms: 'captured from a text',
+                   chat: 'given in a chat', owner: 'added by you',
+                   import: 'from your import', backfill: 'from your existing records',
+                   inbound: 'captured automatically'}[address.source] || address.source
+                }</span>
+              </span>
               <Button label="Remove" variant="ghost" onClick={() => removeAddress(address.id)} />
             </div>
           ))}

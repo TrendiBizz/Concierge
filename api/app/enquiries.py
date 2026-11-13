@@ -20,6 +20,10 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
     case = await casetimeline.reconcile(
         tenant["id"], phone=phone, email=email,
         default_cc=casetimeline.tenant_country_code(tenant),
+        # The channel that carried the identifier is the source: an email case is captured from
+        # email, a call from caller ID. This is what lets the owner tell an auto-captured address
+        # from one they typed in themselves.
+        source=channel,
     )
     case_id = case["id"] if case else None
 

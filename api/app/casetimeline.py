@@ -154,7 +154,7 @@ async def remove_address(tenant_id, case_id, address_id: int) -> bool:
 
 
 async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str = "",
-                      default_cc: str = "1") -> dict | None:
+                      default_cc: str = "1", source: str = "inbound") -> dict | None:
     """Find or create the case for this identity. None when the identity is unusable.
 
     Upsert rather than select-then-insert: two channels can arrive concurrently for the same new
@@ -179,12 +179,13 @@ async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str 
         tenant_id, key, (name or "")[:200], phone_norm, email_norm,
     )
     if row:
-        await _remember(db.pool(), tenant_id, row["id"], phone=phone_norm, email=email_norm)
+        await _remember(db.pool(), tenant_id, row["id"], phone=phone_norm, email=email_norm,
+                        source=source)
     return dict(row) if row else None
 
 
 async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = "",
-                    default_cc: str = "1") -> dict | None:
+                    default_cc: str = "1", source: str = "inbound") -> dict | None:
     """Resolve the customer's case, MERGING any cases that turn out to be the same person.
 
     Without this, one customer becomes several: writing first leaves an `email:...` case, then a
@@ -242,7 +243,8 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
                 # First sighting: create the new case, and tell the customer's own CRM if they run
                 # one. Portability is imported lazily: it imports this module back.
                 created = await ensure_case(
-                    tenant_id, phone=phone, email=email, name=name, default_cc=default_cc)
+                    tenant_id, phone=phone, email=email, name=name, default_cc=default_cc,
+                    source=source)
                 if created:
                     from . import portability
                     await portability.emit(tenant_id, "customer.created", {
@@ -270,7 +272,7 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
                 survivor["id"], phone_norm[:40], email_norm[:200], (name or "")[:200])
 
             await _remember(conn, tenant_id, survivor["id"],
-                            phone=phone_norm, email=email_norm)
+                            phone=phone_norm, email=email_norm, source=source)
 
             # A phone number that arrived later should take over the key, so future phone-only
             # traffic resolves directly instead of re-running a merge every time.

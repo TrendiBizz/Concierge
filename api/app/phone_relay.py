@@ -287,7 +287,15 @@ async def relay(websocket: WebSocket) -> None:
     async def respond(prompt: str):
         try:
             conversation_id = await convo.get_or_create(tenant, session, "phone", None, None)
-            await enquiries.capture(tenant, "phone", session, prompt, conversation_id=conversation_id)
+            # The streaming socket does not carry the caller's number, but the call record does.
+            # Without this the mid-call enquiries attach to an anonymous case.
+            stored = await db.pool().fetchrow(
+                "SELECT from_number FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2",
+                tenant["id"], session)
+            caller = (stored["from_number"] if stored else "") or ""
+            await enquiries.capture(tenant, "phone", session, prompt,
+                                    conversation_id=conversation_id,
+                                    phone=caller if NUMBER.fullmatch(caller) else "")
             result = await chat.run_turn(
                 tenant, session, "phone", prompt, sender_phone=None
             )

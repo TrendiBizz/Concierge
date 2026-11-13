@@ -188,6 +188,11 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="button" id="social-refresh" class="secondary">Refresh social drafts</button>
 <div id="social-posts" aria-live="polite"></div>
 </section>
+<section id="team-panel" class="panel" hidden>
+<h2>Team</h2><p class="muted">Everyone who can sign in to this business, and what they may do. Removing access signs them out immediately.</p>
+<div id="team-members" aria-live="polite"></div>
+<div id="team-invitations"></div>
+</section>
 <section id="invite-panel" class="panel" hidden>
 <h2>Invite team member</h2><p class="muted">The generated invitation token is shown once for manual delivery through a verified private channel; it is never emailed automatically.</p>
 <form id="invite-form"><label for="invite-email">Email</label><input id="invite-email" type="email" required>
@@ -258,9 +263,9 @@ async function openSession(accessToken,readyNote){
  const user=await request("/owner/me");currentRole=user.role;
  $("identity").textContent=user.tenant+" — "+user.email+" ("+user.role+")";
  $("login-panel").hidden=true;$("app-panel").hidden=false;
- $("invite-panel").hidden=user.role!=="owner";
+ $("invite-panel").hidden=user.role!=="owner";$("team-panel").hidden=false;
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
+ const sections=await Promise.allSettled([refreshTeam(),refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message(readyNote);
@@ -1062,6 +1067,51 @@ $("sender-rule-add").addEventListener("click",async()=>{
    catch(error){message(error.message,true);}
  });
 $("sms-phone-refresh").addEventListener("click",()=>refresh().catch(error=>message(error.message,true)));
+async function refreshTeam(){
+ const host=$("team-members");const inviteHost=$("team-invitations");
+ try{
+  const data=await request("/owner/team");
+  clear(host);clear(inviteHost);
+  for(const member of data.members){
+   const row=node("div","team-row");
+   const label=node("span",member.email+(member.id===data.you?" (you)":""));
+   label.className="team-who";row.appendChild(label);
+   if(currentRole==="owner"&&member.id!==data.you){
+    const role=node("select");
+    for(const name of ["viewer","editor","owner"]){const option=node("option",name);option.value=name;if(name===member.role)option.selected=true;role.appendChild(option);}
+    role.setAttribute("aria-label","Role for "+member.email);
+    role.addEventListener("change",async()=>{
+     try{await request("/owner/team/"+encodeURIComponent(member.id),"PATCH",{role:role.value});message("Role updated.");await refreshTeam();}
+     catch(error){message(error.message,true);await refreshTeam();}
+    });
+    row.appendChild(role);
+   }else{
+    row.appendChild(node("span",member.role));
+   }
+   if(!member.active)row.appendChild(node("span","no access"));
+   if(currentRole==="owner"){
+    if(member.active){
+     if(member.id!==data.you){
+      const remove=node("button","Remove access");remove.type="button";remove.className="secondary";
+      remove.addEventListener("click",async()=>{remove.disabled=true;try{await request("/owner/team/"+encodeURIComponent(member.id)+"/deactivate","POST");message("Access removed and sessions ended.");await refreshTeam();}catch(error){message(error.message,true);}finally{remove.disabled=false;}});
+      row.appendChild(remove);
+     }
+    }else{
+     const restore=node("button","Restore access");restore.type="button";restore.className="secondary";
+     restore.addEventListener("click",async()=>{restore.disabled=true;try{await request("/owner/team/"+encodeURIComponent(member.id)+"/reactivate","POST");message("Access restored.");await refreshTeam();}catch(error){message(error.message,true);}finally{restore.disabled=false;}});
+     row.appendChild(restore);
+    }
+   }
+   host.appendChild(row);
+  }
+  if(!data.members.length)host.appendChild(node("p","Nobody on the team yet."));
+  if(data.invitations.length){
+   inviteHost.appendChild(node("p","Invited, not arrived yet:"));
+   for(const invite of data.invitations)inviteHost.appendChild(node("p",invite.email+" — "+invite.role+", expires "+new Date(invite.expires_at).toLocaleString()));
+  }
+ }catch(error){host.textContent="";host.appendChild(node("p","Could not load the team: "+error.message));}
+}
+
 $("invite-form").addEventListener("submit",async event=>{
  event.preventDefault();
  try{
@@ -1069,7 +1119,7 @@ $("invite-form").addEventListener("submit",async event=>{
   const host=$("invite-result");clear(host);
   host.appendChild(node("p","Share this invitation link privately with the person you invited. It expires in 24 hours."));
   const field=node("textarea",result.invitation_url);field.value=result.invitation_url;field.readOnly=true;field.setAttribute("aria-label","Private invitation link");host.appendChild(field);
-  message("Invitation created but not delivered.");
+  await refreshTeam();message("Invitation created but not delivered.");
  }catch(error){message(error.message,true);}
 });
 

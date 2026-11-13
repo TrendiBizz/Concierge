@@ -167,7 +167,7 @@ async def take_over(tenant: dict, call: dict, *, by: str = "owner") -> dict:
     caller = caller_label(call)
     case = await casetimeline.reconcile(
         tenant["id"], phone=call.get("from_number") or "",
-        default_cc=casetimeline.tenant_country_code(tenant),
+        default_cc=casetimeline.tenant_country_code(tenant), source="voice",
     )
     paused = False
     if case:

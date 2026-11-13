@@ -18,7 +18,7 @@ import uuid
 
 import websockets
 
-from . import (call_control, channel_authorization, convo, db, enquiries, events, tenants, voice,
+from . import (asterisk_ami, call_control, channel_authorization, convo, db, enquiries, events, tenants, voice,
                voice_records)
 from .config import get_settings
 from .rag import build_system_prompt
@@ -394,6 +394,38 @@ class MediaBridge:
             await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def caller_number(call_id: str) -> str:
+    """The caller's number for a bridged call, or "" when Asterisk cannot tell us.
+
+    AudioSocket hands the bridge a call UUID and nothing else -- no CallerID -- so the number has
+    to be fetched from Asterisk. This matters because the whole point of a case is to recognise the
+    customer next time: a call that leaves no number creates a case nobody can find again.
+
+    Returning "" on any doubt is deliberate. Attaching someone else's number to a customer is worse
+    than having no number at all.
+    """
+    uuid_part = (call_id or "").split(":", 1)[-1]
+    if not uuid_part:
+        return ""
+    settings = get_settings()
+    if not (settings.ami_host and settings.ami_user and settings.ami_secret):
+        return ""
+    try:
+        config = asterisk_ami.from_settings(settings)
+        for event in await asterisk_ami.channels(config):
+            unique = event.get("Uniqueid") or ""
+            channel = event.get("Channel") or ""
+            if unique == uuid_part or uuid_part in channel:
+                number = re.sub(r"[\s\-()]", "", (event.get("CallerIDNum") or "").strip())
+                # Asterisk reports whatever the carrier sent: often a national number such as
+                # 0215551234, not E.164. Demanding a leading + threw away every real caller ID.
+                # Accept the digits and let the usual normaliser apply the business's country code.
+                return number if re.fullmatch(r'\+?\d{6,15}', number) else ""
+    except Exception:
+        log.warning("Could not read caller ID from Asterisk for %s", call_id, exc_info=True)
+    return ""
+
+
 async def register(route, call_id):
     cfg = get_settings()
     if not cfg.phone_receptionist_enabled or cfg.phone_voice_provider != 'grok' or not cfg.xai_api_key:
@@ -413,7 +445,7 @@ async def register(route, call_id):
                 raise ValueError('Business call limit reached')
             # UNIQUE call_sid rejects replay, including cross-business reuse.
             await c.execute('INSERT INTO phone_calls(tenant_id,call_sid,from_number,to_number,status) VALUES($1,$2,$3,$4,$5)',
-                            tenant['id'], call_id, '', route.number, 'in_progress')
+                            tenant['id'], call_id, await caller_number(call_id), route.number, 'in_progress')
     return tenant
 
 
@@ -423,7 +455,13 @@ async def prepare(route, call_id):
     Python bridge and the internal voice shell."""
     tenant = await register(route, call_id)
     conversation = await convo.get_or_create(tenant, call_id, 'phone', None, None)
-    await enquiries.capture(tenant, 'phone', call_id, 'Inbound telephone enquiry', conversation_id=conversation)
+    # The number recorded at register() is the caller's; capture against it so the case is the
+    # person, not an anonymous call.
+    stored = await db.pool().fetchrow(
+        'SELECT from_number FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id)
+    caller = (stored['from_number'] if stored else '') or ''
+    await enquiries.capture(tenant, 'phone', call_id, 'Inbound telephone enquiry',
+                            conversation_id=conversation, phone=caller)
     capability = await voice_records.start(tenant, call_id, channel='phone')
     record_session = await voice_records.authenticate(capability['id'], capability['token'])
     session = voice.build_session(tenant, website=True)
