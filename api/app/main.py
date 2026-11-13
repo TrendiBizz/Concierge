@@ -2458,7 +2458,7 @@ async def owner_contacts(
     """
     rows = await db.pool().fetch(
         """
-        SELECT c.case_key, c.display_name, c.primary_phone, c.primary_email,
+        SELECT c.case_key, c.display_name, c.company, c.primary_phone, c.primary_email,
                c.automation_paused, c.takeover_at, c.updated_at,
                (SELECT count(*) FROM case_events e WHERE e.case_id = c.id) AS event_count,
                (SELECT string_agg(DISTINCT e.channel, ',') FROM case_events e

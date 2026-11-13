@@ -314,7 +314,7 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
 }
 
 type TimelineEvent = {channel: string; channel_label?: string; direction: string; body: string; occurred_at?: string | null};
-type Contact = {case_key: string; label: string; primary_phone?: string; primary_email?: string;
+type Contact = {case_key: string; label: string; company?: string; primary_phone?: string; primary_email?: string;
   channels: string[]; event_count: number; automation_paused: boolean; last_at?: string | null};
 type ContactDetail = Contact & {event_count: number; channels: string[]; events: TimelineEvent[];
   enquiries: {id: string; status: string; channel: string; message: string; created_at?: string | null}[];
@@ -395,7 +395,7 @@ export function Contacts({token}: {token: string}) {
         idKey="case_key"
         density="compact"
         columns={[
-          {key: 'label', header: 'Customer', width: proportional(1, {minWidth: 160}), renderCell: (row) => <strong>{String(row.label || '')}</strong>},
+          {key: 'label', header: 'Customer', width: proportional(1, {minWidth: 160}), renderCell: (row) => <><strong>{String(row.label || '')}</strong>{row.company ? <span style={{opacity: 0.75}}> · {String(row.company)}</span> : null}</>},
           {key: 'channels', header: 'Channels', width: proportional(1, {minWidth: 120}), renderCell: (row) => (Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : '')},
           {key: 'event_count', header: 'Messages', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.event_count || 0)},
           {key: 'automation_paused', header: 'Assistant', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Badge label={row.automation_paused ? 'paused' : 'replying'} variant={row.automation_paused ? 'warning' : 'neutral'} />},
@@ -407,7 +407,7 @@ export function Contacts({token}: {token: string}) {
 
       {selected ? (
         <Card>
-          <Heading level={2}>{selected.label}</Heading>
+          <Heading level={2}>{selected.label}{selected.company ? ' · ' + selected.company : ''}</Heading>
           <p>{selected.primary_phone || 'no phone'} · {selected.primary_email || 'no email'} · {selected.event_count} events across {(selected.channels || []).join(', ') || 'no channels yet'}</p>
           <label style={{display: 'block', margin: '8px 0'}}>
             Why (recorded in the customer's history)
