@@ -341,9 +341,14 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
     <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
       <Heading level={1}>Welcome to Concierge</Heading>
       <p>Choose a password to open your private setup. It is a click-through setup; nothing plays audio.</p>
-      <TextInput label="Password (12+ characters)" type="password" value={password} onChange={setPassword} />
-      <p aria-live="polite" style={{margin: '4px 0 0', fontSize: 14, fontWeight: 600, color: password.length >= 12 ? '#2e7d32' : 'inherit'}}>
-        {password.length >= 12 ? 'Long enough' : password.length + ' of 12 characters'}
+      <div className="password-rule" role="note">
+        <span className="password-rule-number" aria-hidden="true">12</span>
+        <span><strong>Your password must be at least 12 characters long.</strong><br />A short phrase of three or four random words is long and easy to remember.</span>
+      </div>
+      <TextInput label="Password (at least 12 characters)" type="password" value={password} onChange={setPassword} />
+      <div className="length-meter" aria-hidden="true"><div className={password.length >= 12 ? 'ok' : ''} style={{width: Math.min(100, Math.round(password.length / 12 * 100)) + '%'}} /></div>
+      <p aria-live="polite" className="length-count">
+        {password.length >= 12 ? '\u2713 ' + password.length + ' characters: long enough' : password.length + ' of 12 characters needed'}
       </p>
       <TextInput label="Confirm password" type="password" value={confirm} onChange={setConfirm} />
       <div style={{marginTop: 16}}><Button label="Set password and continue" variant="primary" onClick={submit} /></div>
