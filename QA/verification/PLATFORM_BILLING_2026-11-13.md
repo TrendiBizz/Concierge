@@ -53,3 +53,25 @@ issue date, PAID badge, description, net, GST (15%), total, buyer name/business.
    the provisioning failure is recorded for a person to fix.
 
 Tests: `tests/test_platform_billing.py` (17).
+
+## Live endpoint, with the operator's real signing secret
+
+The operator set the Stripe signing secret in `/opt/trendi/shared/api.env` and restarted the API. The
+endpoint was then checked **without creating a sale**:
+
+| Check | Result |
+|---|---|
+| Signature computed with the live secret, event whose session is `unpaid` | **200 `{"received":true}`** — the signature verified and the unpaid session was still correctly ignored |
+| Same body with a wrong signature | **400** |
+| Invoices and test businesses created by these checks | **0 / 0** |
+
+That combination is the point: a valid signature is necessary but not sufficient — only a session
+that says it is paid produces an invoice. `trendi-support.notify_email` is `admin@trendibizz.com`, so
+the "Payment received — TRB-000n" alert will reach the operator on the first real sale.
+
+## Left for the operator
+
+* `api.env.bak-*-prewhsec` and the older `api.env.bak-*` backups are root-only (0600) but they
+  contain SMTP and admin credentials from before the rotation. Delete them once the current file is
+  known good.
+* The first real checkout is the first end-to-end live test of payment → invoice → provisioning.
