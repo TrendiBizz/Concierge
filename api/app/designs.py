@@ -7,6 +7,8 @@ when configured. Parsing/takeoff is a separate step.
 import hashlib
 import html
 import json
+import subprocess
+import sys
 import os
 import re
 from pathlib import Path
@@ -112,43 +114,28 @@ async def remove(design_id: UUID, user=Depends(owner_auth.current_user)):
 
 
 def _takeoff(path: str) -> dict:
-    import ifcopenshell
-    model = ifcopenshell.open(path)
-    walls = list(model.by_type("IfcWall")) + list(model.by_type("IfcWallStandardCase"))
-    gross = net = opening_area = 0.0
-    for wall in walls:
-        for rel in getattr(wall, "IsDefinedBy", []):
-            if not rel.is_a("IfcRelDefinesByProperties"):
-                continue
-            prop = rel.RelatingPropertyDefinition
-            if prop is None or not prop.is_a("IfcElementQuantity"):
-                continue
-            for quantity in prop.Quantities or []:
-                if not quantity.is_a("IfcQuantityArea"):
-                    continue
-                name = quantity.Name or ""
-                value = float(quantity.AreaValue or 0)
-                if "GrossSideArea" in name:
-                    gross += value
-                elif "NetSideArea" in name:
-                    net += value
-    openings = list(model.by_type("IfcOpeningElement"))
-    for opening in openings:
-        for rel in getattr(opening, "IsDefinedBy", []):
-            if not rel.is_a("IfcRelDefinesByProperties"):
-                continue
-            prop = rel.RelatingPropertyDefinition
-            if prop is None or not prop.is_a("IfcElementQuantity"):
-                continue
-            for quantity in prop.Quantities or []:
-                if quantity.is_a("IfcQuantityArea"):
-                    opening_area += float(quantity.AreaValue or 0)
-    note = "" if gross or net else "This IFC has no wall area quantities. Measure manually or export quantities from the authoring tool."
-    return {"wall_count": len(walls), "gross_wall_area_m2": round(gross, 2),
-            "net_wall_area_m2": round(net, 2), "opening_count": len(openings),
-            "opening_area_m2": round(opening_area, 2),
-            "net_cladding_area_m2": round(max(net - opening_area, 0), 2) if net else None,
-            "note": note}
+    """Measure an IFC in a child process, so a model that crashes the parser cannot crash the API."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "app.ifc_takeoff", path],
+            capture_output=True, text=True, timeout=120,
+            cwd=str(Path(__file__).resolve().parent.parent),
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("reading this model took too long") from None
+    try:
+        payload = json.loads(result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "{}")
+    except (ValueError, IndexError):
+        payload = {}
+    if result.returncode != 0 or "error" in payload:
+        if "error" in payload:
+            raise RuntimeError(payload["error"])
+        if result.returncode < 0:
+            raise RuntimeError("the IFC reader crashed on this file (signal %s); re-export it as IFC4 and try again" % (-result.returncode))
+        raise RuntimeError((result.stderr or "the IFC reader failed").strip().splitlines()[-1][:200])
+    return payload
 
 
 @router.post("/{design_id}/takeoff")
