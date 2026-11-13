@@ -100,3 +100,24 @@ NZ Privacy Act 2020 (collection notice, call-recording notice) · Unsolicited El
 2. Unify `/studio` and `/owner-ui` now (recommended) or keep both?
 3. Ask Hero whether they have an API to provision numbers and report call status.
 4. Budget OK for a Places API key and an SMS provider?
+
+---------------------------------------------------------------------------------------------------
+## Built since (sessions 20, 13 Nov 15:00–15:30)
+
+The flow is now **Welcome → Your business → Finish**, and the customer never invents a password.
+
+| Piece | State |
+|---|---|
+| Sign in | **One click.** The invitation link signs you in; a 30-day session is kept in local storage. Returning customers ask for a fresh link by email. No password field anywhere. |
+| Discover | `GET /owner/onboarding/brand-suggestion` reads the public site (name, logo as PNG, accent, contact, socials, platform, timezone, country) with `public_fetch`. SVG logos are rendered with resvg; lettering is measured, not assumed. |
+| Propose | One review screen replaces wizard steps 2–5: logo preview + the other candidates, name, contact line, colour picker (never a hex box), timezone, our notes, one **Looks right**. |
+| Permit | The finish step carries the capability cards — email, phone, recording, texts, social — each saying what we do, what data it touches and how to undo it, granted by the owner's own click. It no longer says "permissions live elsewhere". |
+| Provision | Granting **email** consent now re-enables the reply mailbox itself. Before this, a mailbox registered before consent stayed disabled and the operator had to run SQL while the customer saw "email is not ready". |
+| Verify | "Check my site" reads the customer's live page for the widget and their key. |
+| Land | Someone arriving from an invitation starts on **Setup**, not an empty dashboard, and finishing setup moves within the app instead of reloading. |
+
+**Still to build from this document:** QR code for the hosted chat link; a per-tenant "Pause
+everything" (the kill switch is operator-global today, so surfacing it to a customer would pause
+every business); automatic email provisioning per provider; Google Calendar and Business Profile;
+provider SMS; the WordPress plugin and the other platforms; the full verification checklist
+(test alert / test email round trip / test call).
