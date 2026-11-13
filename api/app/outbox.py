@@ -16,6 +16,10 @@ log = logging.getLogger("concierge.outbox")
 MAX_ATTEMPTS = 3
 # Kinds that go to the business owner, not a visitor: never blocked by opt-outs.
 OWNER_KINDS = {"owner_alert"}
+# Transactional mail the customer has already paid for or asked for. It is not marketing, so the
+# opt-out, pause and channel-authorisation gates do not apply to it — an invoice must not be
+# silently "skipped" because the business had not authorised email sending yet.
+TRANSACTIONAL_KINDS = {"owner_alert", "customer_invoice"}
 
 
 def next_allowed_send(tz: ZoneInfo, when: datetime, start_hour: int = 8, end_hour: int = 21) -> datetime:
@@ -118,13 +122,13 @@ async def _deliver(row: dict) -> None:
 
     # Recheck authorization at actual delivery time. Queued work must not bypass
     # a customer's revocation; operational owner alerts remain separate.
-    if (row["kind"] not in OWNER_KINDS or row["channel"] == "sms") and row["channel"] in ("email", "sms"):
+    if (row["kind"] not in TRANSACTIONAL_KINDS or row["channel"] == "sms") and row["channel"] in ("email", "sms"):
         permission = "email_send" if row["channel"] == "email" else "sms_send"
         if not await channel_authorization.is_authorized(row["tenant_id"], permission):
             await _finish(row["id"], "skipped", "channel_authorization_missing")
             return
 
-    if row["kind"] not in OWNER_KINDS and await is_opted_out(row["tenant_id"], row["to_addr"]):
+    if row["kind"] not in TRANSACTIONAL_KINDS and await is_opted_out(row["tenant_id"], row["to_addr"]):
         await _finish(row["id"], "skipped", "opted_out")
         return
 
@@ -139,7 +143,7 @@ async def _deliver(row: dict) -> None:
     # otherwise still arrive afterwards, which is the window that checking only at queue time leaves
     # open. Owner alerts are exempt: takeover silences replies to the CUSTOMER, never the owner's own
     # notification, which is the very message they need in order to act.
-    if row["kind"] not in OWNER_KINDS and row["channel"] in ("email", "sms"):
+    if row["kind"] not in TRANSACTIONAL_KINDS and row["channel"] in ("email", "sms"):
         try:
             if await casetimeline.is_paused_for(
                 row["tenant_id"],
@@ -173,7 +177,7 @@ async def _deliver(row: dict) -> None:
     # reason, and before the dispatch so nothing is actually sent.
     # Owner alerts are deliberately exempt: a paused business still needs to know who tried to
     # reach it, and the enquiry itself is captured.
-    if row["kind"] not in OWNER_KINDS and await tenant_pause.is_paused(tenant):
+    if row["kind"] not in TRANSACTIONAL_KINDS and await tenant_pause.is_paused(tenant):
         await _finish(row["id"], "skipped", "tenant_paused")
         return
 

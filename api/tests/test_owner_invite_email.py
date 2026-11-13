@@ -46,3 +46,13 @@ def test_sending_goes_through_the_outbox():
     assert "outbox.enqueue" in source, "invitations must be queued, not sent inline"
     # Imported mailer would mean a direct send that skips the queue and leaves no record.
     assert "import mailer" not in source and "mailer." not in source.replace("`mailer.", "")
+
+
+def test_a_resend_is_not_refused_as_a_duplicate():
+    """An operator re-sending a link must not be blocked by the earlier invite's dedupe key."""
+    import inspect
+
+    from app import owner_invites
+
+    source = inspect.getsource(owner_invites.send)
+    assert "hashlib.sha256(link" in source, "the dedupe key must identify the link, not the address"

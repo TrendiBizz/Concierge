@@ -230,6 +230,9 @@ function Login({locale, setLocale, tr}: {locale: string; setLocale: (v: string) 
   );
 }
 
+// A token is redeemed once per page load, whatever React does with effects.
+const redeemInFlight = new Set<string>()
+
 function Invite({onToken}: {onToken: (token: string) => void}) {
   const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
   const api = useApi('');
@@ -239,6 +242,8 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
 
   useEffect(() => {
     if (!token) { setFailed(true); return; }
+    if (redeemInFlight.has(token)) return;
+    redeemInFlight.add(token);
     let cancelled = false;
     api('/owner/auth/invite', 'POST', {token})
       .then((data) => {

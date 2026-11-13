@@ -26,3 +26,18 @@ def test_links_are_still_single_use_and_expire():
 def test_the_reason_is_recorded_where_the_next_person_reads_it():
     source = inspect.getsource(owner_auth.make_invite)
     assert "silently killed" in source or "does not take the old one away" in source
+
+
+def test_a_link_can_be_redeemed_again_briefly_so_a_double_load_is_not_an_error():
+    from datetime import datetime, timedelta
+
+    now = datetime(2026, 11, 13, 8, 30, 0)
+    assert owner_auth.invite_still_good(None, now) is True
+    assert owner_auth.invite_still_good(now - timedelta(minutes=2), now) is True
+    assert owner_auth.invite_still_good(now - timedelta(minutes=31), now) is False
+    assert owner_auth.invite_still_good("not a timestamp", now) is False
+
+
+def test_the_exchange_uses_the_grace_rule():
+    source = inspect.getsource(owner_auth.accept_invite)
+    assert "invite_still_good" in source, "the handler must not answer expired on a double load"

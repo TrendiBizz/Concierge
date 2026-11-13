@@ -8,6 +8,8 @@ as every other message the product sends.
 
 from __future__ import annotations
 
+import hashlib
+
 from . import db, outbox, owner_auth
 from .config import get_settings
 
@@ -69,6 +71,10 @@ async def send(slug: str, email: str) -> dict:
     link = owner_auth.invitation_link(link_info["token"])
     origin = get_settings().owner_portal_url.rstrip("/")
     subject, body = compose(tenant["name"], link, f"{origin}/guide/bonsai-cladding")
+    # Dedupe on the LINK, not the address. Keying on the address made a re-send ("his link failed,
+    # send another") return 409 "An invitation is already queued" forever, because the first
+    # invitation had already used that key — so the one thing the operator needed to do was blocked.
     queued = await outbox.enqueue(tenant["id"], "owner_alert", "email", email, body,
-                                  subject=subject, dedupe_key=f"owner-invite:{tenant['id']}:{email}")
+                                  subject=subject,
+                                  dedupe_key=f"owner-invite:{tenant['id']}:{hashlib.sha256(link.encode()).hexdigest()[:16]}")
     return {"invitation_url": link, "queued": queued, "email": email, "business": tenant["name"]}

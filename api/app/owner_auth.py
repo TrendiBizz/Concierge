@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import re
 import secrets
+from datetime import datetime, timezone
 
 from fastapi import Header, HTTPException
 from . import db
@@ -138,6 +139,25 @@ async def redeem(token: str, password: str) -> dict:
             "slug": invitation["tenant_slug"]}
 
 
+GRACE_MINUTES = 30
+
+
+def invite_still_good(used_at, now, grace_minutes: int = GRACE_MINUTES) -> bool:
+    """A link may be redeemed again briefly after its first use.
+
+    A browser can fire the exchange twice — a second render, a pre-render, a reload after the
+    fragment was already consumed — and the second request used to answer "expired", replacing the
+    successful sign-in with an error page. That is what Conrad saw twice on 13 Nov. The window is
+    short: after it, the link is dead.
+    """
+    if used_at is None:
+        return True
+    try:
+        return (now - used_at).total_seconds() <= grace_minutes * 60
+    except TypeError:
+        return False
+
+
 async def accept_invite(token: str) -> dict:
     """Sign someone in from their one-click link; no password is created or asked for.
 
@@ -150,10 +170,10 @@ async def accept_invite(token: str) -> dict:
             invitation = await conn.fetchrow(
                 "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
                 "JOIN tenants t ON t.id=i.tenant_id "
-                "WHERE i.token_hash=$1 AND i.used_at IS NULL "
-                "AND i.expires_at>now() FOR UPDATE OF i", digest(token),
+                "WHERE i.token_hash=$1 AND i.expires_at>now() FOR UPDATE OF i", digest(token),
             )
-            if not invitation:
+            if not invitation or not invite_still_good(
+                    invitation["used_at"], datetime.now(timezone.utc)):
                 raise ValueError("Invalid or expired link")
             existing = await conn.fetchrow(
                 "SELECT id FROM tenant_users WHERE tenant_id=$1 AND email=$2",
