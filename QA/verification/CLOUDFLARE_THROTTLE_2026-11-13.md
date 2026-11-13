@@ -49,7 +49,41 @@ render nothing — silent. Now it:
 Verified live: the demo page now returns `200` for `widget-config` and `widget-logo` and renders the
 composer, and the deployed script contains both the cache and the fallback.
 
-## What needs a Cloudflare token with the right scope — operator action
+## RESOLVED at the edge, 13 Nov 2026 19:00 NZ
+
+The operator changed the rule in the dashboard. It was:
+
+- name `api-robots`
+- expression `starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/api/v1/translate")`
+- **5 requests per 10 seconds**, action Block, per IP
+
+A single page view spends two of those five (config + logo) before the visitor types, which is why
+the chat page kept dying. The rule is now scoped and sized so a conversation cannot reach it, and
+the widget and chat endpoints are exempt.
+
+**Acceptance test, against a real client's key (`pukeko-construction`):**
+
+```
+12 requests, 1 second apart  -> 200 200 200 200 200 200 200 200 200 200 200 200
+10 rapid-fire requests       -> 200 200 200 200 200 200 200 200 200 200
+```
+
+Compare with the same probe before the change: `200 200 429 429 429 429 429 429 429 429 429 200`.
+
+## End-to-end proof that a customer enquiry now lands
+
+On `https://chat.trendibizz.com/demo/pukeko-construction`, as a visitor:
+
+- the widget opens on its own and greets ("Kia ora, you have reached Pukeko Construction…");
+- a message was sent: *"Do you do re-cladding in Remuera? Name Sam, phone 021 555 0123."*;
+- the AI answered with the right service and **asked about consent before texting**;
+- the panel confirmed **"✓ Your details were sent to the team."**;
+- the CRM gained a lead: `name Sam, phone +64215550123, channel chat`, and a customer record.
+
+No JS errors, no 4xx/5xx from our API. The three walkthrough leads and their customer were deleted
+afterwards (`left: 0`).
+
+## What needs a Cloudflare token with the right scope — no longer blocking
 
 The rule cannot be read or changed with the credentials on the box. `CLOUDFLARE_API_TOKEN` and
 `CF_API_TOKEN` both pass `/user/tokens/verify` ("This API Token is valid and active") but every
