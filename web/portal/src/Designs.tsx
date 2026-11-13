@@ -3,6 +3,7 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
+import {copyText} from './clipboard';
 
 type Design = {id: string; filename: string; size_bytes: number; status: string; summary?: Record<string, unknown> | null; created_at: string};
 
@@ -24,7 +25,7 @@ export default function Designs({token}: {token: string}) {
   }
   const [designs, setDesigns] = useState<Design[]>([]);
   const [status, setStatus] = useState('');
-  const [viewUrl, setViewUrl] = useState('');
+  const [viewFile, setViewFile] = useState<File | null>(null);
   const [viewName, setViewName] = useState('');
   const [busy, setBusy] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -39,15 +40,17 @@ export default function Designs({token}: {token: string}) {
 
   useEffect(() => {
     let disposed = false;
-    if (!viewUrl || !viewerRef.current) return;
+    if (!viewFile || !viewerRef.current) return;
     import('online-3d-viewer').then((mod) => {
       if (disposed || !viewerRef.current) return;
-      const Viewer = (mod as unknown as {EmbeddedViewer: new (el: HTMLElement, params: object) => {LoadModelFromUrlList: (urls: string[]) => void}}).EmbeddedViewer;
+      const Viewer = (mod as unknown as {EmbeddedViewer: new (el: HTMLElement, params: object) => {LoadModelFromFileList: (files: File[]) => void}}).EmbeddedViewer;
       const viewer = new Viewer(viewerRef.current, {});
-      viewer.LoadModelFromUrlList([viewUrl]);
+      // A blob: URL carries no filename, so the viewer could not tell an STL from a PDF and said
+      // "No importable file found." for every model. A File keeps its real name and extension.
+      viewer.LoadModelFromFileList([viewFile]);
     }).catch(() => setStatus('The 3D viewer could not load; download the file instead.'));
     return () => { disposed = true; if (viewerRef.current) viewerRef.current.innerHTML = ''; };
-  }, [viewUrl]);
+  }, [viewFile]);
 
   async function upload(file: File) {
     setBusy(true); setStatus('');
@@ -72,8 +75,9 @@ export default function Designs({token}: {token: string}) {
       if (download) { const link = document.createElement('a'); link.href = url; link.download = design.filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); return; }
       const ext = design.filename.split('.').pop()?.toLowerCase() || '';
       if (['ifc', 'glb', 'gltf', 'obj', 'stl', '3dm', 'step', 'stp', 'dae', 'fbx'].includes(ext)) {
-        if (viewUrl) URL.revokeObjectURL(viewUrl);
-        setViewUrl(url); setViewName(design.filename);
+        URL.revokeObjectURL(url);
+        setViewFile(new File([blob], design.filename, {type: blob.type}));
+        setViewName(design.filename);
       } else {
         window.open(url, '_blank', 'noopener');
         setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -113,8 +117,8 @@ export default function Designs({token}: {token: string}) {
             const result = await api('/owner/designs/link', 'POST') as {url: string};
             const url = location.origin + result.url;
             setLink(url);
-            navigator.clipboard?.writeText(url);
-            setStatus('Upload link created and copied.');
+            const copied = await copyText(url);
+            setStatus(copied ? 'Upload link created and copied.' : 'Upload link created — copy it below.');
           } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not create the link'); }
         }} />
         {link ? <p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null}
@@ -150,7 +154,7 @@ export default function Designs({token}: {token: string}) {
           <p><strong>Subtotal {money(draft.subtotal_cents, draft.currency)} · Total {money(draft.total_cents, draft.currency)}</strong></p>
         </Card>
       ) : null}
-      {viewUrl ? <Card><Heading level={2}>{viewName}</Heading><div ref={viewerRef} style={{height: 520, width: '100%'}} /><Button label="Close viewer" variant="ghost" onClick={() => { setViewUrl(''); setViewName(''); }} /></Card> : null}
+      {viewFile ? <Card><Heading level={2}>{viewName}</Heading><div ref={viewerRef} style={{height: 520, width: '100%'}} /><Button label="Close viewer" variant="ghost" onClick={() => { setViewFile(null); setViewName(''); }} /></Card> : null}
       {status ? <p role="status">{status}</p> : null}
     </div>
   );

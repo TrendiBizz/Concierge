@@ -14,6 +14,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
+import {copyText} from './clipboard';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {SideNav, SideNavSection, SideNavItem} from '@astryxdesign/core/SideNav';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
@@ -914,7 +915,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             blocked with no visible error. Send this line to whoever looks after your website.
           </p>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
-            <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); notify('Embed code copied.'); }} />
+            <Button label="Copy embed code" variant="secondary" onClick={() => { void copyText(snippet).then((ok: boolean) => { setStatus(ok ? 'Copied.' : 'Select the code above and copy it — this browser blocked the clipboard.'); notify(ok ? 'Embed code copied.' : 'This browser blocked the clipboard.'); }); }} />
             <Button label="Email this to my web person" variant="secondary" onClick={() => { location.href = 'mailto:?subject=' + encodeURIComponent('Add our chat window to our website') + '&body=' + encodeURIComponent(mailBody); }} />
             <Button label={checkingSite ? 'Checking…' : 'Check my site'} variant="secondary" onClick={checkLiveSite} />
           </div>
@@ -932,7 +933,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
                 <div style={{fontSize: 14}}>
                   <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
                   <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                    <Button label="Copy link" variant="ghost" onClick={() => { navigator.clipboard?.writeText(hosted); notify('Link copied.'); }} />
+                    <Button label="Copy link" variant="ghost" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
                     <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(hostedQrSvg(hosted))}
                        style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
                   </div>
