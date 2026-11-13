@@ -760,14 +760,36 @@
     if (AUTOOPEN) setTimeout(openPanel, 600);
   }
 
-  fetch(API + "/api/v1/widget-config?key=" + encodeURIComponent(KEY))
-    .then(function (r) {
-      return r.ok ? r.json() : null;
-    })
-    .then(function (cfg) {
-      if (!cfg) return;
-      if (document.body) boot(cfg);
-      else document.addEventListener("DOMContentLoaded", function () { boot(cfg); });
-    })
-    .catch(function () {});
+  // One request, no retry and an empty catch: a transient 429 from the CDN left a customer staring at
+  // a page with no chat and no explanation, and the business never knew. Retry briefly instead, and
+  // when the visitor is meant to be chatting with us right now (our hosted page), say so.
+  var ATTEMPTS = [0, 900, 2500, 6000];
+  function attempt(n) {
+    fetch(API + "/api/v1/widget-config?key=" + encodeURIComponent(KEY), {cache: "no-store"})
+      .then(function (r) {
+        return r.ok ? r.json() : Promise.reject(new Error("config " + r.status));
+      })
+      .then(function (cfg) {
+        if (!cfg) return;
+        if (document.body) boot(cfg);
+        else document.addEventListener("DOMContentLoaded", function () { boot(cfg); });
+      })
+      .catch(function () {
+        if (n + 1 < ATTEMPTS.length) {
+          setTimeout(function () { attempt(n + 1); }, ATTEMPTS[n + 1]);
+          return;
+        }
+        if (AUTOOPEN) {
+          var note = document.createElement("div");
+          note.setAttribute("role", "status");
+          note.style.cssText = "position:fixed;left:16px;bottom:16px;max-width:320px;background:#fff;" +
+            "color:#111;border:1px solid #ddd;border-radius:10px;padding:12px 14px;font:14px/1.5 " +
+            "system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:2147483647";
+          note.textContent = "The chat is temporarily unavailable. Please refresh in a moment, " +
+            "or contact us the usual way.";
+          document.body.appendChild(note);
+        }
+      });
+  }
+  attempt(0);
 })();
