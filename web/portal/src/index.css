@@ -188,3 +188,12 @@ code {
   font-size: 16px;
   font-weight: 700;
 }
+
+.suggest-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 4px solid #2e7d32;
+  border-radius: 6px;
+  background: rgba(46, 125, 50, 0.14);
+  line-height: 1.4;
+}
