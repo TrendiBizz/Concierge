@@ -327,6 +327,9 @@ export function Contacts({token}: {token: string}) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [reason, setReason] = useState('');
+  const [addresses, setAddresses] = useState<{id: number; kind: string; value: string; label: string}[]>([]);
+  const [newKind, setNewKind] = useState('phone');
+  const [newValue, setNewValue] = useState('');
 
   async function load(search: string) {
     try {
@@ -339,7 +342,34 @@ export function Contacts({token}: {token: string}) {
   async function open(contact: Contact) {
     try {
       setSelected(await api('/owner/contacts/' + encodeURIComponent(contact.case_key) + '/timeline') as ContactDetail);
+      await loadAddresses(contact.case_key);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load that contact'); }
+  }
+
+  async function loadAddresses(caseKey: string) {
+    try {
+      const data = await api('/owner/contacts/' + encodeURIComponent(caseKey) + '/addresses') as {addresses: {id: number; kind: string; value: string; label: string}[]};
+      setAddresses(data.addresses || []);
+    } catch { setAddresses([]); }
+  }
+
+  async function addAddress() {
+    if (!selected) return;
+    if (!newValue.trim()) { setStatus('Enter the phone number or email address to add.'); return; }
+    try {
+      await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/addresses', 'POST', {kind: newKind, value: newValue.trim()});
+      setNewValue(''); setStatus('Added. Anything from that address now lands on this customer.');
+      await loadAddresses(selected.case_key);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that address'); }
+  }
+
+  async function removeAddress(id: number) {
+    if (!selected) return;
+    try {
+      await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/addresses/' + id, 'DELETE');
+      setStatus('Address removed.');
+      await loadAddresses(selected.case_key);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not remove that address'); }
   }
 
   async function takeover(paused: boolean) {
@@ -386,6 +416,28 @@ export function Contacts({token}: {token: string}) {
           {selected.automation_paused
             ? <Button label="Resume the assistant" variant="primary" onClick={() => takeover(false)} />
             : <Button label="Take over (pause the assistant)" variant="secondary" onClick={() => takeover(true)} />}
+          <Heading level={2}>Also reachable at</Heading>
+          <p style={{fontSize: 14}}>Every phone number and email that belongs to this person. Anything arriving from one of these is treated as the same customer, not a stranger.</p>
+          {addresses.map((address) => (
+            <div key={address.id} style={{display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid var(--color-border)', padding: '6px 0'}}>
+              <span style={{flex: 1}}>{address.kind === 'phone' ? 'phone' : 'email'} · <strong>{address.value}</strong>{address.label ? ' · ' + address.label : ''}</span>
+              <Button label="Remove" variant="ghost" onClick={() => removeAddress(address.id)} />
+            </div>
+          ))}
+          {!addresses.length ? <p>No addresses recorded yet.</p> : null}
+          <div style={{display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 8}}>
+            <label>
+              Kind
+              <select value={newKind} onChange={(e) => setNewKind(e.target.value)} style={{display: 'block', padding: 8}}>
+                <option value="phone">phone</option>
+                <option value="email">email</option>
+              </select>
+            </label>
+            <div style={{flex: 1, minWidth: 220}}>
+              <TextInput label="Another phone or email" value={newValue} onChange={setNewValue} />
+            </div>
+            <Button label="Add address" variant="secondary" onClick={addAddress} />
+          </div>
           <Heading level={2}>Timeline</Heading>
           {selected.events.length ? selected.events.map((event, index) => (
             <p key={index} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>

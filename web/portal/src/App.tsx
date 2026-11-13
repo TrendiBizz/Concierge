@@ -148,6 +148,8 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
             <Tab value="crm" label={tr('Enquiries')} />
             <Tab value="contacts" label={tr('Contacts')} />
             <Tab value="permissions" label={tr('Permissions')} />
+            <Tab value="team" label={tr('Team')} />
+            <Tab value="yourcrm" label={tr('Your CRM')} />
             <Tab value="social" label={tr('Social')} />
             <Tab value="media" label={tr('Marketing media')} />
           </TabList> : null}
@@ -419,6 +421,177 @@ function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: n
  * because an accidental pause means customers stop getting answers, and the strip then stays on
  * screen with the date it started until it is turned back on.
  */
+
+function Team({token}: {token: string}) {
+  const api = useApi(token);
+  const [data, setData] = useState<{members: {id: string; email: string; role: string; active: boolean}[]; invitations: {email: string; role: string; expires_at: string}[]; you: string} | null>(null);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('viewer');
+  const [link, setLink] = useState('');
+  const [problem, setProblem] = useState('');
+  const [status, setStatus] = useState('');
+
+  async function load() {
+    try { setData(await api('/owner/team') as typeof data); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not load your team'); }
+  }
+  useEffect(() => { load(); }, [token]);
+
+  async function invite() {
+    setProblem(''); setStatus(''); setLink('');
+    if (!email.trim()) { setProblem('Enter the email address to invite.'); return; }
+    try {
+      const answer = await api('/owner/invitations', 'POST', {email: email.trim(), role}) as {invitation_url: string};
+      setLink(answer.invitation_url);
+      setStatus('Invitation ready. Send this link to ' + email.trim() + ' — it works once, for 24 hours, and needs no password.');
+      setEmail('');
+      await load();
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not create that invitation'); }
+  }
+
+  async function setRoleFor(id: string, next: string) {
+    setProblem('');
+    try { await api('/owner/team/' + id, 'PATCH', {role: next}); setStatus('Role updated.'); await load(); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not change that role'); }
+  }
+
+  async function setActive(id: string, active: boolean) {
+    setProblem('');
+    try {
+      await api('/owner/team/' + id + (active ? '/reactivate' : '/deactivate'), 'POST');
+      setStatus(active ? 'Access restored.' : 'Access removed. They are signed out now.');
+      await load();
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not change that person\'s access'); }
+  }
+
+  return (
+    <div style={{maxWidth: 900}}>
+      <Heading level={1}>Team</Heading>
+      <p>Everyone who can sign in to this workspace, and what they are allowed to do. Viewers can look, editors can change things, owners can also manage people and permissions.</p>
+      <Card>
+        <Heading level={2}>People</Heading>
+        {data?.members.length ? data.members.map((member) => (
+          <div key={member.id} style={{display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid var(--color-border)', padding: '10px 0', flexWrap: 'wrap'}}>
+            <strong style={{flex: 1, minWidth: 200}}>{member.email}{member.id === data.you ? ' (you)' : ''}</strong>
+            <select value={member.role} onChange={(e) => setRoleFor(member.id, e.target.value)} disabled={member.id === data.you} aria-label={'Role for ' + member.email} style={{padding: 6}}>
+              <option value="viewer">viewer</option>
+              <option value="editor">editor</option>
+              <option value="owner">owner</option>
+            </select>
+            {member.active
+              ? <Button label="Remove access" variant="secondary" onClick={() => setActive(member.id, false)} />
+              : <><Badge label="no access" variant="warning" /><Button label="Restore access" variant="secondary" onClick={() => setActive(member.id, true)} /></>}
+          </div>
+        )) : <p>No people loaded yet.</p>}
+      </Card>
+
+      <Card>
+        <Heading level={2}>Invite someone</Heading>
+        <TextInput label="Their email address" value={email} onChange={setEmail} />
+        <label style={{display: 'block', margin: '8px 0'}}>
+          What they can do
+          <select value={role} onChange={(e) => setRole(e.target.value)} style={{display: 'block', padding: 8, width: '100%'}}>
+            <option value="viewer">viewer — can look, cannot change anything</option>
+            <option value="editor">editor — can reply, quote and book</option>
+            <option value="owner">owner — can also manage people and permissions</option>
+          </select>
+        </label>
+        <Button label="Create invitation" variant="primary" onClick={invite} />
+        {link ? <p role="status" style={{marginTop: 8}}><strong>Send them this:</strong> <a href={link}>{link}</a></p> : null}
+        {data?.invitations.length ? (
+          <>
+            <Heading level={2}>Invited, not arrived</Heading>
+            {data.invitations.map((i) => <p key={i.email}>{i.email} · {i.role} · expires {new Date(i.expires_at).toLocaleString()}</p>)}
+          </>
+        ) : null}
+      </Card>
+      {problem ? <ErrorNote message={problem} /> : null}
+      {status ? <p role="status">{status}</p> : null}
+    </div>
+  );
+}
+
+function YourCrm({token}: {token: string}) {
+  const api = useApi(token);
+  const [hook, setHook] = useState<{url: string; active: boolean} | null>(null);
+  const [url, setUrl] = useState('');
+  const [secret, setSecret] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [result, setResult] = useState('');
+  const [problem, setProblem] = useState('');
+
+  async function load() {
+    try { const answer = await api('/owner/webhooks') as {webhook: {url: string; active: boolean} | null}; setHook(answer.webhook); setUrl(answer.webhook?.url || ''); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not load your CRM settings'); }
+  }
+  useEffect(() => { load(); }, [token]);
+
+  async function saveHook() {
+    setProblem(''); setResult('');
+    try { await api('/owner/webhooks', 'POST', {url: url.trim(), secret: secret.trim()}); setSecret(''); setResult('Saved. New customers will be sent there.'); await load(); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not save that address'); }
+  }
+  async function removeHook() {
+    setProblem(''); setResult('');
+    try { await api('/owner/webhooks', 'DELETE'); setResult('Removed. Nothing will be sent.'); await load(); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not remove that'); }
+  }
+  async function sendNow() {
+    setProblem(''); setResult('');
+    try { const answer = await api('/owner/webhooks/deliver', 'POST') as {sent: number; failed: number}; setResult('Sent ' + answer.sent + ', failed ' + answer.failed + '.'); }
+    catch (e) { setProblem(e instanceof Error ? e.message : 'Could not deliver'); }
+  }
+  async function importCsv() {
+    setProblem(''); setResult('');
+    try {
+      const answer = await api('/owner/import/contacts', 'POST', {format: 'csv', data: csvText}) as {contacts: number; addresses: number; skipped: unknown[]};
+      setResult('Imported ' + answer.contacts + ' people, ' + answer.addresses + ' addresses, skipped ' + answer.skipped.length + '.');
+      setCsvText('');
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not import that file'); }
+  }
+  function download(format: 'json' | 'csv') {
+    // A plain link, so the browser's own download handles it and the session cookie rides along.
+    window.location.href = '/owner/export/contacts?format=' + format;
+  }
+
+  return (
+    <div style={{maxWidth: 900}}>
+      <Heading level={1}>Your own CRM</Heading>
+      <p>Keep your customer list where you want it. Nothing here is locked in: take it out whenever you like, or have new customers pushed straight into the system you already use.</p>
+      <Card>
+        <Heading level={2}>Take your data with you</Heading>
+        <p>Every customer, with every phone number and email address they can be reached at.</p>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <Button label="Download as CSV" variant="secondary" onClick={() => download('csv')} />
+          <Button label="Download as JSON" variant="secondary" onClick={() => download('json')} />
+        </div>
+      </Card>
+
+      <Card>
+        <Heading level={2}>Bring your existing customers in</Heading>
+        <p>Paste a CSV with columns for name, phone and email — the same shape most systems export. Running it twice is safe: people you already have are matched on their phone or email, not duplicated.</p>
+        <TextArea label="Paste your CSV here" value={csvText} onChange={setCsvText} rows={6} />
+        <Button label="Import" variant="primary" onClick={importCsv} />
+      </Card>
+
+      <Card>
+        <Heading level={2}>Send new customers to your CRM</Heading>
+        <p>We will POST each new customer to your address, signed with a shared secret so your side can prove it came from us.</p>
+        <TextInput label="Your endpoint (https)" value={url} onChange={setUrl} />
+        <TextInput label="Shared secret (16+ characters)" value={secret} onChange={setSecret} />
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <Button label="Save" variant="primary" onClick={saveHook} />
+          {hook ? <Button label="Send queued now" variant="secondary" onClick={sendNow} /> : null}
+          {hook ? <Button label="Remove" variant="ghost" onClick={removeHook} /> : null}
+        </div>
+        {hook ? <p role="status">Connected to {hook.url}.</p> : <p>Sending is off until you add an address.</p>}
+      </Card>
+      {problem ? <ErrorNote message={problem} /> : null}
+      {result ? <p role="status">{result}</p> : null}
+    </div>
+  );
+}
+
 function PauseStrip({token}: {token: string}) {
   const api = useApi(token);
   const [state, setState] = useState<{paused: boolean; since: string | null} | null>(null);
@@ -1320,7 +1493,7 @@ function Shell() {
     <>
       <PauseStrip token={token} />
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );
   const header = (
@@ -1332,6 +1505,8 @@ function Shell() {
         <SideNavItem label={tr('Home')} isSelected={tab === 'home'} onClick={() => setTab('home')} />
         <SideNavItem label={tr('Setup')} isSelected={tab === 'setup'} onClick={() => setTab('setup')} />
         <SideNavItem label={tr('Permissions')} isSelected={tab === 'permissions'} onClick={() => setTab('permissions')} />
+        <SideNavItem label={tr('Team')} isSelected={tab === 'team'} onClick={() => setTab('team')} />
+        <SideNavItem label={tr('Your CRM')} isSelected={tab === 'yourcrm'} onClick={() => setTab('yourcrm')} />
       </SideNavSection>
       <SideNavSection title={tr('Customers')}>
         <SideNavItem label={tr('Enquiries')} isSelected={tab === 'crm'} onClick={() => setTab('crm')} />
