@@ -69,6 +69,8 @@ def test_booking_creates_the_customer_and_links_the_lead(monkeypatch):
         "start": "2026-11-15T21:00:00+00:00", "name": "sarah",
         "email": "sarah@acme.co.nz", "phone": "+64215557788", "consent": False}))
     monkeypatch.setattr(booking.convo, "set_pending_booking", AsyncMock())
+    timeline = AsyncMock()
+    monkeypatch.setattr(booking.casetimeline, "record", timeline)
     monkeypatch.setattr(booking.calendar_connection, "sync_one", AsyncMock())
     monkeypatch.setattr(booking.calendar_connection, "notify_synced", AsyncMock())
 
@@ -83,3 +85,6 @@ def test_booking_creates_the_customer_and_links_the_lead(monkeypatch):
     assert captured.get("phone") == "+64215557788", "the booking did not create the customer"
     assert "case_id" in captured["sql"], "the lead insert does not carry the customer id"
     assert "case-1" in captured["lead_args"], "the lead was not linked to the customer"
+    if timeline.await_count:
+        assert timeline.await_args.kwargs["source_key"].startswith("appointment:"), \
+            "the booking history entry is not tied to the appointment"

@@ -1,7 +1,7 @@
 """Durable CRM capture at authenticated channel ingress, independent of AI replies."""
 import hashlib
 
-from . import automation, casetimeline, db, identity, owner_notifications, tasks
+from . import automation, casetimeline, db, email_signature, identity, owner_notifications, tasks
 
 
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
@@ -24,6 +24,15 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
         email = email or found["email"]
         phone = phone or found["phone"]
         company = company or found["company"]
+
+    # An email that closes with a signature still names the person even when nobody said "my name is".
+    # This belongs in the shared funnel, not only in the inbound-email handler: any path that lands an
+    # email body must capture the name and company written in it.
+    if channel == "email" and not (name and phone):
+        signature = email_signature.parse_signature(message)
+        name = name or signature["name"]
+        company = company or signature["company"]
+        phone = phone or signature["phone"]
     key = hashlib.sha256(source.encode()).hexdigest()
 
     # Resolve the customer's unified case BEFORE the capture transaction, so a customer who has

@@ -75,3 +75,21 @@ def test_the_company_reaches_the_customer_record(monkeypatch):
         TENANT, "capture_lead", {"message": "quote please"},
         {"channel": "chat", "utm": {}, "last_message": "it's Sarah from Acme Construction"}))
     assert reconcile.await_args.kwargs["company"] == "Acme Construction"
+
+
+def test_an_email_signature_names_the_customer_from_the_shared_funnel(monkeypatch):
+    """Any path that lands an email body must read the signature, not just the inbound-email handler."""
+    seen = {}
+
+    async def fake_reconcile(tenant_id, **kwargs):
+        seen.update(kwargs)
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(enquiries.casetimeline, "reconcile", fake_reconcile)
+    body = ("Hi, we have a two-storey house that needs recladding.\n\n"
+            "Best regards,\n\nSarah Whitfield\nAcme Construction\n021 555 7001")
+    with __import__("pytest").raises(RuntimeError):
+        asyncio.run(enquiries.capture(TENANT, "email", "src-9", body,
+                                      email="sarah@acme.example.nz"))
+    assert seen["name"] == "Sarah Whitfield", "the signature name was not captured"
+    assert seen["company"] == "Acme Construction", "the signature company was not captured"

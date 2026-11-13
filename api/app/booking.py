@@ -7,12 +7,15 @@ the same time and name in the same conversation.
 """
 
 import json
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from . import automation, casetimeline, convo, db, calendar_connection
 from .config import get_settings
 from .contact import is_email, normalize_phone
+
+log = logging.getLogger(__name__)
 
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
@@ -206,6 +209,18 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             )
     if conversation_id:
         await convo.set_pending_booking(conversation_id, None)
+
+    # The appointment belongs on the customer's history, or Contacts shows a booked customer with
+    # no record of why they are known — the exact gap the CRM audit exists to catch.
+    if case and appt:
+        try:
+            await casetimeline.record(
+                tenant["id"], case_key=case["case_key"], channel=ctx.get("channel", "chat"),
+                direction="inbound", source_key=f"appointment:{appt['id']}",
+                body=f"Booked an appointment for {automation.fmt_local(tenant, start_utc)}."
+                     + (f" {notes}" if notes else ""))
+        except Exception:  # noqa: BLE001 - a history write must never lose a confirmed booking
+            log.exception("could not record booking on the customer timeline")
 
     await calendar_connection.sync_one(appt['id'])
     appt = await db.pool().fetchrow('SELECT * FROM appointments WHERE tenant_id=$1 AND id=$2', tenant['id'], appt['id'])
