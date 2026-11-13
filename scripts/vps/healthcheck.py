@@ -49,10 +49,9 @@ CRITICAL_CONTAINERS = {
     "trendi-public-owner-1": "running",
     "trendi-clamav-1": "healthy",
     "trendi-rspamd-1": "healthy",
-    "trendi-crm-1": "healthy",
-    "trendi-crm-db-1": "healthy",
-    "trendi-crm-redis-1": "running",
-    "trendi-crm-worker-1": "running",
+    # The vendored Twenty CRM was retired on 2026-11-13: the Studio is the CRM. Its containers are
+    # stopped deliberately, so they are not "expected up" any more -- checking them would page
+    # every ten minutes about a decision we made on purpose.
     "asterisk-pbx-1": "running",
     "asterisk-bridge-1": "running",
     "trendi-shell-1": "running",
@@ -65,10 +64,9 @@ PUBLIC_URLS = [
     ("https://chat.trendibizz.com/widget.js", (200,)),
     ("https://concierge.trendibizz.com/studio/", (200,)),
     ("https://concierge.trendibizz.com/owner-ui", (200,)),
-    ("https://crm.trendibizz.com/", (200, 302, 307)),
 ]
 
-TLS_HOSTS = ["trendibizz.com", "chat.trendibizz.com", "concierge.trendibizz.com", "crm.trendibizz.com"]
+TLS_HOSTS = ["trendibizz.com", "chat.trendibizz.com", "concierge.trendibizz.com"]
 
 DISK_FAIL = 85.0
 DISK_WARN = 75.0

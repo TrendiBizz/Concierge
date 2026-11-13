@@ -193,3 +193,36 @@ def test_new_customer_is_pushed_to_the_customers_own_crm():
             await pool.close()
             db._pool = None
     asyncio.run(run())
+
+
+# ---------------------------------------------------------------- the routes are actually wired
+def test_the_new_routes_answer_instead_of_500ing(monkeypatch):
+    """A route that imports cleanly can still blow up on the first call.
+
+    /owner/export/contacts shipped once as `NameError: name 'portability' is not defined` -- the
+    module imported fine, the tests passed, and every real request was a 500. Only calling the
+    route catches that, so this calls it.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import main as app_main
+    from app import owner_auth
+
+    async def fake_export(tenant_id):
+        return [{"case_key": "phone:+6421555123", "display_name": "Hana",
+                 "addresses": ["phone:+6421555123"], "channels": ["voice"], "last_seen": "now"}]
+
+    monkeypatch.setattr(app_main.portability, "export_contacts", fake_export)
+    app_main.app.dependency_overrides[owner_auth.current_user] = lambda: {
+        "tenant_id": uuid.uuid4(), "role": "owner", "email": "owner@example.com"}
+    try:
+        client = TestClient(app_main.app)
+        response = client.get("/owner/export/contacts")
+        assert response.status_code == 200, response.text
+        assert response.json()["count"] == 1
+
+        csv_response = client.get("/owner/export/contacts?format=csv")
+        assert csv_response.status_code == 200
+        assert "phone:+6421555123" in csv_response.text
+    finally:
+        app_main.app.dependency_overrides.clear()
