@@ -474,7 +474,7 @@ function PauseStrip({token}: {token: string}) {
             <Button label="Cancel" variant="ghost" onClick={() => setConfirming(false)} />
           </>
         ) : (
-          <Button label="Pause everything" variant="secondary" onClick={() => setConfirming(true)} />
+          <Button label="Pause now" variant="secondary" onClick={() => setConfirming(true)} />
         )}
       </div>
       {problem ? <ErrorNote message={problem} /> : null}
@@ -1325,6 +1325,7 @@ function Shell() {
       <SideNavSection title={tr('Workspace')}>
         <SideNavItem label={tr('Home')} isSelected={tab === 'home'} onClick={() => setTab('home')} />
         <SideNavItem label={tr('Setup')} isSelected={tab === 'setup'} onClick={() => setTab('setup')} />
+        <SideNavItem label={tr('Permissions')} isSelected={tab === 'permissions'} onClick={() => setTab('permissions')} />
       </SideNavSection>
       <SideNavSection title={tr('Customers')}>
         <SideNavItem label={tr('Enquiries')} isSelected={tab === 'crm'} onClick={() => setTab('crm')} />

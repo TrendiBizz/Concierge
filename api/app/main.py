@@ -2468,7 +2468,11 @@ async def owner_contacts(
           AND ($2 = '' OR c.display_name ILIKE '%' || $2 || '%'
                OR c.primary_phone LIKE '%' || $2 || '%'
                OR c.primary_email ILIKE '%' || $2 || '%')
-        ORDER BY COALESCE(last_at, c.updated_at) DESC
+        -- Postgres will not accept a select alias inside an expression here: ORDER BY last_at
+        -- works, ORDER BY COALESCE(last_at, ...) does not, and it failed at prepare time with
+        -- "column last_at does not exist". Repeat the subquery instead; it is one index hit.
+        ORDER BY COALESCE((SELECT max(e.occurred_at) FROM case_events e WHERE e.case_id = c.id),
+                          c.updated_at) DESC
         LIMIT $3
         """,
         user["tenant_id"], q.strip(), max(1, min(limit, 200)),
