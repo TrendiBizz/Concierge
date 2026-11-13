@@ -3064,6 +3064,90 @@ async def owner_invite(body: OwnerInvite, user: dict = Depends(owner_auth.curren
             "expires_in_hours": 24}
 
 
+class TeamRoleIn(BaseModel):
+    role: Literal["viewer", "editor", "owner"]
+
+
+async def _team_member(tenant_id, user_id):
+    row = await db.pool().fetchrow(
+        "SELECT id, email, role, active FROM tenant_users WHERE tenant_id=$1 AND id=$2",
+        tenant_id, user_id)
+    if not row:
+        raise HTTPException(404, "That person is not on this account")
+    return dict(row)
+
+
+async def _other_active_owner_exists(tenant_id, user_id) -> bool:
+    return bool(await db.pool().fetchval(
+        "SELECT 1 FROM tenant_users WHERE tenant_id=$1 AND role='owner' AND active AND id<>$2",
+        tenant_id, user_id))
+
+
+@app.get("/owner/team")
+async def owner_team(user: dict = Depends(owner_auth.current_user)):
+    """Who can get into this workspace, and who has been invited but not arrived yet.
+
+    The list is deliberately plain: email, role, state. A business that shares access needs to see
+    it and take it away again -- without this, a departed staff member kept their login forever.
+    """
+    members = await db.pool().fetch(
+        "SELECT id, email, role, active, created_at FROM tenant_users "
+        "WHERE tenant_id=$1 ORDER BY active DESC, email", user["tenant_id"])
+    invites = await db.pool().fetch(
+        "SELECT email, role, expires_at FROM tenant_invites "
+        "WHERE tenant_id=$1 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC",
+        user["tenant_id"])
+    return {
+        "members": [{"id": str(m["id"]), "email": m["email"], "role": m["role"],
+                     "active": m["active"], "created_at": m["created_at"].isoformat()}
+                    for m in members],
+        "invitations": [{"email": i["email"], "role": i["role"],
+                         "expires_at": i["expires_at"].isoformat()} for i in invites],
+        "you": str(user["id"]),
+    }
+
+
+@app.patch("/owner/team/{user_id}")
+async def owner_team_role(user_id: uuid.UUID, body: TeamRoleIn,
+                          user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    target = await _team_member(user["tenant_id"], user_id)
+    if target["role"] == "owner" and body.role != "owner":
+        if not await _other_active_owner_exists(user["tenant_id"], user_id):
+            raise HTTPException(400, "A business needs at least one owner")
+    await db.pool().execute(
+        "UPDATE tenant_users SET role=$3 WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], user_id, body.role)
+    return {"id": str(user_id), "role": body.role}
+
+
+@app.post("/owner/team/{user_id}/deactivate")
+async def owner_team_deactivate(user_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    """Take a person's access away. Their history stays; their login stops working immediately."""
+    owner_auth.require_role(user, "owner")
+    if str(user_id) == str(user["id"]):
+        raise HTTPException(400, "You cannot remove your own access")
+    target = await _team_member(user["tenant_id"], user_id)
+    if target["role"] == "owner" and not await _other_active_owner_exists(user["tenant_id"], user_id):
+        raise HTTPException(400, "A business needs at least one owner")
+    await db.pool().execute(
+        "UPDATE tenant_users SET active=false WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], user_id)
+    # Sessions check `active`, but kill them outright so nothing in flight survives the decision.
+    await db.pool().execute("DELETE FROM tenant_sessions WHERE user_id=$1", user_id)
+    return {"id": str(user_id), "active": False}
+
+
+@app.post("/owner/team/{user_id}/reactivate")
+async def owner_team_reactivate(user_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    target = await _team_member(user["tenant_id"], user_id)
+    await db.pool().execute(
+        "UPDATE tenant_users SET active=true WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], user_id)
+    return {"id": str(user_id), "active": True, "email": target["email"]}
+
+
 @app.get("/owner/email-drafts")
 async def owner_drafts(
     status: Literal["draft", "approved", "discarded", "quarantined", "all"] = "draft",
