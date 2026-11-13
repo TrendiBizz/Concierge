@@ -1,5 +1,34 @@
 # Working agreement for agents in this repository
 
+## The bug rule — permanent, immutable, always enacted
+
+**Every bug or defect encountered in a session is fixed, tested and documented in that same
+session.** This rule outranks feature work, tidying, and the session-length limit: when they
+collide, hand off at a clean boundary *after* the bug is landed, never before it. It cannot be
+waived, relaxed, or traded away, and it is not satisfied by a workaround that hides the defect.
+
+It applies to **every** defect, however small, and to our own tooling — scripts, tests, deploy
+commands, configuration — not only to product code. It applies whether or not the human noticed
+it. Silence is the failure mode this rule exists to prevent.
+
+Each bug requires all three, in the same session:
+
+1. **Fixed** — the defect itself.
+2. **Tested** — a check that fails without the fix and passes with it. Mutate the fix once and
+   watch that check go red before trusting it. Where the defect is operational (a deploy
+   command, a wrong hostname, a broken script), the test is the corrected command run and its
+   recorded output.
+3. **Documented** — cause, fix and proof, in that date's `QA/verification/` record, and in the
+   repo's working agreement when it changes how others should work.
+
+"There is no time", "come back to it", "known issue", "it is probably fine" and "try again later"
+are **not permitted outcomes**.
+
+The single exception is a bug that cannot be fixed in-session because something outside our
+control blocks it. That is not permission to defer quietly: record the exact blocker, what was
+tried, why it could not proceed, and an explicit open item with a next action in the handoff's
+Outstanding list. Evidence, then deferral — never a shrug.
+
 ## Session length limit
 
 **Work in units of at most ~25 tool calls, or one coherent unit of work — whichever comes first.**

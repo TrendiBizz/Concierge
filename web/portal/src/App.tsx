@@ -17,6 +17,7 @@ import {NotifyProvider, useNotify} from './Notify';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {SideNav, SideNavSection, SideNavItem} from '@astryxdesign/core/SideNav';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
+import qrcode from 'qrcode-generator';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
 const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/copy/*.json');
@@ -371,6 +372,45 @@ function Capabilities({token, onChanged}: {token: string; onChanged?: () => void
   );
 }
 
+function hostedQrSvg(value: string): string {
+  try {
+    const code = qrcode(0, 'M');
+    code.addData(value);
+    code.make();
+    return code.createSvgTag({cellSize: 8, margin: 2, scalable: false});
+  } catch {
+    return '';
+  }
+}
+
+
+/**
+ * A QR code for a link we own, drawn in the browser.
+ *
+ * Hosted chat is the fallback for a customer who cannot edit their site, and they usually try
+ * it on a phone — reading a URL off a laptop screen is exactly the "seamless" problem. Drawn
+ * locally from our own URL: no external QR service, nothing about the customer leaves the page.
+ */
+function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: number; label?: string}) {
+  const svg = useMemo(() => {
+    try {
+      const code = qrcode(0, 'M');
+      code.addData(value);
+      code.make();
+      return code.createSvgTag({cellSize: 4, margin: 1, scalable: true});
+    } catch {
+      return '';
+    }
+  }, [value]);
+  if (!svg) return null;
+  const scaled = svg.replace('<svg ', '<svg style="width:100%;height:100%;display:block" ');
+  return (
+    <div style={{width: size, height: size, background: '#fff', padding: 6, borderRadius: 8, border: '1px solid var(--color-border)'}}
+         role="img" aria-label={label}
+         dangerouslySetInnerHTML={{__html: scaled}} />
+  );
+}
+
 type Suggestion = {
   website: string;
   name: string;
@@ -618,8 +658,18 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
 
           {hosted ? (
             <div style={{marginTop: 20}}>
-              <p style={{fontSize: 14}}>No website, or cannot edit it? Use your hosted chat page instead:</p>
-              <p style={{fontSize: 14}}><a href={hosted}>{hosted}</a> <Button label="Copy link" variant="ghost" onClick={() => { navigator.clipboard?.writeText(hosted); notify('Link copied.'); }} /></p>
+              <p style={{fontSize: 14}}>No website, or cannot edit it? Use your hosted chat page instead. Scan it with your phone to see what a customer sees:</p>
+              <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
+                <QrCode value={hosted} label="QR code for your hosted chat page" />
+                <div style={{fontSize: 14}}>
+                  <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
+                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                    <Button label="Copy link" variant="ghost" onClick={() => { navigator.clipboard?.writeText(hosted); notify('Link copied.'); }} />
+                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(hostedQrSvg(hosted))}
+                       style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
 

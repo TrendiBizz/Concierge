@@ -419,6 +419,45 @@ def send_mail(env: dict, subject: str, body: str) -> str:
         return f"send failed: {exc}"
 
 
+def plan_notifications(problems: dict, state: dict, now: datetime,
+                       remind_hours: float | None = None) -> tuple[list, list, list]:
+    """Decide what to email, mutating `state` in place.
+
+    Pure in the sense that matters: it takes the problems, the stored state and the clock, so it
+    can be tested without a live stack. It returns (new alerts, reminders, recoveries).
+
+    Claiming is keyed on the *status*, not the detail. A condition that gets wordier -- for
+    example "consent" becoming "consent,mailbox" as another part of the same chain breaks -- is
+    still the same problem, and re-emailing every time the wording changes is exactly the noise
+    this is meant to avoid. A detail change updates what the next reminder says, silently.
+    """
+    remind = REMIND_HOURS if remind_hours is None else remind_hours
+    new_alerts, reminders, recoveries = [], [], []
+
+    for name, item in problems.items():
+        previous = state.get(name, {})
+        first_seen = previous.get("first_seen")
+        last_sent = previous.get("last_sent")
+        key = item["status"]
+        if previous.get("key") != key:
+            new_alerts.append(item)
+            state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
+                           "first_seen": first_seen or now.isoformat(), "last_sent": now.isoformat()}
+        elif last_sent and now - datetime.fromisoformat(last_sent) > timedelta(hours=remind):
+            reminders.append(item)
+            state[name].update(last_sent=now.isoformat(), detail=item["detail"])
+        else:
+            state[name]["status"] = item["status"]
+            state[name]["detail"] = item["detail"]
+
+    for name, previous in list(state.items()):
+        if name not in problems and previous.get("status") in ("fail", "warn"):
+            recoveries.append({"check": name, "was": previous.get("status"),
+                               "since": previous.get("first_seen")})
+            state.pop(name, None)
+    return new_alerts, reminders, recoveries
+
+
 def main() -> int:
     started = time.time()
     api_env = load_env(API_ENV)
@@ -442,33 +481,7 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     state = load_state()
     problems = {r["check"]: r for r in results if r["status"] in ("fail", "warn")}
-    new_alerts, reminders, recoveries = [], [], []
-
-    for name, item in problems.items():
-        previous = state.get(name, {})
-        first_seen = previous.get("first_seen")
-        last_sent = previous.get("last_sent")
-        # Key on the status, not the detail: one condition that gets wordier (for example
-        # "consent" becoming "consent,mailbox") is still the same problem, and re-emailing it
-        # every time the wording changes is the noise the operator asked us to stop producing.
-        key = item["status"]
-        if previous.get("key") != key:
-            new_alerts.append(item)
-            state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
-                           "first_seen": first_seen or now.isoformat(), "last_sent": now.isoformat()}
-        elif last_sent and now - datetime.fromisoformat(last_sent) > timedelta(hours=REMIND_HOURS):
-            reminders.append(item)
-            state[name].update(last_sent=now.isoformat(), detail=item["detail"])
-        else:
-            # Same condition: record the newer detail silently so the next reminder is accurate.
-            state[name]["status"] = item["status"]
-            state[name]["detail"] = item["detail"]
-
-    for name, previous in list(state.items()):
-        if name not in problems and previous.get("status") in ("fail", "warn"):
-            recoveries.append({"check": name, "was": previous.get("status"),
-                               "since": previous.get("first_seen")})
-            state.pop(name, None)
+    new_alerts, reminders, recoveries = plan_notifications(problems, state, now)
 
     report = {
         "checked_at": now.isoformat(),
