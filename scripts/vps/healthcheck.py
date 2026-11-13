@@ -485,7 +485,15 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
     return new_alerts, reminders, recoveries
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Run every check. `--no-alert` reports only: no mail, and no change to alert state.
+
+    Manual runs must be side-effect free. Running the check by hand to verify a change used to
+    rewrite the state file, which produced spurious "NEW PROBLEMS" and "RECOVERED" mails as the
+    state moved under the scheduler's feet.
+    """
+    args = sys.argv[1:] if argv is None else argv
+    alerting = "--no-alert" not in args
     started = time.time()
     api_env = load_env(API_ENV)
     compose_env = load_env(COMPOSE_ENV)
@@ -512,7 +520,10 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     state = load_state()
     problems = {r["check"]: r for r in results if r["status"] in ("fail", "warn")}
-    new_alerts, reminders, recoveries = plan_notifications(problems, state, now)
+    if alerting:
+        new_alerts, reminders, recoveries = plan_notifications(problems, state, now)
+    else:
+        new_alerts, reminders, recoveries = [], [], []
 
     report = {
         "checked_at": now.isoformat(),
@@ -526,7 +537,8 @@ def main() -> int:
     }
     STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATUS_FILE.write_text(json.dumps(report, indent=2))
-    save_state(state)
+    if alerting:
+        save_state(state)
 
     if new_alerts or reminders or recoveries:
         lines = [f"Trendi Concierge health check — {now:%Y-%m-%d %H:%M UTC}", ""]
@@ -546,7 +558,14 @@ def main() -> int:
                   f"Detail: {STATUS_FILE}",
                   "Checks cover: containers, public URLs, API, Postgres, disk/memory, TLS, Cloudflare "
                   "token/routing/worker, inbound chain + rejections, email-auth sidecar, Hermes, Kuma."]
-        status = "OK" if report["ok"] else "FAIL"
+        # The label must describe the worst problem in the mail, not just whether anything failed.
+        # A warning-only mail used to arrive as "[Concierge FAIL]", which reads as an outage.
+        if report["counts"]["fail"]:
+            status = "FAIL"
+        elif report["counts"]["warn"]:
+            status = "WARN"
+        else:
+            status = "OK"
         subject = f"[Concierge {status}] " + ", ".join(
             list(i["check"] for i in new_alerts) + [f"{len(recoveries)} recovered"])[:120]
         outcome = send_mail(env, subject, "\n".join(lines))
