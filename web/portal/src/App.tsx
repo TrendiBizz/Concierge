@@ -549,9 +549,27 @@ function YourCrm({token}: {token: string}) {
       setCsvText('');
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not import that file'); }
   }
-  function download(format: 'json' | 'csv') {
-    // A plain link, so the browser's own download handles it and the session cookie rides along.
-    window.location.href = '/owner/export/contacts?format=' + format;
+  async function download(format: 'json' | 'csv') {
+    // Not a plain navigation. Auth is a bearer token held in memory, not a cookie, so clicking a
+    // bare link sends no credentials and the export answers 401 -- which is exactly what the first
+    // browser test caught. Fetch it with the header, then hand the bytes to the browser.
+    setProblem(''); setResult('');
+    try {
+      const response = await fetch('/owner/export/contacts?format=' + format, {
+        headers: {Authorization: 'Bearer ' + token}, cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('The export was refused (' + response.status + ').');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'customers.' + format;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setResult('Downloaded your customer list as ' + format.toUpperCase() + '.');
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not download your data'); }
   }
 
   return (
