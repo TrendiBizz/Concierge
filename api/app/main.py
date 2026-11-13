@@ -25,7 +25,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
-from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops
+from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
 from . import channel_health, flood_guard, mailer
 from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
@@ -2627,6 +2627,31 @@ async def owner_knowledge_delete(document_id: str,
     if not await owner_knowledge.remove(user["tenant_id"], document_id):
         raise HTTPException(404, "Business document not found")
     return {"ok": True}
+
+
+@app.get("/owner/onboarding/brand-suggestion")
+async def owner_brand_suggestion(website: str = "",
+                                 user: dict = Depends(owner_auth.current_user)):
+    """Read the business's own public website and propose its brand.
+
+    The review screen shows this proposal so the owner confirms rather than types.
+    Nothing is written: no tenant field, no brand row, no consent. Every uncertain
+    answer comes back as a note instead of a guess.
+    """
+    owner_auth.require_role(user, "owner")
+    if not website.strip():
+        tenant = await tenants.get_by_id(user["tenant_id"])
+        website = (tenant or {}).get("site_url") or ""
+    try:
+        async with asyncio.timeout(40):
+            return await brand_from_site.suggest(website)
+    except TimeoutError:
+        raise HTTPException(504, "That website took too long to answer. Try again, or enter your details yourself.") from None
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception:
+        log.exception("brand suggestion failed")
+        raise HTTPException(503, "We could not read that website just now. Enter your details yourself; nothing was saved.") from None
 
 
 @app.get("/owner/onboarding/inbound-readiness")
