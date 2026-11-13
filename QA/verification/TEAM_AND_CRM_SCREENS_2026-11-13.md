@@ -42,7 +42,8 @@ recorded here because the rule covers our own tooling.
 ## Proof, live, in production
 
 `api/tests/test_team.py` — 6 tests against a real Postgres, mutation-checked (removing the
-self-removal guard fails the suite). Full suite **1007 passed**, 9 skipped without a database.
+self-removal guard fails the suite). Full suite **1012 passed** with a real database,
+**1000 passed + 12 skipped** without one.
 
 Browser, on `concierge.trendibizz.com/studio`, signed in through a real single-use invite:
 
