@@ -1,4 +1,4 @@
-import {lazy, Suspense, useEffect, useMemo, useState} from 'react';
+import {lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
@@ -76,6 +76,16 @@ function readRaw(file: File): Promise<string> {
 }
 
 
+function ErrorNote({message}: {message: string}) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  // Bring the message into view: an error below the fold, or in a long form, is an error nobody sees.
+  useEffect(() => { ref.current?.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, [message]);
+  return (
+    <p ref={ref} role="alert" className="error-note"><strong>Problem:</strong> {message}</p>
+  );
+}
+
+
 function useApi(token: string) {
   return async function api(path: string, method = 'GET', body?: unknown) {
     const response = await fetch(path, {
@@ -85,7 +95,12 @@ function useApi(token: string) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'Request failed (' + response.status + ')');
+    if (!response.ok) {
+      // FastAPI answers a validation error with a list of objects; never let a page print that as "[object Object]".
+      const detail = typeof data.detail === 'string' ? data.detail
+        : Array.isArray(data.detail) ? data.detail.map((d: {msg?: string}) => d.msg || 'A detail is not valid.').join(' ') : '';
+      throw new Error(detail || 'Request failed (' + response.status + ')');
+    }
     return data;
   };
 }
@@ -170,7 +185,7 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
       <TextInput label={tr('Password')} type="password" value={password} onChange={setPassword} />
       <TranslationNote locale={locale} />
       <div style={{marginTop: 16}}><Button label={tr('Sign in')} variant="primary" onClick={submit} /></div>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <ErrorNote message={error} /> : null}
     </div>
   );
 }
@@ -313,6 +328,7 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
   const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
   async function submit() {
     setError('');
+    if (password.length < 12) { setError('Password must be at least 12 characters. You have ' + password.length + ' so far.'); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     try {
       const data = await useApi('')('/owner/auth/redeem', 'POST', {token, password});
@@ -326,9 +342,12 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
       <Heading level={1}>Welcome to Concierge</Heading>
       <p>Choose a password to open your private setup. It is a click-through setup; nothing plays audio.</p>
       <TextInput label="Password (12+ characters)" type="password" value={password} onChange={setPassword} />
+      <p aria-live="polite" style={{margin: '4px 0 0', fontSize: 14, fontWeight: 600, color: password.length >= 12 ? '#2e7d32' : 'inherit'}}>
+        {password.length >= 12 ? 'Long enough' : password.length + ' of 12 characters'}
+      </p>
       <TextInput label="Confirm password" type="password" value={confirm} onChange={setConfirm} />
       <div style={{marginTop: 16}}><Button label="Set password and continue" variant="primary" onClick={submit} /></div>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <ErrorNote message={error} /> : null}
     </div>
   );
 }
@@ -730,7 +749,7 @@ function Admin() {
         <p>Internal console. The admin token is required.</p>
         <TextInput label="Admin token" type="password" value={token} onChange={setToken} />
         <div style={{marginTop: 16}}><Button label="Open console" variant="primary" onClick={load} /></div>
-        {error ? <p role="alert">{error}</p> : null}
+        {error ? <ErrorNote message={error} /> : null}
       </div>
     );
   }
@@ -760,7 +779,7 @@ function Admin() {
       {status.backups?.length ? status.backups.map((backup) => (
         <p key={backup.name}>{backup.name} · {Math.round(backup.bytes / 1048576)} MB · {new Date(backup.modified * 1000).toLocaleString()}</p>
       )) : <p>No backups found.</p>}
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <ErrorNote message={error} /> : null}
     </div>
   );
 }
