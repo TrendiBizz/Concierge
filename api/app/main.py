@@ -2802,11 +2802,24 @@ async def owner_channel_authorization_update(
 ):
     owner_auth.require_role(user, "owner")
     try:
-        return await channel_authorization.record_authorization(
+        result = await channel_authorization.record_authorization(
             user["tenant_id"], user["id"], body,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
+    # Consenting to read email is useless if the inbox is still switched off. A mailbox that was
+    # registered before consent existed stays disabled until something re-enables it, which used to
+    # mean the operator running SQL by hand while the customer saw "email is not ready".
+    if body.authorized and body.channel == "email_read":
+        tenant = await tenants.get_by_id(user["tenant_id"])
+        if tenant and (tenant.get("reply_address") or "").strip():
+            try:
+                await reply_address.ensure(tenant)
+                result["mailbox"] = "enabled"
+            except Exception:  # noqa: BLE001 - the consent must not fail on a routing problem
+                log.exception("reply mailbox could not be re-enabled for %s", user.get("slug"))
+                result["mailbox"] = "could not be re-enabled automatically"
+    return result
 
 
 class EmailAutoReplyRequest(BaseModel):

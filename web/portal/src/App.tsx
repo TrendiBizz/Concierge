@@ -239,6 +239,7 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
         if (cancelled) return;
         // The link is spent: drop it from the address bar so a refresh cannot replay it.
         history.replaceState(null, '', location.pathname + location.search);
+        sessionStorage.setItem('concierge.startAtSetup', '1');
         onToken(data.access_token);
       })
       .catch((e) => {
@@ -273,6 +274,103 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
   );
 }
 
+type Capability = {
+  key: string;
+  channels: string[];
+  title: string;
+  what: string;
+  data: string;
+  undo: string;
+};
+
+// One card per thing a customer might want switched on, in their words. Each card says what we
+// will do, what data it touches, and how to undo it, and the customer's own click is what grants
+// it — the same rule the Permissions tab follows, just without making them hunt for that tab.
+const CAPABILITIES: Capability[] = [
+  {key: 'email', channels: ['email_read', 'email_send'], title: 'Read and reply to my email',
+   what: 'Concierge reads enquiries sent to your business address and drafts the replies for you to approve.',
+   data: 'The text of emails sent to your business address.',
+   undo: 'Withdraw it here at any time. Nothing is deleted.'},
+  {key: 'phone', channels: ['telephone'], title: 'Answer my phone',
+   what: 'Concierge answers calls on the number you point at Trendi and takes a message.',
+   data: 'What the caller says, and any number they give.',
+   undo: 'Withdraw it and calls stop being answered at once.'},
+  {key: 'recording', channels: ['call_recording'], title: 'Record calls',
+   what: 'Callers hear "Our calls are recorded for quality and training purposes" before recording starts, and recording stops if they object.',
+   data: 'The audio of the call and its transcript.',
+   undo: 'Withdraw it and new calls are not recorded.'},
+  {key: 'texts', channels: ['sms_read', 'sms_send'], title: 'Text customers',
+   what: 'Concierge reads texts sent to your business number and can reply and send reminders.',
+   data: 'Texts to and from your business number.',
+   undo: 'Withdraw it at once.'},
+  {key: 'social', channels: ['social'], title: 'Post to my social accounts',
+   what: 'Drafts are published only after you approve each one.',
+   data: 'The posts you approve.',
+   undo: 'Withdraw it at once.'},
+];
+
+function Capabilities({token, onChanged}: {token: string; onChanged?: () => void}) {
+  const api = useApi(token);
+  const [auth, setAuth] = useState<Record<string, {authorized?: boolean}>>({});
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState('');
+  const [problem, setProblem] = useState('');
+
+  const load = () => api('/owner/onboarding/authorizations').then(setAuth).catch(() => undefined);
+  useEffect(() => { void load(); }, [token]);
+
+  const on = (cap: Capability) => cap.channels.every((channel) => auth[channel]?.authorized === true);
+  const allowed = CAPABILITIES.filter(on).length;
+
+  async function decide(cap: Capability, allow: boolean) {
+    setBusy(cap.key); setProblem(''); setNote('');
+    try {
+      for (const channel of cap.channels) {
+        await api('/owner/onboarding/authorizations', 'POST',
+                  {channel, authorized: allow, acknowledgement: true});
+      }
+      await load();
+      setNote(allow ? 'Allowed: ' + cap.title + '.' : 'Withdrawn: ' + cap.title + '.');
+      onChanged?.();
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Could not save that permission');
+    }
+    setBusy('');
+  }
+
+  return (
+    <div style={{marginTop: 24}}>
+      <Heading level={3}>What should Concierge do for you?</Heading>
+      <p>We can only do what you allow. {allowed} of {CAPABILITIES.length} are switched on.</p>
+      {CAPABILITIES.map((cap) => {
+        const granted = on(cap);
+        return (
+          <div key={cap.key} style={{border: '1px solid var(--color-border)', borderRadius: 10, padding: 14, marginBottom: 10, background: granted ? 'rgba(34,197,94,0.08)' : 'transparent'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12}}>
+              <strong>{cap.title}</strong>
+              <span style={{fontSize: 13, opacity: 0.8}}>{granted ? 'Switched on' : 'Not allowed'}</span>
+            </div>
+            <p style={{margin: '6px 0 2px', fontSize: 14}}>{cap.what}</p>
+            <p style={{margin: 0, fontSize: 13, opacity: 0.75}}>It uses: {cap.data} {cap.undo}</p>
+            <div style={{marginTop: 8}}>
+              <Button
+                label={busy === cap.key ? 'Saving…' : granted ? 'Withdraw this' : 'Yes, allow this'}
+                variant={granted ? 'ghost' : 'primary'}
+                onClick={() => decide(cap, !granted)}
+              />
+            </div>
+          </div>
+        );
+      })}
+      {note ? <p role="status" style={{fontSize: 14}}>{note}</p> : null}
+      {problem ? <ErrorNote message={problem} /> : null}
+      <p style={{fontSize: 13, opacity: 0.75}}>
+        You can change any of these later in the Permissions tab. Withdrawing takes effect immediately.
+      </p>
+    </div>
+  );
+}
+
 type Suggestion = {
   website: string;
   name: string;
@@ -301,7 +399,7 @@ const TIMEZONES: Array<[string, string]> = [
   ['UTC', 'UTC'],
 ];
 
-function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand: (b: Brand) => void}) {
+function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; setBrand: (b: Brand) => void; onDone: () => void}) {
   const api = useApi(token);
   const notify = useNotify();
   const [step, setStep] = useState(1);
@@ -525,7 +623,12 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
             </div>
           ) : null}
 
-          <p style={{marginTop: 16}}>Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.</p>
+          <Capabilities token={token} />
+
+          <p style={{marginTop: 16}}>Anything you have not allowed yet stays off, and you can switch it on later in the Permissions tab.</p>
+          <div style={{marginTop: 16}}>
+            <Button label="Open my workspace" variant="primary" onClick={onDone} />
+          </div>
         </Card>
       ) : null}
 
@@ -1009,7 +1112,12 @@ function Shell() {
     if (value) localStorage.setItem('concierge.token', value);
     else localStorage.removeItem('concierge.token');
   }
-  const [tab, setTab] = useState('home');
+  // Someone arriving from an invitation has no business details yet: start them on Setup.
+  const [tab, setTab] = useState(() => {
+    const newcomer = sessionStorage.getItem('concierge.startAtSetup') === '1';
+    sessionStorage.removeItem('concierge.startAtSetup');
+    return newcomer ? 'setup' : 'home';
+  });
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
   const [locale, setLocaleState] = useState(initialLocale);
@@ -1084,7 +1192,7 @@ function Shell() {
   const content = (
     <>
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );
   const header = (
