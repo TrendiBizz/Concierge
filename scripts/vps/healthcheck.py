@@ -448,7 +448,10 @@ def main() -> int:
         previous = state.get(name, {})
         first_seen = previous.get("first_seen")
         last_sent = previous.get("last_sent")
-        key = f"{item['status']}|{item['detail']}"
+        # Key on the status, not the detail: one condition that gets wordier (for example
+        # "consent" becoming "consent,mailbox") is still the same problem, and re-emailing it
+        # every time the wording changes is the noise the operator asked us to stop producing.
+        key = item["status"]
         if previous.get("key") != key:
             new_alerts.append(item)
             state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
@@ -457,7 +460,9 @@ def main() -> int:
             reminders.append(item)
             state[name].update(last_sent=now.isoformat(), detail=item["detail"])
         else:
+            # Same condition: record the newer detail silently so the next reminder is accurate.
             state[name]["status"] = item["status"]
+            state[name]["detail"] = item["detail"]
 
     for name, previous in list(state.items()):
         if name not in problems and previous.get("status") in ("fail", "warn"):
