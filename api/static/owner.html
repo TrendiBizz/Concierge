@@ -887,18 +887,6 @@ async function refreshSocial(){
         });
         $("social-accounts").appendChild(unlink);
       }
-      if(account.network==="mastodon" && currentRole==="owner" && !account.needs_reauth){
-        const disconnect=node("button","Disconnect "+account.display_name,"danger");
-        disconnect.addEventListener("click",async()=>{
-          if(!confirm("Revoke this account's access at Mastodon and disconnect it from Concierge?"))return;
-          try{
-            await request("/owner/social/oauth/mastodon/accounts/"+
-              encodeURIComponent(account.id),"DELETE");
-            await refreshSocial();message("Account access revoked and disconnected.");
-          }catch(error){message("Could not verify revocation: "+error.message,true);}
-        });
-        $("social-accounts").appendChild(disconnect);
-      }
       if(["linkedin","linkedin_organization"].includes(account.network) && currentRole==="owner" && !account.needs_reauth){
         const unlink=node("button","Unlink "+account.display_name,"danger");
         unlink.addEventListener("click",async()=>{
