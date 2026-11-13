@@ -1064,3 +1064,37 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS invoices_number_unique ON invoices(tenant_id, number);
 CREATE INDEX IF NOT EXISTS invoices_quotation_idx ON invoices(quotation_id);
+
+-- Privacy Act 2020 surface: a way for someone to ask what we hold and have it deleted, and a
+-- record of whether a contact agreed to be contacted on a given channel.
+CREATE TABLE IF NOT EXISTS privacy_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
+    email text NOT NULL,
+    kind text NOT NULL DEFAULT 'delete',
+    note text NOT NULL DEFAULT '',
+    status text NOT NULL DEFAULT 'new',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    handled_at timestamptz,
+    handled_by text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS privacy_requests_status_idx ON privacy_requests(status, created_at);
+
+CREATE TABLE IF NOT EXISTS contact_consents (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    contact_key text NOT NULL,
+    channel text NOT NULL,
+    granted boolean NOT NULL,
+    source text NOT NULL DEFAULT '',
+    note text NOT NULL DEFAULT '',
+    recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS contact_consents_lookup_idx ON contact_consents(tenant_id, contact_key, channel, recorded_at DESC);
+
+-- Erasure must leave a trace: the row stays, the person's details do not.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS erased_at timestamptz;
+
+-- Paying an invoice online. Trendi's own billing uses Stripe Payment Links; a business can put its
+-- own link (Stripe or otherwise) on an invoice so the customer pays by card.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_url text NOT NULL DEFAULT '';

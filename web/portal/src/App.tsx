@@ -129,7 +129,9 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
         {brand.logo ? <img src={brand.logo} alt="" style={{height: 44, width: 'auto'}} /> : null}
         <div style={{display: 'flex', flexDirection: 'column'}}>
           <strong style={{fontSize: 20}}>{brand.name || 'Concierge'}</strong>
-          <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>Powered by Trendi</span>
+          <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>
+            Powered by Trendi · <a href="/privacy" style={{color: 'inherit', textDecoration: 'underline'}}>Privacy</a>
+          </span>
         </div>
         <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
           <select aria-label="Colour mode" value={mode} onChange={(e) => setMode(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>

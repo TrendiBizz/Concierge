@@ -69,10 +69,11 @@ async def make_invite(tenant_id, email: str, role: str, purpose: str = "invite")
                 if not user:
                     raise ValueError("Active user not found")
                 role = user["role"]
-            await conn.execute(
-                "UPDATE tenant_invites SET used_at=now() WHERE tenant_id=$1 AND email=$2 AND purpose=$3 AND used_at IS NULL",
-                tenant_id, email, purpose,
-            )
+            # Deliberately NO invalidation of earlier links. Minting one used to mark every previous
+            # unused link as used, so an operator who re-sent a link silently killed the one the
+            # customer already had — which is exactly how Conrad's emailed link died on 13 Nov (an
+            # operator minted a fresh one to check the deploy). Links are single-use and expire; a
+            # replacement adds a way in, it does not take the old one away.
             await conn.execute(
                 "INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) "
                 "VALUES($1,$2,$3,$4,$5,now()+interval '24 hours')",

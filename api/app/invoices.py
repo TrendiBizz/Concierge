@@ -62,12 +62,13 @@ async def issue(quote: dict, tenant: dict, kind: str) -> dict:
     row = await db.pool().fetchrow(
         "INSERT INTO invoices(tenant_id,quotation_id,number,kind,subtotal_cents,tax_cents,"
         "total_cents,due_cents,deposit_cents,balance_cents,currency,lines,notes,issued_on,due_on,"
-        "public_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16) "
+        "public_token,payment_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17) "
         "RETURNING *",
         tenant["id"], quote["id"], number, totals["kind"], quote["subtotal_cents"],
         quote["tax_cents"], quote["total_cents"], totals["due"], totals["deposit"],
         totals["balance"], quote.get("currency") or "NZD", _json(quote.get("lines") or []),
-        (quote.get("notes") or ""), issued, issued + timedelta(days=terms), token)
+        (quote.get("notes") or ""), issued, issued + timedelta(days=terms), token,
+        (tenant.get("payment_url") or "").strip())
     return dict(row)
 
 
@@ -94,6 +95,7 @@ def describe(invoice: dict) -> str:
 import html  # noqa: E402
 
 from fastapi import APIRouter, Depends, HTTPException  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
 from fastapi.responses import HTMLResponse  # noqa: E402
 
 from . import billing, owner_auth  # noqa: E402
@@ -176,6 +178,10 @@ th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
 <tr class="grand"><td>Due now</td><td class="num">{_cash(invoice['due_cents'], currency)}</td></tr>
 </table>
 {('<p><strong>Notes</strong><br>' + html.escape(invoice['notes']).replace(chr(10), '<br>') + '</p>') if invoice['notes'] else ''}
+{(f'<p style="margin-top:26px"><a href="{html.escape(invoice["payment_url"])}" rel="noopener noreferrer nofollow" '
+  f'target="_blank" style="display:inline-block;background:{accent};color:#101408;padding:14px 22px;'
+  f'border-radius:999px;font-weight:700;text-decoration:none">Pay {_cash(invoice["due_cents"], currency)} now</a></p>')
+ if (invoice.get('payment_url') or '').startswith('https://') else ''}
 </div></body></html>"""
     return HTMLResponse(document)
 
@@ -183,6 +189,26 @@ th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
 @public_router.get("/{token}", response_class=HTMLResponse)
 async def public_invoice(token: str):
     return await page(token)
+
+
+class PaymentLink(BaseModel):
+    url: str = Field(default="", max_length=500)
+
+
+@router.post("/{invoice_id}/payment-link")
+async def set_payment_link(invoice_id: str, body: PaymentLink,
+                           user: dict = Depends(owner_auth.current_user)):
+    """Attach a payment link (a Stripe Payment Link, or any https page) to an invoice."""
+    owner_auth.require_role(user, "editor")
+    url = body.url.strip()
+    if url and not url.startswith("https://"):
+        raise HTTPException(400, "A payment link must start with https://")
+    row = await db.pool().fetchrow(
+        "UPDATE invoices SET payment_url=$3 WHERE id=$1 AND tenant_id=$2 RETURNING number,payment_url",
+        invoice_id, user["tenant_id"], url)
+    if not row:
+        raise HTTPException(404, "Invoice not found")
+    return dict(row)
 
 
 @router.get("")
