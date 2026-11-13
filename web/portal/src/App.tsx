@@ -95,6 +95,7 @@ function useApi(token: string) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && token) window.dispatchEvent(new Event('concierge:sign-out'));
     if (!response.ok) {
       // FastAPI answers a validation error with a list of objects; never let a page print that as "[object Object]".
       const detail = typeof data.detail === 'string' ? data.detail
@@ -159,33 +160,115 @@ function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocal
   );
 }
 
-function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
-  const [slug, setSlug] = useState('pukeko-construction');
+function RequestLink({title, intro, note}: {title: string; intro: string; note?: string}) {
+  const api = useApi('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
   async function submit() {
-    setError('');
+    if (!email.trim()) { setError('Enter the email address your invite came to.'); return; }
+    setBusy(true); setError('');
     try {
-      const data = await useApi('')('/owner/auth/login', 'POST', {slug, email, password});
-      onLogin(data.access_token);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Login failed'); }
+      await api('/owner/auth/link', 'POST', {email: email.trim()});
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send the link');
+    }
+    setBusy(false);
   }
+
   return (
-    <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
-      <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+    <div style={{maxWidth: 460, margin: '10vh auto', padding: 24}}>
+      <Heading level={1}>{title}</Heading>
+      <p>{intro}</p>
+      {note ? <p>{note}</p> : null}
+      {sent ? (
+        <Card>
+          <Heading level={2}>Check your email</Heading>
+          <p>If {email.trim()} has an account, a one-click link is on its way. It works once and expires in 24 hours.</p>
+          <p>Nothing arrived? Check the spam folder, then try again.</p>
+          <Button label="Send it again" variant="secondary" onClick={() => { setSent(false); }} />
+        </Card>
+      ) : (
+        <>
+          <TextInput label="Email" type="email" value={email} onChange={setEmail} />
+          <div style={{marginTop: 16}}>
+            <Button label={busy ? 'Sending…' : 'Email me a sign-in link'} variant="primary" onClick={submit} />
+          </div>
+          <p style={{fontSize: 13, opacity: 0.75}}>No password to remember: the link signs you in.</p>
+        </>
+      )}
+      {error ? <ErrorNote message={error} /> : null}
+    </div>
+  );
+}
+
+function Login({locale, setLocale, tr}: {locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
+  return (
+    <div>
+      <div style={{display: 'flex', justifyContent: 'flex-end', padding: '16px 24px 0'}}>
         <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
           {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
         </select>
       </div>
-      <Heading level={1}>Concierge</Heading>
-      <p>Sign in to set up your business, generate marketing media and manage enquiries.</p>
-      <TextInput label={tr('Business ID')} value={slug} onChange={setSlug} />
-      <TextInput label={tr('Email')} type="email" value={email} onChange={setEmail} />
-      <TextInput label={tr('Password')} type="password" value={password} onChange={setPassword} />
-      <TranslationNote locale={locale} />
-      <div style={{marginTop: 16}}><Button label={tr('Sign in')} variant="primary" onClick={submit} /></div>
-      {error ? <ErrorNote message={error} /> : null}
+      <RequestLink
+        title="Concierge"
+        intro="Sign in to set up your business, generate marketing media and manage enquiries."
+      />
+      <div style={{maxWidth: 460, margin: '-6vh auto 0', padding: '0 24px 48px'}}>
+        <TranslationNote locale={locale} />
+      </div>
+    </div>
+  );
+}
+
+function Invite({onToken}: {onToken: (token: string) => void}) {
+  const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
+  const api = useApi('');
+  const [failed, setFailed] = useState(!token);
+  const [problem, setProblem] = useState('');
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!token) { setFailed(true); return; }
+    let cancelled = false;
+    api('/owner/auth/invite', 'POST', {token})
+      .then((data) => {
+        if (cancelled) return;
+        // The link is spent: drop it from the address bar so a refresh cannot replay it.
+        history.replaceState(null, '', location.pathname + location.search);
+        onToken(data.access_token);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setFailed(true);
+        setProblem(e instanceof Error ? e.message : 'This link has expired.');
+      });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, attempt]);
+
+  if (!failed) {
+    return (
+      <div style={{maxWidth: 460, margin: '10vh auto', padding: 24, textAlign: 'center'}}>
+        <Heading level={1}>Welcome to Concierge</Heading>
+        <p>Signing you in…</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <RequestLink
+        title="Welcome to Concierge"
+        intro="This link has expired or has already been used."
+        note="Enter your email and we will send you a fresh one-click link. No password needed."
+      />
+      {problem ? <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}><ErrorNote message={problem} /></div> : null}
+      <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}>
+        <Button label="Try this link again" variant="ghost" onClick={() => { setFailed(false); setProblem(''); setAttempt(attempt + 1); }} />
+      </div>
     </div>
   );
 }
@@ -454,73 +537,6 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     </div>
   );
 }
-
-function Invite({onToken}: {onToken: (token: string) => void}) {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
-  const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
-  const [show, setShow] = useState(false);
-  const [suggested, setSuggested] = useState(false);
-  const [copied, setCopied] = useState(false);
-  // 20 random characters from an alphabet without look-alikes (no i, l, o, 0, 1, I, O); crypto-random, no modulo bias.
-  function strongPassword(): string {
-    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789-_.!';
-    const limit = 256 - (256 % alphabet.length);
-    const out: string[] = [];
-    const buffer = new Uint8Array(64);
-    while (out.length < 20) {
-      crypto.getRandomValues(buffer);
-      for (const value of buffer) { if (value < limit && out.length < 20) out.push(alphabet[value % alphabet.length]); }
-    }
-    return out.join('');
-  }
-  function suggest() {
-    const value = strongPassword();
-    setPassword(value); setConfirm(value); setShow(true); setSuggested(true); setCopied(false); setError('');
-  }
-  async function copyPassword() {
-    try { await navigator.clipboard.writeText(password); setCopied(true); }
-    catch { setError('Could not copy automatically. Select the password and copy it yourself.'); }
-  }
-  async function submit() {
-    setError('');
-    if (password.length < 12) { setError('Password must be at least 12 characters. You have ' + password.length + ' so far.'); return; }
-    if (password !== confirm) { setError('Passwords do not match.'); return; }
-    try {
-      const data = await useApi('')('/owner/auth/redeem', 'POST', {token, password});
-      const login = await useApi('')('/owner/auth/login', 'POST', {slug: data.slug, email: data.email, password});
-      history.replaceState(null, '', location.pathname);
-      onToken(login.access_token);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Invitation failed'); }
-  }
-  return (
-    <form style={{maxWidth: 420, margin: '10vh auto', padding: 24}} autoComplete="on" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-      <Heading level={1}>Welcome to Concierge</Heading>
-      <p>Choose a password to open your private setup. It is a click-through setup; nothing plays audio.</p>
-      <div className="password-rule" role="note">
-        <span className="password-rule-number" aria-hidden="true">12</span>
-        <span><strong>Your password must be at least 12 characters long.</strong><br />A short phrase of three or four random words is long and easy to remember.</span>
-      </div>
-      <TextInput label="Password (at least 12 characters)" type={show ? 'text' : 'password'} htmlName="new-password" autoComplete="new-password" isRequired value={password} onChange={(value) => { setPassword(value); setCopied(false); }} />
-      <div className="length-meter" aria-hidden="true"><div className={password.length >= 12 ? 'ok' : ''} style={{width: Math.min(100, Math.round(password.length / 12 * 100)) + '%'}} /></div>
-      <p aria-live="polite" className="length-count">
-        {password.length >= 12 ? '\u2713 ' + password.length + ' characters: long enough' : password.length + ' of 12 characters needed'}
-      </p>
-      <TextInput label="Confirm password" type={show ? 'text' : 'password'} htmlName="confirm-password" autoComplete="new-password" isRequired value={confirm} onChange={setConfirm} />
-      <div style={{marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-        <Button label="Suggest a strong password" variant="secondary" onClick={suggest} />
-        <Button label={show ? 'Hide password' : 'Show password'} variant="ghost" onClick={() => setShow(!show)} />
-        {suggested ? <Button label={copied ? 'Copied' : 'Copy password'} variant="secondary" onClick={copyPassword} /> : null}
-      </div>
-      {suggested ? <p role="note" className="suggest-note"><strong>Save it now.</strong> Copy this password into your password manager before you continue. It cannot be shown again once it is set.</p> : null}
-      <div style={{marginTop: 16}}><Button label="Set password and continue" variant="primary" onClick={submit} /></div>
-      {error ? <ErrorNote message={error} /> : null}
-      <button type="submit" tabIndex={-1} aria-hidden="true" style={{position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0}}>Set password</button>
-    </form>
-  );
-}
-
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: currency || 'NZD'}).format((cents || 0) / 100);
@@ -987,7 +1003,12 @@ function useDomTranslation(locale: string, dictionary: Record<string, string>) {
 }
 
 function Shell() {
-  const [token, setToken] = useState('');
+  const [token, setTokenState] = useState(() => localStorage.getItem('concierge.token') || '');
+  function setToken(value: string) {
+    setTokenState(value);
+    if (value) localStorage.setItem('concierge.token', value);
+    else localStorage.removeItem('concierge.token');
+  }
   const [tab, setTab] = useState('home');
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [installEvent, setInstallEvent] = useState<Event | null>(null);
@@ -1037,6 +1058,14 @@ function Shell() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
+  // A rejected session drops back to sign-in instead of leaving the page in an error state.
+  useEffect(() => {
+    const handler = () => setToken('');
+    window.addEventListener('concierge:sign-out', handler);
+    return () => window.removeEventListener('concierge:sign-out', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!token) return;
     api('/owner/media/brand').then((b) => setBrand({name: b.name || '', accent: b.accent || '#c8f560', contact: b.contact || '', logo: b.logo_data || null})).catch(() => undefined);
@@ -1046,7 +1075,7 @@ function Shell() {
     return (
       <Theme theme={theme}>
         <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-          {location.hash.startsWith('#invite=') ? <Invite onToken={setToken} /> : <Login onLogin={setToken} locale={locale} setLocale={setLocale} tr={tr} />}
+          {location.hash.startsWith('#invite=') ? <Invite onToken={setToken} /> : <Login locale={locale} setLocale={setLocale} tr={tr} />}
         </InternationalizationProvider>
       </Theme>
     );

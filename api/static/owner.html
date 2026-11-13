@@ -252,10 +252,9 @@ function resetWorkspace(){
  for(const day of ["mon","tue","wed","thu","fri","sat","sun"])$("hours-"+day).value="";$("onboarding-voice").checked=false;$("onboarding-booking").checked=false;$("onboarding-slot").value="30";
  setupProgress={business:false,knowledge:0,accounts:0};resetQuote();$("onboarding-email-auto").checked=false;
 }
-async function signIn(slug,email,password){
- const data=await request("/owner/auth/login","POST",{slug,email,password});
- bearer=data.access_token;sessionGeneration++;
- $("password").value="";
+// One way in, used by both the password form (operators) and the one-click link (customers).
+async function openSession(accessToken,readyNote){
+ bearer=accessToken;sessionGeneration++;
  const user=await request("/owner/me");currentRole=user.role;
  $("identity").textContent=user.tenant+" — "+user.email+" ("+user.role+")";
  $("login-panel").hidden=true;$("app-panel").hidden=false;
@@ -264,7 +263,12 @@ async function signIn(slug,email,password){
  const sections=await Promise.allSettled([refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
- else message("Your business workspace is ready. Choose what to set up below.");
+ else message(readyNote);
+}
+async function signIn(slug,email,password){
+ const data=await request("/owner/auth/login","POST",{slug,email,password});
+ $("password").value="";
+ await openSession(data.access_token,"Your business workspace is ready. Choose what to set up below.");
 }
 async function refreshCRM(){
  const generation=sessionGeneration;
@@ -422,10 +426,21 @@ const invitation=new URLSearchParams(location.hash.slice(1)).get("invite");
 if(invitation!==null){
  history.replaceState(null,"",location.pathname+location.search);
  if(/^[A-Za-z0-9_-]{20,256}$/.test(invitation)){
-  $("redeem-token").value=invitation;$("redeem-token").type="hidden";$("redeem-token-label").hidden=true;
+  // One click, no password: the link itself opens the workspace.
   $("login-form").hidden=true;$("invitation-details").open=true;
   $("login-heading").textContent="Welcome to Trendi Concierge";
-  $("login-help").textContent="Set your password to open the business workspace you were invited to.";
+  $("login-help").textContent="Signing you in…";
+  (async()=>{
+   try{
+    const data=await request("/owner/auth/invite","POST",{token:invitation});
+    await openSession(data.access_token,"Your business workspace is ready. Choose what to set up below.");
+   }catch(error){
+    $("login-form").hidden=false;$("invitation-details").open=false;
+    $("login-heading").textContent="Welcome to Trendi Concierge";
+    $("login-help").textContent="That link has expired or has already been used. Ask Trendi for a new link, or sign in below if you already have a password.";
+    message(error.message,true);
+   }
+  })();
  }else{message("This invitation link is invalid. Ask Trendi for a new invitation.",true);}
 }
 $("logout").addEventListener("click",()=>{

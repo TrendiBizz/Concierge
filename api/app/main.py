@@ -1802,6 +1802,14 @@ class OwnerLogin(BaseModel):
     password: str
 
 
+class OwnerLinkAccept(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class OwnerEmailLink(BaseModel):
+    email: str = Field(max_length=320)
+
+
 @app.post("/admin/tenants/{slug}/owner-invitations", dependencies=admin, status_code=201)
 async def admin_invite_owner(slug: str, body: OwnerInvite):
     tenant = await _require_tenant(slug)
@@ -1822,7 +1830,7 @@ async def admin_invite_owner(slug: str, body: OwnerInvite):
                 owner_auth.clean_email(body.email),
                 f"Your {name} Concierge is ready",
                 f"Hello,\n\nYour AI front desk for {name} is ready to set up.\n\n"
-                f"Open this private link to choose your password and finish setup:\n{link}\n\n"
+                f"Open this link and you are in — there is no password to create or remember:\n{link}\n\n"
                 "The link works once and expires in 24 hours. If you did not expect this "
                 "message, ignore it.\n\n— Trendi Concierge",
                 from_name="Trendi Concierge",
@@ -1916,6 +1924,48 @@ async def owner_redeem(body: OwnerRedeem):
         return await owner_auth.redeem(body.token, body.password)
     except ValueError:
         raise HTTPException(400, "Invalid invitation or password")
+
+
+@app.post("/owner/auth/invite")
+async def owner_accept_invite(body: OwnerLinkAccept):
+    """Redeem the one-click link: sign in, no password, no account setup form."""
+    try:
+        return await owner_auth.accept_invite(body.token)
+    except ValueError:
+        raise HTTPException(
+            400, "This link has expired or has already been used. Ask for a new one below."
+        ) from None
+
+
+@app.post("/owner/auth/link")
+async def owner_email_link(body: OwnerEmailLink, request: Request):
+    """Email a one-click sign-in link.
+
+    The answer never varies, so this cannot be used to discover which addresses have accounts.
+    """
+    ip = request.client.host if request.client else "unknown"
+    try:
+        email = owner_auth.clean_email(body.email)
+    except ValueError:
+        return {"ok": True}
+    if not await owner_auth.allow_login_attempt(ip, "signin", email):
+        raise HTTPException(429, "Too many attempts. Please try again in a few minutes.")
+    for account in await owner_auth.account_emails(email):
+        try:
+            token = await owner_auth.make_invite(account["tenant_id"], email, account["role"], "recovery")
+            await mailer.send_email(
+                email,
+                f"Your Concierge sign-in link — {account.get('name') or 'your business'}",
+                "Hello,\n\nUse this private link to open your Concierge workspace. "
+                "There is no password.\n\n"
+                f"{owner_auth.invitation_link(token)}\n\n"
+                "The link works once and expires in 24 hours. If you did not ask for it, "
+                "you can ignore this message.\n\n— Trendi Concierge",
+                from_name="Trendi Concierge",
+            )
+        except Exception:  # noqa: BLE001 - never reveal delivery detail to a caller
+            log.exception("sign-in link could not be sent for %s", account.get("slug"))
+    return {"ok": True}
 
 
 @app.post("/owner/auth/login")
