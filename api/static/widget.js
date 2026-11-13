@@ -157,6 +157,7 @@
     style.textContent =
       ":host{all:initial}" +
       "*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}" +
+      ".brandline{display:flex;align-items:center;gap:10px}" +".brandline-logo{height:28px;width:auto}" +
       ".launcher{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:flex;align-items:center;gap:10px;" +
       "background:" + accent + ";color:#fff;border:0;border-radius:999px;padding:14px 20px;font-size:15px;font-weight:600;" +
       "cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.25);animation:pulse 2.4s ease-in-out infinite}" +
@@ -213,10 +214,10 @@
     var panel = el("div", { class: "panel", role: "dialog", "aria-label": cfg.name + " AI guide" }, [
       el("div", { class: "head" }, [
         (function(){
-          var brand = el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+          var brand = el("div", { class: "brandline" }, [
             el("div", {}, [el("b", { text: cfg.name }), el("small", { text: "AI guide" })]),
           ]);
-          if (cfg.logo_url) brand.insertBefore(el("img", { src: cfg.logo_url, alt: "", style: "height:28px;width:auto" }), brand.firstChild);
+          if (cfg.logo_url) brand.insertBefore(el("img", { src: cfg.logo_url, alt: "", class: "brandline-logo" }), brand.firstChild);
           return brand;
         })(),
         closeBtn,
@@ -228,9 +229,12 @@
       el("div", { class: "foot", text: "You are chatting with an AI. It can make mistakes. Conversations may be saved to help the team follow up." }),
     ]);
 
-    // A site with a strict Content-Security-Policy (style-src 'self') blocks an inline <style> element,
-    // which left the widget unstyled. Constructable stylesheets are not blocked by that policy, so use
-    // one when the browser supports it and fall back to the <style> element in older browsers.
+    // A site with a strict Content-Security-Policy blocks inline CSS, and an unstyled widget is an
+    // invisible one: trendibizz.com's own policy did exactly this and the launcher never appeared.
+    // Two things keep us clear of that: the sheet is adopted as a constructable stylesheet (not an
+    // inline <style> element), and nothing here sets a style="..." attribute -- those are blocked by
+    // style-src just the same. Use classes; only assign element.style for values we compute at
+    // runtime, which CSP permits.
     try {
       var sheet = new CSSStyleSheet();
       sheet.replaceSync(style.textContent);

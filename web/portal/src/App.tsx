@@ -716,6 +716,12 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
           )}
 
           <TextArea label="Website embed code" value={snippet} onChange={() => {}} rows={3} />
+          <p style={{fontSize: 13, opacity: 0.8}}>
+            If your site sets a Content-Security-Policy, it must allow
+            <code> script-src https://chat.trendibizz.com</code> and
+            <code> connect-src https://chat.trendibizz.com</code> — otherwise the chat window is
+            blocked with no visible error. Send this line to whoever looks after your website.
+          </p>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
             <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); notify('Embed code copied.'); }} />
             <Button label="Email this to my web person" variant="secondary" onClick={() => { location.href = 'mailto:?subject=' + encodeURIComponent('Add our chat window to our website') + '&body=' + encodeURIComponent(mailBody); }} />
