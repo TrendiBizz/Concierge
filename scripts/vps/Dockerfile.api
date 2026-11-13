@@ -3,6 +3,13 @@ ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 FASTEMBED_CACHE_PATH=/opt/fastembed HF_HUB_DISABLE_TELEMETRY=1 OMP_NUM_THREADS=1
 WORKDIR /srv
+# Liberation Sans is the font the logo renderer substitutes for an SVG wordmark:
+# resvg resolves an exact family and does not fall back, so an Arial-named logo
+# would otherwise render with its lettering missing. Liberation Sans is metric
+# compatible with Arial. See api/app/brand_from_site.py.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
 COPY scripts/vps/api-requirements.lock ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5', threads=1)"

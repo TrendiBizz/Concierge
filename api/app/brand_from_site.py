@@ -410,6 +410,9 @@ def rasterise_svg(svg_text: str, pixels: int = LOGO_PIXELS,
 # The family bundled in the API image. Liberation Sans is metric-compatible with
 # Arial, so an Arial-named wordmark keeps its width and weight.
 BUNDLED_LOGO_FONT = os.environ.get("BRAND_LOGO_FONT", "Liberation Sans")
+# A family that cannot exist: rendering with it shows what the SVG draws without
+# any lettering, which is how "did the text render?" is answered by measurement.
+MISSING_FONT = "__trendi_no_such_font__"
 
 
 def substitute_fonts(svg_text: str, family: str = BUNDLED_LOGO_FONT) -> str:
@@ -440,28 +443,43 @@ def _opaque_pixels(png: bytes) -> int:
         return 0
 
 
-def render_logo_svg(svg_text: str, pixels: int = LOGO_PIXELS) -> tuple[bytes | None, bool]:
-    """Render the SVG, preferring a substituted font when it draws more of the logo.
+def render_logo_svg(svg_text: str, pixels: int = LOGO_PIXELS) -> tuple[bytes | None, str]:
+    """Render the SVG and report what had to happen to its text.
 
-    Returns ``(png, substituted)``. A logo whose text is already converted to
-    paths is untouched and renders exactly; one drawn with live text renders
-    through the bundled family and is reported as substituted so the review
-    screen can tell the owner the lettering is close, not identical.
+    Returns ``(png, text_state)`` where ``text_state`` is one of:
+
+    ``""``            the SVG has no live text, or its own font was available;
+    ``"substituted"`` the words were redrawn in the bundled family (close, not identical);
+    ``"missing"``     the words could not be drawn at all, so the image is incomplete.
+
+    Whether text actually rendered is *measured*, never assumed, by comparing ink
+    against a render forced to use a family that does not exist: that baseline
+    contains every path but no lettering. Measured on 13 Nov: resvg resolves an
+    exact family and does not silently substitute, so an Arial wordmark renders
+    blank on an image without a matching font — the worst outcome, because the
+    result looks like a logo rather than a mistake.
     """
     direct = rasterise_svg(svg_text, pixels)
     if not _svg_has_text(svg_text):
-        return direct, False
-    try:
-        substituted = rasterise_svg(substitute_fonts(svg_text), pixels, font=BUNDLED_LOGO_FONT)
-    except Exception:  # noqa: BLE001
-        return direct, False
-    if substituted is None:
-        return direct, False
-    if direct is None:
-        return substituted, True
-    if _opaque_pixels(substituted) > _opaque_pixels(direct):
-        return substituted, True
-    return direct, False
+        return direct, ""
+
+    baseline = rasterise_svg(substitute_fonts(svg_text, MISSING_FONT), pixels)
+    baseline_ink = _opaque_pixels(baseline) if baseline is not None else None
+    direct_ink = _opaque_pixels(direct) if direct is not None else None
+
+    # The site's own font was available: the direct render beat the letterless baseline.
+    if direct is not None and baseline_ink is not None and direct_ink is not None \
+            and direct_ink > baseline_ink:
+        return direct, ""
+
+    substituted = rasterise_svg(substitute_fonts(svg_text), pixels, font=BUNDLED_LOGO_FONT)
+    if substituted is not None:
+        if baseline_ink is None or _opaque_pixels(substituted) > baseline_ink:
+            return substituted, "substituted"
+
+    if direct is not None:
+        return direct, "missing"
+    return substituted, "substituted" if substituted is not None else "missing"
 
 
 def _fit_png(image, limit: int = MAX_STORED_LOGO_BYTES) -> bytes | None:
@@ -541,9 +559,6 @@ def accent_from_png(png: bytes) -> str | None:
             red, green, blue, alpha = pixels[x, y]
             if alpha < 200:
                 continue
-            _, saturation, lightness = _rgb_to_hsl(red, green, blue)
-            if saturation < 0.25 or lightness < 0.12 or lightness > 0.88:
-                continue
             # Coarse buckets so anti-aliased edges vote with the solid colour;
             # the bucket's exact colours are averaged so the result is the real
             # brand colour and not a rounded-off approximation of it.
@@ -556,13 +571,23 @@ def accent_from_png(png: bytes) -> str | None:
     if not buckets:
         return None
 
-    def weight(item):
-        key, (count, red, green, blue) = item
-        _, saturation, _ = _rgb_to_hsl(red // count, green // count, blue // count)
-        return count * (0.35 + saturation)
+    def pick(min_saturation: float, low: float, high: float) -> str | None:
+        best, best_score = None, 0.0
+        for count, red, green, blue in buckets.values():
+            colour = (red // count, green // count, blue // count)
+            _, saturation, lightness = _rgb_to_hsl(*colour)
+            if saturation < min_saturation or lightness < low or lightness > high:
+                continue
+            score = count * (0.35 + saturation)
+            if score > best_score:
+                best, best_score = colour, score
+        return None if best is None else "#%02x%02x%02x" % best
 
-    _, (count, red, green, blue) = max(buckets.items(), key=weight)
-    return f"#{round(red / count):02x}{round(green / count):02x}{round(blue / count):02x}"
+    # An accent is worn on buttons and chips, so a vivid mid-tone is preferred
+    # over a dark wordmark that merely covers more pixels. A brand whose only
+    # colour is dark (a navy wordmark, say) still gets its own colour, never the
+    # default: the wider pass catches it.
+    return pick(0.35, 0.25, 0.85) or pick(0.25, 0.12, 0.88)
 
 
 def accent_from_svg(svg: str) -> str | None:
@@ -766,8 +791,8 @@ def _logo_from(html: str, fetched: list[tuple[str, bytes]]) -> dict:
 
     for source, content in fetched:
         note = ""
-        text_risk = False
-        substituted = False
+        has_text = False
+        text_state = ""
         png: bytes | None = None
         is_svg = _is_svg(content)
         svg_text = ""
@@ -776,8 +801,8 @@ def _logo_from(html: str, fetched: list[tuple[str, bytes]]) -> dict:
                 svg_text = content.decode("utf-8", "replace")
             except Exception:  # noqa: BLE001
                 svg_text = ""
-            text_risk = _svg_has_text(svg_text)
-            png, substituted = render_logo_svg(svg_text)
+            has_text = _svg_has_text(svg_text)
+            png, text_state = render_logo_svg(svg_text)
             if png is None:
                 note = "We could not draw this logo on our servers."
         else:
@@ -801,16 +826,15 @@ def _logo_from(html: str, fetched: list[tuple[str, bytes]]) -> dict:
             "bytes": len(png),
             "rendered_from_svg": is_svg,
         }
-        if text_risk:
+        if has_text and text_state:
             entry["text_font_risk"] = True
-            entry["font_substituted"] = substituted
+            entry["font_substituted"] = text_state == "substituted"
             entry["note"] = (
                 "Your logo draws its words as text; we redrew them in a close match to "
                 "your site's font. Check the preview looks right, or choose another image."
-                if substituted else
-                "This logo draws its words as text, and our servers have no matching font, "
-                "so the preview may not look like your site. You can keep it, or choose "
-                "another image below."
+                if text_state == "substituted" else
+                "Your logo draws its words as text, and we could not draw them at all, so "
+                "this image is missing the lettering. Please upload your own logo."
             )
         alternatives.append(entry)
         if chosen is None:
@@ -869,8 +893,8 @@ async def suggest(website: str) -> dict:
             notes.append("Your logo's lettering was redrawn in a close match to your site's "
                          "font. Check the preview looks right, or pick another image.")
         else:
-            notes.append("The logo's lettering is drawn as text, so the preview may differ "
-                         "from your site. Check it looks right, or pick another image.")
+            notes.append("We could not draw your logo's lettering, so the image is missing "
+                         "its words. Please upload your own logo.")
     if not accent:
         accent, accent_source = DEFAULT_ACCENT, "default"
         notes.append("We could not tell your brand colour. Pick one below.")

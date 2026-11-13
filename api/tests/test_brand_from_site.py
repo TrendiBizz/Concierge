@@ -217,7 +217,7 @@ def test_proposal_composes_name_logo_accent_platform_and_contact(monkeypatch):
                                         ("/touch.png", png)]
 
     monkeypatch.setattr(bfs, "_read_site", fake_read)
-    monkeypatch.setattr(bfs, "rasterise_svg", lambda text, pixels=512: png)
+    monkeypatch.setattr(bfs, "rasterise_svg", lambda text, pixels=512, **kwargs: png)
 
     import asyncio
 
@@ -233,7 +233,7 @@ def test_proposal_composes_name_logo_accent_platform_and_contact(monkeypatch):
     assert result["platform"]["kind"] == "wordpress"
     assert (result["country_code"], result["timezone"]) == ("64", "Pacific/Auckland")
     assert result["socials"]["facebook"].endswith("/trendi")
-    assert any("lettering is drawn as text" in note for note in result["notes"])
+    assert any("missing its words" in note for note in result["notes"])
 
 
 def test_proposal_says_so_when_it_can_find_no_logo(monkeypatch):
@@ -265,7 +265,7 @@ def test_no_accent_is_claimed_from_a_logo_that_never_rendered(monkeypatch):
         return "<html><head></head><body>hi</body></html>", "x.nz", [("/a.svg", TRENDI_SVG)]
 
     monkeypatch.setattr(bfs, "_read_site", fake_read)
-    monkeypatch.setattr(bfs, "rasterise_svg", lambda text, pixels=512: None)
+    monkeypatch.setattr(bfs, "rasterise_svg", lambda text, pixels=512, **kwargs: None)
     import asyncio
 
     result = asyncio.run(bfs.suggest("x.nz"))
@@ -313,8 +313,8 @@ def test_a_blank_render_loses_to_the_substituted_one(monkeypatch):
         return _blank_png() if "Liberation Sans" not in text else good
 
     monkeypatch.setattr(bfs, "rasterise_svg", fake)
-    png, substituted = bfs.render_logo_svg(TRENDI_SVG.decode())
-    assert substituted is True
+    png, text_state = bfs.render_logo_svg(TRENDI_SVG.decode())
+    assert text_state == "substituted"
     assert png == good
 
 
@@ -328,6 +328,6 @@ def test_a_logo_already_drawn_as_paths_is_never_rewritten(monkeypatch):
 
     monkeypatch.setattr(bfs, "rasterise_svg", fake)
     path_only = '<svg><path d="M0 0h10v10z" fill="#7142d6"/></svg>'
-    png, substituted = bfs.render_logo_svg(path_only)
-    assert substituted is False
+    png, text_state = bfs.render_logo_svg(path_only)
+    assert text_state == ""
     assert len(seen) == 1
