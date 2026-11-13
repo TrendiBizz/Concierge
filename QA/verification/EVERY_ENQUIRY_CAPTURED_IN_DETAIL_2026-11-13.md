@@ -61,8 +61,10 @@ Test rows deleted afterwards; the review workspace is empty again.
 
 * **Postal/physical address**: no channel collects it, and there is no field for it. Worth adding if
   the business needs it for quotes.
-* **Inbound SMS**: the extractor applies, but SMS cannot run in this environment at all — no
-  provider is configured (see the open item).
+* **Inbound SMS**: the extractor applies, and outbound texting works (see below), but no text has
+  ever been delivered *into* the platform, so this is untested end to end.
+* **Careful with "SMS" as a word.** Sending and receiving are different directions with different
+  plumbing. The platform **sends** texts successfully; it has never **received** one.
 * **A name never stated**: the extractor cannot invent one. The assistant is now instructed to ask
   for a name when it is relevant, which is the only honest way to get it.
 
@@ -108,3 +110,23 @@ Two things are now true that were not before:
 
 **What is still needed, and only the operator can do it:** send one text to `+64278817368` and watch
 `sms:inbound` turn green. That single message proves the reply path end to end.
+
+## Sending versus receiving — why "it worked a few days ago" is right
+
+The operator remembered a text arriving a few days ago, and that memory is correct. It was an
+**outbound** text, and it is already recorded in this repo:
+
+* **8 Nov** — `QA/verification/LIVE_RELEASE_2026-11-08.md`: "The separate legacy Mac/iPhone provider
+  is not an integrated inbound SMS adapter. No SMS was sent and no handset delivery is claimed."
+* **9 Nov** — `QA/verification/HANDOFF_CONCIERGE_VERIFIED_2026-11-09.md`: "One reconciled SMS-only
+  retry reached SENT with a verified Messages receipt; user confirmed exact full message
+  sent/received at 14:08." That is the platform **sending** a text which then arrived on a handset.
+* **9 Nov** — `QA/verification/HERMES_CONCIERGE_FRAMEWORK_2026-11-09.md`: "Live device inbound
+  verification absent. No seamless two-way claim yet."
+
+So the position has not changed between 9 Nov and today: sending works and is proven; receiving has
+never been proven. Nothing regressed in the last few days — this was already the documented state,
+and the 47 texts sent today are the same working path as the one confirmed at 14:08 on 9 Nov.
+
+My earlier wording, "SMS cannot run in this environment at all", was wrong: it is one direction that
+is missing, not the capability. Corrected above.
