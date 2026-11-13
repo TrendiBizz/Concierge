@@ -46,3 +46,15 @@ Possible next fix: turn spoken digits and emails in owner alerts into written fo
 It now has a Cloudflare rule "Support intake" (id `8db03a2cc01f4c97935ed313f73f048c`) to `concierge-inbound-worker`, and a registered inbound mailbox
 for `trendi-oauth-staging`. The worker also forwards the original to the operator inbox. Undo: delete the rule; `delete from inbound_mailboxes where recipient='support@trendibizz.com';`.
 Not yet tested with a real inbound email. The full plan is `SUPPORT_STRUCTURE_2026-11-13.md`.
+
+
+## SMS correction (13 Nov ~13:20 NZDT) — read this, it replaces earlier SMS advice
+
+* The "SMS phone" is **not an app on a phone**. It is `Trendi Phone Connector.app` on **Mac.hub** (LaunchAgent `com.trendi.phone-connector`, config `~/.config/trendi-phone/`),
+  sending through the Mac's Messages. Earlier advice to "open the app on the phone" was wrong and would never have helped.
+* The connector process is running but has been **stuck since 2026-11-11 00:20 UTC**: it keeps POSTing `/api/v1/device-sms/receipt` and the API answers **409** (48 in 24 h);
+  its log says `Phone connector requires attention: HTTPError`. It is retrying receipts for jobs the server has already finalised and does not poll for new work.
+* The 9 Nov notes (`PHONE_SMS_CONTINUATION_2026-11-09.md`) say a person must confirm Send natively on the Mac, and no text has ever been confirmed sent.
+  Alerts need unattended delivery, so the design is unsuitable for alerts even if unstuck.
+* Do **not** edit the connector's `device.sqlite` or re-pair it while jobs are ambiguous (sends are irreversible; never an automatic second send).
+* Better solution proposed to the operator: push notifications for owner alerts (plus email), and a real SMS API provider for customer-facing texts. See the decision recorded after this note.
