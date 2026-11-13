@@ -1098,3 +1098,29 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS erased_at timestamptz;
 -- Paying an invoice online. Trendi's own billing uses Stripe Payment Links; a business can put its
 -- own link (Stripe or otherwise) on an invoice so the customer pays by card.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_url text NOT NULL DEFAULT '';
+
+-- Selling Concierge itself. A customer pays a Stripe Payment Link or a bank transfer; once the payment
+-- is verified we owe them a tax invoice, immediately, and access to what they bought.
+CREATE TABLE IF NOT EXISTS platform_invoices (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    number text NOT NULL UNIQUE,
+    customer_email text NOT NULL,
+    customer_name text NOT NULL DEFAULT '',
+    business_name text NOT NULL DEFAULT '',
+    plan text NOT NULL DEFAULT '',
+    amount_cents integer NOT NULL DEFAULT 0,
+    gst_cents integer NOT NULL DEFAULT 0,
+    currency text NOT NULL DEFAULT 'NZD',
+    status text NOT NULL DEFAULT 'paid',
+    source text NOT NULL DEFAULT 'stripe',
+    stripe_session_id text UNIQUE,
+    stripe_event_id text NOT NULL DEFAULT '',
+    tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL,
+    public_token text NOT NULL UNIQUE,
+    issued_on date NOT NULL DEFAULT current_date,
+    paid_at timestamptz,
+    description text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE SEQUENCE IF NOT EXISTS platform_invoice_seq;
+CREATE INDEX IF NOT EXISTS platform_invoices_email_idx ON platform_invoices(customer_email, created_at DESC);

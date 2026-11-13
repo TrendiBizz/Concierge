@@ -136,6 +136,8 @@ class Settings(BaseSettings):
     brevo_webhook_secret: str = ""
 
     # Reactivation campaigns
+    # Stripe signs its webhooks with this; without it no purchase can be trusted as paid.
+    stripe_webhook_secret: str = ""
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window

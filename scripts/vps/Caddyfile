@@ -32,7 +32,7 @@
     }
     @owner {
         host concierge.trendibizz.com
-        path /privacy /privacy/* /guide/* /owner-ui /onboarding /studio /studio/* /quote/* /invoice/* /upload/* /robots.txt /api/v1/public-design/* /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /webhooks/brevo /api/v1/social-media/* /api/v1/device-sms/* /api/v1/phone/xai/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/*
+        path /webhooks/stripe /receipt/* /privacy /privacy/* /guide/* /owner-ui /onboarding /studio /studio/* /quote/* /invoice/* /upload/* /robots.txt /api/v1/public-design/* /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /webhooks/brevo /api/v1/social-media/* /api/v1/device-sms/* /api/v1/phone/xai/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/*
     }
     handle @owner {
         reverse_proxy api:8000 {

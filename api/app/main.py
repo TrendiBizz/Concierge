@@ -29,6 +29,7 @@ from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations
 from . import suppressions
 from . import owner_invites
 from . import privacy
+from . import platform_billing
 from . import invoices
 from . import guides
 from . import quote_profiles
@@ -115,6 +116,8 @@ app.include_router(invoices.router)
 app.include_router(invoices.public_router)
 app.include_router(privacy.router)
 app.include_router(privacy.public_router)
+app.include_router(platform_billing.router)
+app.include_router(platform_billing.public_router)
 app.include_router(designs.router)
 app.include_router(designs.public_router)
 app.include_router(designs.page_router)
