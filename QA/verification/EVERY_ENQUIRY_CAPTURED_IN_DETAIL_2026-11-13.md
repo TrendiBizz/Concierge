@@ -65,3 +65,11 @@ Test rows deleted afterwards; the review workspace is empty again.
   provider is configured (see the open item).
 * **A name never stated**: the extractor cannot invent one. The assistant is now instructed to ask
   for a name when it is relevant, which is the only honest way to get it.
+
+## A note on how this was verified
+
+Two verification runs each emailed the operator a "[WARM] New lead" alert. Owner alerts are exempt
+from a paused tenant by design, and my harness muted the database row while still handing the tool a
+tenant dict read before the change. `scripts/qa/capture_check.py` is the corrected, reusable version:
+it mutes the object the tool receives, restores it in a `finally`, and cleans up its own rows. Run it
+from the api container — it prints PASS or FAIL and sends nothing.
