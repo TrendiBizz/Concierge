@@ -109,3 +109,82 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Errors must be impossible to miss: solid red, readable, and a short flash when they appear. */
+.error-note {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 2px solid #ff8a80;
+  border-radius: 8px;
+  background: #b3261e;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.4;
+  animation: error-flash 0.9s ease-out 1;
+}
+
+@keyframes error-flash {
+  0%, 35% {
+    box-shadow: 0 0 0 0 rgba(255, 90, 80, 0.95);
+    transform: scale(1.03);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(255, 90, 80, 0);
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-note { animation: none; }
+}
+
+/* The 12-character minimum is shown up front, big, and as a live meter (colours work on light and dark). */
+.password-rule {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 2px solid #f9a825;
+  border-radius: 10px;
+  background: rgba(249, 168, 37, 0.14);
+  line-height: 1.4;
+}
+
+.password-rule-number {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #f9a825;
+  color: #1b1b1b;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.length-meter {
+  height: 10px;
+  margin: 6px 0 0;
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.35);
+  overflow: hidden;
+}
+
+.length-meter > div {
+  height: 100%;
+  background: #e53935;
+  transition: width 0.15s;
+}
+
+.length-meter > div.ok {
+  background: #2e7d32;
+}
+
+.length-count {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
