@@ -326,6 +326,29 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
+  const [show, setShow] = useState(false);
+  const [suggested, setSuggested] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // 20 random characters from an alphabet without look-alikes (no i, l, o, 0, 1, I, O); crypto-random, no modulo bias.
+  function strongPassword(): string {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789-_.!';
+    const limit = 256 - (256 % alphabet.length);
+    const out: string[] = [];
+    const buffer = new Uint8Array(64);
+    while (out.length < 20) {
+      crypto.getRandomValues(buffer);
+      for (const value of buffer) { if (value < limit && out.length < 20) out.push(alphabet[value % alphabet.length]); }
+    }
+    return out.join('');
+  }
+  function suggest() {
+    const value = strongPassword();
+    setPassword(value); setConfirm(value); setShow(true); setSuggested(true); setCopied(false); setError('');
+  }
+  async function copyPassword() {
+    try { await navigator.clipboard.writeText(password); setCopied(true); }
+    catch { setError('Could not copy automatically. Select the password and copy it yourself.'); }
+  }
   async function submit() {
     setError('');
     if (password.length < 12) { setError('Password must be at least 12 characters. You have ' + password.length + ' so far.'); return; }
@@ -338,22 +361,29 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
     } catch (e) { setError(e instanceof Error ? e.message : 'Invitation failed'); }
   }
   return (
-    <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
+    <form style={{maxWidth: 420, margin: '10vh auto', padding: 24}} autoComplete="on" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <Heading level={1}>Welcome to Concierge</Heading>
       <p>Choose a password to open your private setup. It is a click-through setup; nothing plays audio.</p>
       <div className="password-rule" role="note">
         <span className="password-rule-number" aria-hidden="true">12</span>
         <span><strong>Your password must be at least 12 characters long.</strong><br />A short phrase of three or four random words is long and easy to remember.</span>
       </div>
-      <TextInput label="Password (at least 12 characters)" type="password" value={password} onChange={setPassword} />
+      <TextInput label="Password (at least 12 characters)" type={show ? 'text' : 'password'} htmlName="new-password" autoComplete="new-password" isRequired value={password} onChange={(value) => { setPassword(value); setCopied(false); }} />
       <div className="length-meter" aria-hidden="true"><div className={password.length >= 12 ? 'ok' : ''} style={{width: Math.min(100, Math.round(password.length / 12 * 100)) + '%'}} /></div>
       <p aria-live="polite" className="length-count">
         {password.length >= 12 ? '\u2713 ' + password.length + ' characters: long enough' : password.length + ' of 12 characters needed'}
       </p>
-      <TextInput label="Confirm password" type="password" value={confirm} onChange={setConfirm} />
+      <TextInput label="Confirm password" type={show ? 'text' : 'password'} htmlName="confirm-password" autoComplete="new-password" isRequired value={confirm} onChange={setConfirm} />
+      <div style={{marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+        <Button label="Suggest a strong password" variant="secondary" onClick={suggest} />
+        <Button label={show ? 'Hide password' : 'Show password'} variant="ghost" onClick={() => setShow(!show)} />
+        {suggested ? <Button label={copied ? 'Copied' : 'Copy password'} variant="secondary" onClick={copyPassword} /> : null}
+      </div>
+      {suggested ? <p role="note" className="suggest-note"><strong>Save it now.</strong> Copy this password into your password manager before you continue. It cannot be shown again once it is set.</p> : null}
       <div style={{marginTop: 16}}><Button label="Set password and continue" variant="primary" onClick={submit} /></div>
       {error ? <ErrorNote message={error} /> : null}
-    </div>
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0}}>Set password</button>
+    </form>
   );
 }
 
