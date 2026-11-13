@@ -112,7 +112,7 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
   const [brief, setBrief] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [pay, setPay] = useState<{instructions?: string; url?: string; summary?: Record<string, number>}>({});
-  const [biz, setBiz] = useState<{name?: string; gst_number?: string; nzbn?: string; business_address?: string; business_phone?: string; quote_terms?: string; quote_valid_days?: number}>({});
+  const [biz, setBiz] = useState<{name?: string; gst_number?: string; nzbn?: string; business_address?: string; business_phone?: string; quote_terms?: string; quote_valid_days?: number; allow_deposit?: boolean; deposit_percent?: number; invoice_payment_terms_days?: number}>({});
 
   async function load() {
     try {
@@ -211,6 +211,9 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
         business_phone: biz.business_phone || '',
         quote_terms: biz.quote_terms || '',
         quote_valid_days: Number(biz.quote_valid_days) || 30,
+        allow_deposit: biz.allow_deposit !== false,
+        deposit_percent: Number(biz.deposit_percent) || 0,
+        invoice_payment_terms_days: Number(biz.invoice_payment_terms_days) || 7,
       });
       setStatus('Business details saved. Every quotation now prints them, with a reference and a valid-until date.');
       await load();
@@ -286,6 +289,9 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
           <TextInput label="Address" value={biz.business_address || ''} onChange={(v) => setBiz({...biz, business_address: v})} />
           <TextInput label="Phone" value={biz.business_phone || ''} onChange={(v) => setBiz({...biz, business_phone: v})} />
           <TextInput label="Quote valid for (days)" value={String(biz.quote_valid_days ?? 30)} onChange={(v) => setBiz({...biz, quote_valid_days: Number(v) || 30})} />
+          <TextInput label="Deposit % (when a customer pays a deposit)" value={String(biz.deposit_percent ?? 50)} onChange={(v) => setBiz({...biz, deposit_percent: Number(v) || 0})} />
+          <TextInput label="Invoice payment terms (days)" value={String(biz.invoice_payment_terms_days ?? 7)} onChange={(v) => setBiz({...biz, invoice_payment_terms_days: Number(v) || 7})} />
+          <Button label={biz.allow_deposit === false ? 'Deposits: off — turn on' : 'Deposits: on — turn off'} onClick={() => setBiz({...biz, allow_deposit: biz.allow_deposit === false})} />
           <TextArea label="Terms and conditions (shown under every quote)" value={biz.quote_terms || ''} onChange={(v) => setBiz({...biz, quote_terms: v})} rows={4} />
           <Button label="Save business details" variant="primary" onClick={saveBusiness} />
         </Card>
