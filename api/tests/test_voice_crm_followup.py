@@ -11,8 +11,11 @@ def test_contact_consent_does_not_send_unrequested_acknowledgement(monkeypatch):
     lead={'id':7,'tenant_id':'business-a','conversation_id':'conversation-a','name':'Jo',
           'phone':'+64278817368','email':'','channel':'phone','message':'Please send details',
           'consent_contact':True,'consent_marketing':False}
-    pool=SimpleNamespace(fetchrow=AsyncMock(return_value=lead))
+    # capture_lead now reconciles the caller into a customer case before writing the lead, so the
+    # fake must model both calls. The consent behaviour under test is unchanged.
+    pool=SimpleNamespace(fetchrow=AsyncMock(return_value=lead), execute=AsyncMock())
     monkeypatch.setattr(tools.db,'pool',lambda:pool)
+    monkeypatch.setattr(tools.casetimeline,'reconcile',AsyncMock(return_value={'id':'case-1'}))
     monkeypatch.setattr(tools,'get_settings',lambda:SimpleNamespace(default_country_code='64'))
     monkeypatch.setattr(automation,'get_settings',lambda:SimpleNamespace(default_country_code='64'))
     queue=AsyncMock(return_value=True)

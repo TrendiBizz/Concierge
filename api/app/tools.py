@@ -189,6 +189,14 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     if ctx.get("dry_run"):
         return {"ok": True, "note": "(dry run) lead would be saved"}
 
+    # A visitor who gives an email or a number is a customer, not just a lead row. Reconcile the
+    # case BEFORE writing the lead, so their next email or call is recognised as the same person
+    # instead of arriving as a stranger with a duplicate history.
+    case = await casetimeline.reconcile(
+        tenant["id"], phone=phone, email=email if email_ok else "", name=name,
+        default_cc=casetimeline.tenant_country_code(tenant), source=ctx.get("channel", "chat"))
+    case_id = case["id"] if case else None
+
     # Enquiries captured at channel ingress already exist before the AI runs.
     # Enrich that record instead of creating a duplicate when the caller gives details.
     if ctx.get("conversation_id"):
@@ -203,6 +211,10 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
             "ORDER BY created_at LIMIT 1) RETURNING *",
             tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
         if existing:
+            if case_id:
+                await db.pool().execute("UPDATE leads SET case_id=$2 WHERE id=$1",
+                                        existing["id"], case_id)
+                existing = dict(existing, case_id=case_id)
             await automation.lead_followup(tenant, dict(existing))
             ctx["lead_captured"] = True
             return {"ok": True, "note": "Enquiry updated in the CRM. The team can follow up."}
@@ -230,6 +242,9 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
         consent,
         marketing,
     )
+    if case_id and row:
+        await db.pool().execute("UPDATE leads SET case_id=$2 WHERE id=$1", row["id"], case_id)
+        row = dict(row, case_id=case_id)
     await automation.on_lead_created(tenant, dict(row))
     ctx["lead_captured"] = True
     return {"ok": True, "note": "Lead saved. Tell the visitor the team will be in touch."}
