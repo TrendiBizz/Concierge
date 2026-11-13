@@ -79,3 +79,63 @@ shows the whole team with role selects and a Remove-access button that ends the 
   offers restore, restores — 0 JS errors.
 
 Test data (one contact, one spare user) deleted afterwards; the review workspace is back to empty.
+
+## 4. The rest of CRM capture, exercised against production (2026-11-13, evening)
+
+Not unit tests — signed requests to the live API, tenant `trendi-meta-review`, replies held off.
+
+| channel | what happened | result |
+|---|---|---|
+| Email | signed Cloudflare inbound payload to the tenant's registered mailbox | **captured**: case `email:capture.email@portability.test`, address source `email` |
+| Chat | `capture_lead` with an email | **was broken, now captured**: case created, address source `chat`, lead stamped with `case_id` |
+| Voice / caller ID | real calls, operator-confirmed | working; bridge AMI + stream paths covered by unit tests |
+| SMS | provider reports **none**; no Twilio token on the box | **cannot be exercised — not configured** |
+| Missed call | telephone receptionist disabled for the review tenant; no enabled numbers | **cannot be exercised — not configured** |
+
+Two of these are config, not code: SMS has no provider at all in production, and the missed-call
+recovery needs the receptionist enabled on a tenant with an active number. Both are recorded as open
+items; neither is claimed as verified.
+
+### Bug found by doing it: chat leads were never customers
+
+`tools._capture_lead` wrote a `leads` row and stopped. A visitor who gave their email in the chat
+became a lead with no customer case and no address — so when they emailed a week later they arrived
+as a stranger with a second history. It now reconciles the customer first (`source="chat"`) and
+stamps `leads.case_id`. Proven live: `lead -> customer {'case_key': 'email:chat.capture@portability.test',
+'source': 'chat'}` and unit-tested with a mutation check.
+
+### Operational note
+
+My chat probes sent five owner-alert emails to admin@trendibizz.com ("Chat enquiry for Trendi").
+Owner alerts are deliberately exempt from a paused tenant, so the hold did not stop them. Subsequent
+runs muted `notify_email`/`notify_phone` and restored them afterwards. Test rows (5 email drafts,
+leads, cases) deleted; the review workspace is back to empty.
+
+## 5. Per-button click-through (all 14 tabs)
+
+Every visible control on every tab, clicked where it does not send, publish, delete or pay; Escape
+after each; JS errors and 5xx recorded.
+
+```
+tab               controls  clicked  skipped  problems
+Home              1         0        1        none
+Setup             2         0        2        none
+Permissions       3         0        3        none
+Team              3         1        2        none
+Your CRM          5         2        3        none
+Enquiries         2         0        2        none
+Contacts          1         0        1        none
+Bookings          3         0        3        none
+Quotes            5         2        3        none
+Products          2         1        1        none
+Reports           1         0        1        none
+Social            11        1        10       none
+Marketing media   7         3        4        none
+Designs           2         0        2        none
+```
+
+**9 controls clicked, 0 failures, 0 JS errors, 0 5xx.** The honest reading is that the review
+workspace is empty: most screens only grow their controls once there are products, bookings and
+quotes in them, so this pass proved the empty states are sound rather than exercised the editing
+flows. A seeded pass — create a product, a booking and a quote through the screens, then click
+everything again — is the next action, not a claim made here.
