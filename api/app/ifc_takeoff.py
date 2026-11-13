@@ -15,11 +15,42 @@ import json
 import sys
 
 
+SQUARE_METRE_NAMES = {"SQUARE_METRE", "SQUARE_METER", "M2", "MÂ²"}
+
+
+def area_scale(model) -> float:
+    """Square metres per square file-unit.
+
+    Bonsai (Blender) writes millimetres by default, and a wall area of 112.5 m² is stored as
+    112,500,000. Reading that number as square metres turned a $6,000 quote into a $5 billion one.
+    Areas scale with the square of the length unit.
+    """
+    try:
+        import ifcopenshell.util.unit
+
+        length = float(ifcopenshell.util.unit.calculate_unit_scale(model))
+    except Exception:  # noqa: BLE001 - a model without units is assumed to be metres
+        return 1.0
+    if not length or length <= 0:
+        return 1.0
+    return length * length
+
+
+def quantity_area(quantity, scale: float) -> float:
+    """One IfcQuantityArea in square metres, honouring an explicit unit if it names one."""
+    value = float(quantity.AreaValue or 0)
+    unit = (getattr(quantity, "Unit", None) or "").strip().upper()
+    if unit in SQUARE_METRE_NAMES:
+        return value
+    return value * scale
+
+
 def measure(path: str) -> dict:
     """Return wall/opening areas for an IFC file. Raises if the model cannot be read."""
     import ifcopenshell
 
     model = ifcopenshell.open(path)
+    scale = area_scale(model)
     walls = list(model.by_type("IfcWall")) + list(model.by_type("IfcWallStandardCase"))
     gross = net = opening_area = 0.0
     for wall in walls:
@@ -33,7 +64,7 @@ def measure(path: str) -> dict:
                 if not quantity.is_a("IfcQuantityArea"):
                     continue
                 name = quantity.Name or ""
-                value = float(quantity.AreaValue or 0)
+                value = quantity_area(quantity, scale)
                 if "GrossSideArea" in name:
                     gross += value
                 elif "NetSideArea" in name:
@@ -48,13 +79,14 @@ def measure(path: str) -> dict:
                 continue
             for quantity in prop.Quantities or []:
                 if quantity.is_a("IfcQuantityArea"):
-                    opening_area += float(quantity.AreaValue or 0)
+                    opening_area += quantity_area(quantity, scale)
     note = "" if gross or net else (
         "This IFC has no wall area quantities. Measure manually or export quantities from the "
         "authoring tool."
     )
     return {
         "wall_count": len(walls),
+        "unit_area_scale": round(scale, 9),
         "gross_wall_area_m2": round(gross, 2),
         "net_wall_area_m2": round(net, 2),
         "opening_count": len(openings),
