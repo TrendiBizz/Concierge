@@ -112,13 +112,6 @@ async def _deliver(row: dict) -> None:
         await _finish(row["id"], "skipped", "tenant_deleted")
         return
 
-    # The owner switching Concierge off must stop messages reaching *their customers*. Alerts to
-    # the owner are deliberately not suppressed: a paused business still needs to know who tried
-    # to reach it, and the message itself is captured.
-    if row["kind"] not in OWNER_KINDS and await tenant_pause.is_paused(tenant):
-        await _finish(row["id"], "skipped", "tenant_paused")
-        return
-
     if row['kind'] == 'email_secretary_reply' and (not tenant.get('email_auto_reply') or not await channel_authorization.is_authorized(tenant['id'], 'email_read')):
         await _finish(row['id'], 'skipped', 'email_secretary_authorization_revoked')
         return
@@ -174,6 +167,15 @@ async def _deliver(row: dict) -> None:
                         row["id"], row["channel"], row["kind"], reason)
             await _finish(row["id"], "skipped", f"flood_guard:{reason}")
             return
+
+    # The owner switching Concierge off must stop messages reaching *their customers*. This sits
+    # after the specific checks so a suppressed address or a takeover still reports its own
+    # reason, and before the dispatch so nothing is actually sent.
+    # Owner alerts are deliberately exempt: a paused business still needs to know who tried to
+    # reach it, and the enquiry itself is captured.
+    if row["kind"] not in OWNER_KINDS and await tenant_pause.is_paused(tenant):
+        await _finish(row["id"], "skipped", "tenant_paused")
+        return
 
     if row["channel"] == "sms":
         if not sms.sender_ready(tenant):
