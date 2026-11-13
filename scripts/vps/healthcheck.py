@@ -110,6 +110,18 @@ def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: s
 
 # ---------------------------------------------------------------- individual checks
 
+def recently_started(name: str, minutes: int = 10) -> bool:
+    """True when the container began after `minutes` ago. Used to tell a deploy from an outage."""
+    code, out = run(["docker", "inspect", "-f", "{{.State.StartedAt}}", name], timeout=15)
+    if code != 0:
+        return False
+    try:
+        started = datetime.fromisoformat(out.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return (datetime.now(timezone.utc) - started) < timedelta(minutes=minutes)
+
+
 def check_containers() -> list[dict]:
     results = []
     code, out = run(["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"])
@@ -124,7 +136,13 @@ def check_containers() -> list[dict]:
         if state is None:
             results.append(_fail(f"container:{name}", "container missing"))
         elif requirement == "healthy" and "healthy" not in state:
-            results.append(_fail(f"container:{name}", state))
+            # A deploy restarts the api container; during those seconds it is "starting", not broken.
+            # That used to page as "[Concierge FAIL] container:trendi-api-1" every time we deployed.
+            if recently_started(name, minutes=10):
+                results.append(_warn(f"container:{name}",
+                                     f"{state} (restarted within 10 minutes, still warming)"))
+            else:
+                results.append(_fail(f"container:{name}", state))
         elif "Up" not in state:
             results.append(_fail(f"container:{name}", state))
         else:

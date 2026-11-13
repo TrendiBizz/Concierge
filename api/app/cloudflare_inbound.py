@@ -284,5 +284,8 @@ async def handle(request: Request) -> dict:
             auth=auth, risk=risk, flags=flags, envelope_from=envelope_from,
         )
     except (ValueError, TypeError, inbound_email.InboundError) as exc:
+        # The caller only ever sees a generic 400 by design, but without this line the reason was
+        # invisible to us too: debugging a live refusal meant reading code instead of logs.
+        log.warning("inbound email refused: %s", exc)
         raise HTTPException(400, "Invalid email payload") from exc
     return {"accepted": True, "draft_id": draft["id"]}

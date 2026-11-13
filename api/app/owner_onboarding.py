@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 log = logging.getLogger("concierge.onboarding")
 
-from . import channel_authorization, db, inbound_readiness, tenants
+from . import channel_authorization, db, inbound_readiness, reply_address, tenants
 from .config import get_settings
 
 
