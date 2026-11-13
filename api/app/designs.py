@@ -257,9 +257,14 @@ async def quote_from_design(design_id: UUID, body: QuoteFromDesign, user=Depends
     tax = int((Decimal(subtotal) * int(profile["tax_basis_points"]) / 10000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     title = "%s — %s" % (design["filename"].rsplit(".", 1)[0][:120], profile["name"][:60])
     notes = " ".join(measured["notes"])[:4000]
+    from . import billing
+
+    tenant_row = await pool.fetchrow("SELECT name,quote_valid_days FROM tenants WHERE id=$1", user["tenant_id"])
+    reference = await billing.next_reference(user["tenant_id"])
     quotation = await pool.fetchrow(
         "INSERT INTO quotations(tenant_id,lead_id,title,currency,tax_basis_points,lines,subtotal_cents,"
-        "tax_cents,total_cents,notes,contact) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb) "
+        "tax_cents,total_cents,notes,contact,reference,valid_until) "
+        "VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb,$12,$13) "
         "RETURNING *",
         user["tenant_id"], body.lead_id, title.strip(), profile["currency"],
         int(profile["tax_basis_points"]), json.dumps(lines), subtotal, tax, subtotal + tax, notes,

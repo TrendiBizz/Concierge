@@ -1017,3 +1017,17 @@ CREATE TABLE IF NOT EXISTS quote_profiles (
 );
 CREATE INDEX IF NOT EXISTS quote_profiles_tenant_idx ON quote_profiles(tenant_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS quote_profiles_one_default ON quote_profiles(tenant_id) WHERE is_default;
+
+-- A quotation a business can hand a customer must be a document: who issued it, their GST number,
+-- a reference, and how long the price stands. Without these a "quote" is a price on a screen.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS gst_number text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS nzbn text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_address text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_phone text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quote_terms text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quote_valid_days integer NOT NULL DEFAULT 30
+    CHECK (quote_valid_days BETWEEN 1 AND 365);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quote_sequence integer NOT NULL DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS reference text;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS valid_until date;
+CREATE UNIQUE INDEX IF NOT EXISTS quotations_reference_unique ON quotations(tenant_id, reference);

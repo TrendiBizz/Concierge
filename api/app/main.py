@@ -19,7 +19,7 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
@@ -2407,6 +2407,39 @@ class QuotePaymentAction(BaseModel):
 async def owner_revenue(days: int = 30, user: dict = Depends(owner_auth.current_user)):
     """What the AI brought in, in money, with the previous period beside it."""
     return await revenue.report(user["tenant_id"], days)
+
+
+class BusinessDetails(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1, max_length=160)
+    gst_number: str = Field(default='', max_length=32)
+    nzbn: str = Field(default='', max_length=32)
+    business_address: str = Field(default='', max_length=500)
+    business_phone: str = Field(default='', max_length=64)
+    quote_terms: str = Field(default='', max_length=4000)
+    quote_valid_days: int = Field(default=30, ge=1, le=365)
+
+
+@app.get("/owner/business")
+async def owner_business(user: dict = Depends(owner_auth.current_user)):
+    row = await db.pool().fetchrow(
+        'SELECT name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days '
+        'FROM tenants WHERE id=$1', user["tenant_id"])
+    return dict(row)
+
+
+@app.put("/owner/business")
+async def owner_business_update(body: BusinessDetails, user: dict = Depends(owner_auth.current_user)):
+    """The details every quotation prints: who issued it, their GST number, and how long it holds."""
+    owner_auth.require_role(user, "editor")
+    row = await db.pool().fetchrow(
+        'UPDATE tenants SET name=$2, gst_number=$3, nzbn=$4, business_address=$5, business_phone=$6, '
+        'quote_terms=$7, quote_valid_days=$8 WHERE id=$1 '
+        'RETURNING name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days',
+        user["tenant_id"], body.name.strip(), body.gst_number.strip(), body.nzbn.strip(),
+        body.business_address.strip(), body.business_phone.strip(), body.quote_terms.strip(),
+        body.quote_valid_days)
+    return dict(row)
 
 
 @app.get("/owner/payment-settings")

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import db, outbox, owner_auth, quote_payments
+from . import billing, db, outbox, owner_auth, quote_payments
 from .config import get_settings
 from urllib.parse import urlsplit
 
@@ -81,11 +81,16 @@ async def create(body: QuoteDraft, user=Depends(owner_auth.current_user)):
     lead = await db.pool().fetchrow('SELECT id,name,email,phone FROM leads WHERE tenant_id=$1 AND id=$2', user['tenant_id'], body.lead_id)
     if not lead:
         raise HTTPException(404, 'Enquiry not found')
+    tenant = await db.pool().fetchrow(
+        'SELECT name,quote_valid_days FROM tenants WHERE id=$1', user['tenant_id'])
+    reference = await billing.next_reference(user['tenant_id'])
     row = await db.pool().fetchrow(
-        'INSERT INTO quotations(tenant_id,lead_id,title,currency,tax_basis_points,lines,subtotal_cents,tax_cents,total_cents,notes,contact) '
-        'VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb) RETURNING *',
+        'INSERT INTO quotations(tenant_id,lead_id,title,currency,tax_basis_points,lines,subtotal_cents,'
+        'tax_cents,total_cents,notes,contact,reference,valid_until) '
+        'VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb,$12,$13) RETURNING *',
         user['tenant_id'], body.lead_id, body.title.strip(), body.currency, body.tax_basis_points,
-        json.dumps(lines), subtotal, tax, total, body.notes, json.dumps(dict(lead), default=str))
+        json.dumps(lines), subtotal, tax, total, body.notes, json.dumps(dict(lead), default=str),
+        reference, billing.valid_until(dict(tenant) if tenant else {}))
     return view(row)
 
 
@@ -320,7 +325,12 @@ async def print_view(quote_id: UUID, user=Depends(owner_auth.current_user)):
     if not row:
         raise HTTPException(404, 'Quotation not found')
     quote = view(row)
-    tenant = await db.pool().fetchrow('SELECT name,site_url FROM tenants WHERE id=$1', user['tenant_id'])
+    tenant = await db.pool().fetchrow(
+        'SELECT name,site_url,gst_number,nzbn,business_address,business_phone,quote_terms FROM tenants WHERE id=$1',
+        user['tenant_id'])
+    issuer = billing.details(dict(tenant) if tenant else {})
+    issuer_line = ' · '.join(part for part in (issuer['address'], issuer['phone'],
+                        ('GST ' + issuer['gst_number']) if issuer['gst_number'] else '') if part)
     brand = await db.pool().fetchrow('SELECT name,accent,contact,logo_data FROM media_brand WHERE tenant_id=$1', user['tenant_id'])
     brand = dict(brand) if brand else {}
     name = html.escape((brand.get('name') or (tenant['name'] if tenant else '') or 'Quotation'))
@@ -356,6 +366,7 @@ th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{fo
 <tr><td>Tax</td><td class="num">{cash(quote['tax_cents'])}</td></tr>
 <tr class="grand"><td>Total</td><td class="num">{cash(quote['total_cents'])}</td></tr></table>
 {('<p><strong>Notes</strong><br>' + html.escape(quote['notes']).replace(chr(10), '<br>') + '</p>') if quote.get('notes') else ''}
+{('<div class="terms" style="margin-top:28px"><h2 style="font-size:15px">Terms</h2><p class="muted" style="white-space:pre-wrap;font-size:13px">' + html.escape(issuer['terms']) + '</p></div>') if issuer['terms'] else ''}
 <footer>{name} · Quotation {html.escape(str(quote['id']))[:8]} · Prices in {currency}. This quotation is a draft until reviewed and signed off by the business owner.</footer>
 <p class="no-print"><button onclick="window.print()">Print / Save as PDF</button></p>
 </div></body></html>"""
@@ -369,8 +380,18 @@ async def public_quote(token: str):
         raise HTTPException(404, 'Quotation not found')
     quote = view(row)
     tenant = await db.pool().fetchrow(
-        'SELECT id,name,site_url,payment_instructions,payment_url FROM tenants WHERE id=$1',
+        'SELECT id,name,site_url,payment_instructions,payment_url,gst_number,nzbn,business_address,'
+        'business_phone,quote_terms,quote_valid_days FROM tenants WHERE id=$1',
         quote['tenant_id'])
+    issuer = billing.details(dict(tenant) if tenant else {})
+    expired = billing.is_expired(quote.get('valid_until'))
+    issuer_lines = [issuer['name']] + [value for value in
+                    (issuer['address'], issuer['phone'],
+                     ('GST ' + issuer['gst_number']) if issuer['gst_number'] else '',
+                     ('NZBN ' + issuer['nzbn']) if issuer['nzbn'] else '') if value]
+    issuer_html = '<br>'.join(html.escape(part) for part in issuer_lines)
+    reference_html = ('<p class="muted">Ref ' + html.escape(quote['reference']) + '</p>'
+                      if quote.get('reference') else '')
     brand = await db.pool().fetchrow('SELECT name,accent,contact,logo_data FROM media_brand WHERE tenant_id=$1', quote['tenant_id'])
     brand = dict(brand) if brand else {}
     name = html.escape(brand.get('name') or (tenant['name'] if tenant else '') or 'Quotation')
@@ -385,7 +406,11 @@ async def public_quote(token: str):
         f"<td class='num'>{cash(line['unit_price_cents'])}</td><td class='num'>{cash(line['amount_cents'])}</td></tr>"
         for line in quote['lines'])
     status = quote['status']
-    if status == 'reviewed':
+    if expired:
+        actions = ('<p><strong>This quotation has expired.</strong> Prices are held until '
+                   + html.escape(str(quote.get('valid_until'))) + '. Ask for an updated quote.</p>')
+        note = ''
+    elif status == 'reviewed':
         actions = f"""<form method="post" action="/quote/{html.escape(token)}/accept" style="display:inline">
 <button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Accept quotation</button></form>
 <form method="post" action="/quote/{html.escape(token)}/decline" style="display:inline;margin-left:8px">
@@ -430,25 +455,34 @@ th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{fo
 .pay{{margin-top:24px;padding:20px;border-radius:12px;background:#f6f8fa}} .pay h2{{margin:0 0 8px;font-size:18px}}
 </style></head><body><div class="page">
 <header><div>{logo_tag}<h1>{html.escape(quote['title'])}</h1><p class="muted">{name}{(' · ' + contact) if contact else ''}</p></div>
-<div class="muted">{quote['created_at']:%d %b %Y}<br>Version {quote['version']}</div></header>
+<div class="muted">{quote['created_at']:%d %b %Y}<br>Version {quote['version']}{('<br>Ref ' + html.escape(quote['reference'])) if quote.get('reference') else ''}</div></header>
+<p class="muted" style="font-size:13px">{issuer_html}</p>
 <p><strong>Prepared for:</strong> {html.escape(str(quote.get('contact', {}).get('name') or quote.get('contact', {}).get('email') or 'Customer'))}</p>
+{('<p><strong>Valid until:</strong> ' + quote['valid_until'].strftime('%d %b %Y') + '</p>') if quote.get('valid_until') else ''}
 <table><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody>{lines}</tbody></table>
 <table class="totals"><tr><td>Subtotal</td><td class="num">{cash(quote['subtotal_cents'])}</td></tr>
 <tr><td>Tax</td><td class="num">{cash(quote['tax_cents'])}</td></tr>
 <tr class="grand"><td>Total</td><td class="num">{cash(quote['total_cents'])}</td></tr></table>
 {('<p><strong>Notes</strong><br>' + html.escape(quote['notes']).replace(chr(10), '<br>') + '</p>') if quote.get('notes') else ''}
 <div class="actions">{actions}<p class="muted">{html.escape(note)}</p></div>
+{('<div class="terms" style="margin-top:28px;padding-top:18px;border-top:1px solid #e3e7ec">'
+          '<h2 style="font-size:15px;margin:0 0 6px">Terms</h2>'
+          '<p class="muted" style="white-space:pre-wrap;font-size:13px">' + html.escape(issuer['terms']) + '</p></div>')
+    if issuer['terms'] else ''}
 {payment_block}
 </div></body></html>"""
     return HTMLResponse(document)
 
 
 async def _decide(token: str, status: str):
-    row = await db.pool().fetchrow('SELECT id,status FROM quotations WHERE public_token=$1', token)
+    row = await db.pool().fetchrow(
+        'SELECT id,status,valid_until FROM quotations WHERE public_token=$1', token)
     if not row:
         raise HTTPException(404, 'Quotation not found')
     if row['status'] != 'reviewed':
         raise HTTPException(409, 'This quotation is no longer available')
+    if billing.is_expired(row['valid_until']):
+        raise HTTPException(409, 'This quotation has expired — ask for an updated one')
     column = 'accepted_at' if status == 'accepted' else 'declined_at'
     await db.pool().execute(
         f'UPDATE quotations SET status=$2, {column}=now(), version=version+1, updated_at=now() WHERE id=$1',

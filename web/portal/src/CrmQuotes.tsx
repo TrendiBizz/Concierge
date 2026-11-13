@@ -112,10 +112,12 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
   const [brief, setBrief] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [pay, setPay] = useState<{instructions?: string; url?: string; summary?: Record<string, number>}>({});
+  const [biz, setBiz] = useState<{name?: string; gst_number?: string; nzbn?: string; business_address?: string; business_phone?: string; quote_terms?: string; quote_valid_days?: number}>({});
 
   async function load() {
     try {
-      const [q, c, p, me, payment] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me'), api('/owner/payment-settings')]);
+      const [q, c, p, me, payment, business] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me'), api('/owner/payment-settings'), api('/owner/business')]);
+      setBiz(business as typeof biz);
       setQuotes(q as Quote[]);
       setPay(payment as {instructions?: string; url?: string; summary?: Record<string, number>});
       setLeads(((c as {leads?: Lead[]}).leads || []) as Lead[]);
@@ -199,6 +201,22 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save payment details'); }
   }
 
+  async function saveBusiness() {
+    try {
+      await api('/owner/business', 'PUT', {
+        name: biz.name || '',
+        gst_number: biz.gst_number || '',
+        nzbn: biz.nzbn || '',
+        business_address: biz.business_address || '',
+        business_phone: biz.business_phone || '',
+        quote_terms: biz.quote_terms || '',
+        quote_valid_days: Number(biz.quote_valid_days) || 30,
+      });
+      setStatus('Business details saved. Every quotation now prints them, with a reference and a valid-until date.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save business details'); }
+  }
+
   async function confirmPayment(id: string, action: 'confirm' | 'waive') {
     try {
       await api('/owner/crm/quotations/' + id + '/payment', 'POST', {action});
@@ -258,6 +276,18 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
           <Button label="Add line" variant="ghost" onClick={() => setLines([...lines, {description: '', quantity: '1', price: ''}])} />
           <TextArea label="Notes" value={notes} onChange={setNotes} rows={3} />
           <Button label={busy ? 'Saving…' : 'Save quotation'} variant="primary" onClick={save} />
+        </Card>
+        <Card>
+          <Heading level={2}>Your business details</Heading>
+          <p>These print on every quotation you send, along with a reference number and a valid-until date. A GST-registered business must show its GST number.</p>
+          <TextInput label="Trading name" value={biz.name || ''} onChange={(v) => setBiz({...biz, name: v})} />
+          <TextInput label="GST number" value={biz.gst_number || ''} onChange={(v) => setBiz({...biz, gst_number: v})} />
+          <TextInput label="NZBN (optional)" value={biz.nzbn || ''} onChange={(v) => setBiz({...biz, nzbn: v})} />
+          <TextInput label="Address" value={biz.business_address || ''} onChange={(v) => setBiz({...biz, business_address: v})} />
+          <TextInput label="Phone" value={biz.business_phone || ''} onChange={(v) => setBiz({...biz, business_phone: v})} />
+          <TextInput label="Quote valid for (days)" value={String(biz.quote_valid_days ?? 30)} onChange={(v) => setBiz({...biz, quote_valid_days: Number(v) || 30})} />
+          <TextArea label="Terms and conditions (shown under every quote)" value={biz.quote_terms || ''} onChange={(v) => setBiz({...biz, quote_terms: v})} rows={4} />
+          <Button label="Save business details" variant="primary" onClick={saveBusiness} />
         </Card>
         <Card>
           <Heading level={2}>Getting paid</Heading>
