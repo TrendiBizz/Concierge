@@ -136,6 +136,13 @@ A configured channel still needs Trendi's verification before it is activated.</
 <label for="phone-owner">Your contact number (with country code)</label><input id="phone-owner" type="tel" required pattern="\+[1-9][0-9]{6,14}">
 <p class="muted">Use an account and number you already have. No new service or number is ordered. Trendi checks whether your existing service supports AI call routing; mobile-only plans may need a forwarding destination. Text messaging is checked separately. Saving does not change your current phone service.</p>
 <button type="submit">Save phone setup</button></form><div id="mobile-connection" aria-live="polite"></div><div id="numbers"></div></section>
+<section class="panel" id="push-panel"><h2>Phone alerts</h2>
+<p class="muted">Get an instant notification on this device when a customer calls, texts or emails. It needs no SIM and no extra app: it works through this page. Email alerts continue as a backup.</p>
+<p id="push-status" aria-live="polite">Checking this device...</p>
+<button id="push-enable" type="button" hidden>Turn on alerts on this device</button>
+<button id="push-test" class="secondary" type="button" hidden>Send a test alert</button>
+<button id="push-disable" class="secondary" type="button" hidden>Turn off alerts on this device</button>
+</section>
 <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
 </div>
 </details>
@@ -1153,6 +1160,59 @@ document.addEventListener("DOMContentLoaded",()=>{
   bind("media-save-brand",saveMediaBrand); bind("media-image",generateMediaImage);
   bind("media-video",generateMediaVideo); bind("media-ai",generateMediaAi);
 });
+
+/* ---- Phone alerts (Web Push) ---- */
+(function(){
+ const el=id=>document.getElementById(id);
+ const status=el("push-status"),enable=el("push-enable"),test=el("push-test"),disable=el("push-disable");
+ if(!status)return;
+ const supported="serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+ const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+ const standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+ const iosHelp="To get alerts on an iPhone or iPad, add this page to your Home Screen first (Share, then Add to Home Screen), then open it from there.";
+ function show(text,buttons){status.textContent=text;enable.hidden=!buttons.includes("enable");test.hidden=!buttons.includes("test");disable.hidden=!buttons.includes("disable");}
+ function keyBytes(value){const pad="=".repeat((4-value.length%4)%4);const raw=atob((value+pad).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(raw,c=>c.charCodeAt(0));}
+ async function currentSubscription(){const reg=await navigator.serviceWorker.getRegistration("/owner-ui");return reg?await reg.pushManager.getSubscription():null;}
+ async function refreshPush(){
+  if(ios&&!standalone){show(iosHelp,[]);return;}
+  if(!supported){show("This browser cannot show alerts. Use a current Chrome, Edge, Firefox or Safari, or add this page to your Home Screen.",[]);return;}
+  if(Notification.permission==="denied"){show("Notifications are blocked for this site. Allow them in your browser or phone settings, then reload this page.",[]);return;}
+  try{const sub=await currentSubscription();show(sub?"Alerts are on for this device.":"Alerts are off for this device.",sub?["test","disable"]:["enable"]);}
+  catch(error){show("Could not check this device.",["enable"]);}
+ }
+ enable.onclick=async()=>{
+  try{
+   show("Turning on...",[]);
+   const permission=await Notification.requestPermission();
+   if(permission!=="granted"){show("Permission was not given, so alerts stay off.",["enable"]);return;}
+   const reg=await navigator.serviceWorker.register("/owner-sw.js",{scope:"/owner-ui"});
+   await navigator.serviceWorker.ready;
+   const key=await request("/owner/push/key");
+   let sub=await reg.pushManager.getSubscription();
+   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(key.public_key)});
+   const json=sub.toJSON();
+   await request("/owner/push/subscribe","POST",{endpoint:json.endpoint,keys:json.keys,user_agent:navigator.userAgent.slice(0,300)});
+   show("Alerts are on for this device.",["test","disable"]);
+  }catch(error){show("Could not turn on alerts: "+((error&&error.message)||"unknown error"),["enable"]);}
+ };
+ test.onclick=async()=>{
+  try{
+   const sub=await currentSubscription();
+   if(!sub){await refreshPush();return;}
+   const result=await request("/owner/push/test","POST",{endpoint:sub.endpoint});
+   show(result.sent?"Test alert sent. It should appear on this device within a few seconds.":(result.note||"The test alert could not be sent."),["test","disable"]);
+  }catch(error){show("Could not send the test: "+((error&&error.message)||"unknown error"),["test","disable"]);}
+ };
+ disable.onclick=async()=>{
+  try{
+   const sub=await currentSubscription();
+   if(sub){await request("/owner/push/unsubscribe","POST",{endpoint:sub.endpoint}).catch(()=>{});await sub.unsubscribe();}
+   show("Alerts are off for this device.",["enable"]);
+  }catch(error){show("Could not turn off alerts: "+((error&&error.message)||"unknown error"),["disable"]);}
+ };
+ window.refreshPush=refreshPush;
+ refreshPush();
+})();
 </script>
 </body>
 </html>

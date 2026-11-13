@@ -1,5 +1,6 @@
 """Business-specific operational notices, atomically queued with CRM changes."""
-from . import channel_authorization, db
+import asyncio
+from . import channel_authorization, db, webpush
 from .contact import is_email, normalize_phone
 from .config import get_settings
 import re
@@ -52,4 +53,18 @@ async def queue(tenant, subject, body, dedupe, *, lead_id=None, connection=None)
             "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
             tenant['id'], channel, recipient, subject, sms_body(subject, body) if channel == "sms" else body,
             dedupe + (':sms' if channel == 'sms' else ''), lead_id)
+    _spawn_push(tenant, subject, body, dedupe)
     return [channel for channel, _ in destinations]
+
+
+_push_tasks: set = set()
+
+
+def _spawn_push(tenant, subject, body, dedupe) -> None:
+    """Also push the alert to the owner's devices, in the background so it never delays or fails the alert."""
+    try:
+        task = asyncio.get_running_loop().create_task(webpush.notify(tenant, subject, body, dedupe))
+        _push_tasks.add(task)
+        task.add_done_callback(_push_tasks.discard)
+    except Exception:  # noqa: BLE001 - no running loop (a script or a test): there is nothing to push from
+        pass

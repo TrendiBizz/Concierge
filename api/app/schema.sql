@@ -912,3 +912,16 @@ ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS failure_reason text NOT NULL DE
 -- Session 19: opt-in acknowledgement (with a reference) for verified inbound email.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inbound_ack boolean NOT NULL DEFAULT false;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inbound_ack_text text;
+-- Session 19: Web Push subscriptions for owner alerts (installed portal).
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          bigserial PRIMARY KEY,
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    endpoint    text NOT NULL UNIQUE,
+    p256dh      text NOT NULL,
+    auth        text NOT NULL,
+    user_agent  text NOT NULL DEFAULT '',
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    last_ok_at  timestamptz,
+    failures    integer NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_tenant_idx ON push_subscriptions (tenant_id);

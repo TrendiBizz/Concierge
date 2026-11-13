@@ -1958,6 +1958,59 @@ async def owner_me(user: dict = Depends(owner_auth.current_user)):
     return {"email": user["email"], "role": user["role"], "tenant": user["slug"]}
 
 
+from . import webpush  # noqa: E402 - Web Push for owner alerts (installed portal)
+
+
+class PushKeys(BaseModel):
+    p256dh: str = Field(min_length=20, max_length=200)
+    auth: str = Field(min_length=8, max_length=100)
+
+
+class PushSubscribe(BaseModel):
+    endpoint: str = Field(min_length=20, max_length=1000)
+    keys: PushKeys
+    user_agent: str = Field(default="", max_length=300)
+
+
+class PushEndpoint(BaseModel):
+    endpoint: str = Field(min_length=20, max_length=1000)
+
+
+@app.get("/owner-sw.js", include_in_schema=False)
+async def owner_service_worker():
+    """The owner page's alert worker. Served from the root so it can control /owner-ui."""
+    return FileResponse(STATIC_DIR / "owner-sw.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/owner/push/key")
+async def owner_push_key(user: dict = Depends(owner_auth.current_user)):
+    if not webpush.configured():
+        raise HTTPException(503, "Phone alerts are not set up on this server yet")
+    return {"public_key": settings.vapid_public_key}
+
+
+@app.post("/owner/push/subscribe", status_code=201)
+async def owner_push_subscribe(body: PushSubscribe, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if not webpush.allowed_endpoint(body.endpoint):
+        raise HTTPException(400, "That device's push service is not supported")
+    await webpush.save(user["tenant_id"], body.endpoint, body.keys.p256dh, body.keys.auth, body.user_agent)
+    return {"subscribed": True}
+
+
+@app.post("/owner/push/unsubscribe")
+async def owner_push_unsubscribe(body: PushEndpoint, user: dict = Depends(owner_auth.current_user)):
+    await webpush.remove(user["tenant_id"], body.endpoint)
+    return {"subscribed": False}
+
+
+@app.post("/owner/push/test", status_code=202)
+async def owner_push_test(body: PushEndpoint, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await webpush.send_test(user["tenant_id"], body.endpoint)
+
+
 @app.get("/owner/channel-health")
 async def owner_channel_health(user: dict = Depends(owner_auth.current_user)):
     """Plain status of email alerts, the SMS phone and voice calls for this business."""
