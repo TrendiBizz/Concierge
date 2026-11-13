@@ -301,6 +301,33 @@ def check_sidecar(api_env: dict) -> list[dict]:
             else _fail("email-auth:health", out[:160] or "unreachable")]
 
 
+def check_sms_inbound() -> list[dict]:
+    """Is the paired phone actually delivering texts *into* the platform?
+
+    Outbound texts working proves nothing about inbound: the phone polls our queue either way. A
+    device whose `inbound_verified_at` is empty has never once delivered a text to us, so a customer
+    replying to a message would be talking to nobody — and that is invisible unless we say so.
+    """
+    sql = ("SELECT count(*) FILTER (WHERE enabled) AS enabled, "
+           "count(*) FILTER (WHERE enabled AND inbound_verified_at IS NULL) AS never_verified "
+           "FROM sms_devices")
+    rc, out, err = sh(["docker", "exec", "trendi-postgres-1", "psql", "-U", "concierge", "-d",
+                       "concierge", "-At", "-c", sql])
+    if rc != 0:
+        return [_fail("sms:inbound", f"could not read sms_devices: {err.strip()[:80]}")]
+    try:
+        enabled, never = (int(part) for part in out.strip().split("|"))
+    except ValueError:
+        return [_fail("sms:inbound", f"unexpected output: {out.strip()[:80]}")]
+    if not enabled:
+        return [_ok("sms:inbound", "no paired phone in use")]
+    if never:
+        return [_fail("sms:inbound",
+                      f"{never} of {enabled} paired phone(s) have never delivered a text in; "
+                      "send one text to the business number to prove the reply path")]
+    return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
+
+
 def check_tls() -> list[dict]:
     import socket
     results = []
@@ -475,6 +502,10 @@ def main() -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
+    try:
+        results.extend(check_sms_inbound())
+    except Exception as exc:  # noqa: BLE001
+        results.append(_fail("check:check_sms_inbound", str(exc)[:200]))
 
     now = datetime.now(timezone.utc)
     state = load_state()
