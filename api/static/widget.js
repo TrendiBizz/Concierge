@@ -764,6 +764,28 @@
   // a page with no chat and no explanation, and the business never knew. Retry briefly instead, and
   // when the visitor is meant to be chatting with us right now (our hosted page), say so.
   var ATTEMPTS = [0, 900, 2500, 6000];
+  // The zone throttles /api/v1/* hard (measured: ~3 requests per 10 seconds per IP), so a visitor
+  // reloading the page used to be the visitor getting blocked. Cache the config for the session.
+  var CACHE_KEY = "cc.cfg." + KEY;
+  function cachedConfig() {
+    try {
+      var raw = sessionStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      var held = JSON.parse(raw);
+      if (!held || !held.at || Date.now() - held.at > 300000) return null;
+      return held.cfg;
+    } catch (e) { return null; }
+  }
+  function rememberConfig(cfg) {
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({at: Date.now(), cfg: cfg})); } catch (e) {}
+  }
+  function start(cfg) {
+    if (!cfg) return;
+    if (document.body) boot(cfg);
+    else document.addEventListener("DOMContentLoaded", function () { boot(cfg); });
+  }
+  var held = cachedConfig();
+  if (held) { start(held); return; }
   function attempt(n) {
     fetch(API + "/api/v1/widget-config?key=" + encodeURIComponent(KEY), {cache: "no-store"})
       .then(function (r) {
@@ -771,8 +793,8 @@
       })
       .then(function (cfg) {
         if (!cfg) return;
-        if (document.body) boot(cfg);
-        else document.addEventListener("DOMContentLoaded", function () { boot(cfg); });
+        rememberConfig(cfg);
+        start(cfg);
       })
       .catch(function () {
         if (n + 1 < ATTEMPTS.length) {
