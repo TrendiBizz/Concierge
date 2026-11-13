@@ -175,7 +175,7 @@ def test_recovery_queues_one_sms_and_records_the_decision(monkeypatch):
     assert result["action"] == "text"
     assert queued["channel"] == "sms" and queued["kind"] == "missed_call"
     assert queued["to"] == "+64211234567"
-    assert queued["dedupe"] == f"missed:t1:+64211234567:{NOW.strftime('%Y%m%d')}"
+    assert queued["dedupe"] == f"missed:t1:+64211234567:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
     assert captured["channel"] == "phone" and captured["phone"] == "+64211234567"
     assert captured["source"] == "missed:sip:abc"
     # The decision row is written with the outbox link so the owner sees what was sent.

@@ -152,9 +152,25 @@ async def receipt(body: Receipt, device: dict = Depends(device_auth)):
             "SELECT status,receipt FROM device_sms_jobs WHERE id=$1 AND tenant_id=$2 AND device_id=$3",
             body.job_id, device["tenant_id"], device["id"],
         )
-        if not previous or previous["status"] != body.status or previous["receipt"] != body.receipt:
-            raise HTTPException(409, "Receipt does not match a claimed phone job")
-        return {"ok": True}
+        if not previous:
+            # Not a job of this device (for example after a data reset). Acknowledge so the connector can
+            # drop it: refusing made it retry the same receipt forever and never ask for new work again
+            # (the connector was stuck from 2026-11-11 until this was changed).
+            return {"ok": False, "note": "Unknown phone job; receipt ignored"}
+        if previous["status"] == body.status and previous["receipt"] == body.receipt:
+            return {"ok": True}
+        if previous["status"] == "uncertain" and body.status in ("sent", "failed"):
+            # A late, device-verified result for a job the server gave up on after the 5 minute claim window.
+            # That is exactly the evidence reconciliation needs, so apply it. Nothing is ever sent again.
+            row = await db.pool().fetchrow(
+                """UPDATE device_sms_jobs SET status=$4,receipt=$5,finished_at=COALESCE(finished_at,now())
+                   WHERE id=$1 AND tenant_id=$2 AND device_id=$3 AND status='uncertain' RETURNING outbox_id""",
+                body.job_id, device["tenant_id"], device["id"], body.status, body.receipt,
+            )
+        if not row:
+            # Already finalised another way (cancelled, failed, a different verdict): keep the server's record
+            # and tell the connector to stop retrying.
+            return {"ok": True, "state": previous["status"], "note": "Job already finalised; receipt not applied"}
     if row["outbox_id"]:
         await db.pool().execute(
             """UPDATE outbox SET status=$3,last_error=$4,
