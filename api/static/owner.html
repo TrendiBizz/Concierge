@@ -1185,7 +1185,7 @@ document.addEventListener("DOMContentLoaded",()=>{
    show("Turning on...",[]);
    const permission=await Notification.requestPermission();
    if(permission!=="granted"){show("Permission was not given, so alerts stay off.",["enable"]);return;}
-   const reg=await navigator.serviceWorker.register("/owner-sw.js",{scope:"/owner-ui"});
+   const reg=await navigator.serviceWorker.register("/owner/sw.js",{scope:"/owner-ui"});
    await navigator.serviceWorker.ready;
    const key=await request("/owner/push/key");
    let sub=await reg.pushManager.getSubscription();

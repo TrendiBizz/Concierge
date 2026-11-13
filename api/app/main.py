@@ -1976,11 +1976,13 @@ class PushEndpoint(BaseModel):
     endpoint: str = Field(min_length=20, max_length=1000)
 
 
-@app.get("/owner-sw.js", include_in_schema=False)
+@app.get("/owner/sw.js", include_in_schema=False)
 async def owner_service_worker():
-    """The owner page's alert worker. Served from the root so it can control /owner-ui."""
+    """The owner page's alert worker. Served under /owner/ (the only prefix the public proxy forwards)
+    and allowed to control /owner-ui, which a worker at this path could not otherwise do."""
     return FileResponse(STATIC_DIR / "owner-sw.js", media_type="application/javascript",
-                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff",
+                                 "Service-Worker-Allowed": "/owner-ui"})
 
 
 @app.get("/owner/push/key")
