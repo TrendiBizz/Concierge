@@ -93,3 +93,13 @@ def test_a_long_email_thread_does_not_donate_someone_elses_number():
 
     body = "Please call me.\n\nOn Tue, Sam wrote:\n> ring the office on 09 555 0000"
     assert extract_details(body, "64", allow_phone=False)["phone"] == ""
+
+
+def test_a_business_name_is_kept_when_the_phrase_is_not_used():
+    from app.identity import extract_details
+
+    found = extract_details("Can you come out Monday morning? Hutt Plumbing\nMaria", "64")
+    assert found["company"] == "Hutt Plumbing", "a bare business name was not captured"
+    assert found["name"] == "Maria"
+    # Ordinary prose must not become a company.
+    assert extract_details("the plumbing is old and leaking", "64")["company"] == ""

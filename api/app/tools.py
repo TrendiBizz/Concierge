@@ -112,7 +112,10 @@ TOOL_SPECS: list[dict] = [
         "parameters": {
             "type": "object",
             "properties": {
-                "start": {"type": "string", "description": "Local start time, e.g. 2026-11-05 14:30"},
+                "start": {"type": "string",
+                          "description": ("Local start time, e.g. 2026-11-05 14:30. Copy one of the "
+                                          "slot_starts values returned by check_availability, which "
+                                          "already include the date.")},
                 "name": {"type": "string"},
                 "phone": {"type": "string"},
                 "email": {"type": "string"},

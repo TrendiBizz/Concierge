@@ -88,3 +88,20 @@ def test_booking_creates_the_customer_and_links_the_lead(monkeypatch):
     if timeline.await_count:
         assert timeline.await_args.kwargs["source_key"].startswith("appointment:"), \
             "the booking history entry is not tied to the appointment"
+
+
+def test_availability_returns_a_start_value_that_can_be_booked(monkeypatch):
+    """The times offered must be usable as `start`, complete with the date."""
+    from datetime import date
+
+    async def fake_slots(tenant, day, conn=None):
+        return [datetime(2026, 11, 15, 21, 0, tzinfo=timezone.utc)]  # 10:00 NZDT on the 16th
+
+    monkeypatch.setattr(booking, "_slots_on", fake_slots)
+    monkeypatch.setattr(booking, "db", SimpleNamespace(pool=lambda: SimpleNamespace(
+        fetchrow=AsyncMock(return_value=None))))
+    day = (date.today() + __import__("datetime").timedelta(days=1)).isoformat()
+    result = asyncio.run(booking.availability(TENANT, day))
+    assert result["slot_starts"], "availability returned no bookable start values"
+    assert result["slot_starts"][0].count(" ") == 1, "the start value is missing its date"
+    assert result["slot_starts"][0].endswith("10:00")

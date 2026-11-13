@@ -88,6 +88,9 @@ async def availability(tenant: dict, date_str: str) -> dict:
             "weekday": day.strftime("%A"),
             "timezone": tenant["timezone"],
             "slots": [s.astimezone(tz).strftime("%H:%M") for s in slots][:12],
+            # Ready to pass straight back as booking's `start`: the assistant has been known to send
+            # just "09:00", which cannot be booked because it carries no date.
+            "slot_starts": [s.astimezone(tz).strftime("%Y-%m-%d %H:%M") for s in slots][:12],
             "slot_minutes": tenant["slot_minutes"],
         }
 

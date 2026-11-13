@@ -28,6 +28,15 @@ _COMPANY = re.compile(
     r"(?:\s+(?:Ltd|Limited|LLC|Inc|Group|Construction|Builders|Building|Plumbing|"
     r"Electrical|Design|Studio|Agency|Consulting|Services|Solutions)))\b")
 
+# A bare business name, without "from/at/with": "Hutt Plumbing", "Acme Builders Ltd". Only the
+# words that mark a business are accepted, and the name in front must be capitalised, so a phrase
+# like "the plumbing is old" cannot become a company called "The Plumbing".
+_COMPANY_BARE = re.compile(
+    r"\b([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,3}\s+"
+    r"(?:Ltd|Limited|LLC|Inc|Group|Co|Company|Construction|Builders|Building|Plumbing|Electrical|"
+    r"Joinery|Roofing|Landscaping|Painting|Contracting|Contractors|Services|Solutions|Engineering|"
+    r"Design|Studio|Agency|Consulting|Enterprises|Holdings|Partners|Associates))\b")
+
 _NOT_A_NAME = {
     "interested", "looking", "after", "sorry", "just", "having", "trying", "thinking", "wondering",
     "keen", "based", "working", "planning", "hoping", "writing", "following", "in", "on", "at",
@@ -76,4 +85,8 @@ def extract_details(text: str, default_cc: str = "", *, allow_phone: bool = True
     match = _COMPANY.search(body)
     if match:
         found["company"] = match.group(1)[:120]
+    if not found["company"]:
+        match = _COMPANY_BARE.search(body)
+        if match:
+            found["company"] = match.group(1)[:120]
     return found
