@@ -108,7 +108,10 @@ async def import_contacts(tenant_id, rows: list[dict], default_cc: str = "1") ->
         try:
             case = await casetimeline.reconcile(
                 tenant_id, phone=row.get("phone", ""), email=row.get("email", ""),
-                name=row.get("name", ""), default_cc=default_cc)
+                name=row.get("name", ""), default_cc=default_cc,
+                # Says where it came from, so the owner can tell an imported record from one the
+                # customer gave us themselves.
+                source="import")
         except Exception as exc:  # one bad row must not abandon the whole file
             skipped.append({"row": row, "reason": str(exc)[:120]})
             continue

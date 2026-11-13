@@ -146,3 +146,21 @@ def test_merging_two_cases_carries_their_addresses():
             await pool.close()
             db._pool = None
     asyncio.run(run())
+
+
+def test_an_imported_address_says_it_came_from_the_import():
+    async def run():
+        pool = await _fresh_pool()
+        db._pool = pool
+        try:
+            t = await pool.fetchval(
+                "INSERT INTO tenants (slug, name, public_key) VALUES ($1,$2,$3) RETURNING id",
+                "acme", "Acme", "pk_" + uuid.uuid4().hex[:8])
+            await casetimeline.reconcile(t, phone="+64210888999", default_cc="64", source="import")
+            row = await pool.fetchrow(
+                "SELECT source FROM customer_addresses WHERE tenant_id=$1", t)
+            assert row["source"] == "import", "an imported address claimed a different origin"
+        finally:
+            await pool.close()
+            db._pool = None
+    asyncio.run(run())
