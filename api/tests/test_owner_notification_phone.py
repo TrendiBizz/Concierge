@@ -7,7 +7,11 @@ from app.tenants import CLONE_FIELDS, UPDATABLE_FIELDS
 def test_owner_phone_requires_explicit_international_destination():
     assert OwnerBusinessProfile(notify_phone="+64211234567").notify_phone == "+64211234567"
     assert OwnerBusinessProfile(notify_phone="").notify_phone == ""
-    for value in ("0211234567", "+012345678", "+6421\n123456", "+64abc123456"):
+    # A number written the local way is accepted here and converted to international form, using the business's
+    # own country, when the profile is saved (see test_owner_phone_input.py). Anything that could be dialled
+    # wrongly or smuggle in other characters is still refused.
+    assert OwnerBusinessProfile(notify_phone="0211234567").notify_phone == "0211234567"
+    for value in ("+012345678", "+6421\n123456", "+64abc123456"):
         with pytest.raises(ValidationError):
             OwnerBusinessProfile(notify_phone=value)
 
