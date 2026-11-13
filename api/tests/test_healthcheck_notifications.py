@@ -71,3 +71,28 @@ def test_a_quiet_check_never_enters_the_state():
     state = {}
     healthcheck.plan_notifications({}, state, NOW)
     assert state == {}
+
+
+def test_a_check_that_nobody_here_can_fix_is_never_emailed():
+    """`sms:inbound` means the paired phone has never delivered a text. No reminder makes that happen."""
+    problems = {"sms:inbound": {"check": "sms:inbound", "status": "warn", "detail": "never delivered"}}
+    assert healthcheck.mailable(problems) == {}
+
+    state = {}
+    alerts, reminders, recoveries = healthcheck.plan_notifications(healthcheck.mailable(problems), state, NOW)
+    assert alerts == [] and reminders == [] and recoveries == []
+    assert state == {}, "a status-only check must not touch alert state"
+
+    # A real problem still reaches the operator.
+    real = {"inbound:chain": {"check": "inbound:chain", "status": "fail", "detail": "consent"}}
+    alerts, _, _ = healthcheck.plan_notifications(healthcheck.mailable(real), {}, NOW)
+    assert len(alerts) == 1
+
+
+def test_a_deploy_restart_is_recognised_as_deploying(monkeypatch):
+    """A container restarted moments ago means a deploy is in flight: no mail, no state change."""
+    monkeypatch.setattr(healthcheck, "recently_started", lambda name, minutes=10: name == "trendi-api-1")
+    assert healthcheck.deploying() == "trendi-api-1"
+
+    monkeypatch.setattr(healthcheck, "recently_started", lambda name, minutes=10: False)
+    assert healthcheck.deploying() == ""

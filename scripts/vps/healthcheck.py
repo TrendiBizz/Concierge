@@ -118,6 +118,11 @@ DEPLOY_GRACE_MINUTES = 10
 STATUS_ONLY_CHECKS = {"sms:inbound"}
 
 
+def mailable(problems: dict) -> dict:
+    """Drop the checks that describe a gap outside this repo. They are reported, never mailed."""
+    return {k: v for k, v in problems.items() if k not in STATUS_ONLY_CHECKS}
+
+
 def deploying() -> str:
     """The name of a critical container restarted within the grace window, else "".
 
@@ -586,7 +591,6 @@ def main(argv: list[str] | None = None) -> int:
     state = load_state()
     problems = {r["check"]: r for r in results if r["status"] in ("fail", "warn")}
     grace = deploying() if alerting else ""
-    mailable = [p for p in problems if p["check"] not in STATUS_ONLY_CHECKS]
     if grace:
         # Report, but do not mail and do not move the alert state: the "recovery" that follows a deploy
         # is not a recovery, and the failure it paired with was never a fault.
@@ -594,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"deploy grace: {grace} restarted within {DEPLOY_GRACE_MINUTES} minutes; not alerting",
               file=sys.stderr)
     elif alerting:
-        new_alerts, reminders, recoveries = plan_notifications(mailable, state, now)
+        new_alerts, reminders, recoveries = plan_notifications(mailable(problems), state, now)
     else:
         new_alerts, reminders, recoveries = [], [], []
 
