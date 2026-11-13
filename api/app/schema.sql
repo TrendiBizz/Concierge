@@ -929,3 +929,57 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     failures    integer NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS push_subscriptions_tenant_idx ON push_subscriptions (tenant_id);
+
+-- A customer can be reached at more than one address: a mobile and a landline, a work and a
+-- personal email. Until now a person had exactly one primary_phone and one primary_email, so
+-- someone who called from their mobile and emailed from work looked like two strangers, and the
+-- owner saw one customer as two. Identity is (tenant, kind, value): an address belongs to exactly
+-- one customer within a business, which is what makes it safe to match on.
+CREATE TABLE IF NOT EXISTS customer_addresses (
+    id bigserial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    case_id uuid NOT NULL REFERENCES customer_cases(id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK (kind IN ('phone','email')),
+    value text NOT NULL,
+    label text NOT NULL DEFAULT '',
+    source text NOT NULL DEFAULT 'inbound',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, kind, value)
+);
+CREATE INDEX IF NOT EXISTS customer_addresses_case_idx ON customer_addresses (case_id);
+
+-- Backfill: every customer already known becomes reachable at their stored identifiers, so the
+-- new matching works on existing history rather than only on traffic that arrives from now on.
+INSERT INTO customer_addresses (tenant_id, case_id, kind, value, source)
+SELECT tenant_id, id, 'phone', primary_phone, 'backfill'
+FROM customer_cases WHERE primary_phone <> ''
+ON CONFLICT (tenant_id, kind, value) DO NOTHING;
+
+INSERT INTO customer_addresses (tenant_id, case_id, kind, value, source)
+SELECT tenant_id, id, 'email', lower(primary_email), 'backfill'
+FROM customer_cases WHERE primary_email <> ''
+ON CONFLICT (tenant_id, kind, value) DO NOTHING;
+
+-- A business that already runs its own CRM must be able to get its customer data out, and to
+-- have new activity pushed to it, instead of being locked in. Two pieces: one webhook per tenant
+-- (the push side), and a small outbox so a failed delivery is retried rather than lost.
+CREATE TABLE IF NOT EXISTS tenant_webhooks (
+    tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    url text NOT NULL,
+    secret text NOT NULL,
+    active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+    id bigserial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    event text NOT NULL,
+    payload jsonb NOT NULL,
+    attempts int NOT NULL DEFAULT 0,
+    delivered_at timestamptz,
+    last_error text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS webhook_events_pending_idx
+    ON webhook_events (created_at) WHERE delivered_at IS NULL;

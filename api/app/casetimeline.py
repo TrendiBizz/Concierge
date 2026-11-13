@@ -79,6 +79,80 @@ def source_key_for(channel: str, identifier: str, body: str = "") -> str:
     return hashlib.sha256(material.encode()).hexdigest()
 
 
+
+async def _remember(conn, tenant_id, case_id, *, phone: str = "", email: str = "",
+                    label: str = "", source: str = "inbound") -> None:
+    """Record that this customer can be reached at these addresses.
+
+    DO NOTHING on conflict, never DO UPDATE: an address that already belongs to another customer
+    must not be silently stolen by whoever wrote last. Moving an identity between customers is a
+    deliberate act (see _merge_into), not a side effect of receiving a message.
+    """
+    for kind, value in (("phone", (phone or "")[:40]), ("email", (email or "").strip().lower()[:200])):
+        if not value:
+            continue
+        await conn.execute(
+            """
+            INSERT INTO customer_addresses (tenant_id, case_id, kind, value, label, source)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (tenant_id, kind, value) DO NOTHING
+            """,
+            tenant_id, case_id, kind, value, (label or "")[:60], source,
+        )
+
+
+async def list_addresses(tenant_id, case_id) -> list[dict]:
+    rows = await db.pool().fetch(
+        "SELECT id, kind, value, label, source, created_at FROM customer_addresses "
+        "WHERE tenant_id=$1 AND case_id=$2 ORDER BY kind, created_at",
+        tenant_id, case_id)
+    return [{**dict(r), "created_at": r["created_at"].isoformat()} for r in rows]
+
+
+async def add_address(tenant_id, case_id, *, kind: str, value: str, label: str = "",
+                      default_cc: str = "1") -> dict:
+    """Attach another address to a customer. Raises ValueError with a human message."""
+    if kind == "phone":
+        value = normalize_phone(value, default_cc) or ""
+        if not value:
+            raise ValueError("Enter a phone number we can call or text")
+    elif kind == "email":
+        value = (value or "").strip().lower()
+        if not value or not is_email(value):
+            raise ValueError("Enter a valid email address")
+    else:
+        raise ValueError("Use kind phone or email")
+    row = await db.pool().fetchrow(
+        """
+        INSERT INTO customer_addresses (tenant_id, case_id, kind, value, label, source)
+        VALUES ($1, $2, $3, $4, $5, 'owner')
+        ON CONFLICT (tenant_id, kind, value) DO UPDATE
+            SET label = COALESCE(NULLIF(EXCLUDED.label, ''), customer_addresses.label)
+            WHERE customer_addresses.case_id = EXCLUDED.case_id
+        RETURNING id, kind, value, label, source, created_at
+        """,
+        tenant_id, case_id, kind, value[:200], (label or "")[:60],
+    )
+    if not row:
+        raise ValueError("That address already belongs to another customer")
+    return {**dict(row), "created_at": row["created_at"].isoformat()}
+
+
+async def remove_address(tenant_id, case_id, address_id: int) -> bool:
+    """Remove an address, but never the last one: a customer with no identity cannot be found."""
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            remaining = await conn.fetchval(
+                "SELECT count(*) FROM customer_addresses WHERE tenant_id=$1 AND case_id=$2",
+                tenant_id, case_id)
+            if remaining <= 1:
+                raise ValueError("A customer needs at least one address")
+            result = await conn.execute(
+                "DELETE FROM customer_addresses WHERE tenant_id=$1 AND case_id=$2 AND id=$3",
+                tenant_id, case_id, address_id)
+            return result.endswith(" 1")
+
+
 async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str = "",
                       default_cc: str = "1") -> dict | None:
     """Find or create the case for this identity. None when the identity is unusable.
@@ -104,6 +178,8 @@ async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str 
         """,
         tenant_id, key, (name or "")[:200], phone_norm, email_norm,
     )
+    if row:
+        await _remember(db.pool(), tenant_id, row["id"], phone=phone_norm, email=email_norm)
     return dict(row) if row else None
 
 
@@ -140,12 +216,21 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
             # Every existing case this customer matches, by key OR by stored identifier.
             matches = await conn.fetch(
                 """
-                SELECT * FROM customer_cases
-                WHERE tenant_id = $1
-                  AND ( case_key = ANY($2::text[])
-                        OR ($3 <> '' AND primary_phone = $3)
-                        OR ($4 <> '' AND primary_email = $4) )
-                ORDER BY (case_key = $5) DESC, created_at
+                SELECT c.* FROM customer_cases c
+                WHERE c.tenant_id = $1
+                  AND ( c.case_key = ANY($2::text[])
+                        OR ($3 <> '' AND c.primary_phone = $3)
+                        OR ($4 <> '' AND c.primary_email = $4)
+                        -- Any address we have ever seen for this customer, not just the primary:
+                        -- this is what stops a second phone number or work email becoming a
+                        -- separate stranger.
+                        OR EXISTS (
+                            SELECT 1 FROM customer_addresses a
+                            WHERE a.case_id = c.id AND a.tenant_id = c.tenant_id
+                              AND (($3 <> '' AND a.kind = 'phone' AND a.value = $3)
+                                OR ($4 <> '' AND a.kind = 'email' AND a.value = $4))
+                        ) )
+                ORDER BY (c.case_key = $5) DESC, c.created_at
                 """,
                 tenant_id,
                 [k for k in (phone_key, email_key) if k],
@@ -154,9 +239,19 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
             )
 
             if not matches:
-                # First sighting: create the new case.
-                return await ensure_case(
+                # First sighting: create the new case, and tell the customer's own CRM if they run
+                # one. Portability is imported lazily: it imports this module back.
+                created = await ensure_case(
                     tenant_id, phone=phone, email=email, name=name, default_cc=default_cc)
+                if created:
+                    from . import portability
+                    await portability.emit(tenant_id, "customer.created", {
+                        "case_key": created["case_key"],
+                        "name": created["display_name"],
+                        "phone": created["primary_phone"],
+                        "email": created["primary_email"],
+                    })
+                return created
 
             survivor = matches[0]
             for duplicate in matches[1:]:
@@ -173,6 +268,9 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
                 WHERE id = $1
                 """,
                 survivor["id"], phone_norm[:40], email_norm[:200], (name or "")[:200])
+
+            await _remember(conn, tenant_id, survivor["id"],
+                            phone=phone_norm, email=email_norm)
 
             # A phone number that arrived later should take over the key, so future phone-only
             # traffic resolves directly instead of re-running a merge every time.
@@ -208,6 +306,19 @@ async def _merge_into(conn, survivor, duplicate) -> None:
         """,
         survivor["id"], duplicate["primary_phone"], duplicate["primary_email"],
         duplicate["display_name"], duplicate["automation_paused"], duplicate["takeover_at"])
+    # Addresses first: dropping the ones the survivor already has avoids tripping the unique
+    # (tenant, kind, value) index, and the rest follow the customer across.
+    await conn.execute(
+        """
+        DELETE FROM customer_addresses a
+        USING customer_addresses b
+        WHERE a.case_id = $2 AND b.case_id = $1
+          AND a.tenant_id = b.tenant_id AND a.kind = b.kind AND a.value = b.value
+        """,
+        survivor["id"], duplicate["id"])
+    await conn.execute(
+        "UPDATE customer_addresses SET case_id=$1 WHERE case_id=$2",
+        survivor["id"], duplicate["id"])
     await conn.execute("UPDATE case_events SET case_id=$1 WHERE case_id=$2", survivor["id"], duplicate["id"])
     await conn.execute("UPDATE leads SET case_id=$1 WHERE case_id=$2", survivor["id"], duplicate["id"])
     await conn.execute("UPDATE conversations SET case_id=$1 WHERE case_id=$2", survivor["id"], duplicate["id"])

@@ -16,7 +16,7 @@ from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
@@ -2488,6 +2488,130 @@ async def owner_contacts(
         item["takeover_at"] = item["takeover_at"].isoformat() if item.get("takeover_at") else None
         contacts.append(item)
     return {"contacts": contacts, "count": len(contacts)}
+
+
+class AddressIn(BaseModel):
+    kind: Literal["phone", "email"]
+    value: str = Field(min_length=1, max_length=200)
+    label: str = Field(default="", max_length=60)
+
+
+class ImportIn(BaseModel):
+    format: Literal["csv", "json"] = "csv"
+    data: str = Field(default="", max_length=2_000_000)
+    contacts: list[dict] = Field(default_factory=list)
+
+
+class WebhookIn(BaseModel):
+    url: str = Field(min_length=8, max_length=500)
+    secret: str = Field(min_length=16, max_length=200)
+
+
+async def _case_id_for(user: dict, case_key: str):
+    row = await db.pool().fetchrow(
+        "SELECT id FROM customer_cases WHERE tenant_id=$1 AND case_key=$2",
+        user["tenant_id"], case_key)
+    if not row:
+        raise HTTPException(404, "Customer not found")
+    return row["id"]
+
+
+@app.get("/owner/contacts/{case_key}/addresses")
+async def owner_addresses(case_key: str, user: dict = Depends(owner_auth.current_user)):
+    case_id = await _case_id_for(user, case_key)
+    return {"addresses": await casetimeline.list_addresses(user["tenant_id"], case_id)}
+
+
+@app.post("/owner/contacts/{case_key}/addresses", status_code=201)
+async def owner_add_address(case_key: str, body: AddressIn,
+                            user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    case_id = await _case_id_for(user, case_key)
+    try:
+        tenant = await db.pool().fetchrow("SELECT * FROM tenants WHERE id=$1", user["tenant_id"])
+        address = await casetimeline.add_address(
+            user["tenant_id"], case_id, kind=body.kind, value=body.value, label=body.label,
+            default_cc=casetimeline.tenant_country_code(dict(tenant) if tenant else None))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return address
+
+
+@app.delete("/owner/contacts/{case_key}/addresses/{address_id}")
+async def owner_remove_address(case_key: str, address_id: int,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    case_id = await _case_id_for(user, case_key)
+    try:
+        removed = await casetimeline.remove_address(user["tenant_id"], case_id, address_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not removed:
+        raise HTTPException(404, "Address not found")
+    return {"removed": True}
+
+
+@app.get("/owner/export/contacts")
+async def owner_export_contacts(format: Literal["json", "csv"] = "json",
+                                user: dict = Depends(owner_auth.current_user)):
+    """Take your customer list with you: JSON for a CRM importer, CSV for a spreadsheet.
+
+    This is the promise that nobody is locked in. It is a plain GET so it also works from a
+    browser address bar, with the session cookie.
+    """
+    contacts = await portability.export_contacts(user["tenant_id"])
+    if format == "csv":
+        return Response(content=portability.to_csv(contacts), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="customers.csv"'})
+    return {"contacts": contacts, "count": len(contacts)}
+
+
+@app.post("/owner/import/contacts")
+async def owner_import_contacts(body: ImportIn, user: dict = Depends(owner_auth.current_user)):
+    """Bring your existing customer list in. Safe to run twice: matches on any known address."""
+    owner_auth.require_role(user, "editor")
+    if body.format == "csv":
+        rows = portability.parse_import(body.data)
+    else:
+        rows = [{"name": c.get("name") or c.get("display_name") or "",
+                 "phone": c.get("phone") or c.get("primary_phone") or "",
+                 "email": c.get("email") or c.get("primary_email") or "",
+                 "extra": c.get("extra") or ""} for c in body.contacts]
+    if not rows:
+        raise HTTPException(400, "Nothing to import: no rows found")
+    tenant = await db.pool().fetchrow("SELECT * FROM tenants WHERE id=$1", user["tenant_id"])
+    result = await portability.import_contacts(
+        user["tenant_id"], rows,
+        default_cc=casetimeline.tenant_country_code(dict(tenant) if tenant else None))
+    return result
+
+
+@app.get("/owner/webhooks")
+async def owner_get_webhook(user: dict = Depends(owner_auth.current_user)):
+    """Where new customers are pushed, if this business runs its own CRM."""
+    return {"webhook": await portability.get_webhook(user["tenant_id"])}
+
+
+@app.post("/owner/webhooks")
+async def owner_set_webhook(body: WebhookIn, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if not body.url.startswith("https://"):
+        raise HTTPException(400, "Use an https address for your CRM endpoint")
+    return await portability.set_webhook(user["tenant_id"], body.url.strip(), body.secret)
+
+
+@app.delete("/owner/webhooks")
+async def owner_delete_webhook(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    await portability.delete_webhook(user["tenant_id"])
+    return {"removed": True}
+
+
+@app.post("/owner/webhooks/deliver")
+async def owner_deliver_webhook(user: dict = Depends(owner_auth.current_user)):
+    """Retry anything queued, for when their endpoint was down."""
+    owner_auth.require_role(user, "owner")
+    return await portability.deliver_pending(user["tenant_id"])
 
 
 @app.get("/owner/contacts/{case_key}/timeline")
