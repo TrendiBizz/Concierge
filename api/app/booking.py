@@ -162,6 +162,16 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
         return {"ok": True, "confirmation": "(dry run) booking would be created"}
 
     end_utc = start_utc + timedelta(minutes=tenant["slot_minutes"])
+
+    # A booking is a customer, not just a lead row. This path used to write a lead with a name,
+    # email and phone and never create a customer record, so somebody who booked an appointment
+    # was missing from Contacts entirely. Reconcile first, outside the booking transaction.
+    case = await casetimeline.reconcile(
+        tenant["id"], phone=phone, email=email if is_email(email) else "", name=name,
+        default_cc=casetimeline.tenant_country_code(tenant),
+        source=ctx.get("channel", "chat"))
+    case_id = case["id"] if case else None
+
     async with db.pool().acquire() as conn:
         async with conn.transaction():
             # Serialise bookings per client so two visitors cannot take the same slot.
@@ -169,17 +179,20 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             if start_utc not in await _slots_on(tenant, start_local.date(), conn):
                 return {"ok": False, "error": "Sorry, that time was just taken. Call check_availability for other times."}
             existing_lead = await conn.fetchrow('SELECT * FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], conversation_id) if conversation_id else None
+            if existing_lead and case_id and not existing_lead["case_id"]:
+                await conn.execute("UPDATE leads SET case_id=$2 WHERE id=$1", existing_lead["id"], case_id)
+                existing_lead = dict(existing_lead, case_id=case_id)
             lead = existing_lead or await conn.fetchrow(
                 """
                 INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
-                                   page_url, utm, webhook_status, status, consent_contact)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, 'booked', $11)
+                                   page_url, utm, webhook_status, status, consent_contact, case_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, 'booked', $11, $12)
                 RETURNING *
                 """,
                 tenant["id"], conversation_id, name, email if is_email(email) else "", phone,
                 f"Booked appointment for {automation.fmt_local(tenant, start_utc)}. {notes}".strip(),
                 ctx.get("channel", "chat"), ctx.get("page_url"), json.dumps(ctx.get("utm") or {}),
-                "pending" if tenant.get("lead_webhook_url") else "none", consent,
+                "pending" if tenant.get("lead_webhook_url") else "none", consent, case_id,
             )
             appt = await conn.fetchrow(
                 """
