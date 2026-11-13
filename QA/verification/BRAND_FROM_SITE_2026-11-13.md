@@ -57,10 +57,14 @@ Two rules that came out of measuring:
    Without this, the reader would either warn about a perfect render or stay silent
    about a blank wordmark.
 2. **The accent comes only from the logo actually kept**, and prefers a vivid
-   mid-tone over a dark wordmark that covers more pixels. `trendibizz.com` yields
-   **#7142d6** — not `theme-color` `#f5f7fb` (the page background) and not the
-   near-black `#302044` lettering. A brand whose only colour is dark still gets its
-   own colour in the second pass; only a logo with no saturated colour falls back.
+   mid-tone over a dark wordmark that covers more pixels. A brand whose only colour
+   is dark still gets its own colour in the second pass; only a logo with no
+   saturated colour falls back. The accent therefore follows the chosen image:
+   trendibizz.com's JSON-LD logo is `logo-symbol.svg`, which is lime, so the
+   default proposal is **#c6f432**; choosing the `logo-refresh.svg` wordmark instead
+   yields **#7142d6**. Neither is `theme-color` `#f5f7fb` (the page background) nor
+   the near-black `#302044` lettering, and the review screen shows every image as a
+   thumbnail so the customer picks the one they mean.
 
 ## The real logo, end to end
 
@@ -70,7 +74,9 @@ Two rules that came out of measuring:
 Result through the module with the font installed: `512×137`, 6043 bytes,
 13,119 px of wordmark ink, accent `#7142d7`, no warning note. The three sibling
 logos (`logo-symbol`, `favicon`, `mark-refresh`) are path-only and render exactly,
-untouched.
+untouched. Verified again inside the running production container on 13 Nov
+14:5x: all four candidates render (9,873 / 6,043 / 9,873 / 8,456 bytes); the
+JSON-LD symbol is chosen by default and the wordmark is offered alongside it.
 
 ## Cost
 
