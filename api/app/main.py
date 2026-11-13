@@ -1985,6 +1985,49 @@ async def owner_service_worker():
                                  "Service-Worker-Allowed": "/owner-ui"})
 
 
+from fastapi.exception_handlers import request_validation_exception_handler  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+_FIELD_LABELS = {"password": "Password", "token": "Invitation link", "email": "Email address",
+                 "slug": "Business ID", "endpoint": "Device address"}
+
+
+def plain_validation_message(errors) -> str:
+    """Turn FastAPI's list of validation errors into one sentence a person can act on.
+
+    The portals show `detail` as text. FastAPI's default is a list of objects, which a page prints as
+    "[object Object]" (seen on the first invite, 2026-11-13). It also echoes the submitted value, which for the
+    password box is the password itself. This never repeats what was typed.
+    """
+    parts = []
+    for error in list(errors)[:3]:
+        location = [str(p) for p in error.get("loc", ()) if p not in ("body", "query", "path")]
+        field = location[-1] if location else "value"
+        label = _FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+        kind = error.get("type", "")
+        context = error.get("ctx") or {}
+        if field == "token" and kind in ("string_too_short", "string_too_long", "missing"):
+            parts.append("The invitation link looks incomplete. Open it again from your email.")
+        elif kind == "string_too_short":
+            parts.append(f"{label} must be at least {context.get('min_length')} characters.")
+        elif kind == "string_too_long":
+            parts.append(f"{label} must be at most {context.get('max_length')} characters.")
+        elif kind == "missing":
+            parts.append(f"{label} is required.")
+        else:
+            parts.append(f"{label} is not valid.")
+    return " ".join(dict.fromkeys(parts)) or "Some details are not valid."
+
+
+@app.exception_handler(RequestValidationError)
+async def owner_validation_errors(request, exc):
+    if request.url.path.startswith("/owner/"):
+        return JSONResponse({"detail": plain_validation_message(exc.errors())}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    return await request_validation_exception_handler(request, exc)
+
+
 @app.get("/owner/push/key")
 async def owner_push_key(user: dict = Depends(owner_auth.current_user)):
     if not webpush.configured():
