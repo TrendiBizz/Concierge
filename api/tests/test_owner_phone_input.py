@@ -18,7 +18,7 @@ def test_the_usual_ways_of_writing_a_number_are_accepted(typed):
     assert _profile(notify_phone=typed).notify_phone == typed.strip()
 
 
-@pytest.mark.parametrize("typed", ["abc", "12", "+64abc", "027 881 73x8", "ring me"])
+@pytest.mark.parametrize("typed", ["abc", "12", "+64abc", "027 881 73x8", "ring me", "+012345678", "+6421\n123456"])
 def test_things_that_are_not_numbers_are_refused_with_an_example(typed):
     with pytest.raises(ValidationError) as caught:
         _profile(notify_phone=typed)

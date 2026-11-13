@@ -112,7 +112,7 @@ class OwnerBusinessProfile(BaseModel):
         value = value.strip()
         # Any usual way of writing a number; the real check (and the conversion to +country form) happens in
         # update_profile, which knows the business's country.
-        if not re.fullmatch(r"\+?[0-9 ()\-.]{7,32}", value):
+        if not re.fullmatch(r"(\+[1-9]|\(?[0-9])[0-9 ()\-.]{6,31}", value):
             raise ValueError(PHONE_HELP)
         return value
 
