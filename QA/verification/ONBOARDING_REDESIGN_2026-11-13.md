@@ -32,8 +32,8 @@ Fixed today along the way: password counter and 12 prominence, red errors, passw
 |---|---|---|
 | Services, hours, prices, FAQs | site crawl (already built, safe public-only fetch) | 125 chunks from 15 pages |
 | Name | `og:site_name`, JSON-LD, `<title>` | trendibizz.com → "Trendi" |
-| Logo | JSON-LD, header `<img>`, `apple-touch-icon`, `og:image` | trendibizz.com's header logo is **SVG**; our media tools need PNG, so prefer the PNG touch icon |
-| Accent colour | CSS variables / most saturated colour in the stylesheets | **not `theme-color`**: on trendibizz.com that is the page background (`#f5f7fb` / `#14213d`), not the lime accent |
+| Logo | JSON-LD, header `<img>`, `apple-touch-icon`, `og:image` | trendibizz.com's header logo is **SVG (text-based)**; our media tools need PNG, so **render it to PNG with `resvg`** (a prebuilt wheel exists; Pillow/numpy already in the image), with a font caveat for `<text>` logos; fall back to the PNG touch icon |
+| Accent colour | the dominant saturated colour **of the rendered logo**, then CSS variables | **not `theme-color`**: on trendibizz.com that is the page background (`#f5f7fb` / `#14213d`); that logo is purple (`#7142d6`) |
 | Contact | `mailto:` / `tel:` / JSON-LD | Pukeko: `conrad@…`; Trendi: `admin@…` |
 | Website platform | `generator` meta + path signals | **Pukeko = WordPress 7.1.4 + Elementor**; trendibizz.com = static site |
 | Social accounts | links on the site | Trendi: Facebook, Instagram, LinkedIn, TikTok, YouTube; Pukeko: Facebook, Instagram |
