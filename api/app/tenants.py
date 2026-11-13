@@ -76,6 +76,22 @@ def new_report_token() -> str:
     return secrets.token_urlsafe(24)
 
 
+async def rotate_key(tenant_id) -> str:
+    """Replace a business's install key.
+
+    The key in the embed snippet had no revocation path: once a business was retired, its chat
+    window kept answering and kept taking enquiries for a tenant nobody reads, because the only
+    way to change the key was to delete the business. Rotating issues a new key and the old one
+    stops resolving immediately.
+    """
+    key = new_public_key()
+    row = await db.pool().fetchrow(
+        "UPDATE tenants SET public_key=$2 WHERE id=$1 RETURNING public_key", tenant_id, key)
+    if not row:
+        raise ValueError("No such business")
+    return row["public_key"]
+
+
 async def get_by_key(public_key: str) -> dict | None:
     row = await db.pool().fetchrow("SELECT * FROM tenants WHERE public_key = $1", public_key)
     return _load(row) if row else None

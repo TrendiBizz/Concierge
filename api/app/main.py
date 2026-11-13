@@ -978,6 +978,22 @@ async def admin_outbound_resume():
     return {"paused": False}
 
 
+@app.post("/admin/tenants/{slug}/rotate-key", dependencies=admin)
+async def admin_rotate_key(slug: str):
+    """Retire a business's install key: the old snippet stops working at once.
+
+    The key in the embed snippet had no way to be replaced other than deleting the business, so a
+    retired prototype kept answering and kept taking enquiries nobody read.
+    """
+    tenant = await db.pool().fetchrow("SELECT id FROM tenants WHERE slug=$1", slug)
+    if not tenant:
+        raise HTTPException(404, "No such business")
+    key = await tenants.rotate_key(tenant["id"])
+    base = get_settings().public_base_url.rstrip("/")
+    return {"slug": slug, "public_key": key,
+            "embed_snippet": f'<script src="{base}/widget.js" data-key="{key}" defer></script>'}
+
+
 @app.get("/admin/tenants/{slug}", dependencies=admin)
 async def admin_get_tenant(slug: str):
     tenant = await tenants.ensure_calendar_token(await _require_tenant(slug))
