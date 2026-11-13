@@ -65,3 +65,62 @@ successful read. The validator now normalises exactly as `brand_from_site.normal
 `scripts/verify/probe_owner_routes.py` calls every owner GET route with a real session, exits
 non-zero on any 5xx, and never prints a token. It is the check that would have caught the
 Contacts 500 before a customer did.
+
+---
+
+# Round two — the gaps I had listed as unverified
+
+## Operator page `/owner-ui` — audited
+
+Loaded signed in through an invite link and inventoried every control: 63 interactive elements
+(enquiries, quotes, calendar, business setup, marketing media, business information, customer
+channel permissions, phone, drafts, senders, social, invites). Page errors: **0**. 5xx: **0**.
+The read-only refresh controls (`Refresh`, `Refresh text messages`, `Refresh email reply status`,
+`Refresh social drafts`) were dispatched and completed without error. One 400 appeared on
+`/owner/auth/invite` — that was my own doing: the page was opened with a one-time link the Studio
+had already spent. A real tap on some controls is blocked by the sticky header in a headless
+viewport; the handlers were exercised directly instead.
+
+## CRM (`crm.trendibizz.com`) — entry verified, not click-audited
+
+`/login` reaches Twenty's own welcome screen ("Welcome, Concierge.") with no JS errors and no 5xx.
+The CRM is a vendored Twenty install, not our UI, and a full click-audit needs a CRM account we do
+not hold. **Blocker recorded, not worked around:** credentials. Cloudflare also rate-limited this
+IP (`error 1015`) during the audit, which is why the check was repeated through a real browser.
+
+## QR code — decoded from the screen a customer actually sees
+
+The earlier proof decoded a matrix built from the library. This closes the stronger claim: the QR
+**as rendered on the live setup screen** was captured and decoded by an independent reader
+(OpenCV in a throwaway container):
+
+```
+captured : the only 146x146 graphic on the install step
+decoded  : 'https://chat.trendibizz.com/demo/trendi-meta-review'
+shown    : https://chat.trendibizz.com/demo/trendi-meta-review
+MATCH
+```
+
+That URL was then loaded in a phone viewport (390x844, mobile UA, touch) and the composer was
+present, so the destination works on a phone. **The only part still unproven is a physical camera
+scan** — that needs a phone, and it is the one gap I cannot close from here.
+
+## The widget on trendibizz.com — hidden defect, decision needed
+
+The homepage does load `chat.trendibizz.com/widget.js` (HTTP 200) and requests
+`/api/v1/widget-config`. Nothing renders. The console shows why:
+
+```
+Executing inline script violates 'script-src 'self' https://static.cloudflareinsights.com https://chat.trendibizz.com'
+Applying inline style violates 'style-src 'self''
+```
+
+The site's CSP is served from `/website/site/_headers` **inside the website container** — that file
+is not in this repo, so the site's headers are another case of server drift. The widget needs
+inline styles; the page forbids them; the widget gives no visible error, it simply never appears.
+
+Fixing this on our own site means relaxing `style-src` (adding `'unsafe-inline'`) or changing the
+widget to load an external stylesheet. That is a public security change, so it is **left for the
+operator to decide**, not applied unilaterally. Note this is not only our site: **any customer site
+with a strict CSP will lose the widget the same silent way**, so the install instructions should
+name the directives the widget needs.
