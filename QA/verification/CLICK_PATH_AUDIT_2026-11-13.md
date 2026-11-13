@@ -119,8 +119,23 @@ The site's CSP is served from `/website/site/_headers` **inside the website cont
 is not in this repo, so the site's headers are another case of server drift. The widget needs
 inline styles; the page forbids them; the widget gives no visible error, it simply never appears.
 
-Fixing this on our own site means relaxing `style-src` (adding `'unsafe-inline'`) or changing the
-widget to load an external stylesheet. That is a public security change, so it is **left for the
-operator to decide**, not applied unilaterally. Note this is not only our site: **any customer site
-with a strict CSP will lose the widget the same silent way**, so the install instructions should
-name the directives the widget needs.
+**Fixed the CSP-friendly way, chosen by the operator.** Rather than weaken a public security
+header, the widget now injects **no inline CSS at all**: its sheet is adopted as a constructable
+stylesheet (already supported), and the two remaining `style="..."` attributes became classes in
+that sheet. Runtime `element.style.x = …` assignments stay, because CSP permits those.
+
+Verified on the live site under the strict policy:
+
+```
+#cc-root present          : True
+launcher rendered         : 300x53 at (960, 827)
+adopted stylesheets       : 1
+inline <style> elements   : 0
+inline style attributes   : 0
+click launcher -> composer: present, 264px wide
+```
+
+The two remaining CSP messages on the page are the site's **own** inline scripts, unrelated to the
+widget. The setup screen now tells the owner which two directives their site must allow — because
+without them the widget is blocked with no visible error, and any customer with a strict CSP would
+have hit exactly the same silent failure.
