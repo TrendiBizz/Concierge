@@ -6,7 +6,7 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import db, email_drafts, enquiries, convo, flood_guard, inbound_policy, tenants
+from . import db, email_drafts, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
