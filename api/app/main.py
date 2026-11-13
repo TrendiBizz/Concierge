@@ -2015,6 +2015,11 @@ def plain_validation_message(errors) -> str:
             parts.append(f"{label} must be at most {context.get('max_length')} characters.")
         elif kind == "missing":
             parts.append(f"{label} is required.")
+        elif kind == "value_error":
+            # A message the application wrote for the person ("Enter a public HTTPS website address"); it never
+            # contains what they typed, so it is safe to show as it is.
+            text = str(error.get("msg", "")).removeprefix("Value error, ").strip()
+            parts.append((text if text.endswith((".", "!", "?")) else text + ".") if text else f"{label} is not valid.")
         else:
             parts.append(f"{label} is not valid.")
     return " ".join(dict.fromkeys(parts)) or "Some details are not valid."

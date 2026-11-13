@@ -196,6 +196,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
   const [step, setStep] = useState(1);
   const [business, setBusiness] = useState<Business>({name: '', site_url: '', notify_email: '', notify_phone: '', public_key: ''});
   const [status, setStatus] = useState('');
+  const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
   const [logo, setLogo] = useState<File | null>(null);
 
@@ -203,15 +204,15 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     api('/owner/onboarding').then((data) => {
       const b = data.business || {};
       setBusiness({name: b.name || '', site_url: b.site_url || '', notify_email: b.notify_email || '', notify_phone: b.notify_phone || '', public_key: b.public_key || ''});
-    }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load setup'));
+    }).catch((e) => setProblem(e instanceof Error ? e.message : 'Could not load setup'));
   }, [token]);
 
   async function save(fields: Record<string, unknown>, next: number, note: string) {
-    setBusy(true); setStatus('');
+    setBusy(true); setStatus(''); setProblem('');
     try {
       await api('/owner/onboarding/profile', 'PATCH', fields);
       setStatus(note); setStep(next);
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Save failed'); }
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Save failed'); }
     setBusy(false);
   }
 
@@ -223,7 +224,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
       const saved = await api('/owner/media/brand', 'PUT', payload);
       setBrand({name: saved.name || '', accent: saved.accent || '#c8f560', contact: saved.contact || '', logo: saved.logo_data || brand.logo || null});
       setStatus('Branding saved. It now follows through to your media and portal.'); notify('Branding saved.');
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Save failed'); }
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Save failed'); }
     setBusy(false);
   }
 
@@ -232,7 +233,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
     try {
       const result = await api('/owner/knowledge/import-website', 'POST');
       setStatus('Imported ' + (result.chunks || 0) + ' knowledge chunks from ' + (result.pages || 0) + ' pages.'); notify('Knowledge imported.');
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Import failed'); }
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Import failed'); }
     setBusy(false);
   }
 
@@ -316,6 +317,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
         {step > 1 ? <Button label="Back" variant="ghost" onClick={() => setStep(step - 1)} /> : null}
         {step < 6 ? <Button label="Next" variant="secondary" onClick={() => setStep(step + 1)} /> : null}
       </div>
+      {problem ? <ErrorNote message={problem} /> : null}
       {status ? <p role="status">{status}</p> : null}
     </div>
   );

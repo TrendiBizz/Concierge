@@ -45,7 +45,7 @@ class OwnerBusinessProfile(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     site_url: str | None = Field(default=None, max_length=2048)
     greeting: str | None = Field(default=None, max_length=500)
-    notify_phone: str | None = Field(default=None, max_length=16)
+    notify_phone: str | None = Field(default=None, max_length=32)
     notify_email: str | None = Field(default=None, max_length=254)
     timezone: str | None = Field(default=None, max_length=100)
 
@@ -110,8 +110,10 @@ class OwnerBusinessProfile(BaseModel):
             return value
         import re
         value = value.strip()
-        if not re.fullmatch(r"\+[1-9][0-9]{7,14}", value):
-            raise ValueError("Enter the owner phone in international format, for example +64211234567")
+        # Any usual way of writing a number; the real check (and the conversion to +country form) happens in
+        # update_profile, which knows the business's country.
+        if not re.fullmatch(r"\+?[0-9 ()\-.]{7,32}", value):
+            raise ValueError(PHONE_HELP)
         return value
 
     @field_validator("timezone")
@@ -199,10 +201,45 @@ async def overview(tenant_id) -> dict:
     }
 
 
+_TZ_COUNTRY = {"Pacific/Auckland": "64", "Pacific/Chatham": "64"}
+
+
+def country_code_for(tenant: dict | None) -> str:
+    """The dialling country for a business's local numbers.
+
+    Its own setting first, then its timezone (a New Zealand business must never be given the global default of 1),
+    and only then the global default.
+    """
+    from .config import get_settings
+    tenant = tenant or {}
+    own = str(tenant.get("default_country_code") or "").strip()
+    if own.isdigit() and 1 <= len(own) <= 3:
+        return own
+    zone = str(tenant.get("timezone") or "")
+    if zone in _TZ_COUNTRY:
+        return _TZ_COUNTRY[zone]
+    if zone.startswith("Australia/"):
+        return "61"
+    return get_settings().default_country_code
+
+
+PHONE_HELP = "Enter your mobile number, for example 027 123 4567 or +64 27 123 4567."
+
+
 async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dict:
     changed = profile.model_dump(exclude_unset=True, exclude_none=True)
     if not changed:
         raise ValueError("No profile fields provided")
+    if changed.get("notify_phone"):
+        # Accept the way people actually write a number and store it in international form.
+        from .contact import normalize_phone
+        current = await tenants.get_by_slug(tenant_slug) or {}
+        if changed.get("timezone"):
+            current = {**current, "timezone": changed["timezone"]}
+        international = normalize_phone(changed["notify_phone"], country_code_for(current))
+        if not international:
+            raise ValueError("That phone number does not look right. " + PHONE_HELP)
+        changed["notify_phone"] = international
     saved = await tenants.update(tenant_slug, changed)
     if saved is None:
         raise ValueError("Tenant unavailable")
