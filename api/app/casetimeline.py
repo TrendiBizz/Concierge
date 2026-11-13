@@ -52,7 +52,7 @@ def tenant_country_code(tenant: dict | None) -> str:
     return configured if configured.isdigit() and 1 <= len(configured) <= 3 else ""
 
 
-def case_key(phone: str = "", email: str = "", default_cc: str = "1") -> str | None:
+def case_key(phone: str = "", email: str = "", default_cc: str = "") -> str | None:
     """The stable identity for a customer, or None when neither identifier is usable.
 
     Returning None for unusable input is deliberate. Falling back to, say, the raw string would
@@ -114,7 +114,7 @@ async def list_addresses(tenant_id, case_id) -> list[dict]:
 
 
 async def add_address(tenant_id, case_id, *, kind: str, value: str, label: str = "",
-                      default_cc: str = "1") -> dict:
+                      default_cc: str = "") -> dict:
     """Attach another address to a customer. Raises ValueError with a human message."""
     if kind == "phone":
         value = normalize_phone(value, default_cc) or ""
@@ -158,7 +158,7 @@ async def remove_address(tenant_id, case_id, address_id: int) -> bool:
 
 
 async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str = "",
-                      company: str = "", default_cc: str = "1",
+                      company: str = "", default_cc: str = "",
                       source: str = "inbound") -> dict | None:
     """Find or create the case for this identity. None when the identity is unusable.
 

@@ -286,3 +286,13 @@ def test_two_tenants_do_not_share_opt_outs(real_db):
     us = _run(_make_tenant(real_db, "us", "US", "pk2", "1"))
     _run(outbox.opt_out(nz, "+6421555123"))
     assert _run(outbox.is_opted_out(us, "+6421555123")) is False
+
+
+def test_a_missing_country_code_never_invents_a_us_number():
+    """`case_key` used to default to "1", so a local number became +1… when the tenant's country
+    was unknown. Sir Conrad's record was repaired from exactly this. Unknown must stay unknown."""
+    from app.casetimeline import case_key
+
+    assert case_key("027 555 8801", "") is None, "a US prefix was invented again"
+    assert case_key("027 555 8801", "", "64") == "phone:+64275558801"
+    assert case_key("+64 27 555 8801", "") == "phone:+64275558801"

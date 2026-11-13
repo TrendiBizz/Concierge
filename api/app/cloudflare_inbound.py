@@ -100,6 +100,17 @@ def has_automated_headers(raw: bytes | None) -> bool:
     return headers.get("X-Auto-Response-Suppress") is not None or headers.get("List-Id") is not None
 
 
+def bare_address(value: str) -> str:
+    """Reduce "Name <user@host>" to "user@host". The worker normally sends a bare address, but a
+    display name must never be the reason a customer's mail is refused."""
+    text = (value or "").strip()
+    if "<" in text and ">" in text:
+        inner = text[text.rfind("<") + 1:text.rfind(">")].strip()
+        if inner:
+            return inner
+    return text
+
+
 async def handle(request: Request) -> dict:
     settings = get_settings()
     if not settings.inbound_cloudflare_enabled or len(settings.inbound_cloudflare_secret) < 32:
@@ -269,7 +280,7 @@ async def handle(request: Request) -> dict:
         # (spoofing, malicious attachment, localhost link) defeated quarantine entirely.
         draft = await inbound_email.ingest_verified(
             tenant_id, "cloudflare", payload["message_id"],
-            payload["sender"], recipient, payload["subject"], payload["text"],
+            bare_address(payload["sender"]), recipient, payload["subject"], payload["text"],
             auth=auth, risk=risk, flags=flags, envelope_from=envelope_from,
         )
     except (ValueError, TypeError, inbound_email.InboundError) as exc:

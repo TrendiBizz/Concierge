@@ -154,3 +154,10 @@ def test_oversized_envelope_sender_is_rejected(monkeypatch):
     with pytest.raises(HTTPException) as excinfo:
         asyncio.run(cloudflare_inbound.handle(_request(_payload(envelope_from="a" * 400))))
     assert excinfo.value.status_code == 400
+
+
+def test_a_sender_with_a_display_name_is_reduced_to_its_address():
+    """"Name <user@host>" must never be the reason a customer's mail is refused."""
+    assert cloudflare_inbound.bare_address("Marcus Whitcombe <m@harbour.co.nz>") == "m@harbour.co.nz"
+    assert cloudflare_inbound.bare_address("m@harbour.co.nz") == "m@harbour.co.nz"
+    assert cloudflare_inbound.bare_address("  Jo  ") == "Jo"
