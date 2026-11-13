@@ -63,8 +63,11 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
   }
 
   async function loadCustomers() {
-    try { setCustomers(await api('/owner/crm/leads') as Customer[]); }
-    catch { setCustomers([]); }
+    // The CRM list endpoint is /owner/crm; it returns leads alongside appointments and tasks.
+    try {
+      const data = await api('/owner/crm') as {leads?: Customer[]};
+      setCustomers(data.leads || []);
+    } catch { setCustomers([]); }
   }
 
   async function saveRate() {

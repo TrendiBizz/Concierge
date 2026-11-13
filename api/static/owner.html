@@ -850,7 +850,7 @@ async function refreshSocial(){
       "No social accounts connected yet. Choose a network above to connect an account for this business.","muted"));
   }else{
     for(const account of accounts){
-      if(["mastodon","bluesky"].includes(account.network))continue;
+      if(account.network==="bluesky")continue;
       $("social-accounts").appendChild(node("p",
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
@@ -913,7 +913,7 @@ async function refreshSocial(){
         });
         $("social-accounts").appendChild(unlink);
       }
-      if(!account.needs_reauth && !["mastodon","bluesky"].includes(account.network)){
+      if(!account.needs_reauth && account.network!=="bluesky"){
         const option=node("option",account.network+" — "+account.display_name);
         option.value=account.id;$("social-account").appendChild(option);
         const label=node("label",account.network.replaceAll("_"," ")+" — "+account.display_name,"social-destination");const choose=document.createElement("input");choose.type="checkbox";choose.addEventListener("change",()=>option.selected=choose.checked);label.prepend(choose);$("social-destinations").appendChild(label);

@@ -263,7 +263,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     setBusy(false);
   }
 
-  const connectable = accounts.filter((a) => !a.needs_reauth && !['mastodon', 'bluesky'].includes(a.network));
+  const connectable = accounts.filter((a) => !a.needs_reauth && a.network !== 'bluesky');
 
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
