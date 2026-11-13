@@ -5,7 +5,7 @@ import json
 import logging
 from types import SimpleNamespace
 
-from . import casetimeline, convo, db, guard, llm, enquiries, owner_notifications
+from . import casetimeline, convo, db, guard, llm, enquiries, owner_notifications, tenant_pause
 import hashlib
 from .rag import build_system_prompt, retrieve
 from .tools import chat_tools, run_tool
@@ -85,6 +85,27 @@ async def _run_llm(messages: list[dict], tenant: dict, ctx: dict) -> str:
     return ""
 
 
+def suppressed(reason: str, conversation_id=None, reply: str = "") -> dict:
+    """The one shape for "we produce no answer".
+
+    Every caller reads `reply`, `lead_captured`, `booking_url` and `appointment` off the result,
+    so a suppression that returned only some of them made the chat endpoint raise a KeyError and
+    answer the visitor with a 502 -- a human takeover looked like a broken website. One shape,
+    one place.
+    """
+    return {
+        "reply": reply,
+        "suppressed": True,
+        "reason": reason,
+        "conversation_id": conversation_id,
+        "lead_captured": False,
+        "booking_url": None,
+        "appointment": None,
+        "guard_triggered": False,
+        "tool_calls": [],
+    }
+
+
 async def run_turn(
     tenant: dict,
     session_id: str,
@@ -109,7 +130,24 @@ async def run_turn(
             log.exception("takeover lookup failed for tenant %s", tenant.get("slug"))
             paused = False
         if paused:
-            return {"reply": "", "suppressed": True, "reason": "human_takeover", "conversation_id": None}
+            return suppressed("human_takeover")
+
+    # The business owner may have switched Concierge off entirely. Take the message, answer
+    # nothing, and never reach the model: a pause that still costs a model call is not a pause.
+    if not dry_run:
+        try:
+            tenant_off = await tenant_pause.is_paused(tenant)
+        except Exception:  # noqa: BLE001 - is_paused already fails open; belt and braces
+            log.exception("pause lookup failed for tenant %s", tenant.get("slug"))
+            tenant_off = False
+        if tenant_off:
+            conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
+            if channel == "chat":
+                await enquiries.capture(tenant, "chat", str(conversation_id), message,
+                                        conversation_id=conversation_id)
+            await convo.save_message(conversation_id, "user", message)
+            return suppressed("tenant_paused", conversation_id,
+                              tenant_pause.HOLDING_REPLY if channel == "chat" else "")
 
     conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
     ctx = {
@@ -209,6 +247,23 @@ async def run_turn_stream(
         paused = False
     if paused:
         yield {"type": "done", "reply": "", "suppressed": True, "reason": "human_takeover"}
+        return
+
+    # The streaming path is a separate implementation, so the owner's pause has to be honoured
+    # here too -- otherwise a business that switched Concierge off keeps answering on the widget.
+    try:
+        tenant_off = await tenant_pause.is_paused(tenant)
+    except Exception:  # noqa: BLE001
+        log.exception("pause lookup failed for tenant %s", tenant.get("slug"))
+        tenant_off = False
+    if tenant_off:
+        conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
+        if channel == "chat":
+            await enquiries.capture(tenant, "chat", str(conversation_id), message,
+                                    conversation_id=conversation_id)
+        await convo.save_message(conversation_id, "user", message)
+        yield {"type": "done", "reply": tenant_pause.HOLDING_REPLY, "suppressed": True,
+               "reason": "tenant_paused", "conversation_id": conversation_id}
         return
 
     conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)

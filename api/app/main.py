@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
@@ -2793,6 +2793,28 @@ async def admin_channel_authorization(
 async def admin_authorization_audit(slug: str, limit: int = 100):
     tenant = await _require_tenant(slug)
     return await channel_authorization.audit_log(tenant["id"], max(1, min(limit, 500)))
+
+
+class PauseRequest(BaseModel):
+    paused: bool
+
+
+@app.get("/owner/pause")
+async def owner_pause_state(user: dict = Depends(owner_auth.current_user)):
+    """Always readable, so the Studio can show the switch without hunting for a permission."""
+    return await tenant_pause.state(user["tenant_id"])
+
+
+@app.post("/owner/pause")
+async def owner_set_pause(body: PauseRequest, user: dict = Depends(owner_auth.current_user)):
+    """Stop or resume Concierge for this business only.
+
+    Never the operator's deployment-wide kill switch (flood_guard): one customer must not be able
+    to silence another.
+    """
+    owner_auth.require_role(user, "owner")
+    return await tenant_pause.set_paused(
+        user["tenant_id"], body.paused, user.get("email") or "owner")
 
 
 @app.post("/owner/onboarding/authorizations")

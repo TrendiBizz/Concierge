@@ -411,6 +411,77 @@ function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: n
   );
 }
 
+
+/**
+ * "Pause everything" — one switch the owner can always see.
+ *
+ * It stops Concierge answering and sending for this business only. Pausing is confirmed first,
+ * because an accidental pause means customers stop getting answers, and the strip then stays on
+ * screen with the date it started until it is turned back on.
+ */
+function PauseStrip({token}: {token: string}) {
+  const api = useApi(token);
+  const [state, setState] = useState<{paused: boolean; since: string | null} | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+
+  useEffect(() => {
+    api('/owner/pause').then(setState).catch(() => setState(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  if (!state) return null;
+
+  async function toggle(paused: boolean) {
+    setBusy(true); setProblem('');
+    try {
+      setState(await api('/owner/pause', 'POST', {paused}));
+      setConfirming(false);
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Could not change that');
+    }
+    setBusy(false);
+  }
+
+  if (state.paused) {
+    return (
+      <Card>
+        <div style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'}}>
+          <strong>Concierge is paused.</strong>
+          <span>
+            Nobody is being answered and nothing is being sent
+            {state.since ? ' since ' + new Date(state.since).toLocaleString() : ''}. Messages
+            are still being saved, so you are not losing anyone.
+          </span>
+          <Button label={busy ? 'Starting…' : 'Start answering again'} variant="primary"
+                  onClick={() => toggle(false)} />
+        </div>
+        {problem ? <ErrorNote message={problem} /> : null}
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'}}>
+        <strong>Pause everything</strong>
+        <span>Stops Concierge answering customers and sending anything, for your business only. Messages still get saved.</span>
+        {confirming ? (
+          <>
+            <strong>Pause now?</strong>
+            <Button label={busy ? 'Pausing…' : 'Yes, pause'} variant="primary" onClick={() => toggle(true)} />
+            <Button label="Cancel" variant="ghost" onClick={() => setConfirming(false)} />
+          </>
+        ) : (
+          <Button label="Pause everything" variant="secondary" onClick={() => setConfirming(true)} />
+        )}
+      </div>
+      {problem ? <ErrorNote message={problem} /> : null}
+    </Card>
+  );
+}
+
 type Suggestion = {
   website: string;
   name: string;
@@ -1241,6 +1312,7 @@ function Shell() {
 
   const content = (
     <>
+      <PauseStrip token={token} />
       <TranslationNote locale={locale} />
       {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>

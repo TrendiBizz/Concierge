@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta, timezone
 from email.utils import make_msgid
 from zoneinfo import ZoneInfo
 
-from . import casetimeline, channel_authorization, db, device_sms, flood_guard, mailer, sms, suppressions, tenants, unsub
+from . import casetimeline, channel_authorization, db, device_sms, flood_guard, mailer, sms, suppressions, tenants, unsub, tenant_pause
 from .config import get_settings
 from .contact import contact_key
 
@@ -110,6 +110,13 @@ async def _deliver(row: dict) -> None:
     tenant = await tenants.get_by_id(row["tenant_id"])
     if tenant is None:
         await _finish(row["id"], "skipped", "tenant_deleted")
+        return
+
+    # The owner switching Concierge off must stop messages reaching *their customers*. Alerts to
+    # the owner are deliberately not suppressed: a paused business still needs to know who tried
+    # to reach it, and the message itself is captured.
+    if row["kind"] not in OWNER_KINDS and await tenant_pause.is_paused(tenant):
+        await _finish(row["id"], "skipped", "tenant_paused")
         return
 
     if row['kind'] == 'email_secretary_reply' and (not tenant.get('email_auto_reply') or not await channel_authorization.is_authorized(tenant['id'], 'email_read')):

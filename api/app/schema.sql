@@ -202,6 +202,10 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing boolean NOT NULL DE
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing_basis text NOT NULL DEFAULT '';
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS consent_marketing_at timestamptz;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS campaigns_enabled boolean NOT NULL DEFAULT false;
+-- Owner's own switch: stop Concierge answering or sending for this business. Distinct from the
+-- operator kill switch (settings.outbound_paused), which is deployment-wide.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paused_at timestamptz;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paused_by text;
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id              bigserial PRIMARY KEY,
