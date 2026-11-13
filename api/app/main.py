@@ -809,6 +809,8 @@ class TenantUpdate(BaseModel):
     notify_email: str | None = None
     notify_phone: str | None = Field(default=None, max_length=32)
     owner_call_phone: str | None = Field(default=None, max_length=32)   # number a take-over/ring-first rings; falls back to notify_phone
+    inbound_ack: bool | None = None   # acknowledge verified inbound email with a reference (opt-in)
+    inbound_ack_text: str | None = Field(default=None, max_length=600)
     owner_text_only: bool | None = None   # owner works in writing only: never ring or transfer to a human
     sms_enabled: bool | None = None
     sms_from: str | None = None

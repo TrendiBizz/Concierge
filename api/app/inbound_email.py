@@ -6,13 +6,72 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import db, email_drafts, enquiries, convo, inbound_policy, tenants
+from . import db, email_drafts, enquiries, convo, flood_guard, inbound_policy, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
 
 class InboundError(ValueError):
     pass
+
+
+ACK_SENDER_WINDOW = "24 hours"
+
+
+def ack_decision(tenant: dict, sender: str, subject: str, risk: str, flags: list | None,
+                 auth: dict | None) -> str | None:
+    """None when an acknowledgement may be queued; otherwise the reason it must not be.
+
+    An acknowledgement is mail to whoever wrote in, so it is the one outbound path an attacker could
+    point at a victim (backscatter). It therefore goes only to a sender whose DKIM signature passed
+    and aligns with the From domain, never to robots or mailing lists, never for a high-risk message,
+    and only when the business has switched it on.
+    """
+    if not tenant.get("inbound_ack"):
+        return "off"
+    if risk == "high":
+        return "high_risk"
+    if "automated_sender" in (flags or []):
+        return "automated_headers"
+    if flood_guard.automated_message(sender, subject):
+        return "automated_address"
+    if "@" not in (sender or ""):
+        return "no_address"
+    verified = auth or {}
+    if str(verified.get("aligned", "")).lower() != "yes" and str(verified.get("dmarc", "")).lower() != "pass":
+        return "sender_not_verified"
+    return None
+
+
+def ack_message(tenant: dict, draft_id, subject: str) -> tuple[str, str]:
+    """Subject and body of the acknowledgement. The reference is the review-draft number."""
+    ref = f"T-{draft_id}"
+    custom = (tenant.get("inbound_ack_text") or "").strip()
+    middle = custom or (
+        f"Thank you for contacting {tenant.get('name') or 'us'}. We have your message and a member of our "
+        "team will reply within one business day.")
+    body = f"Hello,\n\n{middle}\n\nYour reference: {ref}\n\nThis is an automatic acknowledgement; there is no need to reply to it.\n"
+    return f"We received your message ({ref})"[:200], body
+
+
+async def queue_ack(tenant: dict, draft: dict, subject: str, key: str) -> str:
+    """Queue the acknowledgement. Returns "queued" or the reason it was not. Never raises."""
+    try:
+        sender = draft["sender"]
+        pool = db.pool()
+        if await pool.fetchval(
+                "SELECT 1 FROM outbox WHERE tenant_id=$1 AND kind='inbound_ack' AND lower(to_addr)=lower($2) "
+                "AND created_at > now() - interval '" + ACK_SENDER_WINDOW + "' LIMIT 1", tenant["id"], sender):
+            return "already_acknowledged"
+        ack_subject, body = ack_message(tenant, draft["id"], subject)
+        await pool.execute(
+            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) "
+            "VALUES($1,'inbound_ack','email',$2,$3,$4,$5) "
+            "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+            tenant["id"], sender, ack_subject, body, "ack:" + key)
+        return "queued"
+    except Exception:  # noqa: BLE001 - an acknowledgement must never fail the ingestion
+        return "error"
 
 
 async def ingest_verified(tenant_id, provider: str, message_id: str,
@@ -52,6 +111,9 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
                                 conversation_id=conversation_id, email=draft["sender"])
         detail = {"risk": risk, "flags": flags, "status": draft.get("status")}
+        why_not = ack_decision(tenant, draft["sender"], subject, risk, flags, auth)
+        if why_not != "off":
+            detail["ack"] = why_not or await queue_ack(tenant, draft, subject, key)
         if envelope_from:
             detail["envelope_from"] = envelope_from[:320]
         await inbound_policy.audit(

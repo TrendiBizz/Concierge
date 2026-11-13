@@ -29,6 +29,8 @@ UPDATABLE_FIELDS = {
     "notify_email": str,
     "notify_phone": str,
     "owner_call_phone": str,
+    "inbound_ack": bool,
+    "inbound_ack_text": str,
     "email_auto_reply": bool,
     "sms_enabled": bool,
     "sms_from": str,

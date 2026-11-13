@@ -909,3 +909,6 @@ CREATE INDEX IF NOT EXISTS outbox_claimed_idx ON outbox (channel, claimed_at)
 -- and the reason a phone call failed (the 12 Nov failure evidence was lost to a restart).
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS owner_call_phone text;
 ALTER TABLE phone_calls ADD COLUMN IF NOT EXISTS failure_reason text NOT NULL DEFAULT '';
+-- Session 19: opt-in acknowledgement (with a reference) for verified inbound email.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inbound_ack boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inbound_ack_text text;
