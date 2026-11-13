@@ -322,7 +322,9 @@ def check_sms_inbound() -> list[dict]:
     if not enabled:
         return [_ok("sms:inbound", "no paired phone in use")]
     if never:
-        return [_fail("sms:inbound",
+        # A warning, not a failure: nothing is broken, the capability simply has not been exercised.
+        # It stays visible in every report and is cleared by one real text.
+        return [_warn("sms:inbound",
                       f"{never} of {enabled} paired phone(s) have never delivered a text in; "
                       "send one text to the business number to prove the reply path")]
     return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
