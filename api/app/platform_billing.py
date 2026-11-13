@@ -139,25 +139,36 @@ table{{width:100%;border-collapse:collapse;margin-top:24px}} td,th{{padding:10px
 
 
 async def email_invoice(invoice: dict) -> None:
-    """Send the invoice the moment payment is verified. Recorded in the outbox, so it retries."""
+    """Send the invoice the moment payment is verified. Recorded in the outbox, so it retries.
+
+    The outbox row needs a business. Before provisioning there is none, so the platform's own
+    business owns the row — the sale is Trendi's, and the email must not wait on provisioning.
+    """
+    owner_tenant = invoice.get("tenant_id") or await db.pool().fetchval(
+        "SELECT id FROM tenants WHERE slug='trendi-support' LIMIT 1")
     link = f"https://concierge.trendibizz.com/receipt/{invoice['public_token']}"
     total = invoice["amount_cents"] / 100
     body = (f"Thanks — your payment of {total:,.2f} {invoice['currency']} has been received and verified.\n\n"
             f"Invoice {invoice['number']} is attached to this payment and is also here:\n{link}\n\n"
             f"Your Concierge portal is being set up; a separate email will give you your sign-in link.\n")
     await outbox.enqueue(
-        invoice["tenant_id"], "customer_invoice", "email", invoice["customer_email"], body,
-        subject=f"Invoice {invoice['number']} — Trendi Concierge")
+        owner_tenant, "customer_invoice", "email", invoice["customer_email"], body,
+        subject=f"Invoice {invoice['number']} — Trendi Concierge",
+        dedupe_key=f"platform-invoice:{invoice['number']}:{invoice['customer_email']}")
 
 
 async def provision(invoice: dict) -> dict:
     """Give the buyer a way in: a business and an owner sign-in link."""
     slug = "client-" + invoice["number"].lower().replace("trb-", "")
     business = invoice.get("business_name") or invoice.get("customer_name") or invoice["customer_email"]
-    tenant = await db.pool().fetchrow(
-        "INSERT INTO tenants(slug,name,notify_email) VALUES($1,$2,$3) "
-        "ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name RETURNING *",
-        slug, business[:120], invoice["customer_email"])
+    # tenants.create() is the one place that knows the required columns (public_key, report_token).
+    # Inserting a tenant by hand here is how a verified purchase ended up with no business at all.
+    await tenants.create(business[:120], None, slug=slug)
+    tenant = await db.pool().fetchrow("SELECT * FROM tenants WHERE slug=$1", slug)
+    if not tenant:
+        raise RuntimeError("Business was not created")
+    await db.pool().execute(
+        "UPDATE tenants SET notify_email=$2 WHERE id=$1", tenant["id"], invoice["customer_email"])
     await db.pool().execute(
         "INSERT INTO tenant_users(tenant_id,email,role,password_hash,active) "
         "VALUES($1,$2,'owner','',true) "
@@ -165,6 +176,7 @@ async def provision(invoice: dict) -> dict:
     await owner_invites.send(slug, invoice["customer_email"])
     await db.pool().execute(
         "UPDATE platform_invoices SET tenant_id=$2 WHERE id=$1", invoice["id"], tenant["id"])
+    invoice["tenant_id"] = tenant["id"]
     return dict(tenant)
 
 
@@ -191,9 +203,22 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
         stripe_event_id=event_id,
         description=(session.get("metadata") or {}).get("plan", "Concierge subscription"),
     )
+    # The money is already taken, so the invoice must go out regardless of anything that follows.
+    # Provisioning is attempted first only because a working portal link is the better email; its
+    # failure is recorded for a person and never stops the invoice.
+    provision_error = None
     if not invoice.get("tenant_id"):
-        await provision(invoice)
-    await email_invoice(invoice)
+        try:
+            await provision(dict(invoice))
+        except Exception as error:  # noqa: BLE001 - the sale stands; a person must fix the business
+            provision_error = error
+            await db.pool().execute(
+                "INSERT INTO privacy_requests(email,kind,note) VALUES($1,'access',$2)",
+                invoice["customer_email"], f"Provisioning failed for {invoice['number']}: {error}"[:900])
+    if not invoice.get("emailed_at"):
+        await email_invoice(dict(invoice))
+        await db.pool().execute(
+            "UPDATE platform_invoices SET emailed_at=now() WHERE id=$1", invoice["id"])
     operator = await db.pool().fetchrow(
         "SELECT t.* FROM tenants t WHERE t.slug='trendi-support'")
     if operator:
@@ -245,9 +270,12 @@ async def manual_charge(body: ManualCharge, x_admin_token: str = Header(default=
         email=body.email, name=body.name, business=body.business, plan=body.plan,
         amount_cents=body.amount_cents, currency=body.currency.upper(),
         source="manual:" + (body.reference or "bank"), description=body.plan)
+    if not invoice.get("emailed_at"):
+        await email_invoice(invoice)
+        await db.pool().execute(
+            "UPDATE platform_invoices SET emailed_at=now() WHERE id=$1", invoice["id"])
     if not invoice.get("tenant_id"):
-        await provision(invoice)
-    await email_invoice(invoice)
+        await provision(dict(invoice))
     return invoice
 
 

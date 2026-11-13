@@ -75,7 +75,7 @@ def test_the_customer_is_emailed_the_invoice_immediately():
 
 def test_a_verified_purchase_provisions_access():
     source = inspect.getsource(platform_billing.provision)
-    assert "INSERT INTO tenants" in source
+    assert "tenants.create(" in source
     assert "tenant_users" in source
     assert "owner_invites.send" in source
 
@@ -110,3 +110,33 @@ def test_the_webhook_reads_the_raw_body():
     assert "stripe_webhook" in source or True
     webhook = inspect.getsource(platform_billing.stripe_webhook)
     assert "await request.body()" in webhook
+
+
+def test_provisioning_uses_the_tenant_helper_that_knows_required_columns():
+    source = inspect.getsource(platform_billing.provision)
+    assert "tenants.create(" in source, "a hand-rolled INSERT missed NOT NULL public_key"
+    assert "'owner'" in source or '"owner"' in source or "tenant_users" in source
+
+
+def test_a_provisioning_failure_does_not_lose_the_invoice_or_the_sale():
+    source = inspect.getsource(platform_billing.handle_checkout)
+    assert "except Exception" in source, "provisioning must not raise past the invoice"
+    assert "provision_error" in source
+    assert "emailed_at" in source
+    mail = inspect.getsource(platform_billing.email_invoice)
+    assert "trendi-support" in mail, (
+        "the outbox row needs a business even before the buyer has one")
+
+
+def test_the_customer_still_gets_the_invoice_if_provisioning_fails():
+    source = inspect.getsource(platform_billing.handle_checkout)
+    body = source[source.index("provision_error = None"):]
+    assert body.index("except Exception") < body.index("email_invoice"), (
+        "the invoice email is unconditional")
+
+
+def test_a_retried_webhook_does_not_email_the_customer_twice():
+    webhook = inspect.getsource(platform_billing.handle_checkout)
+    assert "if not invoice.get(\"emailed_at\")" in webhook
+    mail = inspect.getsource(platform_billing.email_invoice)
+    assert "dedupe_key" in mail

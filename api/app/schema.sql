@@ -1124,3 +1124,6 @@ CREATE TABLE IF NOT EXISTS platform_invoices (
 );
 CREATE SEQUENCE IF NOT EXISTS platform_invoice_seq;
 CREATE INDEX IF NOT EXISTS platform_invoices_email_idx ON platform_invoices(customer_email, created_at DESC);
+
+-- The invoice email must go out once, however many times Stripe retries the webhook.
+ALTER TABLE platform_invoices ADD COLUMN IF NOT EXISTS emailed_at timestamptz;
