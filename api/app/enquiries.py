@@ -1,7 +1,7 @@
 """Durable CRM capture at authenticated channel ingress, independent of AI replies."""
 import hashlib
 
-from . import automation, casetimeline, db, owner_notifications, tasks
+from . import automation, casetimeline, db, identity, owner_notifications, tasks
 
 
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
@@ -10,6 +10,20 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
                   consent_contact: bool = False) -> dict:
     if channel not in ("email", "sms", "phone", "chat") or not source:
         raise ValueError("Authenticated channel event required")
+
+    # Whatever the person plainly told us is captured, on every channel. A chat visitor who writes
+    # "it's Sarah from Acme, call me on 021 555 1234" used to leave no name, no company and no
+    # number, even though all three were right there in the message.
+    if not (name and email and phone and company):
+        # Numbers are only taken from a short message or a chat/text. A long email thread may quote
+        # someone else's number further down, and attaching that to this customer would be wrong.
+        allow_phone = channel in ("chat", "sms") or len(message) < 600
+        found = identity.extract_details(
+            message, casetimeline.tenant_country_code(tenant), allow_phone=allow_phone)
+        name = name or found["name"]
+        email = email or found["email"]
+        phone = phone or found["phone"]
+        company = company or found["company"]
     key = hashlib.sha256(source.encode()).hexdigest()
 
     # Resolve the customer's unified case BEFORE the capture transaction, so a customer who has
@@ -19,7 +33,7 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
     # (an email case from last week, a phone case from a call), the two are merged rather than
     # leaving the owner with the same person recorded twice.
     case = await casetimeline.reconcile(
-        tenant["id"], phone=phone, email=email, name=name,
+        tenant["id"], phone=phone, email=email, name=name, company=company,
         default_cc=casetimeline.tenant_country_code(tenant),
         # The channel that carried the identifier is the source: an email case is captured from
         # email, a call from caller ID. This is what lets the owner tell an auto-captured address

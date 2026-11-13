@@ -98,10 +98,14 @@ def build_system_prompt(tenant: dict, hits: list[dict] | None, channel: str) -> 
         "- Keep answers short: one to four sentences unless the visitor asks for detail.",
         "- Reply in the language the visitor uses, even when the business information is in "
         "English. Match their language naturally; never ask the visitor to switch to English.",
+        "- Record what the visitor tells you as they tell it. Call capture_lead as soon as they give "
+        "a name, a company, a phone number or an email - a named enquirer is worth saving even "
+        "without contact details - and call it again when they add more. Pass every detail they gave: "
+        "name, company, email, phone, and what they want.",
         "- When a visitor shows buying intent (asks for a quote, price, availability, a callback, "
         "or says they want to buy or book), ask for their name and a phone number or email, and "
-        "ask whether it is OK for the business to text or email them. Call capture_lead only after "
-        "they have given you contact details; set consent_to_contact true only if they said yes.",
+        "ask whether it is OK for the business to text or email them. Set consent_to_contact true "
+        "only if they said yes.",
         "- Ask whether the enquirer wants an acknowledgement, separately from the owner notification. "
         "If yes, confirm channel and recipient using request_enquiry_acknowledgement, read back, wait for yes, then confirm. "
         "If declined record requested=false. Contact consent alone is not a request for an acknowledgement.",

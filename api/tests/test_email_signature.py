@@ -56,3 +56,40 @@ def test_an_unknown_country_code_does_not_invent_one():
     assert normalize_phone("021 555 1234", "") is None
     assert normalize_phone("021 555 1234", "64") == "+64215551234"
     assert normalize_phone("+64 21 555 1234", "") == "+64215551234"
+
+
+# ---- what people say, on any channel ------------------------------------------------------
+
+def test_details_are_read_from_what_a_visitor_writes():
+    from app.identity import extract_details
+
+    found = extract_details("Hi it's Sarah from Acme Construction, can you call me on 021 555 1234", "64")
+    assert found["name"] == "Sarah"
+    assert found["company"] == "Acme Construction"
+    assert found["phone"] == "+64215551234"
+
+    found = extract_details("My name is Conrad Schiess, my email is conrad@pukekoconstruction.co.nz", "64")
+    assert found["name"] == "Conrad Schiess"
+    assert found["email"] == "conrad@pukekoconstruction.co.nz"
+
+
+def test_a_plain_question_yields_no_invented_details():
+    from app.identity import extract_details
+
+    found = extract_details("We have a two-storey house with old cladding. Do you do that?", "64")
+    assert found == {"name": "", "email": "", "phone": "", "company": ""}
+    # "I'm interested" is not a person called Interested.
+    assert extract_details("I'm interested in a quote thanks", "64")["name"] == ""
+
+
+def test_a_text_message_signed_with_a_name_keeps_the_name():
+    from app.identity import extract_details
+
+    assert extract_details("Can you come out next week?\nSarah", "64")["name"] == "Sarah"
+
+
+def test_a_long_email_thread_does_not_donate_someone_elses_number():
+    from app.identity import extract_details
+
+    body = "Please call me.\n\nOn Tue, Sam wrote:\n> ring the office on 09 555 0000"
+    assert extract_details(body, "64", allow_phone=False)["phone"] == ""

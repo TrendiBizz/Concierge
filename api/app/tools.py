@@ -8,7 +8,7 @@ booking tools only appear when the client has turned native booking on.
 import json
 import logging
 
-from . import automation, booking, casetimeline, db
+from . import automation, booking, casetimeline, db, identity
 from .config import get_settings
 from .contact import is_email, normalize_phone
 from .rag import retrieve, tag_url
@@ -46,13 +46,15 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "capture_lead",
         "description": (
-            "Save a visitor's contact details and what they want so the business can follow up. "
-            "Only call this after the visitor has given a phone number or email."
+            "Save what the visitor told you so the business can follow up: their name, company, "
+            "phone, email and what they want. Call this as soon as they give a name as well as when "
+            "they give contact details - a named enquirer is worth recording even without a number."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Visitor's name"},
+                "company": {"type": "string", "description": "Visitor's company, if they said it"},
                 "email": {"type": "string", "description": "Visitor's email, if given"},
                 "phone": {"type": "string", "description": "Visitor's phone number, if given"},
                 "message": {
@@ -176,6 +178,7 @@ def voice_tools(tenant: dict, *, website=False) -> list[dict]:
 async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     settings = get_settings()
     name = str(args.get("name") or "").strip()[:120]
+    company = str(args.get("company") or "").strip()[:120]
     email = str(args.get("email") or "").strip()[:200]
     phone_raw = str(args.get("phone") or ctx.get("sender_phone") or "").strip()[:40]
     message = str(args.get("message") or "").strip()[:1000]
@@ -184,8 +187,19 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
 
     phone = normalize_phone(phone_raw, casetimeline.tenant_country_code(tenant)) or ""
     email_ok = is_email(email)
-    if not (email_ok or phone):
-        return {"ok": False, "error": "Need a valid phone number or email address. Ask the visitor for one."}
+    # Whatever they said is read even when the tool arguments are thin, so a name given in passing is
+    # not lost just because the model did not repeat it into the arguments.
+    if not (email_ok or phone or name):
+        found = identity.extract_details(
+            str(args.get("message") or "") + "\n" + str(ctx.get("last_message") or ""),
+            casetimeline.tenant_country_code(tenant))
+        name = name or found["name"]
+        company = company or found["company"]
+        email_ok = email_ok or bool(found["email"])
+        email = email if email_ok and email else found["email"] or email
+        phone = phone or found["phone"]
+    if not (email_ok or phone or name):
+        return {"ok": False, "error": "Need a name, a valid phone number or an email address. Ask the visitor for one."}
     if ctx.get("dry_run"):
         return {"ok": True, "note": "(dry run) lead would be saved"}
 
@@ -193,7 +207,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     # case BEFORE writing the lead, so their next email or call is recognised as the same person
     # instead of arriving as a stranger with a duplicate history.
     case = await casetimeline.reconcile(
-        tenant["id"], phone=phone, email=email if email_ok else "", name=name,
+        tenant["id"], phone=phone, email=email if email_ok else "", name=name, company=company,
         default_cc=casetimeline.tenant_country_code(tenant), source=ctx.get("channel", "chat"))
     case_id = case["id"] if case else None
 
@@ -202,6 +216,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
     if ctx.get("conversation_id"):
         existing = await db.pool().fetchrow(
             "UPDATE leads SET name=CASE WHEN $3<>'' THEN $3 ELSE name END, "
+            "company=CASE WHEN $9<>'' THEN $9 ELSE coalesce(company,'') END, "
             "email=CASE WHEN $4<>'' THEN $4 ELSE email END, "
             "phone=CASE WHEN $5<>'' THEN $5 ELSE phone END, message=$6, "
             "consent_contact=consent_contact OR $7, consent_marketing=consent_marketing OR $8, "
@@ -209,7 +224,8 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
             "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
             "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
             "ORDER BY created_at LIMIT 1) RETURNING *",
-            tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message, consent, marketing)
+            tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message,
+            consent, marketing, company)
         if existing:
             if case_id:
                 await db.pool().execute("UPDATE leads SET case_id=$2 WHERE id=$1",
@@ -221,10 +237,10 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
 
     row = await db.pool().fetchrow(
         """
-        INSERT INTO leads (tenant_id, conversation_id, name, email, phone, message, channel,
+        INSERT INTO leads (tenant_id, conversation_id, name, company, email, phone, message, channel,
                            page_url, utm, webhook_status, consent_contact, consent_marketing,
                            consent_marketing_basis, consent_marketing_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12,
+        VALUES ($1, $2, $3, $13, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12,
                 CASE WHEN $12 THEN 'visitor agreed to promotions in ' || $7 || ' conversation' ELSE '' END,
                 CASE WHEN $12 THEN now() END)
         RETURNING *
@@ -241,6 +257,7 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
         "pending" if tenant.get("lead_webhook_url") else "none",
         consent,
         marketing,
+        company,
     )
     if case_id and row:
         await db.pool().execute("UPDATE leads SET case_id=$2 WHERE id=$1", row["id"], case_id)
