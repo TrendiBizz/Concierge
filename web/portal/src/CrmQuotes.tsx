@@ -95,7 +95,7 @@ export function Crm({token}: {token: string}) {
 }
 
 
-export function Quotes({token, brand}: {token: string; brand: Brand}) {
+export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Brand; onOpenDesigns?: () => void}) {
   const api = useApi(token);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -220,6 +220,11 @@ export function Quotes({token, brand}: {token: string; brand: Brand}) {
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Quotations</Heading>
+      <Card>
+        <Heading level={2}>Quote from a plan or 3D model</Heading>
+        <p>Send a customer an upload link, or upload their IFC yourself. We measure the outside clad area net of openings and price it at your rate per square metre — waste and minimum charge included.</p>
+        <Button label="Open Designs and CAD" variant="secondary" onClick={() => onOpenDesigns?.()} />
+      </Card>
       <p>Build a quote from your enquiry and products. Prices are your sale prices. The business owner reviews and signs off before it is accepted.</p>
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         <Card>

@@ -3,15 +3,18 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
+import {TextInput} from '@astryxdesign/core/TextInput';
 import {copyText} from './clipboard';
 
+type Profile = {id: string; name: string; unit: string; rate_cents: number; waste_percent: string; minimum_cents: number; measurement: string; currency: string; is_default: boolean};
+type Customer = {id: string; name?: string; email?: string; phone?: string; channel: string};
 type Design = {id: string; filename: string; size_bytes: number; status: string; summary?: Record<string, unknown> | null; created_at: string};
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: currency || 'USD'}).format((cents || 0) / 100);
 }
 
-export default function Designs({token}: {token: string}) {
+export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuotes?: () => void}) {
   async function api(path: string, method = "GET", body?: unknown) {
     const response = await fetch(path, {
       method,
@@ -24,10 +27,17 @@ export default function Designs({token}: {token: string}) {
     return data;
   }
   const [designs, setDesigns] = useState<Design[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [rateDollars, setRateDollars] = useState('');
+  const [waste, setWaste] = useState('');
+  const [minimum, setMinimum] = useState('');
   const [status, setStatus] = useState('');
   const [viewFile, setViewFile] = useState<File | null>(null);
   const [viewName, setViewName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [quotedOnce, setQuotedOnce] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
   const [link, setLink] = useState('');
   const [draft, setDraft] = useState<{title: string; currency: string; source: string; warnings?: string[]; lines: Array<{description: string; quantity: string; unit_price_cents: number; amount_cents: number}>; subtotal_cents: number; total_cents: number} | null>(null);
@@ -36,7 +46,59 @@ export default function Designs({token}: {token: string}) {
     try { setDesigns(await api('/owner/designs') as Design[]); }
     catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load designs'); }
   }
-  useEffect(() => { load(); }, [token]);
+
+  const defaultProfile = profiles.find((p) => p.is_default) || profiles[0];
+
+  async function loadPricing() {
+    try {
+      const rows = await api('/owner/quote-profiles') as Profile[];
+      setProfiles(rows);
+      const chosen = rows.find((p) => p.is_default) || rows[0];
+      if (chosen) {
+        setRateDollars((chosen.rate_cents / 100).toFixed(2));
+        setWaste(String(Number(chosen.waste_percent)));
+        setMinimum((chosen.minimum_cents / 100).toFixed(2));
+      }
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load your rates'); }
+  }
+
+  async function loadCustomers() {
+    try { setCustomers(await api('/owner/crm/leads') as Customer[]); }
+    catch { setCustomers([]); }
+  }
+
+  async function saveRate() {
+    const body = {
+      name: defaultProfile?.name || 'Measured work',
+      unit: 'm²',
+      rate_cents: Math.round(Number(rateDollars || '0') * 100),
+      waste_percent: Number(waste || '0'),
+      minimum_cents: Math.round(Number(minimum || '0') * 100),
+      measurement: defaultProfile?.measurement || 'net_cladding',
+      currency: defaultProfile?.currency || 'NZD',
+      tax_basis_points: 1500,
+      is_default: true,
+      active: true,
+    };
+    try {
+      if (defaultProfile) await api('/owner/quote-profiles/' + defaultProfile.id, 'PATCH', body);
+      else await api('/owner/quote-profiles', 'POST', body);
+      await loadPricing();
+      setStatus('Saved. Quotations from a measured model use these rates.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save your rates'); }
+  }
+
+  async function quoteModel(design: Design) {
+    if (!customerId) { setStatus('Choose which customer this quote is for.'); return; }
+    setBusy(true); setStatus('Pricing the measured area…');
+    try {
+      const result = await api('/owner/designs/' + design.id + '/quote', 'POST', {lead_id: customerId}) as {quotation: {id: string; title: string; total_cents: number; currency: string}; billed_area: string; notes: string[]};
+      setQuotedOnce(true);
+      setStatus('Quotation drafted: ' + result.quotation.title + ' — ' + money(result.quotation.total_cents, result.quotation.currency) + ' for ' + result.billed_area + ' m². ' + (result.notes.join(' ') || '') + ' Review it in Quotes.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not price this model'); }
+    setBusy(false);
+  }
+  useEffect(() => { load(); void loadPricing(); void loadCustomers(); }, [token]);
 
   useEffect(() => {
     let disposed = false;
@@ -110,6 +172,17 @@ export default function Designs({token}: {token: string}) {
       <Heading level={1}>Designs and CAD</Heading>
       <p>Upload plans or 3D models, view them, and read wall areas from IFC models for cladding quotes.</p>
       <Card>
+        <Heading level={2}>Who is this for?</Heading>
+        <p>A quotation has to belong to a customer. Pick one here, and "Price this model" below will draft the quote against them.</p>
+        <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{padding: '8px 10px', minWidth: 280}}>
+          <option value="">Choose a customer or enquiry…</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>{[c.name || '(no name)', c.phone || c.email || ('via ' + c.channel)].filter(Boolean).join(' · ')}</option>
+          ))}
+        </select>
+        {!customers.length ? <p>No enquiries yet. They appear here as soon as a customer contacts you.</p> : null}
+      </Card>
+      <Card>
         <Heading level={2}>Customer upload link</Heading>
         <p>Send this to a customer so they can upload their own plans. It expires in 7 days.</p>
         <Button label="Create upload link" variant="secondary" onClick={async () => {
@@ -122,6 +195,17 @@ export default function Designs({token}: {token: string}) {
           } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not create the link'); }
         }} />
         {link ? <p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null}
+      </Card>
+      <Card>
+        <Heading level={2}>How your quotes are worked out</Heading>
+        <p>Measured models are priced by the square metre. Set your rate once; every quote from a model uses it.</p>
+        <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
+          <TextInput label="Rate per m² ($)" value={rateDollars} onChange={(value: string) => setRateDollars(value)} placeholder="45.00" />
+          <TextInput label="Waste (%)" value={waste} onChange={(value: string) => setWaste(value)} placeholder="10" />
+          <TextInput label="Minimum charge ($)" value={minimum} onChange={(value: string) => setMinimum(value)} placeholder="500.00" />
+          <Button label="Save rates" variant="secondary" onClick={() => void saveRate()} />
+        </div>
+        <p style={{color: '#555'}}>{defaultProfile ? 'Currently: ' + defaultProfile.name + ' at ' + money(defaultProfile.rate_cents, defaultProfile.currency) + '/' + defaultProfile.unit + (Number(defaultProfile.waste_percent) ? ' with ' + Number(defaultProfile.waste_percent) + '% waste' : '') + (defaultProfile.minimum_cents ? ', minimum ' + money(defaultProfile.minimum_cents, defaultProfile.currency) : '') + '. Measured on the ' + defaultProfile.measurement.replace('_', ' ') + ' area.' : 'No rate yet — set one above and a measured model becomes a priced quotation.'}</p>
       </Card>
       <Card>
         <Heading level={2}>Upload a design</Heading>
@@ -137,6 +221,7 @@ export default function Designs({token}: {token: string}) {
             <Button label="Download" variant="ghost" onClick={() => open(design, true)} />
             {design.filename.toLowerCase().endsWith('.ifc') ? <Button label="IFC takeoff" variant="primary" onClick={() => takeoff(design)} /> : null}
             {design.summary ? <Button label="Draft quote" variant="secondary" onClick={() => quoteFromTakeoff(design)} /> : null}
+            {design.summary ? <Button label="Price this model" variant="primary" onClick={() => void quoteModel(design)} /> : null}
             {design.summary ? <p>{String((design.summary as Record<string, unknown>).gross_wall_area_m2 ?? '')} m² gross · {String((design.summary as Record<string, unknown>).net_cladding_area_m2 ?? '')} m² cladding</p> : null}
           </Card>
         ))}
@@ -156,6 +241,7 @@ export default function Designs({token}: {token: string}) {
       ) : null}
       {viewFile ? <Card><Heading level={2}>{viewName}</Heading><div ref={viewerRef} style={{height: 520, width: '100%'}} /><Button label="Close viewer" variant="ghost" onClick={() => { setViewFile(null); setViewName(''); }} /></Card> : null}
       {status ? <p role="status">{status}</p> : null}
+      {quotedOnce && onOpenQuotes ? <p><Button label="Open Quotes to review or send it" variant="primary" onClick={onOpenQuotes} /></p> : null}
     </div>
   );
 }

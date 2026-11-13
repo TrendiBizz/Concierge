@@ -46,6 +46,11 @@ def _money(cents: int) -> str:
     return '$%.2f' % (cents / 100)
 
 
+def _num(value) -> str:
+    """Decimal('10.00') must print as '10', never as '1E+1' — this text goes on a quote."""
+    return format(Decimal(value).normalize(), 'f')
+
+
 def compute_quote(profile: dict, takeoff: dict) -> dict:
     """Turn a measured takeoff into one priced line. Pure: no database, no rounding surprises.
 
@@ -68,7 +73,7 @@ def compute_quote(profile: dict, takeoff: dict) -> dict:
     notes: list[str] = []
     if waste > 0:
         notes.append('%s%% waste added to the measured area (%s %s measured).'
-                     % (waste.normalize(), area, profile.get('unit') or 'm²'))
+                     % (_num(waste), _num(area), profile.get('unit') or 'm²'))
     if minimum and amount < minimum:
         notes.append('Minimum charge of %s applied (measured %s came to %s).'
                      % (_money(minimum), billed_area, _money(amount)))
