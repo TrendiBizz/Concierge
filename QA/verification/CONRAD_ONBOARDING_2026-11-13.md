@@ -46,3 +46,34 @@ limit stated, and printable CSS. **1069 tests pass.**
 - His login is **`pukeko-demo@trendibizz.com`**, a demo address. Change it to Conrad's real email and
   send him a fresh single-use sign-in link. Nobody should be working in a demo account.
 - The rate is his to set. It ships empty on purpose.
+
+## Activation email — sent to Conrad
+
+His real address was in the CRM: **Conrad Schiess, `conrad@pukekoconstruction.co.nz`** (lead created
+11 Nov, channel email). The demo login `pukeko-demo@trendibizz.com` was replaced with it in
+`tenant_users`, so the account he signs into is his, and a future recovery link goes to him.
+
+A single-use link (30 days) was minted for that address and the invitation emailed from the product's
+own mailer through the configured SMTP. The email carries the sign-in link, the printable guide link,
+the five first steps (rate per m², upload, IFC takeoff, price, review in Quotes), and the honest
+limits (IFC only; PDF/DWG cannot be measured).
+
+Sending from a shell had no audit trail — see fault 81 below. The recorded path was added and proved
+separately on our own mailbox (queued → `sent`, attempts 1, no error).
+
+## Fault 81 — an operator-sent invitation left no record
+
+**Cause.** `mailer.send_email()` called directly from a container shell bypasses the outbox: no row in
+`outbox`, no status, no retry, nothing to point at when a client says "I never got it".
+
+**Fix.** `api/app/owner_invites.py` — composes the invitation and queues it via `outbox.enqueue`
+(tenant-scoped, deduped by `owner-invite:<tenant>:<email>`), exposed as
+`POST /admin/tenants/{slug}/owner-invite` (admin token). Returns the link as well, so the operator can
+hand it over directly if email fails.
+
+**Evidence.** Called against our own review tenant: `{"queued": true, ...}` then outbox row
+`sent | attempts=1 | no error`.
+
+**Test.** `api/tests/test_owner_invite_email.py` — the composed email carries the link and guide, names
+the business and the first steps, never claims a price the business has not set, the route exists, and
+the module queues through the outbox rather than importing the mailer.
