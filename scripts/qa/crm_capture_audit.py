@@ -61,6 +61,32 @@ async def main():
         print(f"  duplicate customers for one identity: {len(dupes)}")
         for d in dupes:
             print("    ", dict(d))
+    # Cross-check every inbound source against the CRM: an email, call or chat we received but never
+    # recorded as a customer is exactly the "missing data" this audit exists to find.
+    print("\n=== source-of-truth versus CRM ===")
+    checks = [
+        ("inbound emails received", "SELECT count(*) FROM email_drafts WHERE tenant_id=$1"),
+        # A person may be keyed by phone, so count enquiries whose lead reached a customer, not
+        # customers whose primary email happens to match. The stricter join reported a false gap.
+        ("...linked to a customer", """SELECT count(*) FROM email_drafts d
+            WHERE d.tenant_id=$1 AND EXISTS (
+              SELECT 1 FROM leads l WHERE l.tenant_id=d.tenant_id AND l.email ILIKE d.sender
+                AND l.case_id IS NOT NULL)"""),
+        ("calls recorded", "SELECT count(*) FROM phone_calls WHERE tenant_id=$1"),
+        ("...linked to a customer", """SELECT count(*) FROM phone_calls p
+            WHERE p.tenant_id=$1 AND EXISTS (
+              SELECT 1 FROM leads l WHERE l.tenant_id=p.tenant_id AND l.phone = p.from_number
+                AND l.case_id IS NOT NULL)"""),
+        ("appointments booked", "SELECT count(*) FROM appointments WHERE tenant_id=$1"),
+        ("...whose lead has a customer", """SELECT count(*) FROM appointments a JOIN leads l ON l.id=a.lead_id
+            WHERE a.tenant_id=$1 AND l.case_id IS NOT NULL"""),
+    ]
+    for t in tenants:
+        if not await counts(p, "SELECT count(*) FROM leads WHERE tenant_id=$1", t["id"]):
+            continue
+        print(f"  --- {t['slug']}")
+        for label, sql in checks:
+            print(f"    {label:28} {await counts(p, sql, t['id'])}")
     await db.close()
 
 asyncio.run(main())

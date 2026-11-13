@@ -330,6 +330,28 @@ def check_sms_inbound() -> list[dict]:
     return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
 
 
+def check_crm_capture() -> list[dict]:
+    """Does every enquiry that carried contact details also exist as a customer?
+
+    A lead with a phone or email but no customer record is somebody the CRM cannot show: no history,
+    no timeline, invisible in Contacts. The booking path did exactly this until it was fixed, so this
+    is checked rather than assumed.
+    """
+    sql = ("SELECT count(*) FROM leads WHERE case_id IS NULL "
+           "AND (coalesce(phone,'')<>'' OR coalesce(email,'')<>'')")
+    rc, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
+                   "concierge", "-tAc", sql])
+    if rc != 0:
+        return [_fail("crm:capture", f"could not read leads: {out.strip()[:80]}")]
+    try:
+        orphans = int(out.strip())
+    except ValueError:
+        return [_fail("crm:capture", f"unexpected output: {out.strip()[:80]}")]
+    if orphans:
+        return [_fail("crm:capture", f"{orphans} enquiries have contact details but no customer record")]
+    return [_ok("crm:capture", "every enquiry with contact details has a customer")]
+
+
 def check_tls() -> list[dict]:
     import socket
     results = []
@@ -512,6 +534,10 @@ def main(argv: list[str] | None = None) -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
+    try:
+        results.extend(check_crm_capture())
+    except Exception as exc:  # noqa: BLE001
+        results.append(_fail("check:check_crm_capture", str(exc)[:200]))
     try:
         results.extend(check_sms_inbound())
     except Exception as exc:  # noqa: BLE001
