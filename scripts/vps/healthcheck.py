@@ -110,6 +110,27 @@ def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: s
 
 # ---------------------------------------------------------------- individual checks
 
+DEPLOY_GRACE_MINUTES = 10
+
+# Checks that are reported but must never email: they describe a gap somebody outside this repo has to
+# close, so a reminder every few hours is noise, not a call to action. `sms:inbound` means the paired
+# phone has never POSTed a message to the API; nothing here can change that.
+STATUS_ONLY_CHECKS = {"sms:inbound"}
+
+
+def deploying() -> str:
+    """The name of a critical container restarted within the grace window, else "".
+
+    A deploy restarts the api container, so public URLs and the API briefly fail. Paging the operator
+    for our own deploy is noise that trains them to ignore real alerts: the two FAIL mails at 18:05
+    and 18:10 on 13 Nov were exactly this.
+    """
+    for name in CRITICAL_CONTAINERS:
+        if recently_started(name, minutes=DEPLOY_GRACE_MINUTES):
+            return name
+    return ""
+
+
 def recently_started(name: str, minutes: int = 10) -> bool:
     """True when the container began after `minutes` ago. Used to tell a deploy from an outage."""
     code, out = run(["docker", "inspect", "-f", "{{.State.StartedAt}}", name], timeout=15)
@@ -564,8 +585,16 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(timezone.utc)
     state = load_state()
     problems = {r["check"]: r for r in results if r["status"] in ("fail", "warn")}
-    if alerting:
-        new_alerts, reminders, recoveries = plan_notifications(problems, state, now)
+    grace = deploying() if alerting else ""
+    mailable = [p for p in problems if p["check"] not in STATUS_ONLY_CHECKS]
+    if grace:
+        # Report, but do not mail and do not move the alert state: the "recovery" that follows a deploy
+        # is not a recovery, and the failure it paired with was never a fault.
+        new_alerts, reminders, recoveries = [], [], []
+        print(f"deploy grace: {grace} restarted within {DEPLOY_GRACE_MINUTES} minutes; not alerting",
+              file=sys.stderr)
+    elif alerting:
+        new_alerts, reminders, recoveries = plan_notifications(mailable, state, now)
     else:
         new_alerts, reminders, recoveries = [], [], []
 
@@ -581,7 +610,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATUS_FILE.write_text(json.dumps(report, indent=2))
-    if alerting:
+    if alerting and not grace:
         save_state(state)
 
     if new_alerts or reminders or recoveries:
@@ -613,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         subject = f"[Concierge {status}] " + ", ".join(
             list(i["check"] for i in new_alerts) + [f"{len(recoveries)} recovered"])[:120]
         outcome = send_mail(env, subject, "\n".join(lines))
-        print(f"alert: {outcome} -> {ALERT_TO} ({len(new_alerts)} new, "
+        print(f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')} alert: {subject} -> {outcome} ({len(new_alerts)} new, "
               f"{len(reminders)} reminders, {len(recoveries)} recovered)", file=sys.stderr)
 
     print(json.dumps({"ok": report["ok"], "counts": report["counts"],
