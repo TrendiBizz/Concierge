@@ -67,6 +67,14 @@ class OwnerBusinessProfile(BaseModel):
         value = value.strip()
         if value == "":
             return ""
+        # The website field is filled in by a person, and the reader next to it already accepts
+        # "trendibizz.com". Rejecting that same text at save time left the customer stuck on the
+        # review screen with "Enter a public HTTPS website address" after a successful read.
+        # Normalise here exactly as brand_from_site.normalise_site does, then validate.
+        if "://" not in value:
+            value = "https://" + value
+        if value.lower().startswith("http://"):
+            value = "https://" + value[len("http://"):]
         try:
             url = urlsplit(value)
             if (url.scheme != "https" or not url.hostname or "." not in url.hostname

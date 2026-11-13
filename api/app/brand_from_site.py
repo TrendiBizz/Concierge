@@ -28,6 +28,9 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
+
+log = logging.getLogger("concierge.brand")
 import json
 import os
 import re
@@ -378,6 +381,9 @@ def _svg_has_text(svg: str) -> bool:
     return "<text" in svg.lower()
 
 
+_RENDERER_MISSING_LOGGED = False
+
+
 def rasterise_svg(svg_text: str, pixels: int = LOGO_PIXELS,
                   font: str | None = None) -> bytes | None:
     """Render an SVG to PNG bytes, or None when no renderer is available.
@@ -388,9 +394,17 @@ def rasterise_svg(svg_text: str, pixels: int = LOGO_PIXELS,
     render while keeping the aspect ratio. ``font`` names the family to use
     when the SVG does not name one that exists.
     """
+    global _RENDERER_MISSING_LOGGED
     try:
         import resvg_py  # noqa: PLC0415 - optional dependency, imported on use
-    except Exception:  # noqa: BLE001 - absence is expected on a slim image
+    except Exception:  # noqa: BLE001 - absent only if the image is wrong
+        # A shipped image that cannot rasterise is a deployment fault, not a normal state: in
+        # production it turned every logo into "we could not draw this logo", blaming the
+        # customer's website for our missing dependency. Say so once, loudly, in the log.
+        if not _RENDERER_MISSING_LOGGED:
+            _RENDERER_MISSING_LOGGED = True
+            log.exception("logo renderer unavailable: resvg_py is not installed in this image, "
+                          "so no logo can be drawn until it is")
         return None
     options: dict = {"width": pixels}
     if font:
