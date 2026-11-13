@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 import secrets
@@ -198,3 +199,74 @@ async def public_upload(request: Request, token: str, filename: str):
         raise HTTPException(404, "This upload link has expired")
     return await _save(row["tenant_id"], "customer", filename,
                        request.headers.get("content-type", "application/octet-stream"), await request.body())
+
+
+class QuoteFromDesign(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    lead_id: UUID
+    profile_id: UUID | None = None
+
+
+@router.post("/{design_id}/quote", status_code=201)
+async def quote_from_design(design_id: UUID, body: QuoteFromDesign, user=Depends(owner_auth.current_user)):
+    """Price a measured model with the business's quoting method and save the quotation.
+
+    This is the join between a drawing and the CRM: the same measurement the owner saw on screen
+    becomes a draft quotation against a real customer, ready to review and send.
+    """
+    from . import quote_profiles
+
+    owner_auth.require_role(user, "editor")
+    pool = db.pool()
+    design = await pool.fetchrow(
+        "SELECT id,filename,summary FROM design_uploads WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], design_id)
+    if not design:
+        raise HTTPException(404, "Design not found")
+    takeoff = design["summary"]
+    if isinstance(takeoff, str):
+        try:
+            takeoff = json.loads(takeoff)
+        except ValueError:
+            takeoff = None
+    if not isinstance(takeoff, dict) or not takeoff:
+        raise HTTPException(409, "Run the wall-area takeoff on this model first")
+    if body.profile_id:
+        row = await pool.fetchrow(
+            "SELECT * FROM quote_profiles WHERE tenant_id=$1 AND id=$2 AND active",
+            user["tenant_id"], body.profile_id)
+    else:
+        row = await quote_profiles.default_profile(user["tenant_id"])
+    if not row:
+        raise HTTPException(409, "Set up a quoting method first (rate per m²)")
+    profile = dict(row)
+    try:
+        measured = quote_profiles.compute_quote(profile, takeoff)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+    lead = await pool.fetchrow(
+        "SELECT id,name,email,phone FROM leads WHERE tenant_id=$1 AND id=$2",
+        user["tenant_id"], body.lead_id)
+    if not lead:
+        raise HTTPException(404, "Customer not found")
+    lines = [{**measured["line"],
+              "quantity": measured["line"]["quantity"],
+              "unit_price_cents": measured["line"]["unit_price_cents"]}]
+    subtotal = measured["amount_cents"]
+    tax = int((Decimal(subtotal) * int(profile["tax_basis_points"]) / 10000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    title = "%s — %s" % (design["filename"].rsplit(".", 1)[0][:120], profile["name"][:60])
+    notes = " ".join(measured["notes"])[:4000]
+    quotation = await pool.fetchrow(
+        "INSERT INTO quotations(tenant_id,lead_id,title,currency,tax_basis_points,lines,subtotal_cents,"
+        "tax_cents,total_cents,notes,contact) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb) "
+        "RETURNING *",
+        user["tenant_id"], body.lead_id, title.strip(), profile["currency"],
+        int(profile["tax_basis_points"]), json.dumps(lines), subtotal, tax, subtotal + tax, notes,
+        json.dumps(dict(lead), default=str))
+    return {
+        "quotation": {**dict(quotation), "lines": lines},
+        "measured_area": measured["measured_area"],
+        "billed_area": measured["billed_area"],
+        "amount_cents": subtotal,
+        "notes": measured["notes"],
+    }
