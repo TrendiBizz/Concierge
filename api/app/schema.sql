@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS leads (
     tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     conversation_id  uuid REFERENCES conversations(id) ON DELETE SET NULL,
     name             text NOT NULL DEFAULT '',
+    company          text NOT NULL DEFAULT '',
     email            text NOT NULL DEFAULT '',
     phone            text NOT NULL DEFAULT '',
     message          text NOT NULL DEFAULT '',
@@ -539,6 +540,7 @@ CREATE TABLE IF NOT EXISTS customer_cases (
     tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     case_key          text NOT NULL,
     display_name      text NOT NULL DEFAULT '',
+    company           text NOT NULL DEFAULT '',
     primary_phone     text NOT NULL DEFAULT '',
     primary_email     text NOT NULL DEFAULT '',
     -- Set when the owner personally replies: automation must stop chasing this customer.
@@ -983,3 +985,8 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 );
 CREATE INDEX IF NOT EXISTS webhook_events_pending_idx
     ON webhook_events (created_at) WHERE delivered_at IS NULL;
+
+-- A B2B enquiry carries a company as well as a person. Storing only the person lost half of what
+-- the customer told us in their own signature.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAULT '';
+ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAULT '';

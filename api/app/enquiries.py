@@ -6,6 +6,7 @@ from . import automation, casetimeline, db, owner_notifications, tasks
 
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
                   conversation_id=None, email: str = "", phone: str = "",
+                  name: str = "", company: str = "",
                   consent_contact: bool = False) -> dict:
     if channel not in ("email", "sms", "phone", "chat") or not source:
         raise ValueError("Authenticated channel event required")
@@ -18,7 +19,7 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
     # (an email case from last week, a phone case from a call), the two are merged rather than
     # leaving the owner with the same person recorded twice.
     case = await casetimeline.reconcile(
-        tenant["id"], phone=phone, email=email,
+        tenant["id"], phone=phone, email=email, name=name,
         default_cc=casetimeline.tenant_country_code(tenant),
         # The channel that carried the identifier is the source: an email case is captured from
         # email, a call from caller ID. This is what lets the owner tell an auto-captured address
@@ -37,16 +38,19 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
             created = row is None
             if created:
                 row = await conn.fetchrow(
-                    "INSERT INTO leads(tenant_id,conversation_id,email,phone,message,channel,source_key,consent_contact,case_id) "
-                    "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+                    "INSERT INTO leads(tenant_id,conversation_id,email,phone,name,company,message,channel,source_key,consent_contact,case_id) "
+                    "VALUES($1,$2,$3,$4,$10,$11,$5,$6,$7,$8,$9) RETURNING *",
                     tenant["id"], conversation_id, email[:200], phone[:40], message[:1000],
-                    channel, key, consent_contact, case_id)
+                    channel, key, consent_contact, case_id, name[:120], company[:120])
             elif conversation_id or message:
                 row = await conn.fetchrow(
                     "UPDATE leads SET conversation_id=COALESCE(conversation_id,$2), "
                     "message=CASE WHEN $3<>'' THEN $3 ELSE message END, "
-                    "case_id=COALESCE(case_id,$4), updated_at=now() "
-                    "WHERE id=$1 RETURNING *", row["id"], conversation_id, message[:1000], case_id)
+                    "case_id=COALESCE(case_id,$4), "
+                    "name=CASE WHEN $5<>'' THEN $5 ELSE name END, "
+                    "company=CASE WHEN $6<>'' THEN $6 ELSE company END, updated_at=now() "
+                    "WHERE id=$1 RETURNING *", row["id"], conversation_id, message[:1000], case_id,
+                    name[:120], company[:120])
             original_key = hashlib.sha256((source + '\0' + message).encode()).hexdigest()
             await conn.execute(
                 'INSERT INTO enquiry_sources(tenant_id,channel,source_key,lead_id,original_text) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',

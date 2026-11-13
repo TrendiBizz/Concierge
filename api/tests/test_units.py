@@ -147,9 +147,10 @@ def test_guard_allows_backed_prices_and_flags_invented_ones():
 
 # ---- contacts / SMS --------------------------------------------------------
 def test_normalize_phone():
-    assert normalize_phone("214-555-0100") == "+12145550100"
-    assert normalize_phone("(214) 555-0100") == "+12145550100"
-    assert normalize_phone("1 214 555 0100") == "+12145550100"
+    # The dialling country must be given, not guessed; see tests/test_phone_normalization.py.
+    assert normalize_phone("214-555-0100", "1") == "+12145550100"
+    assert normalize_phone("(214) 555-0100", "1") == "+12145550100"
+    assert normalize_phone("1 214 555 0100", "1") == "+12145550100"
     assert normalize_phone("+44 7700 900123") == "+447700900123"
     assert normalize_phone("123") is None and normalize_phone("") is None
     assert contact_key("Pat@Example.COM") == "pat@example.com"

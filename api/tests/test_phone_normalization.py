@@ -78,7 +78,9 @@ def test_bare_number_with_country_code_already_present_is_not_doubled():
 
 
 def test_us_number_with_a_leading_country_code_one():
-    assert normalize_phone("1 214 555 0100") == "+12145550100"
+    # A country code is now required rather than assumed: without one we cannot tell a US number
+    # from a New Zealand one, and inventing "+1" is what produced +10278817368 for a NZ mobile.
+    assert normalize_phone("1 214 555 0100", "1") == "+12145550100"
     assert normalize_phone("12145550100", "1") == "+12145550100"
 
 
@@ -157,8 +159,8 @@ def test_a_plus_with_nothing_usable_is_rejected():
 
 def test_original_us_mobile_passes_through_the_10_digit_branch():
     """Regression guard on the documented behaviour test_units.py asserts."""
-    assert normalize_phone("214-555-0100") == "+12145550100"
-    assert normalize_phone("(214) 555-0100") == "+12145550100"
+    assert normalize_phone("214-555-0100", "1") == "+12145550100"
+    assert normalize_phone("(214) 555-0100", "1") == "+12145550100"
 
 
 # ---------------------------------------------------------------- contact_key consistency

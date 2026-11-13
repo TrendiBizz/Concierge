@@ -54,14 +54,17 @@ def _valid_e164(digits: str) -> bool:
     return MIN_E164_DIGITS <= len(digits) <= MAX_E164_DIGITS
 
 
-def normalize_phone(raw: str, default_cc: str = "1") -> str | None:
+def normalize_phone(raw: str, default_cc: str = "") -> str | None:
     """Return an E.164 number (+6421555123) or None when the input is not unambiguously one.
 
     None is a real answer, not a failure to try: it means "this is not a number I can safely dial".
     Callers must treat it as such rather than falling back to the raw string for sending.
     """
     raw = (raw or "").strip()
-    cc = _digits(default_cc or "") or "1"
+    # No country code means we cannot turn 0215551234 into E.164 without guessing. Guessing '1' for a
+    # New Zealand business produced an undialable number, so an unknown country yields None (and the
+    # caller stores the raw text) rather than an invented prefix handed to a phone system.
+    cc = _digits(default_cc or "")
 
     if not raw:
         return None

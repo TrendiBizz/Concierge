@@ -108,8 +108,14 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         )
         tenant = await tenants.get_by_id(tenant_id)
         conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
+        # The customer's own signature usually states who they are and where they work. Reading it
+        # is the difference between a CRM record called "conrad@pukekoconstruction.co.nz" and one
+        # called "Conrad Schiess, Pukeko Construction".
+        signature = email_signature.parse_signature(text_body)
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
-                                conversation_id=conversation_id, email=draft["sender"])
+                                conversation_id=conversation_id, email=draft["sender"],
+                                name=signature["name"], company=signature["company"],
+                                phone=signature["phone"])
         detail = {"risk": risk, "flags": flags, "status": draft.get("status")}
         why_not = ack_decision(tenant, draft["sender"], subject, risk, flags, auth)
         if why_not != "off":

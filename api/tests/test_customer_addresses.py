@@ -164,3 +164,22 @@ def test_an_imported_address_says_it_came_from_the_import():
             await pool.close()
             db._pool = None
     asyncio.run(run())
+
+
+def test_a_named_customer_keeps_the_name_and_company():
+    async def run():
+        pool = await _fresh_pool()
+        db._pool = pool
+        try:
+            t = await pool.fetchval(
+                "INSERT INTO tenants (slug, name, public_key) VALUES ($1,$2,$3) RETURNING id",
+                "acme", "Acme", "pk_" + uuid.uuid4().hex[:8])
+            case = await casetimeline.reconcile(
+                t, email="conrad@pukekoconstruction.co.nz", name="Conrad Schiess",
+                company="Pukeko Construction", default_cc="64", source="email")
+            assert case["display_name"] == "Conrad Schiess"
+            assert case["company"] == "Pukeko Construction", "the company was dropped"
+        finally:
+            await pool.close()
+            db._pool = None
+    asyncio.run(run())

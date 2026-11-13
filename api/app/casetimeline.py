@@ -45,7 +45,11 @@ def tenant_country_code(tenant: dict | None) -> str:
         own = str(tenant.get("default_country_code") or "").strip()
         if own.isdigit() and 1 <= len(own) <= 3:
             return own
-    return get_settings().default_country_code
+    configured = str(getattr(get_settings(), "default_country_code", "") or "").strip()
+    # An empty country code is honoured as empty. Defaulting it to '1' silently prefixed a New
+    # Zealand number with a US code (+10278817368), which cannot be dialled and split one customer
+    # into two identities.
+    return configured if configured.isdigit() and 1 <= len(configured) <= 3 else ""
 
 
 def case_key(phone: str = "", email: str = "", default_cc: str = "1") -> str | None:
@@ -154,7 +158,8 @@ async def remove_address(tenant_id, case_id, address_id: int) -> bool:
 
 
 async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str = "",
-                      default_cc: str = "1", source: str = "inbound") -> dict | None:
+                      company: str = "", default_cc: str = "1",
+                      source: str = "inbound") -> dict | None:
     """Find or create the case for this identity. None when the identity is unusable.
 
     Upsert rather than select-then-insert: two channels can arrive concurrently for the same new
@@ -167,16 +172,17 @@ async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str 
     email_norm = (email or "").strip().lower()[:200]
     row = await db.pool().fetchrow(
         """
-        INSERT INTO customer_cases (tenant_id, case_key, display_name, primary_phone, primary_email)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO customer_cases (tenant_id, case_key, display_name, company, primary_phone, primary_email)
+        VALUES ($1, $2, $3, $6, $4, $5)
         ON CONFLICT (tenant_id, case_key) DO UPDATE SET
             display_name  = COALESCE(NULLIF(EXCLUDED.display_name, ''),  customer_cases.display_name),
+            company       = COALESCE(NULLIF(EXCLUDED.company, ''),       customer_cases.company),
             primary_phone = COALESCE(NULLIF(EXCLUDED.primary_phone, ''), customer_cases.primary_phone),
             primary_email = COALESCE(NULLIF(EXCLUDED.primary_email, ''), customer_cases.primary_email),
             updated_at    = now()
         RETURNING *
         """,
-        tenant_id, key, (name or "")[:200], phone_norm, email_norm,
+        tenant_id, key, (name or "")[:200], phone_norm, email_norm, (company or "")[:200],
     )
     if row:
         await _remember(db.pool(), tenant_id, row["id"], phone=phone_norm, email=email_norm,
@@ -185,7 +191,8 @@ async def ensure_case(tenant_id, *, phone: str = "", email: str = "", name: str 
 
 
 async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = "",
-                    default_cc: str = "1", source: str = "inbound") -> dict | None:
+                    company: str = "", default_cc: str = "1",
+                    source: str = "inbound") -> dict | None:
     """Resolve the customer's case, MERGING any cases that turn out to be the same person.
 
     Without this, one customer becomes several: writing first leaves an `email:...` case, then a
@@ -243,8 +250,8 @@ async def reconcile(tenant_id, *, phone: str = "", email: str = "", name: str = 
                 # First sighting: create the new case, and tell the customer's own CRM if they run
                 # one. Portability is imported lazily: it imports this module back.
                 created = await ensure_case(
-                    tenant_id, phone=phone, email=email, name=name, default_cc=default_cc,
-                    source=source)
+                    tenant_id, phone=phone, email=email, name=name, company=company,
+                    default_cc=default_cc, source=source)
                 if created:
                     from . import portability
                     await portability.emit(tenant_id, "customer.created", {
