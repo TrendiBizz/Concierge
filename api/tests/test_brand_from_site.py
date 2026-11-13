@@ -331,3 +331,75 @@ def test_a_logo_already_drawn_as_paths_is_never_rewritten(monkeypatch):
     png, text_state = bfs.render_logo_svg(path_only)
     assert text_state == ""
     assert len(seen) == 1
+
+
+# -- install check -------------------------------------------------------
+
+
+def _fake_client(html):
+    """A stand-in for the public client that returns one page."""
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def client(url):
+        yield None
+
+    async def fetch(_client, _url):
+        return html
+
+    return client, fetch
+
+
+def test_install_check_finds_the_widget_carrying_this_business_key(monkeypatch):
+    client, fetch = _fake_client(
+        '<script src="https://chat.trendibizz.com/widget.js" data-key="pk_abc" defer></script>')
+    monkeypatch.setattr(bfs, "_public_client", client)
+    monkeypatch.setattr(bfs, "_fetch_page", fetch)
+
+    import asyncio
+
+    result = asyncio.run(bfs.check_install("trendibizz.com", "pk_abc"))
+    assert result["found"] is True
+    assert result["script"] is True and result["key"] is True
+    assert "installed on this page" in result["detail"]
+
+
+def test_a_snippet_for_another_business_is_not_a_success(monkeypatch):
+    client, fetch = _fake_client(
+        '<script src="/widget.js" data-key="pk_someone_else" defer></script>')
+    monkeypatch.setattr(bfs, "_public_client", client)
+    monkeypatch.setattr(bfs, "_fetch_page", fetch)
+
+    import asyncio
+
+    result = asyncio.run(bfs.check_install("trendibizz.com", "pk_abc"))
+    assert result["found"] is False
+    assert result["script"] is True and result["key"] is False
+    assert "another business" in result["detail"]
+
+
+def test_a_site_without_the_snippet_says_so_plainly(monkeypatch):
+    client, fetch = _fake_client("<html><body>no chat here</body></html>")
+    monkeypatch.setattr(bfs, "_public_client", client)
+    monkeypatch.setattr(bfs, "_fetch_page", fetch)
+
+    import asyncio
+
+    result = asyncio.run(bfs.check_install("trendibizz.com", "pk_abc"))
+    assert result["found"] is False
+    assert "could not find the chat script" in result["detail"]
+
+
+def test_a_business_without_a_chat_key_is_refused(monkeypatch):
+    import asyncio
+
+    with pytest.raises(ValueError):
+        asyncio.run(bfs.check_install("trendibizz.com", ""))
+
+
+def test_the_install_check_endpoint_only_reads():
+    from app.main import app
+
+    route = next(r for r in app.routes
+                 if getattr(r, "path", "") == "/owner/onboarding/install-check")
+    assert route.methods == {"GET"}

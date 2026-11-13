@@ -2654,6 +2654,25 @@ async def owner_brand_suggestion(website: str = "",
         raise HTTPException(503, "We could not read that website just now. Enter your details yourself; nothing was saved.") from None
 
 
+@app.get("/owner/onboarding/install-check")
+async def owner_install_check(website: str = "",
+                              user: dict = Depends(owner_auth.current_user)):
+    """Is the chat widget actually on the customer's live page? Read-only."""
+    owner_auth.require_role(user, "owner")
+    tenant = await tenants.get_by_id(user["tenant_id"]) or {}
+    site = website.strip() or (tenant.get("site_url") or "")
+    try:
+        async with asyncio.timeout(30):
+            return await brand_from_site.check_install(site, tenant.get("public_key") or "")
+    except TimeoutError:
+        raise HTTPException(504, "Your website took too long to answer. Try again in a moment.") from None
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception:
+        log.exception("install check failed")
+        raise HTTPException(503, "We could not read your website just now. Try again in a moment.") from None
+
+
 @app.get("/owner/onboarding/inbound-readiness")
 async def owner_inbound_readiness(user: dict = Depends(owner_auth.current_user)):
     """Whole-chain check for this tenant's inbound email. Onboarding must not claim

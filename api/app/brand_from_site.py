@@ -31,6 +31,7 @@ import io
 import json
 import os
 import re
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -720,26 +721,36 @@ def contact_line(phones: list[str], emails: list[str]) -> dict:
 # The proposal
 
 
-async def _read_site(url: str) -> tuple[str, str, list[tuple[str, bytes]]]:
-    """Fetch the homepage and the logo candidates, all through PublicClient."""
+@asynccontextmanager
+async def _public_client(url: str):
+    """A public-only HTTPS client pinned to the site's host (no redirects off-site)."""
     from .public_fetch import PublicClient  # noqa: PLC0415 - avoids a cycle at import
 
     parts = urlsplit(url)
-    site_host = (parts.hostname or "").lower().removeprefix("www.")
     async with httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT},
         follow_redirects=False,
         timeout=FETCH_TIMEOUT,
         trust_env=False,
     ) as transport:
-        client = PublicClient(transport, parts.hostname)
-        response = await client.get(url)
-        if response.status_code != 200:
-            raise ValueError("That website did not answer with a page we can read")
-        if len(response.content) > MAX_HTML_BYTES:
-            raise ValueError("That page is too large to read")
-        html = response.text
+        yield PublicClient(transport, parts.hostname)
 
+
+async def _fetch_page(client, url: str) -> str:
+    response = await client.get(url)
+    if response.status_code != 200:
+        raise ValueError("That website did not answer with a page we can read")
+    if len(response.content) > MAX_HTML_BYTES:
+        raise ValueError("That page is too large to read")
+    return response.text
+
+
+async def _read_site(url: str) -> tuple[str, str, list[tuple[str, bytes]]]:
+    """Fetch the homepage and the logo candidates, all through PublicClient."""
+    parts = urlsplit(url)
+    site_host = (parts.hostname or "").lower().removeprefix("www.")
+    async with _public_client(url) as client:
+        html = await _fetch_page(client, url)
         page = scan(html, url)
         fetched: list[tuple[str, bytes]] = []
         for image in logo_candidates(page, site_host)[:4]:
@@ -783,7 +794,7 @@ def _decode_data_uri(uri: str) -> bytes | None:
         return None
 
 
-def _logo_from(html: str, fetched: list[tuple[str, bytes]]) -> dict:
+def _logo_from(fetched: list[tuple[str, bytes]]) -> dict:
     """Pick the best candidate that yields a usable PNG, plus the alternatives."""
     alternatives: list[dict] = []
     chosen: dict | None = None
@@ -866,7 +877,7 @@ async def suggest(website: str) -> dict:
     url = normalise_site(website)
     html, site_host, fetched = await _read_site(url)
     page = scan(html, url)
-    brand = _logo_from(html, fetched)
+    brand = _logo_from(fetched)
 
     accent = brand["accent"]
     accent_source = "logo"
@@ -924,6 +935,31 @@ async def suggest(website: str) -> dict:
         "notes": notes,
         "host": site_host,
     }
+
+
+async def check_install(site_url: str, public_key: str) -> dict:
+    """Whether the chat widget is actually on the customer's live page.
+
+    Read through the same public-only path as the brand read. This proves the
+    snippet is present and names this business's key; it does not prove a
+    visitor sees the bubble, and it says so rather than implying more.
+    """
+    url = normalise_site(site_url)
+    if not public_key:
+        raise ValueError("This business has no chat key yet.")
+    async with _public_client(url) as client:
+        html = await _fetch_page(client, url)
+    has_script = bool(re.search(r'src\s*=\s*["\'][^"\']*widget\.js', html, re.I))
+    has_key = public_key in html
+    found = has_script and has_key
+    if found:
+        detail = "Your chat window is installed on this page."
+    elif has_script:
+        detail = ("We found the chat script but not this business's key. The snippet "
+                  "belongs to another business.")
+    else:
+        detail = "We could not find the chat script on this page."
+    return {"url": url, "found": found, "script": has_script, "key": has_key, "detail": detail}
 
 
 def normalise_site(website: str) -> str:

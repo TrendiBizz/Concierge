@@ -167,6 +167,7 @@ async def overview(tenant_id) -> dict:
     return {
         "inbound_email": inbound,
         "business": {
+            "slug": tenant.get("slug") or "",
             "name": tenant["name"],
             "site_url": tenant.get("site_url") or "",
             "greeting": tenant.get("greeting") or "",

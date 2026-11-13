@@ -190,61 +190,140 @@ function Login({onLogin, locale, setLocale, tr}: {onLogin: (token: string) => vo
   );
 }
 
+type Suggestion = {
+  website: string;
+  name: string;
+  logo: {data: string; bytes: number; rendered_from_svg: boolean; text_font_risk?: boolean; font_substituted?: boolean; note?: string} | null;
+  logo_alternatives: Array<{source?: string; data?: string; why?: string; text_font_risk?: boolean; font_substituted?: boolean; note?: string}>;
+  accent: string;
+  accent_source: string;
+  contact: {phone: string; email: string; line: string};
+  socials: Record<string, string>;
+  platform: {kind: string; generator: string; elementor: boolean; install_hint: string};
+  timezone: string;
+  country_code: string;
+  notes: string[];
+};
+
+// Offered first, never a hex box: the customer picks a colour, they do not type one.
+const ACCENT_PRESETS = ['#7142d6', '#c8f560', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#111827', '#db2777'];
+const TIMEZONES: Array<[string, string]> = [
+  ['Pacific/Auckland', 'New Zealand (Auckland)'],
+  ['Australia/Sydney', 'Australia (Sydney)'],
+  ['Europe/London', 'United Kingdom (London)'],
+  ['America/New_York', 'United States (Eastern)'],
+  ['America/Chicago', 'United States (Central)'],
+  ['America/Los_Angeles', 'United States (Pacific)'],
+  ['Asia/Singapore', 'Singapore'],
+  ['UTC', 'UTC'],
+];
+
 function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand: (b: Brand) => void}) {
   const api = useApi(token);
   const notify = useNotify();
   const [step, setStep] = useState(1);
   const [business, setBusiness] = useState<Business>({name: '', site_url: '', notify_email: '', notify_phone: '', public_key: ''});
+  const [slug, setSlug] = useState('');
   const [status, setStatus] = useState('');
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
   const [logo, setLogo] = useState<File | null>(null);
+  // The review screen: one page of what we read, everything editable, one confirmation.
+  const [website, setWebsite] = useState('');
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [reading, setReading] = useState(false);
+  const [name, setName] = useState('');
+  const [accent, setAccent] = useState('#c8f560');
+  const [contact, setContact] = useState('');
+  const [timezone, setTimezone] = useState('Pacific/Auckland');
+  const [logoData, setLogoData] = useState<string | null>(null);
+  const [install, setInstall] = useState<{found: boolean; detail: string} | null>(null);
+  const [checkingSite, setCheckingSite] = useState(false);
 
   useEffect(() => {
     api('/owner/onboarding').then((data) => {
       const b = data.business || {};
       setBusiness({name: b.name || '', site_url: b.site_url || '', notify_email: b.notify_email || '', notify_phone: b.notify_phone || '', public_key: b.public_key || ''});
+      setSlug(b.slug || '');
+      setWebsite(b.site_url || '');
+      setName(b.name || '');
+      setTimezone(b.timezone || 'Pacific/Auckland');
+      setAccent(brand.accent || '#c8f560');
+      setContact(brand.contact || '');
     }).catch((e) => setProblem(e instanceof Error ? e.message : 'Could not load setup'));
   }, [token]);
 
-  async function save(fields: Record<string, unknown>, next: number, note: string) {
-    setBusy(true); setStatus(''); setProblem('');
+  async function readWebsite() {
+    const address = website.trim();
+    if (!address) { setProblem('Enter your website address first, for example yourbusiness.co.nz'); return; }
+    setReading(true); setProblem(''); setStatus('Reading your public pages. This takes a few seconds.');
     try {
+      const found: Suggestion = await api('/owner/onboarding/brand-suggestion?website=' + encodeURIComponent(address));
+      setSuggestion(found);
+      setName(found.name || business.name || '');
+      setAccent(found.accent || '#c8f560');
+      setContact(found.contact?.line || '');
+      setTimezone(found.timezone || timezone);
+      setLogoData(found.logo?.data || null);
+      setStatus(found.logo ? '' : 'We could not find a logo you can use. You can upload one below.');
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Could not read that website');
+      setStatus('');
+    }
+    setReading(false);
+  }
+
+  async function saveEverything() {
+    const chosen = name.trim();
+    if (!chosen) { setProblem('Enter your business name.'); return; }
+    setBusy(true); setProblem('');
+    try {
+      const fields: Record<string, unknown> = {name: chosen, site_url: website.trim() || null, timezone};
+      const email = suggestion?.contact?.email || '';
+      const phone = suggestion?.contact?.phone || '';
+      if (email) fields.notify_email = email;
+      if (phone) fields.notify_phone = phone;
       await api('/owner/onboarding/profile', 'PATCH', fields);
-      setStatus(note); setStep(next);
+      const finalLogo = logoData || (logo ? await readRaw(logo) : null);
+      const saved = await api('/owner/media/brand', 'PUT', {name: chosen, accent, contact: contact.trim(), ...(finalLogo ? {logo: finalLogo} : {})});
+      setBrand({name: saved.name || chosen, accent: saved.accent || accent, contact: saved.contact || contact, logo: saved.logo_data || finalLogo});
+      setBusiness({...business, name: chosen, site_url: website.trim(), notify_email: email || business.notify_email, notify_phone: phone || business.notify_phone});
+      setStatus('Saved. This is how your business will appear.'); notify('Business saved.');
+      setStep(3);
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Save failed'); }
     setBusy(false);
   }
 
-  async function saveBrand() {
-    setBusy(true); setStatus('');
+  async function checkLiveSite() {
+    setCheckingSite(true); setProblem('');
     try {
-      const payload: Brand = {name: brand.name, accent: brand.accent, contact: brand.contact};
-      if (logo) payload.logo = await readRaw(logo);
-      const saved = await api('/owner/media/brand', 'PUT', payload);
-      setBrand({name: saved.name || '', accent: saved.accent || '#c8f560', contact: saved.contact || '', logo: saved.logo_data || brand.logo || null});
-      setStatus('Branding saved. It now follows through to your media and portal.'); notify('Branding saved.');
-    } catch (e) { setProblem(e instanceof Error ? e.message : 'Save failed'); }
-    setBusy(false);
-  }
-
-  async function importSite() {
-    setBusy(true); setStatus('Reading your public pages… this can take up to a minute.');
-    try {
-      const result = await api('/owner/knowledge/import-website', 'POST');
-      setStatus('Imported ' + (result.chunks || 0) + ' knowledge chunks from ' + (result.pages || 0) + ' pages.'); notify('Knowledge imported.');
-    } catch (e) { setProblem(e instanceof Error ? e.message : 'Import failed'); }
-    setBusy(false);
+      setInstall(await api('/owner/onboarding/install-check?website=' + encodeURIComponent(website.trim())));
+    } catch (e) { setProblem(e instanceof Error ? e.message : 'Could not read your website'); }
+    setCheckingSite(false);
   }
 
   const snippet = business.public_key ? '<script src="https://chat.trendibizz.com/widget.js" data-key="' + business.public_key + '" defer></script>' : '';
+  const hosted = slug ? 'https://chat.trendibizz.com/demo/' + slug : '';
+  const platform = suggestion?.platform;
+  const handOff = platform ? platform.install_hint === 'Email this to my web person' : false;
+  const mailBody = 'Please add our chat window to our website by pasting this before </body>:\n\n' + snippet + '\n\nThis shows a chat window where customers can ask questions and leave their details. It is provided by Trendi Concierge (' + (business.name || name) + ').';
+  const alternatives = (suggestion?.logo_alternatives || []).filter((item) => item.data);
+
+  function accentButton(colour: string) {
+    const selected = accent.toLowerCase() === colour.toLowerCase();
+    return (
+      <button key={colour} type="button" onClick={() => setAccent(colour)} aria-label={'Use ' + colour}
+        aria-pressed={selected}
+        style={{width: 36, height: 36, borderRadius: 999, border: selected ? '3px solid var(--color-text, #111)' : '1px solid var(--color-border)', background: colour, cursor: 'pointer'}} />
+    );
+  }
 
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
-      <Heading level={1}>Set up {business.name || 'your business'}</Heading>
-      <p>A click-through setup. Every step is text; nothing plays audio. You can skip anything and return later.</p>
+      <Heading level={1}>Set up {name || business.name || 'your business'}</Heading>
+      <p>Give us your website and confirm what we found. You do not need to type what we can read.</p>
       <ol style={{display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', padding: 0}}>
-        {['Welcome', 'Business', 'Contact', 'Website', 'Branding', 'Finish'].map((label, index) => (
+        {['Welcome', 'Your business', 'Finish'].map((label, index) => (
           <li key={label} style={{padding: '6px 12px', borderRadius: 999, border: '1px solid var(--color-border)', background: step === index + 1 ? 'var(--color-accent)' : 'transparent', color: step === index + 1 ? 'var(--color-on-accent)' : 'inherit', fontSize: 13}}>
             {index + 1}. {label}
           </li>
@@ -255,7 +334,7 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
         <Card>
           <Heading level={2}>How Concierge works</Heading>
           <p>Website chat, email, SMS and phone enquiries come in. Concierge answers from your own business information, captures the contact, books agreed appointments and records everything in your CRM.</p>
-          <p>You only need to provide your business details, a contact email and phone. Everything else can be skipped.</p>
+          <p>You give us your website and say yes. We read your public pages, show you what we understood, and you confirm it. Anything we could not find is the only thing we ask.</p>
           <Button label="Continue" variant="primary" onClick={() => setStep(2)} />
         </Card>
       ) : null}
@@ -263,59 +342,112 @@ function Setup({token, brand, setBrand}: {token: string; brand: Brand; setBrand:
       {step === 2 ? (
         <Card>
           <Heading level={2}>Your business</Heading>
-          <TextInput label="Business name" value={business.name} onChange={(v) => setBusiness({...business, name: v})} />
-          <TextInput label="Website" type="url" value={business.site_url} onChange={(v) => setBusiness({...business, site_url: v})} />
-          <Button label={busy ? 'Saving…' : 'Save and continue'} variant="primary" onClick={() => save({name: business.name, site_url: business.site_url || null}, 3, 'Business saved.')} />
-          <Button label="Skip" variant="ghost" onClick={() => setStep(3)} />
+          <TextInput label="Website" type="url" placeholder="yourbusiness.co.nz" value={website} onChange={setWebsite} />
+          <div style={{display: 'flex', gap: 8, marginTop: 8}}>
+            <Button label={reading ? 'Reading…' : 'Check my website'} variant="primary" onClick={readWebsite} />
+          </div>
+
+          {suggestion ? (
+            <div style={{marginTop: 24}}>
+              <Heading level={3}>Here is your business as we understand it</Heading>
+              <p>Change anything that is wrong. This is saved only when you press "Looks right".</p>
+
+              <div style={{display: 'flex', gap: 16, alignItems: 'center', margin: '16px 0'}}>
+                {logoData
+                  ? <img src={logoData} alt="Your logo" style={{maxHeight: 96, maxWidth: 320, objectFit: 'contain', background: '#fff', padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}} />
+                  : <div style={{width: 160, height: 96, borderRadius: 8, border: '1px dashed var(--color-border)', display: 'grid', placeItems: 'center', fontSize: 13}}>No logo yet</div>}
+                <div>
+                  {alternatives.length ? <p style={{fontSize: 13, marginBottom: 6}}>Another image from your site:</p> : null}
+                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                    {alternatives.map((item, index) => (
+                      <button key={index} type="button" onClick={() => setLogoData(item.data || null)} title={item.note || 'Use this image'}
+                        style={{padding: 4, borderRadius: 8, border: logoData === item.data ? '2px solid var(--color-text, #111)' : '1px solid var(--color-border)', background: '#fff', cursor: 'pointer'}}>
+                        <img src={item.data} alt={'Logo option ' + (index + 1)} style={{height: 40, maxWidth: 120, objectFit: 'contain'}} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <TextInput label="Business name" value={name} onChange={setName} />
+              <TextInput label="Contact line" value={contact} onChange={setContact} />
+
+              <p style={{marginTop: 16, marginBottom: 6, fontSize: 14}}>Brand colour</p>
+              <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                {ACCENT_PRESETS.map(accentButton)}
+                <input type="color" value={accent} onChange={(event) => setAccent(event.target.value)}
+                  aria-label="Pick your own brand colour"
+                  style={{width: 40, height: 36, padding: 0, border: '1px solid var(--color-border)', borderRadius: 8, background: 'transparent', cursor: 'pointer'}} />
+              </div>
+              <p style={{fontSize: 13, opacity: 0.75}}>Current colour: <span style={{display: 'inline-block', width: 14, height: 14, borderRadius: 4, background: accent, verticalAlign: 'middle', border: '1px solid var(--color-border)'}} /> used for buttons and highlights.</p>
+
+              <label style={{display: 'block', marginTop: 16, fontSize: 14}}>Timezone
+                <select value={timezone} onChange={(event) => setTimezone(event.target.value)}
+                  style={{display: 'block', width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'transparent', fontSize: 14}}>
+                  {TIMEZONES.some(([value]) => value === timezone) ? null : <option value={timezone}>{timezone}</option>}
+                  {TIMEZONES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+
+              <div style={{marginTop: 16}}>
+                <FileInput label="Replace the logo" value={logo} onChange={(v) => { setLogo((v as File) || null); if (v) setLogoData(null); }} accept="image/*" />
+              </div>
+
+              {suggestion.notes.length ? (
+                <ul style={{marginTop: 16, paddingLeft: 18, fontSize: 14}}>
+                  {suggestion.notes.map((note, index) => <li key={index} style={{marginBottom: 4}}>{note}</li>)}
+                </ul>
+              ) : null}
+
+              <div style={{display: 'flex', gap: 8, marginTop: 20}}>
+                <Button label={busy ? 'Saving…' : 'Looks right'} variant="primary" onClick={saveEverything} />
+                <Button label="Check a different website" variant="ghost" onClick={() => { setSuggestion(null); setLogoData(null); }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{marginTop: 24}}>
+              <p>We have not read your site yet. Press "Check my website" above, or enter your details yourself.</p>
+              <TextInput label="Business name" value={name} onChange={setName} />
+              <Button label={busy ? 'Saving…' : 'Save and continue'} variant="secondary" onClick={saveEverything} />
+            </div>
+          )}
         </Card>
       ) : null}
 
       {step === 3 ? (
         <Card>
-          <Heading level={2}>Your contact details</Heading>
-          <p>New-enquiry alerts go here. Your replies are routed back into your own CRM.</p>
-          <TextInput label="Notification email" type="email" value={business.notify_email} onChange={(v) => setBusiness({...business, notify_email: v})} />
-          <TextInput label="Contact phone" type="tel" value={business.notify_phone} onChange={(v) => setBusiness({...business, notify_phone: v})} />
-          <Button label={busy ? 'Saving…' : 'Save and continue'} variant="primary" onClick={() => save({notify_email: business.notify_email || null, notify_phone: business.notify_phone || null}, 4, 'Contact details saved.')} />
-          <Button label="Skip" variant="ghost" onClick={() => setStep(4)} />
-        </Card>
-      ) : null}
+          <Heading level={2}>Put the chat window on your site</Heading>
+          {platform && platform.kind !== 'other' ? (
+            <p>We recognised your site as <strong>{platform.kind === 'wordpress' ? 'WordPress' : platform.kind.charAt(0).toUpperCase() + platform.kind.slice(1)}</strong>{platform.elementor ? ' with Elementor' : ''}. {handOff ? 'Your web person can add this in a minute.' : 'Add this before the closing body tag.'}</p>
+          ) : (
+            <p>Add this line to your website, just before the closing <code>&lt;/body&gt;</code> tag. If you do not look after your site yourself, send it to whoever does.</p>
+          )}
 
-      {step === 4 ? (
-        <Card>
-          <Heading level={2}>Bring in your website</Heading>
-          <p>We read the public pages you own and turn them into the assistant's answers. You can re-run this any time.</p>
-          <Button label={busy ? 'Reading…' : 'Import my website'} variant="primary" onClick={importSite} />
-          <Button label="Continue" variant="ghost" onClick={() => setStep(5)} />
-        </Card>
-      ) : null}
-
-      {step === 5 ? (
-        <Card>
-          <Heading level={2}>Your branding</Heading>
-          <p>Your logo, name, contact line and accent colour follow through to your media and portal.</p>
-          <TextInput label="Brand name" value={brand.name} onChange={(v) => setBrand({...brand, name: v})} />
-          <TextInput label="Contact line" value={brand.contact} onChange={(v) => setBrand({...brand, contact: v})} />
-          <TextInput label="Accent colour (hex)" value={brand.accent} onChange={(v) => setBrand({...brand, accent: v})} />
-          <FileInput label="Logo" value={logo} onChange={(v) => setLogo((v as File) || null)} accept="image/*" />
-          <Button label={busy ? 'Saving…' : 'Save branding'} variant="primary" onClick={saveBrand} />
-          <Button label="Continue" variant="ghost" onClick={() => setStep(6)} />
-        </Card>
-      ) : null}
-
-      {step === 6 ? (
-        <Card>
-          <Heading level={2}>You're ready</Heading>
-          <p>Add this line to your website to show the chat window:</p>
           <TextArea label="Website embed code" value={snippet} onChange={() => {}} rows={3} />
-          <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); notify('Embed code copied.'); }} />
-          <p>Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.</p>
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
+            <Button label="Copy embed code" variant="secondary" onClick={() => { navigator.clipboard?.writeText(snippet); setStatus('Copied.'); notify('Embed code copied.'); }} />
+            <Button label="Email this to my web person" variant="secondary" onClick={() => { location.href = 'mailto:?subject=' + encodeURIComponent('Add our chat window to our website') + '&body=' + encodeURIComponent(mailBody); }} />
+            <Button label={checkingSite ? 'Checking…' : 'Check my site'} variant="secondary" onClick={checkLiveSite} />
+          </div>
+          {install ? (
+            <p role="status" style={{marginTop: 8, fontSize: 14}}>
+              {install.found ? '✓ ' : ''}{install.detail}
+            </p>
+          ) : null}
+
+          {hosted ? (
+            <div style={{marginTop: 20}}>
+              <p style={{fontSize: 14}}>No website, or cannot edit it? Use your hosted chat page instead:</p>
+              <p style={{fontSize: 14}}><a href={hosted}>{hosted}</a> <Button label="Copy link" variant="ghost" onClick={() => { navigator.clipboard?.writeText(hosted); notify('Link copied.'); }} /></p>
+            </div>
+          ) : null}
+
+          <p style={{marginTop: 16}}>Next: connect email, SMS, phone, social accounts and a calendar. Those live in the workspace and are enabled only after testing.</p>
         </Card>
       ) : null}
 
       <div style={{display: 'flex', gap: 8, marginTop: 16}}>
         {step > 1 ? <Button label="Back" variant="ghost" onClick={() => setStep(step - 1)} /> : null}
-        {step < 6 ? <Button label="Next" variant="secondary" onClick={() => setStep(step + 1)} /> : null}
       </div>
       {problem ? <ErrorNote message={problem} /> : null}
       {status ? <p role="status">{status}</p> : null}
