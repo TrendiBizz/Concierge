@@ -1031,3 +1031,36 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quote_sequence integer NOT NULL DEF
 ALTER TABLE quotations ADD COLUMN IF NOT EXISTS reference text;
 ALTER TABLE quotations ADD COLUMN IF NOT EXISTS valid_until date;
 CREATE UNIQUE INDEX IF NOT EXISTS quotations_reference_unique ON quotations(tenant_id, reference);
+
+-- An accepted quote is not a bill. A business needs an invoice it can send — whole job, or a
+-- deposit with the balance on completion, chosen by the customer when they accept.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS deposit_percent integer NOT NULL DEFAULT 50
+    CHECK (deposit_percent BETWEEN 0 AND 100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allow_deposit boolean NOT NULL DEFAULT true;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_payment_terms_days integer NOT NULL DEFAULT 7
+    CHECK (invoice_payment_terms_days BETWEEN 0 AND 120);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_sequence integer NOT NULL DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_option text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS invoices (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    quotation_id uuid NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+    number text NOT NULL,
+    kind text NOT NULL DEFAULT 'full',
+    status text NOT NULL DEFAULT 'issued',
+    subtotal_cents integer NOT NULL DEFAULT 0,
+    tax_cents integer NOT NULL DEFAULT 0,
+    total_cents integer NOT NULL DEFAULT 0,
+    due_cents integer NOT NULL DEFAULT 0,
+    deposit_cents integer NOT NULL DEFAULT 0,
+    balance_cents integer NOT NULL DEFAULT 0,
+    currency text NOT NULL DEFAULT 'NZD',
+    lines jsonb NOT NULL DEFAULT '[]'::jsonb,
+    notes text NOT NULL DEFAULT '',
+    issued_on date NOT NULL DEFAULT current_date,
+    due_on date,
+    public_token text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS invoices_number_unique ON invoices(tenant_id, number);
+CREATE INDEX IF NOT EXISTS invoices_quotation_idx ON invoices(quotation_id);

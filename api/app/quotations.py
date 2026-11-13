@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 import html
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import billing, db, outbox, owner_auth, quote_payments
+from . import billing, db, invoices, outbox, owner_auth, quote_payments
 from .config import get_settings
 from urllib.parse import urlsplit
 
@@ -381,7 +381,8 @@ async def public_quote(token: str):
     quote = view(row)
     tenant = await db.pool().fetchrow(
         'SELECT id,name,site_url,payment_instructions,payment_url,gst_number,nzbn,business_address,'
-        'business_phone,quote_terms,quote_valid_days FROM tenants WHERE id=$1',
+        'business_phone,quote_terms,quote_valid_days,allow_deposit,deposit_percent,'
+        'invoice_payment_terms_days FROM tenants WHERE id=$1',
         quote['tenant_id'])
     issuer = billing.details(dict(tenant) if tenant else {})
     expired = billing.is_expired(quote.get('valid_until'))
@@ -411,8 +412,18 @@ async def public_quote(token: str):
                    + html.escape(str(quote.get('valid_until'))) + '. Ask for an updated quote.</p>')
         note = ''
     elif status == 'reviewed':
+        deposit_pct = int((tenant or {}).get('deposit_percent') or 50)
+        deposit_cents = round(quote['total_cents'] * deposit_pct / 100)
+        deposit_choice = (
+            f'<form method="post" action="/quote/{html.escape(token)}/accept" style="display:inline">'
+            f'<input type="hidden" name="payment_option" value="deposit">'
+            f'<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">'
+            f'Accept and pay {deposit_pct}% deposit ({cash(deposit_cents)})</button></form>'
+            if (tenant or {}).get('allow_deposit') else '')
         actions = f"""<form method="post" action="/quote/{html.escape(token)}/accept" style="display:inline">
-<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Accept quotation</button></form>
+<input type="hidden" name="payment_option" value="full">
+<button type="submit" style="background:{accent};color:#101408;border:0;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Accept quotation — pay in full</button></form>
+{deposit_choice}
 <form method="post" action="/quote/{html.escape(token)}/decline" style="display:inline;margin-left:8px">
 <button type="submit" style="background:transparent;border:1px solid #c9d1da;padding:14px 22px;border-radius:999px;font-weight:700;cursor:pointer">Decline</button></form>"""
         note = 'This quotation was reviewed and signed off by the business owner.'
@@ -474,9 +485,9 @@ th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #e3e7ec}} th{{fo
     return HTMLResponse(document)
 
 
-async def _decide(token: str, status: str):
+async def _decide(token: str, status: str, payment_option: str = 'full'):
     row = await db.pool().fetchrow(
-        'SELECT id,status,valid_until FROM quotations WHERE public_token=$1', token)
+        'SELECT * FROM quotations WHERE public_token=$1', token)
     if not row:
         raise HTTPException(404, 'Quotation not found')
     if row['status'] != 'reviewed':
@@ -484,16 +495,33 @@ async def _decide(token: str, status: str):
     if billing.is_expired(row['valid_until']):
         raise HTTPException(409, 'This quotation has expired — ask for an updated one')
     column = 'accepted_at' if status == 'accepted' else 'declined_at'
+    chosen = 'deposit' if payment_option == 'deposit' else 'full'
     await db.pool().execute(
-        f'UPDATE quotations SET status=$2, {column}=now(), version=version+1, updated_at=now() WHERE id=$1',
-        row['id'], status)
+        f'UPDATE quotations SET status=$2, {column}=now(), version=version+1, updated_at=now(), '
+        f'payment_option=$3 WHERE id=$1', row['id'], status, chosen if status == 'accepted' else '')
+    link = ''
+    if status == 'accepted':
+        tenant = await db.pool().fetchrow(
+            "SELECT * FROM tenants WHERE id=$1", row['tenant_id'])
+        tenant = dict(tenant) if tenant else {}
+        if not tenant.get('allow_deposit'):
+            chosen = 'full'
+        existing = await db.pool().fetchrow("SELECT public_token FROM invoices WHERE quotation_id=$1", row['id'])
+        invoice = existing or await invoices.issue(dict(row), tenant, chosen)
+        link = ('<p><a href="/invoice/' + html.escape(invoice['public_token']) +
+                '">View your invoice</a></p>')
     return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quotation {status}</title></head>
-<body style="font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:24px"><h1>Quotation {status}</h1><p>Thank you. The business has been notified.</p></body></html>""")
+<body style="font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:24px"><h1>Quotation {status}</h1><p>Thank you. The business has been notified.</p>{link}</body></html>""")
 
 
 @public_router.post('/{token}/accept')
-async def public_accept(token: str):
-    return await _decide(token, 'accepted')
+async def public_accept(token: str, request: Request):
+    try:
+        form = await request.form()
+        choice = str(form.get('payment_option') or 'full')
+    except Exception:
+        choice = 'full'
+    return await _decide(token, 'accepted', choice)
 
 
 @public_router.post('/{token}/decline')

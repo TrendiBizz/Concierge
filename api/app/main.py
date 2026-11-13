@@ -28,6 +28,7 @@ from . import (
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
 from . import owner_invites
+from . import invoices
 from . import guides
 from . import quote_profiles
 from . import portability
@@ -109,6 +110,8 @@ app.include_router(quotations.public_router)
 app.include_router(products.router)
 app.include_router(guides.router)
 app.include_router(quote_profiles.router)
+app.include_router(invoices.router)
+app.include_router(invoices.public_router)
 app.include_router(designs.router)
 app.include_router(designs.public_router)
 app.include_router(designs.page_router)
@@ -2418,12 +2421,16 @@ class BusinessDetails(BaseModel):
     business_phone: str = Field(default='', max_length=64)
     quote_terms: str = Field(default='', max_length=4000)
     quote_valid_days: int = Field(default=30, ge=1, le=365)
+    allow_deposit: bool = True
+    deposit_percent: int = Field(default=50, ge=0, le=100)
+    invoice_payment_terms_days: int = Field(default=7, ge=0, le=120)
 
 
 @app.get("/owner/business")
 async def owner_business(user: dict = Depends(owner_auth.current_user)):
     row = await db.pool().fetchrow(
-        'SELECT name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days '
+        'SELECT name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days,'
+        'allow_deposit,deposit_percent,invoice_payment_terms_days '
         'FROM tenants WHERE id=$1', user["tenant_id"])
     return dict(row)
 
@@ -2434,11 +2441,14 @@ async def owner_business_update(body: BusinessDetails, user: dict = Depends(owne
     owner_auth.require_role(user, "editor")
     row = await db.pool().fetchrow(
         'UPDATE tenants SET name=$2, gst_number=$3, nzbn=$4, business_address=$5, business_phone=$6, '
-        'quote_terms=$7, quote_valid_days=$8 WHERE id=$1 '
-        'RETURNING name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days',
+        'quote_terms=$7, quote_valid_days=$8, allow_deposit=$9, deposit_percent=$10, '
+        'invoice_payment_terms_days=$11 WHERE id=$1 '
+        'RETURNING name,gst_number,nzbn,business_address,business_phone,quote_terms,quote_valid_days,'
+        'allow_deposit,deposit_percent,invoice_payment_terms_days',
         user["tenant_id"], body.name.strip(), body.gst_number.strip(), body.nzbn.strip(),
         body.business_address.strip(), body.business_phone.strip(), body.quote_terms.strip(),
-        body.quote_valid_days)
+        body.quote_valid_days, body.allow_deposit, body.deposit_percent,
+        body.invoice_payment_terms_days)
     return dict(row)
 
 
