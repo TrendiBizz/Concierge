@@ -731,6 +731,9 @@ CREATE TABLE IF NOT EXISTS media_assets (
 CREATE INDEX IF NOT EXISTS media_assets_tenant_idx ON media_assets (tenant_id, created_at DESC);
 
 ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS size_bytes bigint NOT NULL DEFAULT 0;
+-- 2026-11-15: uploads threw the customer's own filename away and every tile rendered as "Image",
+-- so three different photos were indistinguishable in Marketing media and in the post picker.
+ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS original_name text NOT NULL DEFAULT '';
 
 ALTER TABLE quotations ADD COLUMN IF NOT EXISTS public_token text;
 ALTER TABLE quotations ADD COLUMN IF NOT EXISTS sent_at timestamptz;

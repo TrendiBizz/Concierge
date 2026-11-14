@@ -74,7 +74,7 @@ function initialLocale() {
   if (navigator.language) return LOCALE_PREFIX(navigator.language);
   return 'en';
 }
-type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
+type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string; original_name?: string};
 type Business = {name: string; site_url: string; notify_email: string; notify_phone: string; public_key: string};
 type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string};
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};

@@ -43,8 +43,19 @@ async def _brand(tenant_id) -> dict:
     return dict(row) if row else {"name": "", "accent": "#c8f560", "contact": "", "logo_data": None}
 
 
+def safe_original_name(raw: str, limit: int = 120) -> str:
+    """The customer's filename, reduced to something safe to show and store.
+
+    Strips any directory part (a browser can send a full path), control characters, and leading
+    dots or spaces; caps the length. An empty result is fine — the UI falls back to the kind.
+    """
+    name = (raw or "").replace("\\", "/").split("/")[-1]
+    name = "".join(ch for ch in name if ch.isprintable() and ch not in '<>:"|?*').strip(" .")
+    return name[:limit]
+
+
 async def _store(tenant_id, kind: str, template: str, prompt: str, fmt: str,
-                 content: bytes, content_type: str, email: str) -> dict:
+                 content: bytes, content_type: str, email: str, original_name: str = "") -> dict:
     folder = Path(get_settings().media_dir) / str(tenant_id)
     folder.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256(content).hexdigest()[:16]
@@ -52,9 +63,11 @@ async def _store(tenant_id, kind: str, template: str, prompt: str, fmt: str,
     path = folder / name
     path.write_bytes(content)
     row = await db.pool().fetchrow(
-        """INSERT INTO media_assets(tenant_id,kind,template,prompt,format,content_type,storage_path,created_by,size_bytes)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *""",
-        tenant_id, kind, template, prompt[:2000], fmt, content_type, str(path), email, len(content))
+        """INSERT INTO media_assets(tenant_id,kind,template,prompt,format,content_type,storage_path,
+                                    created_by,size_bytes,original_name)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *""",
+        tenant_id, kind, template, prompt[:2000], fmt, content_type, str(path), email, len(content),
+        safe_original_name(original_name))
     return dict(row)
 
 
@@ -108,8 +121,15 @@ async def upload(request: Request, user=Depends(owner_auth.current_user)):
     if len(body) > UPLOAD_LIMIT:
         raise HTTPException(413, "That file is over 200 MB. Trim it, or export at a smaller size.")
     await _check_storage(user["tenant_id"], len(body))
+    # Browsers cannot set a filename header themselves; the Studio sends X-Filename (URI-encoded)
+    # alongside the raw body upload it already does.
+    raw_name = ""
+    header_name = request.headers.get("x-filename", "")
+    if header_name:
+        from urllib.parse import unquote
+        raw_name = unquote(header_name)
     row = await _store(user["tenant_id"], kind, "upload", "", "landscape", body,
-                       content_type, user.get("email", ""))
+                       content_type, user.get("email", ""), raw_name)
     path = Path(row["storage_path"])
     path.rename(path.with_suffix("." + suffix))
     await db.pool().execute("UPDATE media_assets SET storage_path=$2 WHERE id=$1",

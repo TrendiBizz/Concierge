@@ -23,7 +23,7 @@ import {useNotify} from './Notify';
 import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
-type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
+type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string; original_name?: string};
 type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean};
 type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string};
 type Variant = {account_id: string; account_name: string; network: string; content: string; link?: string; hashtags?: string; media?: string[]; video?: string | null; limit?: number; warnings?: string[]; errors?: string[]};
@@ -90,6 +90,9 @@ export function Media({token}: {token: string}) {
       request.open('POST', '/owner/media/upload');
       request.setRequestHeader('Authorization', 'Bearer ' + token);
       request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      // The browser will not put the filename on the wire for a raw-body upload, so send it
+      // explicitly; otherwise every tile reads "Image" and two different photos look identical.
+      request.setRequestHeader('X-Filename', encodeURIComponent(file.name || ''));
       request.upload.onprogress = (event) => {
         if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
       };
@@ -294,6 +297,11 @@ export function Media({token}: {token: string}) {
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
             <VStack gap={1} hAlign="start">
               <Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />
+              {asset.original_name ? (
+                <p style={{fontSize: 13, margin: '4px 0 0', overflowWrap: 'anywhere'}} title={asset.original_name}>
+                  {asset.original_name}
+                </p>
+              ) : null}
               <Timestamp value={asset.created_at} format="date_time" type="supporting" />
             </VStack>
 
@@ -473,7 +481,8 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                 {library.slice(0, 8).map((asset) => (
                   <button key={asset.id} type="button" onClick={() => void attachAsset(asset.id)}
                           style={{padding: 0, border: 0, background: 'none', cursor: 'pointer'}}
-                          aria-label="Use this in the post">
+                          aria-label={'Use ' + (asset.original_name || 'this media') + ' in the post'}
+                          title={asset.original_name || 'Marketing media'}
                     <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
                   </button>
                 ))}
