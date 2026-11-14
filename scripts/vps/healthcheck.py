@@ -15,6 +15,7 @@ Reads secrets from /opt/trendi/shared/api.env and compose.env; never prints them
 from __future__ import annotations
 
 import json
+import re
 import os
 import smtplib
 import ssl
@@ -57,6 +58,8 @@ CRITICAL_CONTAINERS = {
 }
 
 # Public URLs a customer or owner would hit. 200 expected unless a list is given.
+SITE = "https://trendibizz.com"
+
 PUBLIC_URLS = [
     ("https://trendibizz.com/", (200,)),
     ("https://chat.trendibizz.com/demo/pukeko-construction", (200,)),
@@ -390,6 +393,57 @@ def check_sms_inbound() -> list[dict]:
     return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
 
 
+def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) -> list[str]:
+    """Problems where the published price disagrees with the plan data, or GST is added again.
+
+    On 2026-11-15 the plan data said USD 250/month while hard-coded cards still said $400 and the
+    yearly blurb still did arithmetic on the old numbers ("12 months at USD $250 is USD $4,800").
+    Prices live in two places — products.js and the cards — so they must be compared, not trusted.
+    """
+    problems: list[str] = []
+
+    def money(text: str) -> int:
+        return int(text.replace(",", ""))
+
+    monthly = re.search(r"monthly:\s*\{\s*price:\s*(\d+)", plan_js)
+    yearly = re.search(r"yearly:\s*\{\s*price:\s*(\d+)", plan_js)
+    cards = re.findall(r'currency">USD</span>\s*\$([\d,]+)', page_html)
+
+    if monthly and cards:
+        expected = money(monthly.group(1))
+        card = money(cards[0])
+        if card != expected:
+            problems.append(f"monthly card says ${card}, plan data says ${expected}")
+    if yearly and len(cards) > 1:
+        expected = money(yearly.group(1))
+        card = money(cards[1])
+        if card != expected:
+            problems.append(f"yearly card says ${card}, plan data says ${expected}")
+
+    for name, html in (pages or {}).items():
+        if "GST is added" in html:
+            problems.append(f"{name} still promises GST is added at checkout")
+    return problems
+
+
+def check_site_prices() -> list[dict]:
+    """Published prices must match the plan data, and GST must never be an add-on again."""
+    status_page, body_page, _ = http(f"{SITE}/concierge")
+    status_js, body_js, _ = http(f"{SITE}/products.js")
+    if status_page != 200 or status_js != 200:
+        return [_warn("site:prices", f"could not read the pricing page (page {status_page}, plans {status_js})")]
+    pages = {}
+    for path in ("/pricing", "/terms"):
+        code, body, _ = http(f"{SITE}{path}")
+        if code == 200:
+            pages[path] = body.decode("utf-8", "replace")
+    problems = site_price_drift(body_page.decode("utf-8", "replace"),
+                               body_js.decode("utf-8", "replace"), pages)
+    if problems:
+        return [_fail("site:prices", "; ".join(problems)[:300])]
+    return [_ok("site:prices", "cards match the plan data, prices include GST")]
+
+
 def check_crm_capture() -> list[dict]:
     """Does every enquiry that carried contact details also exist as a customer?
 
@@ -594,14 +648,11 @@ def main(argv: list[str] | None = None) -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
-    try:
-        results.extend(check_crm_capture())
-    except Exception as exc:  # noqa: BLE001
-        results.append(_fail("check:check_crm_capture", str(exc)[:200]))
-    try:
-        results.extend(check_sms_inbound())
-    except Exception as exc:  # noqa: BLE001
-        results.append(_fail("check:check_sms_inbound", str(exc)[:200]))
+    for step in (check_crm_capture, check_site_prices, check_sms_inbound):
+        try:
+            results.extend(step())
+        except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest
+            results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
 
     now = datetime.now(timezone.utc)
     state = load_state()
