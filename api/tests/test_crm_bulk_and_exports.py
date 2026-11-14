@@ -187,6 +187,13 @@ def test_a_branch_company_points_at_its_parent_and_refuses_another_business():
             async with _client(mine) as client:
                 refused = await client.patch(f"/owner/companies/{branch}", json={"parent_id": stranger})
                 assert refused.status_code == 404, "a parent from another business must be refused"
+                # un-nesting is a real instruction. This answered "Nothing to update" and left
+                # the old parent in place, so a branch could never be made independent again.
+                alone = await client.patch(f"/owner/companies/{branch}", json={"parent_id": None})
+                assert alone.status_code == 200, alone.text
+                assert alone.json()["parent_id"] is None
+                relisted = {c["id"]: c for c in (await client.get("/owner/companies")).json()}
+                assert relisted[branch]["parent_id"] is None
         finally:
             _reset()
             await pool.close()

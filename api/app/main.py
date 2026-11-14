@@ -2410,11 +2410,16 @@ async def owner_company_create(body: CompanyBody, user: dict = Depends(owner_aut
 async def owner_company_update(company_id: str, body: CompanyUpdate,
                                user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
-    fields = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    sent = body.model_dump(exclude_unset=True)
+    # `parent_id: null` is a real instruction ("stand this company on its own"), not an absent
+    # value. Filtering None out of everything made un-nesting impossible: the route answered
+    # "Nothing to update" and the page silently left the old parent in place.
+    fields = {k: v for k, v in sent.items() if v is not None or k == "parent_id"}
     if not fields:
         raise HTTPException(400, "Nothing to update")
     if "parent_id" in fields:
-        fields["parent_id"] = await _require_company(user["tenant_id"], fields["parent_id"]) if fields["parent_id"] else None
+        fields["parent_id"] = (await _require_company(user["tenant_id"], fields["parent_id"])
+                               if fields["parent_id"] else None)
     parts = [f"{col} = ${i}" for i, col in enumerate(fields, start=3)]
     row = await db.pool().fetchrow(
         f"UPDATE companies SET {', '.join(parts)}, updated_at = now() "
