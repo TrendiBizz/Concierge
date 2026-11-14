@@ -39,6 +39,7 @@ const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./loc
 
 
 const Home = lazy(() => import('./Home'));
+const Texts = lazy(() => import('./Texts'));
 const Designs = lazy(() => import('./Designs'));
 const ProductsPage = lazy(() => import('./Products'));
 const PermissionsPage = lazy(() => import('./Permissions'));
@@ -1616,6 +1617,7 @@ function Shell() {
     ]},
     {group: 'Customers', colour: '#22d3ee', items: [
       {tab: 'crm', label: 'Enquiries', glyph: 'chat'},
+      {tab: 'texts', label: 'Texts', glyph: 'chat'},
       {tab: 'contacts', label: 'Contacts', glyph: 'users'},
       {tab: 'companies', label: 'Companies', glyph: 'box'},
       {tab: 'bookings', label: 'Bookings', glyph: 'calendar'},
@@ -1643,6 +1645,7 @@ function Shell() {
 
   const HERO: Record<string, {title: string; line: string}> = {
     home: {title: (brand.name || 'Your business') + ' — ' + greeting(), line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
+    texts: {title: 'Texts', line: 'Every text conversation, with what Concierge said and what you said. Take over any customer, reply yourself, then hand back.'},
     crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
     contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},
     bookings: {title: 'Bookings', line: 'Your calendar, with the jobs that customers booked themselves.'},
@@ -1670,7 +1673,7 @@ function Shell() {
         <h1>{hero.title}</h1>
         <p>{hero.line}</p>
       </div>
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
     </>
   );
 

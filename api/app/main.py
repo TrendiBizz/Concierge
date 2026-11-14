@@ -28,6 +28,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
+from . import sms_inbox
 from . import owner_invites
 from . import install_requests
 from . import privacy
@@ -106,6 +107,7 @@ app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
 
 app.include_router(voice_internal.router)
 app.include_router(device_sms.router)
+app.include_router(sms_inbox.router)
 app.include_router(phone_sip.router)
 app.include_router(managed_phone.router)
 app.include_router(mobile_connections.router)
@@ -493,6 +495,9 @@ async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -
     except Exception:
         log.exception("sms turn failed for %s", tenant["slug"])
         return "Sorry, I'm having trouble right now. The team will get back to you."
+    if result.get("reason") == "human_takeover":
+        # The owner is answering this person; keep their text in the thread the owner is reading.
+        await convo.save_message(conversation_id, "user", body[:1000])
     return result["reply"]
 
 
