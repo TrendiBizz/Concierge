@@ -103,3 +103,30 @@ Guard: `test_the_service_worker_can_never_pin_a_browser_to_an_old_build` — ass
 the no-store navigation, the offline-only fallback, that `sw.js` is gone, the `updateViaCache`
 registration, the unregister call, and that the stamp precedes the copy. Mutations that turn it red:
 dropping `{cache: 'no-store'}`, and moving the stamp after the copy.
+
+## 6. The Permissions page should not exist after setup
+
+§3 hid the delivery chain behind a disclosure, which was not the ask. The owner's words: *"this
+screen and permissions do not need to be shown on the screen after setup they should be available
+to use but why are we displaying this"* — a console of eleven switches does not belong in the
+sidebar of a business that finished setup, whatever it says inside.
+
+**Fixed by deleting the page and asking where the channel is used:**
+
+- `Permissions.tsx` is gone; the sidebar entry, the `<Tab value="permissions">`, the route and the
+  `PermissionsPage` lazy import are all removed.
+- New `ChannelAsk` component renders on the page that needs the channel and only when that channel
+  is not yet allowed: **Texts** asks for `sms_read`/`sms_send`, **Enquiries** for
+  `telephone`/`call_recording`, **Social** for `social`. One button — "Allow" — using the same
+  `/owner/onboarding/authorizations` endpoint, so nothing about the underlying permission model
+  changed. Email read/send still live in Setup, where they are part of setup.
+
+Guards: `test_permissions_are_asked_for_where_the_channel_is_used` (asserts the page, nav entry,
+tab, route and import are gone and each `ChannelAsk` mount is live — gating one behind `false`
+turns it red) and two retargeted guards in `test_studio_shell.py` that used to read the deleted
+file (`test_the_permissions_page_is_gone_and_the_ask_is_inline`,
+`test_a_customer_who_grants_nothing_still_gets_the_celebration` — the celebration now provably hangs
+off finishing setup, not off granting everything).
+
+Deployed: shell `index-D5V7PJxD.js` (no Permissions, carries "handle your texts"), worker cache
+`concierge-studio-D5V7PJxD`. Suite **1206 passed, 36 skipped**.

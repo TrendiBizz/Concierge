@@ -67,10 +67,14 @@ def test_finishing_setup_celebrates_and_the_burst_respects_reduced_motion():
     assert "canvas.remove()" in celebrate, "the overlay must clean itself up"
 
 
-def test_granting_permissions_celebrates_too():
-    permissions = read("Permissions.tsx")
-    assert "celebrate()" in permissions
-    assert "CHANNELS.every" in permissions, "only celebrate once every channel is decided"
+def test_the_permissions_page_is_gone_and_the_ask_is_inline():
+    """Permissions used to be a console in the sidebar. It is asked for where it is used now."""
+    import pathlib
+    src = pathlib.Path(__file__).resolve().parents[2] / "web" / "portal" / "src"
+    assert not (src / "Permissions.tsx").exists(), "the standalone Permissions page must be gone"
+    app = (src / "App.tsx").read_text()
+    assert "{tab: 'permissions'" not in app and 'value="permissions"' not in app
+    assert "function ChannelAsk" in app
 
 
 def test_greeting_is_taken_from_the_clock_not_a_hard_coded_string():
@@ -85,12 +89,11 @@ def test_a_customer_who_grants_nothing_still_gets_the_celebration():
     The celebration must hang off pressing Continue, not off a full set of ticks. Before this,
     a customer who declined every permission finished onboarding with no confetti at all.
     """
-    permissions = read("Permissions.tsx")
-    finish = re.search(r"function finish\(\) \{(.*?)\n  \}", permissions, re.S).group(1)
-    assert "celebrate()" in finish, "Continue must celebrate regardless of what was authorised"
-    assert "CHANNELS.every" not in finish, "the celebration must not depend on granting everything"
-    assert "onDone" in finish, "Continue should lead them into the workspace"
-    assert 'label={done ? ' in permissions, "the button must say what it is doing"
+    app = read("App.tsx")
+    # the celebration hangs off finishing setup, not off a full set of permission ticks
+    assert "onDone={() => { celebrateOnce(brand.name); setTab('home'); }}" in app
+    # and every channel can still be declined without blocking the workspace
+    assert "if (!missing.length) return null;" in app, "no ask once the channel is allowed"
 
 
 def test_every_page_is_full_width_not_a_narrow_centred_column():

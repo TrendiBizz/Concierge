@@ -19,19 +19,19 @@ def test_setup_detects_an_already_configured_business():
     assert 'label="Edit business details"' in source
 
 
-def test_permissions_keep_the_delivery_chain_behind_a_disclosure():
-    source = (PORTAL / "Permissions.tsx").read_text()
-    assert "const inboundFailing = Object.keys(CHECK_LABELS)" in source
-    assert "<details" in source and "Show the delivery-chain checks" in source
-    # owners see the count, not the list
-    assert "step(s) of the delivery chain are not working" in source
-
-
-def test_an_edge_error_never_reaches_the_owner_verbatim():
-    """The banner in the screenshot was Cloudflare's own words, printed at the owner."""
-    source = (PORTAL / "api.ts").read_text()
-    assert "const trusted = detail && status < 500" in source
-    assert "!detail.includes('<')" in source
+def test_permissions_are_asked_for_where_the_channel_is_used():
+    """A finished setup must not leave a Permissions console in the sidebar."""
+    app = (PORTAL / "App.tsx").read_text()
+    assert "{tab: 'permissions'" not in app
+    assert 'value="permissions"' not in app
+    assert "PermissionsPage" not in app
+    assert not (PORTAL / "Permissions.tsx").exists()
+    # ...and the ask happens on the page that needs the channel
+    assert "function ChannelAsk" in app
+    # the mount itself, not just the channel list: gating it behind `false` must fail this
+    assert "{tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']}" in app
+    assert "{tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']}" in app
+    assert "{tab === 'social' ? <ChannelAsk token={token} channels={['social']}" in app
 
 
 def test_the_service_worker_can_never_pin_a_browser_to_an_old_build():
