@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -19,15 +20,25 @@ class PhoneAgentTest(unittest.TestCase):
         c.execute("INSERT INTO handle VALUES('+64215550123')");c.commit();c.close()
         self.agent=module.PhoneAgent({'url':'https://concierge.trendibizz.com/api/v1/device-sms',
             'token':'t'*48,'from_number':'+64278817368','bridge':str(self.root),
-            'messages_db':str(self.db),'state_dir':str(self.root/'state')})
+            'messages_db':str(self.db),'state_dir':str(self.root/'state'),
+            'filter_path':str(self.root/'filter.json'),'address_books':frozenset()})
         self.calls=[];self.agent.api=lambda path,payload:self.calls.append((path,payload)) or {'job':None}
 
     def tearDown(self):
         self.agent.journal.close();self.tmp.cleanup()
 
-    def add(self,service='SMS',line='+64278817368',text='Business question',outgoing=0,sent=1,error=0):
+    def add(self,service='SMS',line='+64278817368',text='Business question',outgoing=0,sent=1,error=0,handle=1):
         with sqlite3.connect(self.db) as c:
-            c.execute("INSERT INTO message VALUES(?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),sent,error,line,1,outgoing,service,text))
+            c.execute("INSERT INTO message(guid,is_sent,error,destination_caller_id,handle_id,is_from_me,service,text) VALUES(?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),sent,error,line,handle,outgoing,service,text))
+
+    def handle(self,number):
+        with sqlite3.connect(self.db) as c:
+            return c.execute("INSERT INTO handle VALUES(?)",(number,)).lastrowid
+
+    def use_filter(self,contacts=(),**settings):
+        self.agent.filter.address_books=frozenset(contacts)
+        (self.root/'filter.json').write_text(json.dumps(settings))
+        self.agent.filter.loaded_at=None
 
     def test_history_is_not_imported_and_only_new_business_sms_is_forwarded(self):
         self.add();self.agent.inbound();self.assertEqual(self.calls,[])
@@ -87,6 +98,73 @@ class PhoneAgentTest(unittest.TestCase):
         self.agent.inbound()
         self.assertEqual(len(self.calls),2)
         self.assertTrue(self.calls[0][1]['body'].startswith('Booking reference'))
+
+    def test_saved_contacts_stay_private_and_unknown_numbers_are_business(self):
+        friend=self.handle('+64211112222');stranger=self.handle('+64213334444')
+        self.use_filter(contacts={'021 111 2222'})
+        self.agent.inbound()
+        self.add(handle=friend,text='Dinner tonight?')
+        self.add(handle=stranger,text='Can I get a quote for a deck?')
+        self.assertEqual(self.agent.inbound(),1)
+        self.assertEqual([c[1]['sender'] for c in self.calls],['+64213334444'])
+
+    def test_marks_override_contacts_and_keywords_opt_in_one_text(self):
+        friend=self.handle('+64211112222');stranger=self.handle('+64213334444')
+        self.use_filter(contacts={'+64211112222'},personal=['+64213334444'],business_keywords=['biz'])
+        self.agent.inbound()
+        self.add(handle=stranger,text='Hi, personal really')
+        self.add(handle=friend,text='Hello again')
+        self.add(handle=friend,text='BIZ: my neighbour wants a quote')
+        self.assertEqual(self.agent.inbound(),1)
+        self.assertTrue(self.calls[0][1]['body'].startswith('BIZ'))
+        self.agent.filter.mark('business','021 111 2222')
+        self.add(handle=friend,text='Now a client')
+        self.assertEqual(self.agent.inbound(),1)
+
+    def test_short_codes_and_unreadable_contacts_never_forward(self):
+        code=self.handle('2344');name=self.handle('ANZ')
+        self.agent.inbound()
+        self.add(handle=code,text='Your parcel is on its way');self.add(handle=name,text='Bank notice')
+        self.assertEqual(self.agent.inbound(),0)
+        self.agent.filter.address_books=str(self.root/'missing/*.abcddb');self.agent.filter.loaded_at=None
+        self.add(text='Unknown sender while Contacts is unreadable')
+        self.assertEqual(self.agent.inbound(),0)
+        self.assertEqual(self.agent.skipped.get('contacts_unreadable'),1)
+
+    def test_group_chats_are_private(self):
+        with sqlite3.connect(self.db) as c:
+            c.executescript("CREATE TABLE chat(style INTEGER);CREATE TABLE chat_message_join(chat_id INTEGER,message_id INTEGER);INSERT INTO chat VALUES(43);")
+        self.agent.inbound()
+        self.add(text='Group banter')
+        with sqlite3.connect(self.db) as c:
+            c.execute("INSERT INTO chat_message_join VALUES(1,(SELECT MAX(rowid) FROM message))")
+        self.add(text='One to one enquiry')
+        self.assertEqual(self.agent.inbound(),1)
+        self.assertEqual(self.calls[0][1]['body'],'One to one enquiry')
+
+    def test_platform_never_texts_a_personal_contact(self):
+        self.use_filter(contacts={'+64211112222'})
+        self.agent.bridge_request=lambda *a:(_ for _ in ()).throw(AssertionError('must not reach Messages'))
+        job={'id':str(uuid.uuid4()),'from_number':'+64278817368','recipient':'+64211112222','body':'Thanks!'}
+        self.assertEqual(self.agent.send(job),('failed',''))
+
+    def test_dry_run_counts_without_sending(self):
+        with sqlite3.connect(self.db) as c:
+            c.execute("ALTER TABLE message ADD COLUMN date INTEGER DEFAULT 0")
+        friend=self.handle('+64211112222')
+        self.use_filter(contacts={'+64211112222'})
+        now=int((module.time.time()-978307200)*1e9)
+        self.add();self.add(handle=friend,text='Personal')
+        with sqlite3.connect(self.db) as c:
+            c.execute("UPDATE message SET date=?",(now,))
+        result=self.agent.dry_run(7)
+        self.assertEqual((result['forward'],result['keep_private']),(1,1))
+        self.assertEqual(self.calls,[])
+
+    def test_local_numbers_in_contacts_match_international_senders(self):
+        self.assertEqual(module.to_e164('021 555 0123','64'),'+64215550123')
+        self.assertEqual(module.to_e164('+61 412 345 678','64'),'+61412345678')
+        self.assertEqual(module.to_e164('0064 21 555 0123','64'),'+64215550123')
 
 
 if __name__=='__main__':unittest.main()
