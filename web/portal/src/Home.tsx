@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {describeFailure} from './api';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
@@ -13,7 +14,7 @@ function useApi(token: string) {
   return async function api(path: string) {
     const response = await fetch(path, {headers: {Accept: 'application/json', Authorization: 'Bearer ' + token}, cache: 'no-store'});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'Request failed');
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   };
 }

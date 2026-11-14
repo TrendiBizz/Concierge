@@ -16,6 +16,7 @@ import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
+import {createApi} from './api';
 import './shell.css';
 import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
@@ -90,31 +91,9 @@ function ErrorNote({message}: {message: string}) {
 
 
 function useApi(token: string) {
-  return async function api(path: string, method = 'GET', body?: unknown) {
-    const response = await fetch(path, {
-      method,
-      headers: {'Accept': 'application/json', ...(body !== undefined ? {'Content-Type': 'application/json'} : {}), ...(token ? {Authorization: 'Bearer ' + token} : {})},
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: 'no-store',
-    });
-    const raw = await response.text();
-    // When the edge in front of us fails (Cloudflare serves its own page for 502/520/524), the
-    // body is HTML. The Media page used to print that HTML at the customer word for word.
-    let data: any = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
-    if (response.status === 401 && token) window.dispatchEvent(new Event('concierge:sign-out'));
-    if (!response.ok) {
-      // FastAPI answers a validation error with a list of objects; never let a page print that as "[object Object]".
-      const detail = typeof data?.detail === 'string' ? data.detail
-        : Array.isArray(data?.detail) ? data.detail.map((d: {msg?: string}) => d.msg || 'A detail is not valid.').join(' ') : '';
-      // 502/520/521/522/524/504 all mean "the far side did not answer properly". Say that, plainly.
-      const edge = [502, 504, 520, 521, 522, 523, 524].includes(response.status);
-      throw new Error(detail || (edge
-        ? 'That took too long at our end (' + response.status + '). Nothing was lost — try again.'
-        : 'Request failed (' + response.status + ')'));
-    }
-    return data;
-  };
+  // One implementation, in api.ts: five page-local copies is how Cloudflare's error page once
+  // got printed at a customer.
+  return createApi(token);
 }
 
 
@@ -447,7 +426,6 @@ function Team({token}: {token: string}) {
 
   return (
     <div style={{maxWidth: 900}}>
-      <Heading level={1}>Team</Heading>
       <p>Everyone who can sign in to this workspace, and what they are allowed to do. Viewers can look, editors can change things, owners can also manage people and permissions.</p>
       <Card>
         <Heading level={2}>People</Heading>
@@ -555,7 +533,6 @@ function YourCrm({token}: {token: string}) {
 
   return (
     <div style={{maxWidth: 900}}>
-      <Heading level={1}>Your own CRM</Heading>
       <p>Keep your customer list where you want it. Nothing here is locked in: take it out whenever you like, or have new customers pushed straight into the system you already use.</p>
       <Card>
         <Heading level={2}>Take your data with you</Heading>
@@ -1165,7 +1142,6 @@ function Bookings({token}: {token: string}) {
 
   return (
     <div>
-      <Heading level={1}>Bookings</Heading>
       <p>Connect the business calendar and choose when Concierge may book appointments.</p>
       <Card>
         <Heading level={2}>Google Calendar</Heading>
@@ -1323,7 +1299,6 @@ function Reports({token}: {token: string}) {
 
   return (
     <div>
-      <Heading level={1}>Reports</Heading>
       <p>A simple view of the work coming in and going out.</p>
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
         {metrics.map(([label, value]) => (
@@ -1603,12 +1578,11 @@ function Shell() {
       {/* Pausing something that has never run is not a first step: keep it off the setup wizard. */}
       {tab !== 'setup' ? <PauseStrip token={token} /> : null}
       <TranslationNote locale={locale} />
-      {tab !== 'setup' ? (
-        <div className="c-hero">
-          <h1>{hero.title}</h1>
-          <p>{hero.line}</p>
-        </div>
-      ) : null}
+      {/* The hero belongs on every tab, setup included: it is the page's only heading there. */}
+      <div className="c-hero">
+        <h1>{hero.title}</h1>
+        <p>{hero.line}</p>
+      </div>
       {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );

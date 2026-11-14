@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -20,7 +21,7 @@ function useApi(token: string) {
   return async function api(path: string, method = 'GET', body?: unknown) {
     const response = await fetch(path, {method, headers: {'Accept': 'application/json', ...(body !== undefined ? {'Content-Type': 'application/json'} : {}), Authorization: 'Bearer ' + token}, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'Request failed');
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   };
 }
@@ -239,7 +240,6 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
 
   return (
     <div>
-      <Heading level={1}>Quotations</Heading>
       <Card>
         <Heading level={2}>Quote from a plan or 3D model</Heading>
         <p>Send a customer an upload link, or upload their IFC yourself. We measure the wall area net of openings and price it at your rate per square metre — waste and minimum charge included.</p>
@@ -424,7 +424,6 @@ export function Contacts({token}: {token: string}) {
 
   return (
     <div>
-      <Heading level={1}>Contacts</Heading>
       <p>
         One record per person, with every email, text, call, chat, quote and appointment in one
         thread — so a returning customer is recognised instead of appearing as a new enquiry.

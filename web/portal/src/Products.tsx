@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -52,7 +53,7 @@ export default function Products({token}: {token: string}) {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'Request failed');
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   }
 
@@ -140,7 +141,6 @@ export default function Products({token}: {token: string}) {
 
   return (
     <div>
-      <Heading level={1}>Products and rates</Heading>
       <p>Your sale prices and stock. Quotes and the AI assistant can only use the sale price; cost price stays owner-only and is never shown to staff or customers.</p>
       {isOwner ? (
         <Card>

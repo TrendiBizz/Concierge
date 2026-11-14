@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -19,7 +20,7 @@ function useApi(token: string) {
   return async function api(path: string, method = 'GET', body?: unknown) {
     const response = await fetch(path, {method, headers: {'Accept': 'application/json', ...(body !== undefined ? {'Content-Type': 'application/json'} : {}), Authorization: 'Bearer ' + token}, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'Request failed');
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   };
 }
@@ -100,7 +101,6 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
 
   return (
     <div>
-      <Heading level={1}>Marketing media</Heading>
       <p>Branded images, short videos and AI images. Everything you generate is added to your social composer.</p>
       {usage ? (
         <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
@@ -267,7 +267,6 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
 
   return (
     <div>
-      <Heading level={1}>Social</Heading>
       <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
       <Card>
         <Heading level={2}>Connect an account</Heading>

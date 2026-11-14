@@ -113,3 +113,57 @@ def test_pages_say_something_encouraging_when_there_is_nothing_yet():
         source = read(page)
         assert "c-empty" in source, f"{page} has a bare empty state"
         assert phrase in source, f"{page} lost its friendly empty-state copy"
+
+
+def test_a_stale_build_shows_a_message_not_a_blank_page():
+    """A deploy replaces hashed chunks; a window opened before it must not go blank.
+
+    Reported on the Social tab: clicking it left an empty dark page with no explanation.
+    """
+    main = read("main.tsx")
+    assert "vite:preloadError" in main, "a stale chunk must trigger one reload"
+    assert "sessionStorage" in main, "and must not reload in a loop"
+    boundary = read("ErrorBoundary.tsx")
+    assert "getDerivedStateFromError" in boundary
+    assert "Reload the page" in boundary
+
+
+def test_assets_are_cacheable_and_old_chunks_are_not_deleted():
+    """Two halves of the same bug: no cache headers, and rsync --delete removing live chunks."""
+    api = pathlib.Path(__file__).resolve().parents[1] / "app" / "main.py"
+    source = api.read_text()
+    assert "immutable" in source, "hashed assets should be cached hard"
+    deploy = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "vps" / "redeploy-api.sh"
+    assert deploy.exists(), "the deploy path must be a script, not a remembered command"
+    text = deploy.read_text()
+    assert "--force-recreate api social" in text, "social shares api's namespace and must be recreated with it"
+    assert "social reachable" in text, "the script must prove social answers before it exits"
+
+
+def test_no_page_reimplements_the_api_helper():
+    """Five copies of the fetch helper is how Cloudflare's error page got printed at a customer."""
+    offenders = []
+    for page in SRC.glob("*.tsx"):
+        source = page.read_text()
+        if 'Request failed' in source and page.name != 'api.ts':
+            offenders.append(page.name)
+    assert not offenders, f"pages with their own error handling: {offenders}"
+    shared = read("api.ts")
+    for status in ("520", "524"):
+        assert status in shared
+    assert "Nothing was lost" in shared
+
+
+def test_one_page_heading_each():
+    """The hero names the page; a second H1 repeating it looked like a rendering bug."""
+    for page in SRC.glob("*.tsx"):
+        source = page.read_text()
+        for title in ("Social", "Marketing media", "Reports", "Bookings", "Team", "Quotations"):
+            assert f"<Heading level={{1}}>{title}</Heading>" not in source, f"{page.name} repeats {title}"
+
+
+def test_media_rendering_finishes_before_the_edge_gives_up():
+    """Cloudflare abandons an origin at ~100s; waiting 200s handed customers its error page."""
+    media = (pathlib.Path(__file__).resolve().parents[1] / "app" / "media_studio.py").read_text()
+    assert "RENDER_TIMEOUT_SECONDS = 85" in media
+    assert "httpx.TimeoutException" in media

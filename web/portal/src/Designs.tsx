@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -23,7 +24,7 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
       cache: "no-store",
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || "Request failed");
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   }
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -172,7 +173,6 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
 
   return (
     <div>
-      <Heading level={1}>Designs and CAD</Heading>
       <p>Upload plans or 3D models, view them, and read measured wall areas from an IFC model.</p>
       <Card>
         <Heading level={2}>Who is this for?</Heading>
