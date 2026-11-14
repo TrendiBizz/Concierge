@@ -178,7 +178,9 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
       <Card>
         <Heading level={2}>Who is this for?</Heading>
         <p>A quotation has to belong to a customer. Pick one here, and "Price this model" below will draft the quote against them.</p>
-        <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{padding: '8px 10px', minWidth: 280}}>
+        <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+                aria-label="Which customer this quote is for"
+                style={{padding: '8px 10px', minWidth: 280}}>
           <option value="">Choose a customer or enquiry…</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>{[c.name || '(no name)', c.phone || c.email || ('via ' + c.channel)].filter(Boolean).join(' · ')}</option>

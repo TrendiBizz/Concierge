@@ -22,6 +22,7 @@ import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
 import {CmdK} from './CmdK';
 import {Companies} from './Companies';
+import {SavedReplies} from './SavedReplies';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
 import {createApi} from './api';
@@ -861,6 +862,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             <div style={{marginTop: 24}}>
               <p>We have not read your site yet. Press "Check my website" above, or enter your details yourself.</p>
               <TextInput label="Business name" value={name} onChange={setName} />
+              <SavedReplies token={token} />
               <Button label={busy ? 'Saving…' : 'Save and continue'} variant="secondary" onClick={saveEverything} />
             </div>
           )}
