@@ -152,3 +152,17 @@
 
 /* The starter stylesheet underlines headings; the product's headings should not look like links. */
 .c-shell h1, .c-shell h2, .c-shell h3 { text-decoration: none; border-bottom: 0; }
+
+/* The end of onboarding: an explicit Continue, because finishing should not require
+   authorising things a business may not want to authorise. */
+.c-finish {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 24px; padding: 20px 22px; border-radius: 18px;
+  background:
+    radial-gradient(500px 160px at 0% 0%, color-mix(in oklab, var(--c-accent) 40%, transparent), transparent 70%),
+    var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.c-finish strong { display: block; font-size: 16px; }
+.c-finish p { margin: 4px 0 0; color: var(--c-muted); font-size: 13.5px; }
+.c-finish > :last-child { margin-left: auto; }

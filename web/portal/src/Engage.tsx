@@ -99,7 +99,7 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   }
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Marketing media</Heading>
       <p>Branded images, short videos and AI images. Everything you generate is added to your social composer.</p>
       {usage ? (
@@ -266,7 +266,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   const connectable = accounts.filter((a) => !a.needs_reauth && a.network !== 'bluesky');
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Social</Heading>
       <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
       <Card>
@@ -362,7 +362,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
             {post.last_error ? <p role="alert">{post.last_error}</p> : null}
           </Card>
         ))}
-        {!posts.length ? <p>No drafts yet.</p> : null}
+        {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}
       </div>
       {status ? <p role="status">{status}</p> : null}
     </div>

@@ -77,3 +77,39 @@ def test_greeting_is_taken_from_the_clock_not_a_hard_coded_string():
     app = read("App.tsx")
     assert "' — ' + greeting()" in app
     assert "good morning')" not in app
+
+
+def test_a_customer_who_grants_nothing_still_gets_the_celebration():
+    """Permissions are optional by design: many businesses will authorise none of them.
+
+    The celebration must hang off pressing Continue, not off a full set of ticks. Before this,
+    a customer who declined every permission finished onboarding with no confetti at all.
+    """
+    permissions = read("Permissions.tsx")
+    finish = re.search(r"function finish\(\) \{(.*?)\n  \}", permissions, re.S).group(1)
+    assert "celebrate()" in finish, "Continue must celebrate regardless of what was authorised"
+    assert "CHANNELS.every" not in finish, "the celebration must not depend on granting everything"
+    assert "onDone" in finish, "Continue should lead them into the workspace"
+    assert 'label={done ? ' in permissions, "the button must say what it is doing"
+
+
+def test_every_page_is_full_width_not_a_narrow_centred_column():
+    """Pages carried their own `maxWidth: 1040, margin: 0 auto` wrappers after the shell was fixed."""
+    offenders = []
+    for page in SRC.glob("*.tsx"):
+        source = page.read_text()
+        if "maxWidth: 1040" in source:
+            offenders.append(page.name)
+    assert not offenders, f"pages still pinning themselves to a narrow column: {offenders}"
+
+
+def test_pages_say_something_encouraging_when_there_is_nothing_yet():
+    for page, phrase in {
+        "Products.tsx": "No products yet",
+        "CrmQuotes.tsx": "that is normal on day one",
+        "Engage.tsx": "No drafts yet",
+        "Designs.tsx": "No enquiries yet",
+    }.items():
+        source = read(page)
+        assert "c-empty" in source, f"{page} has a bare empty state"
+        assert phrase in source, f"{page} lost its friendly empty-state copy"

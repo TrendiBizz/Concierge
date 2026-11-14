@@ -74,12 +74,13 @@ const CHECK_LABELS: Record<string, string> = {
   sidecar: 'Signature checks (DKIM/DMARC) are reachable',
 };
 
-export default function Permissions({token}: {token: string}) {
+export default function Permissions({token, onDone}: {token: string; onDone?: () => void}) {
   const [auth, setAuth] = useState<AuthState>({});
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [ack, setAck] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [suppressed, setSuppressed] = useState<Suppression[]>([]);
 
@@ -135,6 +136,20 @@ export default function Permissions({token}: {token: string}) {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Finish onboarding.
+
+   * Which permissions they granted is their business: plenty of businesses will never let us
+   * read their email or answer their phone, and saying "no" is a valid answer. So the celebration
+   * hangs off pressing Continue, not off a full set of ticks — before this, a customer who
+   * declined everything never saw any confetti at all.
+   */
+  function finish() {
+    celebrate();
+    setDone(true);
+    setStatus('Saved. You can change any of this later in Permissions.');
+    window.setTimeout(() => onDone?.(), 1000);
   }
 
   async function release(address: string) {
@@ -262,6 +277,16 @@ export default function Permissions({token}: {token: string}) {
                          busy={busy} onToggle={toggle} />
         ))}
       </Card>
+
+      <div className="c-finish">
+        <div>
+          <strong>{done ? 'You are all set.' : 'That is everything you have to decide now.'}</strong>
+          <p>Permissions are yours to change later — nothing here is permanent, and the chat window
+            works whether or not you grant any of them.</p>
+        </div>
+        <Button label={done ? 'Opening your workspace…' : 'Continue'} variant="primary"
+                isDisabled={done} onClick={finish} />
+      </div>
     </div>
   );
 }

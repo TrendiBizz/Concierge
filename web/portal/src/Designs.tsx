@@ -171,7 +171,7 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
   }
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Designs and CAD</Heading>
       <p>Upload plans or 3D models, view them, and read measured wall areas from an IFC model.</p>
       <Card>
@@ -183,7 +183,7 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
             <option key={c.id} value={c.id}>{[c.name || '(no name)', c.phone || c.email || ('via ' + c.channel)].filter(Boolean).join(' · ')}</option>
           ))}
         </select>
-        {!customers.length ? <p>No enquiries yet. They appear here as soon as a customer contacts you.</p> : null}
+        {!customers.length ? <div className="c-empty"><strong>No enquiries yet</strong><p>As soon as a customer messages you, they appear here so you can pick the job and measure it.</p></div> : null}
       </Card>
       <Card>
         <Heading level={2}>Customer upload link</Heading>

@@ -139,7 +139,7 @@ export default function Products({token}: {token: string}) {
   }
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Products and rates</Heading>
       <p>Your sale prices and stock. Quotes and the AI assistant can only use the sale price; cost price stays owner-only and is never shown to staff or customers.</p>
       {isOwner ? (
@@ -193,7 +193,7 @@ export default function Products({token}: {token: string}) {
           }},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!products.length ? <p>No products yet. Add your first item so quotes and the assistant can price it.</p> : null}
+      {!products.length ? <div className="c-empty"><strong>No products yet</strong><p>Add your first price — a product, a rate per square metre, or a fixed fee. Quotes and the chat window can only use numbers you have set.</p></div> : null}
       {status ? <p role="status">{status}</p> : null}
     </div>
   );

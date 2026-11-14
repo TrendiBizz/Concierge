@@ -60,7 +60,7 @@ export function Crm({token}: {token: string}) {
   });
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <p style={{fontSize: 15}}>Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step. Reply, quote or book from the same card.</p>
       <TextInput label="Search enquiries" value={query} onChange={setQuery} />
       <Table
@@ -75,7 +75,7 @@ export function Crm({token}: {token: string}) {
           {key: 'id', header: '', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Button label="Conversation" variant="secondary" onClick={() => transcript(String(row.id))} />},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!shown.length ? <p>No enquiries yet. Connected channels will capture them here.</p> : null}
+      {!shown.length ? <div className="c-empty"><strong>No enquiries yet — that is normal on day one</strong><p>When someone messages the chat window, emails you or rings, the enquiry lands here with their details already filled in.</p></div> : null}
       {Object.entries(transcripts).map(([id, turns]) => (
         <Card key={id}>
           <Heading level={2}>Conversation</Heading>
@@ -238,7 +238,7 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
   }
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Quotations</Heading>
       <Card>
         <Heading level={2}>Quote from a plan or 3D model</Heading>
@@ -340,7 +340,7 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
           )},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!quotes.length ? <p>No quotations yet.</p> : null}
+      {!quotes.length ? <div className="c-empty"><strong>No quotes yet</strong><p>Quote a job and it appears here as a draft. Send it, and you can see when the customer opens and accepts it.</p></div> : null}
       <Dialog isOpen={Boolean(pendingSignoff)} onOpenChange={(open) => { if (!open) setPendingSignoff(null); }}>
         <Heading level={2}>Sign off this quotation?</Heading>
         <p>{pendingSignoff?.title}: {pendingSignoff ? money(pendingSignoff.total_cents, pendingSignoff.currency) : ''}</p>
@@ -423,7 +423,7 @@ export function Contacts({token}: {token: string}) {
   }
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
+    <div>
       <Heading level={1}>Contacts</Heading>
       <p>
         One record per person, with every email, text, call, chat, quote and appointment in one
@@ -443,7 +443,7 @@ export function Contacts({token}: {token: string}) {
           {key: 'case_key', header: '', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Button label="Open" variant="secondary" onClick={() => open(row as unknown as Contact)} />},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!contacts.length ? <p>No contacts yet. Each enquiry creates one, and repeat customers are merged onto it.</p> : null}
+      {!contacts.length ? <div className="c-empty"><strong>No contacts yet</strong><p>Every enquiry creates one automatically, and a repeat customer is merged onto the same card instead of appearing twice.</p></div> : null}
 
       {selected ? (
         <Card>
