@@ -34,7 +34,8 @@ def test_video_needs_neither_a_photo_nor_music():
     source = pathlib.Path(__file__).resolve().parents[1] / "app" / "media_studio.py"
     text = source.read_text()
     video_model = re.search(r"class VideoRequest\(BaseModel\):(.*?)\n\n\n", text, re.S).group(1)
-    photo_line = [ln for ln in video_model.splitlines() if "photos:" in ln][0]
+    # Take the field itself, not the comment above it that also mentions photos.
+    photo_line = [ln for ln in video_model.splitlines() if ln.strip().startswith("photos:")][0]
     assert "min_length" not in photo_line, "photos must be optional"
     assert "photos: list[str] = Field(default_factory=list" in video_model
     # Something has to be on screen: no photo and no headline is a fair 400.

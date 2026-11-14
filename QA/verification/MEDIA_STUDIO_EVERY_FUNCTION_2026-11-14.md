@@ -119,3 +119,40 @@ two still read "Generate image" and "Generate video". Guard:
 Note for the record: two of the three button edits silently did nothing on the first attempt —
 the source had drifted under an earlier edit, and a string replace that finds nothing still
 "passes". The guard is what caught it, and the fix was applied line by line with a check after.
+
+## 7. A video works on its own, and deleting many at once
+
+### 7a. "This doesn't work on its own — why do we need a picture or music?"
+
+Both were **our** invention, and the photo one was enforced in two places:
+
+* `VideoRequest.photos` was declared `min_length=1`, so a headline-only request came back
+  `{"detail": "Photos is not valid."}` — a 422 telling the customer their own input was wrong.
+* The renderer threw `At least one photo is required`, and the page disabled the button.
+
+Now: photos and music are both genuinely optional. With no photo the renderer draws a **title
+card** with the showcase template (brand, headline, accent rule) and animates it with a slow
+`zoompan`, so pressing Generate on a headline alone yields a 6-second, 1080×1350 video.
+
+Proof:
+* `POST /owner/media/video` with `{"format":"portrait","headline":"…"}` and no photos → **201**,
+  MP4, duration **6.00 s**, 386 KB. Frame extracted at 3 s:
+  `media-video-no-photo-2026-11-14.png`.
+* In the browser with nothing but a headline: status "Video made — it is in Your media below.",
+  network `201 media/video`, and the new thumbnail **plays** (duration 6 s, 1080×1350).
+* Headline *and* photo still produce the original slideshow with the headline overlaid.
+
+Guards: `test_video_needs_neither_a_photo_nor_music` (mutating the field back to `min_length=1`
+turns it red — verified by mutating the actual field line) and
+`test_the_renderer_draws_a_title_card_when_there_is_no_photo`.
+
+### 7b. Deleting one at a time
+
+Clearing a dozen test images meant a dozen confirmations. Each card now has a tick box, there is
+a **Select all**, a live "N of M selected" count, and **Delete selected (n)** with one
+confirmation. Backed by a new `POST /owner/media/assets/delete` that removes the rows and files in
+one call and returns how many went.
+
+Proof (live): three ticked → "3 of 20 selected" → confirm "Delete 3 items? This cannot be undone."
+→ cards **20 → 17** → "Deleted 3. Your storage and monthly counts went down."
+Screenshot `media-bulk-delete-2026-11-14.png`.
