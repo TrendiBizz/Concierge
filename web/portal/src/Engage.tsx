@@ -85,6 +85,7 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   const [status, setStatus] = useState('');
   // Which generator is actually running. A single boolean made every button say "Working…".
   const [busy, setBusy] = useState<'' | 'image' | 'video' | 'ai' | 'delete'>('');
+  const [selected, setSelected] = useState<string[]>([]);
   const [usage, setUsage] = useState<{images?: {used: number; limit: number}; videos?: {used: number; limit: number}; ai?: {used: number; limit: number}; storage?: {used: number; limit: number}} | null>(null);
 
   useEffect(() => {
@@ -124,6 +125,24 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
+    setBusy('');
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
+  }
+
+  async function removeSelected() {
+    if (!selected.length) return;
+    if (!window.confirm('Delete ' + selected.length + ' item' + (selected.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
+    setBusy('delete'); setStatus('Deleting ' + selected.length + '…');
+    try {
+      const result = await api('/owner/media/assets/delete', 'POST', {ids: selected}) as {deleted: number};
+      setSelected([]);
+      setAssets(await api('/owner/media/assets'));
+      setUsage(await api('/owner/media/usage'));
+      setStatus('Deleted ' + (result?.deleted ?? selected.length) + '. Your storage and monthly counts went down.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not delete those'); }
     setBusy('');
   }
 
@@ -212,9 +231,28 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       </div>
       {status ? <p role="status">{status}</p> : null}
       <Heading level={2}>Your media</Heading>
+      {assets.length ? (
+        <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 10px', flexWrap: 'wrap'}}>
+          <label style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13}}>
+            <input type="checkbox" aria-label="Select all media"
+                   checked={selected.length > 0 && selected.length === assets.length}
+                   onChange={(e) => setSelected(e.target.checked ? assets.map((a) => a.id) : [])} />
+            Select all
+          </label>
+          <span style={{fontSize: 13, opacity: 0.75}}>{selected.length} of {assets.length} selected</span>
+          <Button label={busy === 'delete' ? 'Deleting…' : 'Delete selected' + (selected.length ? ' (' + selected.length + ')' : '')}
+                  variant="secondary" isDisabled={!selected.length || busy !== ''}
+                  onClick={() => void removeSelected()} />
+        </div>
+      ) : null}
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))'}}>
         {assets.map((asset) => (
           <Card key={asset.id}>
+            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13}}>
+              <input type="checkbox" aria-label="Select this media"
+                     checked={selected.includes(asset.id)} onChange={() => toggleSelected(asset.id)} />
+              Select
+            </label>
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
             <strong>{asset.kind === 'video' ? 'Video' : asset.kind === 'ai' ? 'AI image' : 'Branded image'}</strong>
             <p style={{fontSize: 13, opacity: 0.75}}>{asset.template} · {new Date(asset.created_at).toLocaleString()}</p>

@@ -275,6 +275,28 @@ async def asset_file(asset_id: UUID, user=Depends(owner_auth.current_user)):
     return FileResponse(row["storage_path"], media_type=row["content_type"])
 
 
+class DeleteMany(BaseModel):
+    ids: list[UUID] = Field(min_length=1, max_length=200)
+
+
+@router.post("/assets/delete")
+async def delete_assets(body: DeleteMany, user=Depends(owner_auth.current_user)):
+    """Delete several pictures at once.
+
+    The page had one Delete per card, so clearing a dozen test images meant a dozen confirmations.
+    """
+    owner_auth.require_role(user, "owner")
+    rows = await db.pool().fetch(
+        "DELETE FROM media_assets WHERE tenant_id=$1 AND id = ANY($2::uuid[]) RETURNING storage_path",
+        user["tenant_id"], [str(i) for i in body.ids])
+    for row in rows:
+        try:
+            Path(row["storage_path"]).unlink(missing_ok=True)
+        except OSError:
+            pass
+    return {"deleted": len(rows)}
+
+
 @router.delete("/assets/{asset_id}")
 async def delete_asset(asset_id: UUID, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")

@@ -161,12 +161,24 @@ function audioFile(value, dir) {
   return file;
 }
 
+/** A still title card, drawn with the showcase template, used when a video has no photo. */
+async function titleCard(brand, text, [W, H]) {
+  const element = showcase(brand, [], text, [W, H]);
+  const svg = await satori(element, { width: W, height: H, fonts: FONTS });
+  return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
+}
+
 async function renderVideo(body) {
   const [W, H] = FORMATS[body.format] || FORMATS.portrait;
   const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 20);
-  if (!photos.length) throw Object.assign(new Error('At least one photo is required'), { status: 400 });
-  const clip = 3, transition = 0.5;
-  const total = photos.length * clip - (photos.length - 1) * transition;
+  const headline = String((body.text || {}).headline || '').trim();
+  // A video does not need a photo: with none we animate a title card of the brand and the
+  // headline, so "type a line and press Generate" is a complete instruction.
+  if (!photos.length && !headline) {
+    throw Object.assign(new Error('Add a headline, or a photo, and try again'), { status: 400 });
+  }
+  const clip = 3, transition = 0.5, cardSeconds = 6;
+  const total = photos.length ? photos.length * clip - (photos.length - 1) * transition : cardSeconds;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-video-'));
   try {
     const files = photos.map((photo, i) => {
@@ -175,21 +187,36 @@ async function renderVideo(body) {
       return file;
     });
     const titleFile = path.join(dir, 'title.txt');
-    fs.writeFileSync(titleFile, String((body.text || {}).headline || '').replace(/[\r\n]+/g, ' '));
+    fs.writeFileSync(titleFile, headline.replace(/[\r\n]+/g, ' '));
     const music = body.music ? audioFile(body.music, dir) : '';
     const args = [];
-    files.forEach((file) => args.push('-loop', '1', '-t', String(clip), '-i', file));
+    if (!files.length) {
+      // No photo: one title card, slowly zoomed so it reads as motion rather than a still.
+      const card = path.join(dir, 'card.png');
+      fs.writeFileSync(card, await titleCard(body.brand || {}, body.text || {}, [W, H]));
+      files.push(card);
+      args.push('-loop', '1', '-t', String(cardSeconds), '-i', card);
+    } else {
+      files.forEach((file) => args.push('-loop', '1', '-t', String(clip), '-i', file));
+    }
     if (music) args.push('-i', music);
 
     const parts = files.map((_, i) => `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p[v${i}]`);
     let last = 'v0';
-    for (let i = 1; i < files.length; i++) {
-      const offset = (i * (clip - transition)).toFixed(2);
-      parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
-      last = `x${i}`;
+    if (!photos.length) {
+      // 6 seconds of gentle zoom on the card; the headline is already drawn into it.
+      parts.length = 0;
+      parts.push(`[0:v]scale=${W * 2}:${H * 2},zoompan=z='min(zoom+0.0006,1.12)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${cardSeconds * 30}:s=${W}x${H}:fps=30,setsar=1,format=yuv420p[vout]`);
+    } else {
+      for (let i = 1; i < files.length; i++) {
+        const offset = (i * (clip - transition)).toFixed(2);
+        parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
+        last = `x${i}`;
+      }
+      parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:textfile=${titleFile}:fontcolor=white:fontsize=${Math.round(W / 16)}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=h-(text_h*2.2)[vout]`);
     }
-    parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:textfile=${titleFile}:fontcolor=white:fontsize=${Math.round(W / 16)}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=h-(text_h*2.2)[vout]`);
     if (music) {
+      // The music input follows the video inputs, however many there were.
       parts.push(`[${files.length}:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
     }
     args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
