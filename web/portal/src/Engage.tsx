@@ -9,6 +9,13 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {Badge} from '@astryxdesign/core/Badge';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
 import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
+import {Banner} from '@astryxdesign/core/Banner';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
+import {EmptyState} from '@astryxdesign/core/EmptyState';
+import {Grid} from '@astryxdesign/core/Grid';
+import {HStack} from '@astryxdesign/core/HStack';
+import {Text} from '@astryxdesign/core/Text';
+import {Timestamp} from '@astryxdesign/core/Timestamp';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
@@ -128,11 +135,11 @@ export function Media({token}: {token: string}) {
 
   return (
     <div>
-      <p>
+      <Text>
         Upload the photos and videos you want posted — your own footage, or something you made with
         an AI tool elsewhere. We publish them to your social accounts. We do not generate images or
         video.
-      </p>
+      </Text>
       {usage ? (
         <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
           <ProgressBar label="Storage used (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)}
@@ -157,33 +164,40 @@ export function Media({token}: {token: string}) {
           </p>
         </Card>
       </div>
-      {status ? <p role="status">{status}</p> : null}
+      {status ? (
+        <Banner status={/could not|failed|not supported|limit|unavailable|error/i.test(status)
+                          ? 'error'
+                          : /deleted|uploaded|saved|made|added/i.test(status) ? 'success' : 'info'}
+                title={status}
+                role={/could not|failed|not supported|limit|unavailable|error/i.test(status) ? 'alert' : undefined} />
+      ) : null}
       <Heading level={2}>Your media</Heading>
       {assets.length ? (
-        <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 10px', flexWrap: 'wrap'}}>
-          <label style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13}}>
-            <input type="checkbox" aria-label="Select all media"
-                   checked={selected.length > 0 && selected.length === assets.length}
-                   onChange={(e) => setSelected(e.target.checked ? assets.map((a) => a.id) : [])} />
-            Select all
-          </label>
-          <span style={{fontSize: 13, opacity: 0.75}}>{selected.length} of {assets.length} selected</span>
+        <HStack gap={3} vAlign="center" style={{margin: '4px 0 10px', flexWrap: 'wrap'}}>
+          <CheckboxInput label="Select all" value={selected.length > 0 && selected.length === assets.length}
+                         onChange={(checked) => setSelected(checked ? assets.map((a) => a.id) : [])} />
+          <Text size="sm" color="secondary">{selected.length} of {assets.length} selected</Text>
           <Button label={busy === 'delete' ? 'Deleting…' : 'Delete selected' + (selected.length ? ' (' + selected.length + ')' : '')}
                   variant="secondary" isDisabled={!selected.length || busy !== ''}
                   onClick={() => void removeSelected()} />
-        </div>
+        </HStack>
       ) : null}
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))'}}>
+      {assets.length ? null : (
+        <EmptyState title="Nothing uploaded yet"
+                    description="Add a photo or a video you already have, and it will appear here ready to post."
+                    headingLevel={3} />
+      )}
+      <Grid columns={{minWidth: 220}} gap={3}>
         {assets.map((asset) => (
           <Card key={asset.id}>
-            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13}}>
-              <input type="checkbox" aria-label="Select this media"
-                     checked={selected.includes(asset.id)} onChange={() => toggleSelected(asset.id)} />
-              Select
-            </label>
+            <CheckboxInput label="Select" isLabelHidden value={selected.includes(asset.id)}
+                           onChange={() => toggleSelected(asset.id)} />
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
-            <strong>{asset.kind === 'video' ? 'Video' : 'Image'}</strong>
-            <p style={{fontSize: 13, opacity: 0.75}}>{(asset.kind === 'video' ? 'Video' : 'Image')} · {new Date(asset.created_at).toLocaleString()}</p>
+            <HStack gap={2} vAlign="center">
+              <Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />
+              <Timestamp value={asset.created_at} format="date_time" />
+            </HStack>
+
             <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
               <Button label="Open" variant="secondary" onClick={() => openAsset(asset.id)} />
               <Button label={busy === 'delete' ? 'Deleting…' : 'Delete'} variant="secondary"
@@ -191,7 +205,7 @@ export function Media({token}: {token: string}) {
             </div>
           </Card>
         ))}
-      </div>
+      </Grid>
     </div>
   );
 }

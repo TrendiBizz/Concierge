@@ -56,3 +56,12 @@ def test_the_brand_kit_survives_because_real_features_depend_on_it():
     assert '@router.get("/brand")' in API and '@router.put("/brand")' in API
     setup = (ROOT / "web" / "portal" / "src" / "App.tsx").read_text()
     assert "/owner/media/brand" in setup, "Setup is where the brand kit is edited now"
+
+
+def test_media_deletes_are_audit_logged():
+    """Assets disappeared once and the container logs could not say who removed them.
+
+    Every delete path must record tenant, caller and what went, so a disappearance is answerable.
+    """
+    assert 'log.info("media bulk delete tenant=%s by=%s count=%s ids=%s"' in API
+    assert 'log.info("media delete tenant=%s by=%s id=%s path=%s"' in API

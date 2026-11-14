@@ -6,6 +6,7 @@ clips) were removed on 2026-11-14 by operator decision, along with the media-ren
 from __future__ import annotations
 
 import base64
+import logging
 import hashlib
 import mimetypes
 from pathlib import Path
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field
 from . import db, owner_auth
 from .config import get_settings
 
+log = logging.getLogger("concierge.media")
 router = APIRouter(prefix="/owner/media", tags=["media"])
 
 class Brand(BaseModel):
@@ -192,6 +194,8 @@ async def delete_assets(body: DeleteMany, user=Depends(owner_auth.current_user))
             Path(row["storage_path"]).unlink(missing_ok=True)
         except OSError:
             pass
+    log.info("media bulk delete tenant=%s by=%s count=%s ids=%s",
+             user["tenant_id"], user.get("email", ""), len(rows), [str(i) for i in body.ids])
     return {"deleted": len(rows)}
 
 
@@ -207,4 +211,6 @@ async def delete_asset(asset_id: UUID, user=Depends(owner_auth.current_user)):
         Path(row["storage_path"]).unlink(missing_ok=True)
     except OSError:
         pass
+    log.info("media delete tenant=%s by=%s id=%s path=%s",
+             user["tenant_id"], user.get("email", ""), asset_id, row["storage_path"])
     return {"ok": True}
