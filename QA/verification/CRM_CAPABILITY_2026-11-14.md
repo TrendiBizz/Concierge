@@ -57,11 +57,39 @@ invoices. There is no `companies`, `deals`, `tags`, `custom_fields`, `notes` or 
   this straight away."; to-do added from the page and appeared in the list; no page errors in
   either theme. Screenshots: `crm-pipeline-dark-2026-11-14.png`, `crm-pipeline-light-2026-11-14.png`.
 
+## Round two: assignment and companies (gaps 1 and 2 of six)
+
+**Ownership.** `assigned_to` on `leads`, `customer_cases` and `tasks`;
+`PUT /owner/crm/leads/{id}/assignee` and `PUT /owner/contacts/{case_key}/assignee`. An assignee
+must be an *active member of this workspace* — a user id from another business is refused with
+404, proved by mutation (dropping `tenant_id` from the lookup turns that test red). The contacts
+list gained an Owner column; the contact card gained an "Who owns this account" picker.
+
+**Companies.** `companies(id, tenant_id, name, domain, notes, parent_id)` with
+`UNIQUE (tenant_id, name)`, plus `customer_cases.company_id`. `GET/POST/PATCH/DELETE
+/owner/companies`; each row reports how many people work there, how many deals are open and their
+value. Deleting a company **detaches** its people rather than deleting them — proved by mutating
+the foreign key to `ON DELETE CASCADE`, which turns that test red. A new **Companies** page in the
+Customers group, reachable from ⌘K, with an add form and a per-row menu.
+
+Two defects found by doing it:
+- The contact card reloaded the *list* after a save but not the open record, so the picker snapped
+  back to "Nobody yet" immediately after assigning someone. Fixed by updating the selected record
+  in place; guard `test_the_contact_card_keeps_the_owner_it_just_saved`.
+- Restoring a mutation with `git checkout` wiped uncommitted work (the routes and schema for this
+  very feature) — a tooling defect, now worked around by committing before mutating and restoring
+  from a file copy instead.
+
+Live proof (ACME Ltd, both themes): company created, duplicate name refused with 409, contact
+attached, `open_deals: 1`, `open_value_cents: 480000`; contact assigned then unassigned; enquiry
+assigned; a foreign user id refused with 404; Companies page renders "Pukeko Construction" and fits
+the panel; adding from the form worked; both pickers present and the owner persisted across a
+reload; no page errors. Suite **1191**.
+
 ## Still missing for "handles everything a CRM must" (ranked, with the file each belongs in)
-1. **Record ownership / assignment** — no `assigned_to` anywhere; a team cannot share a queue
+1. ~~Record ownership / assignment~~ — **done**, see above. — no `assigned_to` anywhere; a team cannot share a queue
    (`schema.sql` + `main.py`; filter `/owner/crm` for editors).
-2. **Companies as a first-class record** — `company` is stranded free text on leads and cases
-   (`companies` table + `customer_cases.company_id` + a Companies page).
+2. ~~Companies as a first-class record~~ — **done**, see above. Parent/child hierarchy exists in the schema but has no UI yet.
 3. **Saved views and bulk edit** — no `saved_views` table, no bulk endpoints; every list refilters
    from scratch (`CrmQuotes.tsx`, `main.py`).
 4. **Report export** — `/owner/revenue` cannot be exported as CSV/PDF, and there is no

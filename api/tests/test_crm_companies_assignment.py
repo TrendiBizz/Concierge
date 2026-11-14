@@ -175,3 +175,13 @@ def test_the_pages_offer_the_new_records():
     contacts = (ROOT / "web" / "portal" / "src" / "CrmQuotes.tsx").read_text()
     assert "Account owner" in contacts and "Company" in contacts
     assert "/assignee" in contacts and "/company" in contacts
+
+
+def test_the_contact_card_keeps_the_owner_it_just_saved():
+    """The list reloaded but the open card did not, so the picker snapped back to "Nobody yet"
+    straight after a successful save."""
+    page = (ROOT / "web" / "portal" / "src" / "CrmQuotes.tsx").read_text()
+    assign = page.split("async function setAssignee", 1)[1]
+    assert "setSelected({...selected, assigned_to" in assign, "the card is not updated after saving the owner"
+    company = page.split("async function setCompany", 1)[1]
+    assert "setSelected({...selected, company_id" in company, "the card is not updated after saving the company"

@@ -507,6 +507,9 @@ export function Contacts({token}: {token: string}) {
     try {
       await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/assignee', 'PUT',
                 {user_id: userId || null});
+      // Keep the card in step with what was just saved: reloading the list alone left the
+      // picker showing "Nobody yet" straight after assigning someone.
+      setSelected({...selected, assigned_to: userId || undefined} as ContactDetail);
       setStatus(userId ? 'Saved. That person now owns this account.' : 'Saved. Nobody owns this account now.');
       await load(query);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the owner'); }
@@ -517,6 +520,7 @@ export function Contacts({token}: {token: string}) {
     try {
       await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/company', 'PUT',
                 {company_id: companyId || null});
+      setSelected({...selected, company_id: companyId || undefined} as ContactDetail);
       setStatus(companyId ? 'Saved. They are now part of that company.' : 'Saved. They are not in a company now.');
       await load(query);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the company'); }
