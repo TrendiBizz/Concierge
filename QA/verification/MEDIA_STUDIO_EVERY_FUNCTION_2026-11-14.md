@@ -255,3 +255,62 @@ Screenshot: `media-upload-video-2026-11-14.png`.
 Guards (mutated and watched to fail): `test_we_do_not_offer_to_make_video_any_more` (fails if any
 video generator, model, route or UI wording returns) and
 `test_a_video_the_customer_made_can_be_uploaded_for_socials`.
+
+## 10. Generators removed entirely; brand kit stays because real features need it
+
+> "do the same with the ai image, change it to upload your own image and remove branded image
+> completely please, then relook at brand kit as well"
+
+### 10a. What went
+
+| Removed | Where |
+| --- | --- |
+| `POST /owner/media/image` (the four branded templates) | API — now 404 |
+| `POST /owner/media/ai-image` | API — now 404 |
+| `GET /owner/media/templates` | API — now 404 |
+| `ImageRequest`, `AiRequest`, `TEMPLATES`, `FORMATS`, `_render`, `_photos`, `_brand_payload`, `RENDER_TIMEOUT_SECONDS`, per-kind quotas | API |
+| The whole `services/media-render` service (Satori + Cloudflare AI), its compose block, its healthcheck entry and `media_render_url` setting | repo + host — container **stopped and removed** |
+| "Brand kit", "Branded image" and "AI image" cards | page |
+
+The page is now one card: **Upload your media** — a photo or video you already have, published to
+your socials. Storage is the only limit (2 GB); images/ai/video monthly counters are gone because
+nothing is generated any more.
+
+### 10b. The brand kit question, answered with evidence
+
+It was **not** only a generator input. `media_brand` is read by:
+
+* `api/app/invoices.py` — name, accent, contact and logo printed on invoices
+* `api/app/quotations.py` — same, on quotes
+* `api/app/main.py` — logo on hosted pages
+* `POST/PUT /owner/media/brand` also writes `tenants.accent_color`, which colours the chat widget,
+  booking pages and email templates (`main.py` 631/735/761)
+
+So deleting it would break invoicing, quoting and the widget. The duplicate editing card on the
+Media page was removed; editing stays in **Setup**, where it already lived. A guard now fails if
+anyone deletes `media_brand` or its route as "media cleanup"
+(`test_the_brand_kit_survives_because_real_features_depend_on_it`).
+
+### 10c. Proof, live
+
+| Check | Result |
+| --- | --- |
+| `/owner/media/image`, `/ai-image`, `/templates`, `/video`, `/ai-video` | **404** (all five) |
+| Renderer container | `trendi-media-render-1` **removed** from the host |
+| `GET /owner/media/brand` | **200**, returns ACME Ltd and its accent |
+| Upload JPEG | **201**, `kind=image`, `image/jpeg`, saved `.jpg` |
+| Upload MP4 | **201**, `kind=video`, `video/mp4`, saved `.mp4` |
+| `GET /owner/media/usage` | `{"assets":2,"videos":1,"bytes":1378770,"storage":{...}}` |
+| Media page | only "Upload your media"; no Brand kit / Branded image / AI image cards; brand note points to Setup |
+| Page errors | none |
+
+Screenshot: `media-upload-only-2026-11-14.png`.
+
+### 10d. Two defects this cleanup caused, found and fixed in the same session
+
+1. Deleting the generator routes also deleted the `VIDEO_TYPES`/`IMAGE_TYPES`/`UPLOAD_LIMIT`
+   constants that the upload route reads — the page would have 500'd on every upload. Found by the
+   guard `test_upload_accepts_the_types_we_promise_and_nothing_else`; constants restored above the
+   route and the suite went green.
+2. The asset card's buttons truncated to "Open full s…" and "Del…". Shortened to "Open" and
+   "Delete" with wrapping.

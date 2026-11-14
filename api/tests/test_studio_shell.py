@@ -162,62 +162,6 @@ def test_one_page_heading_each():
             assert f"<Heading level={{1}}>{title}</Heading>" not in source, f"{page.name} repeats {title}"
 
 
-def test_media_rendering_finishes_before_the_edge_gives_up():
-    """Cloudflare abandons an origin at ~100s; waiting 200s handed customers its error page."""
-    media = (pathlib.Path(__file__).resolve().parents[1] / "app" / "media_studio.py").read_text()
-    assert "RENDER_TIMEOUT_SECONDS = 85" in media
-    assert "httpx.TimeoutException" in media
-
-
-def test_a_branded_poster_without_a_photo_is_still_designed():
-    """Reported as "nothing generated": the template drew a black rectangle with a headline.
-
-    Without a photo the poster must be a finished-looking accent colour field, not an empty canvas.
-    """
-    renderer = (pathlib.Path(__file__).resolve().parents[2] / "services" / "media-render" / "server.js").read_text()
-    showcase = re.search(r"function showcase\(.*?\n\}", renderer, re.S).group(0)
-    assert "accentTint" in showcase, "the no-photo poster needs the accent field"
-    assert "radial-gradient" in showcase
-    # It is not enough to compute the field: it has to be drawn. Removing the node while leaving
-    # the gradient string behind was a real regression path this check must catch.
-    assert "\n    fallback,\n" in showcase, "the accent field must be drawn, not just computed"
-    assert "fontsSize" not in showcase
-    assert "justifyContent: 'center'" in showcase, "type should be centred when there is no photo"
-
-
-def test_the_media_page_shows_what_it_made():
-    """"Nothing generated" was also a UI problem: cards listed a filename and a button."""
-    media = read("Engage.tsx")
-    assert "function AssetPreview" in media, "the asset needs a real preview"
-    assert "<video" in media and "<img" in media
-    assert "Image made" in media, "the status must say what happened"
-    assert "Uploaded — it is in Your media below" in media, "an upload must say it landed"
-    assert "Also added to your social composer" in media, "only claim the composer add when it worked"
-    assert "Use \"Send to social\" to post it." in media
-
-
-def test_all_four_templates_are_reachable_and_before_after_asks_for_two_photos():
-    media = read("Engage.tsx")
-    for template in ("showcase", "before_after", "quote", "service"):
-        assert f'value="{template}"' in media, f"{template} is not offered"
-    assert "Before / after needs two photos" in media
-
-
-def test_generated_media_can_be_used_in_a_post():
-    """The Media page promises generated work reaches the social composer. It must be pickable.
-
-    The first attempt at this shipped a picker with an empty list: the state existed and was read,
-    but nothing ever set it (a type-error fix removed the setter). Silent, and invisible until
-    someone clicked. So the check demands the loader call, not just the markup.
-    """
-    media = read("Engage.tsx")
-    assert "async function attachAsset" in media
-    assert "Use this in the post" in media
-    assert "[...(uploaded || []), ...attachedRefs]" in media, "attached media must reach the draft"
-    assert "setLibrary(" in media, "the library must actually be filled, not just declared"
-    assert "api('/owner/media/assets')" in media
-
-
 def test_only_the_button_you_pressed_says_it_is_working():
     """Reported: pressing Generate AI image made every other generator look busy too.
 
@@ -227,9 +171,9 @@ def test_only_the_button_you_pressed_says_it_is_working():
     assert "busy ? 'Working…'" not in media, "a shared busy flag is back"
     # Each label must be gated on its own action, not the shared flag. One button has two
     # wordings, so check the gate and the wording separately.
-    for kind in ("image", "ai", "upload"):
+    for kind in ("upload", "delete"):
         assert f"busy === '{kind}'" in media, f"{kind} has no scoped gate"
-    for wording in ("Making the image", "Making the AI image", "Uploading"):
+    for wording in ("Uploading", "Deleting"):
         assert wording in media, f"missing {wording}"
 
 
@@ -240,3 +184,20 @@ def test_media_can_be_deleted_from_the_page():
     assert "'/owner/media/assets/' + asset.id, 'DELETE'" in media
     assert "label={busy === 'delete' ? 'Deleting…' : 'Delete'}" in media
     assert "window.confirm(" in media, "deleting should ask first"
+
+
+def test_the_media_page_is_an_upload_page_not_a_generator():
+    """Reported decision: no branded images, no AI images, no generated video. Upload only."""
+    media = read("Engage.tsx")
+    assert "Upload your media" in media
+    assert "we post what you bring" in media
+    # "Template" alone is a CSS property here (gridTemplateColumns), so match generator wording.
+    for forbidden in ("Branded image", "AI image", "Generate image", "Showcase —", "Subline",
+                      "Before / after"):
+        assert forbidden not in media, f"generator wording is back: {forbidden}"
+
+
+def test_an_uploaded_asset_says_what_it_is():
+    media = read("Engage.tsx")
+    assert "<strong>{asset.kind === 'video' ? 'Video' : 'Image'}</strong>" in media
+    assert "Uploaded — it is in Your media below" in media

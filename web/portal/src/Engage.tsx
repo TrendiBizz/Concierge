@@ -184,8 +184,8 @@ export function Media({token}: {token: string}) {
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
             <strong>{asset.kind === 'video' ? 'Video' : 'Image'}</strong>
             <p style={{fontSize: 13, opacity: 0.75}}>{(asset.kind === 'video' ? 'Video' : 'Image')} · {new Date(asset.created_at).toLocaleString()}</p>
-            <div style={{display: 'flex', gap: 8}}>
-              <Button label="Open full size" variant="secondary" onClick={() => openAsset(asset.id)} />
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              <Button label="Open" variant="secondary" onClick={() => openAsset(asset.id)} />
               <Button label={busy === 'delete' ? 'Deleting…' : 'Delete'} variant="secondary"
                       isDisabled={busy !== ''} onClick={() => void removeAsset(asset)} />
             </div>

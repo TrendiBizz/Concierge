@@ -1,7 +1,7 @@
-"""Branded images, short videos and hosted AI images for client marketing.
+"""Media library: customers upload their own photos and videos and we publish them.
 
-Rendering happens in the internal media-render sidecar (Satori + FFmpeg);
-AI images come from Cloudflare Workers AI. No GPU or local model weights.
+Nothing here generates images or video. The old generators (branded templates, AI images, AI
+clips) were removed on 2026-11-14 by operator decision, along with the media-render sidecar.
 """
 from __future__ import annotations
 
@@ -22,19 +22,6 @@ from .config import get_settings
 
 router = APIRouter(prefix="/owner/media", tags=["media"])
 
-TEMPLATES = [
-    {"id": "showcase", "name": "Project showcase", "needs": "1 photo"},
-    {"id": "before_after", "name": "Before / after", "needs": "2 photos"},
-    {"id": "quote", "name": "Quote card", "needs": "text only"},
-    {"id": "service", "name": "Service card", "needs": "text only"},
-]
-FORMATS = [
-    {"id": "square", "name": "Square 1080×1080"},
-    {"id": "portrait", "name": "Portrait 1080×1350"},
-    {"id": "story", "name": "Story 1080×1920"},
-]
-
-
 class Brand(BaseModel):
     name: str = Field(default="", max_length=120)
     accent: str = Field(default="#c8f560", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -42,89 +29,16 @@ class Brand(BaseModel):
     logo: str | None = Field(default=None, max_length=400_000)
 
 
-class ImageRequest(BaseModel):
-    template: Literal["showcase", "before_after", "quote", "service"]
-    format: Literal["square", "portrait", "story"] = "square"
-    headline: str = Field(default="", max_length=240)
-    subline: str = Field(default="", max_length=600)
-    kicker: str = Field(default="", max_length=60)
-    before_label: str = Field(default="BEFORE", max_length=30)
-    after_label: str = Field(default="AFTER", max_length=30)
-    photos: list[str] = Field(default_factory=list, max_length=20)
-
-
-class AiRequest(BaseModel):
-    prompt: str = Field(min_length=3, max_length=2000)
-
-
-def _configured() -> str:
-    url = get_settings().media_render_url.rstrip("/")
-    if not url:
-        raise HTTPException(503, "Media rendering is not configured")
-    return url
-
-
-# Cloudflare gives up on an origin that has not answered in about 100 seconds, and then serves
-# its own error page instead of ours. Waiting 200s meant a slow AI image was reported to the
-# customer as "The origin web server returned an invalid or incomplete response to Cloudflare" —
-# our own plumbing, printed at them. Finish first and say something useful.
-RENDER_TIMEOUT_SECONDS = 85.0
-
-
-async def _render(path: str, payload: dict) -> bytes:
-    try:
-        async with httpx.AsyncClient(base_url=_configured(), timeout=RENDER_TIMEOUT_SECONDS) as client:
-            response = await client.post(path, json=payload)
-    except httpx.TimeoutException:
-        raise HTTPException(504, "That took longer than we allow. The image is still being made — "
-                                 "try again in a minute and it will usually come back straight away.")
-    except httpx.HTTPError as exc:
-        raise HTTPException(503, f"The image studio is not answering ({type(exc).__name__}).") from exc
-    if response.status_code >= 400:
-        detail = response.text[:300] or f"Render HTTP {response.status_code}"
-        raise HTTPException(502, detail)
-    return response.content
-
-
-def _photos(values: list[str]) -> list[str]:
-    cleaned = []
-    total = 0
-    for value in values:
-        if not value.startswith("data:image/") or len(value) > 25_000_000:
-            raise HTTPException(400, "Photos must be image uploads under 25 MB each")
-        total += len(value)
-        cleaned.append(value)
-    if total > 40_000_000:
-        raise HTTPException(413, "Send fewer photos at once (about 40 MB total)")
-    return cleaned
-
-
-async def _check_quota(tenant_id, kind: str) -> None:
-    settings = get_settings()
-    limits = {"image": settings.media_image_limit, "video": settings.media_video_limit, "ai": settings.media_ai_limit}
-    row = await db.pool().fetchrow(
-        """SELECT count(*) FILTER (WHERE kind='image') AS images,
-                  count(*) FILTER (WHERE kind='video') AS videos,
-                  count(*) FILTER (WHERE kind='ai') AS ai,
-                  COALESCE(sum(size_bytes),0) AS bytes
-           FROM media_assets WHERE tenant_id=$1 AND created_at >= date_trunc('month', now())""",
-        tenant_id)
-    used = {"image": row["images"], "video": row["videos"], "ai": row["ai"]}[kind]
-    if used >= limits[kind]:
-        raise HTTPException(429, f"Monthly {kind} limit reached ({limits[kind]}). It resets next month.")
+async def _check_storage(tenant_id, incoming: int = 0) -> None:
+    """Storage is the only limit left: customers upload their own media, we do not generate it."""
     total = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1", tenant_id)
-    if total >= settings.media_storage_limit_bytes:
-        raise HTTPException(413, "Media storage limit reached. Download and remove older media, then try again.")
+    if (total or 0) + incoming > get_settings().media_storage_limit_bytes:
+        raise HTTPException(413, "Media storage limit reached. Delete older media, then try again.")
 
 
 async def _brand(tenant_id) -> dict:
     row = await db.pool().fetchrow("SELECT * FROM media_brand WHERE tenant_id=$1", tenant_id)
     return dict(row) if row else {"name": "", "accent": "#c8f560", "contact": "", "logo_data": None}
-
-
-def _brand_payload(row: dict) -> dict:
-    return {"name": row.get("name") or "", "accent": row.get("accent") or "#c8f560",
-            "contact": row.get("contact") or "", "logo": row.get("logo_data") or ""}
 
 
 async def _store(tenant_id, kind: str, template: str, prompt: str, fmt: str,
@@ -140,12 +54,6 @@ async def _store(tenant_id, kind: str, template: str, prompt: str, fmt: str,
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *""",
         tenant_id, kind, template, prompt[:2000], fmt, content_type, str(path), email, len(content))
     return dict(row)
-
-
-@router.get("/templates")
-async def templates(user=Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    return {"templates": TEMPLATES, "formats": FORMATS}
 
 
 @router.get("/brand")
@@ -169,21 +77,6 @@ async def put_brand(body: Brand, user=Depends(owner_auth.current_user)):
     # The widget and chat surfaces read the tenant accent, so keep them in step.
     await db.pool().execute("UPDATE tenants SET accent_color=$2 WHERE id=$1", user["tenant_id"], body.accent)
     return dict(row)
-
-
-@router.post("/image", status_code=201)
-async def image(body: ImageRequest, user=Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    await _check_quota(user["tenant_id"], "image")
-    brand = _brand_payload(await _brand(user["tenant_id"]))
-    content = await _render("/render/image", {
-        "template": body.template, "format": body.format, "brand": brand,
-        "photos": _photos(body.photos),
-        "text": {"headline": body.headline, "subline": body.subline, "kicker": body.kicker,
-                 "before_label": body.before_label, "after_label": body.after_label},
-    })
-    return await _store(user["tenant_id"], "image", body.template, "", body.format,
-                        content, "image/png", user.get("email", ""))
 
 
 VIDEO_TYPES = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
@@ -212,10 +105,7 @@ async def upload(request: Request, user=Depends(owner_auth.current_user)):
         raise HTTPException(400, "That file was empty")
     if len(body) > UPLOAD_LIMIT:
         raise HTTPException(413, "That file is over 200 MB. Trim it, or export at a smaller size.")
-    storage = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1",
-                                       user["tenant_id"])
-    if storage + len(body) > get_settings().media_storage_limit_bytes:
-        raise HTTPException(413, "Media storage limit reached. Delete older media, then try again.")
+    await _check_storage(user["tenant_id"], len(body))
     row = await _store(user["tenant_id"], kind, "upload", "", "landscape", body,
                        content_type, user.get("email", ""))
     path = Path(row["storage_path"])
@@ -226,30 +116,18 @@ async def upload(request: Request, user=Depends(owner_auth.current_user)):
     return row
 
 
-@router.post("/ai-image", status_code=201)
-async def ai_image(body: AiRequest, user=Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    await _check_quota(user["tenant_id"], "ai")
-    content = await _render("/ai-image", {"prompt": body.prompt})
-    return await _store(user["tenant_id"], "ai", "ai", body.prompt, "square",
-                        content, "image/jpeg", user.get("email", ""))
-
-
 @router.get("/usage")
 async def usage(user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
     settings = get_settings()
     row = await db.pool().fetchrow(
-        """SELECT count(*) FILTER (WHERE kind='image') AS images,
+        """SELECT count(*) AS assets,
                   count(*) FILTER (WHERE kind='video') AS videos,
-                  count(*) FILTER (WHERE kind='ai') AS ai
-           FROM media_assets WHERE tenant_id=$1 AND created_at >= date_trunc('month', now())""",
+                  COALESCE(sum(size_bytes),0) AS bytes
+           FROM media_assets WHERE tenant_id=$1""",
         user["tenant_id"])
-    total = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1", user["tenant_id"])
-    return {"images": {"used": row["images"], "limit": settings.media_image_limit},
-            "videos": {"used": row["videos"], "limit": settings.media_video_limit},
-            "ai": {"used": row["ai"], "limit": settings.media_ai_limit},
-            "storage": {"used": total, "limit": settings.media_storage_limit_bytes}}
+    return {"assets": row["assets"], "videos": row["videos"], "bytes": row["bytes"],
+            "storage": {"used": row["bytes"], "limit": settings.media_storage_limit_bytes}}
 
 
 @router.get("/assets")

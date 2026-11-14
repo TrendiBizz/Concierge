@@ -42,7 +42,6 @@ CRITICAL_CONTAINERS = {
     "trendi-api-1": "healthy",
     "trendi-email-auth-1": "healthy",
     "trendi-gateway-1": "running",
-    "trendi-media-render-1": "running",
     "trendi-social-1": "running",
     "trendi-website-1": "running",
     "trendi-public-main-1": "running",

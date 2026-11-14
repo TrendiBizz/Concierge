@@ -107,7 +107,6 @@ class Settings(BaseSettings):
     email_auth_url: str = ""
     internal_token: str = ""  # loopback-only voice shell API
     designs_dir: str = "/data/designs"
-    media_render_url: str = "http://media-render:8099"
     media_dir: str = "/data/media"
     media_image_limit: int = 100
     media_video_limit: int = 40
