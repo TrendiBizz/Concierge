@@ -89,3 +89,16 @@ Leave, at the end of the response when stopping:
 - Local verification needs PostgreSQL 16 + pgvector (`pgvector/pgvector:pg16`). CI supplies its
   port through `CONCIERGE_TEST_POSTGRES_PORT`; the harness defaults to 55432 locally, and a
   `psql` shim may be needed on hosts without a PostgreSQL client.
+
+## Deploying
+
+- **Portal (Studio):** always `KEY=./Concierge ./scripts/vps/deploy-studio.sh`, never a bare
+  `rsync -a` into `/opt/trendi/shared/studio`. A bare rsync lands files with the uploading user's
+  permissions and only chmods afterwards, which leaves `index.html` unreadable for seconds — that
+  is what produced eight "Internal Server Error" pages for real visitors on 2026-11-14. The script
+  stages, fixes permissions before anything goes live, and refuses to report success unless
+  `/studio` answers 200 three times running.
+- **API:** rsync `api/app/` to `$REL/api/app/`, then `REL=... bash $REL/scripts/vps/redeploy-api.sh`
+  and read the tail: it must end with `social reachable` and `==> done`.
+- After any deploy, load `/studio` in a browser and confirm the page renders. A green deploy script
+  is evidence the file is served, not that the app works.
