@@ -120,3 +120,15 @@ to the script, and the restored file had the same size and an mtime inside the s
 **.pyc stayed valid and the mutated code kept running**. `rm -rf scripts/vps/__pycache__` cleared
 it. Anyone mutating a script that is imported by path must clear that cache before trusting a
 green result; otherwise a restore looks like a fix that did not work.
+
+## 6. Final wording decision: no GST mention at all
+
+Two agents shipped different readings within six minutes of each other — "include GST" (here,
+09:50) and silence (Workwatch, 09:56). Jo settled it: **one USD price for everyone, and the site
+does not discuss GST at all**; NZ GST is handled inside Stripe. The live site already matches, so
+the only change was to the guard: `site_price_drift()` now flags **any** GST wording on
+/pricing, /terms or /concierge, not just "GST is added". That covers the third reading nobody has
+shipped yet, which is how it should be — the check states the policy, not yesterday's sentence.
+
+Prices remain USD 250/month, USD 2,700/year (USD 3,000 list, 10% off when paid in full); SEO
+USD 1,500/month and a USD 1,000 deposit.

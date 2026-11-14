@@ -33,11 +33,11 @@ def test_a_stale_yearly_card_is_reported():
     assert problems and "yearly card says $4080" in problems[0]
 
 
-def test_gst_added_at_checkout_comes_back_as_a_problem():
+def test_any_gst_wording_comes_back_as_a_problem():
     problems = healthcheck.site_price_drift(
         CARDS, PLANS,
-        {"/pricing": "Prices in USD. For New Zealand customers, GST is added at checkout."})
-    assert problems and "/pricing still promises GST is added" in problems[0]
+        {"/pricing": "Prices in USD, including GST.", "/terms": "Prices in USD."})
+    assert problems == ["/pricing mentions GST; the site must not discuss it"]
 
 
 def test_a_page_without_cards_does_not_invent_problems():

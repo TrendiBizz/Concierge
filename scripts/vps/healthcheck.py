@@ -421,13 +421,17 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
             problems.append(f"yearly card says ${card}, plan data says ${expected}")
 
     for name, html in (pages or {}).items():
-        if "GST is added" in html:
-            problems.append(f"{name} still promises GST is added at checkout")
+        if "GST" in html:
+            problems.append(f"{name} mentions GST; the site must not discuss it")
     return problems
 
 
 def check_site_prices() -> list[dict]:
-    """Published prices must match the plan data, and GST must never be an add-on again."""
+    """Published prices must match the plan data, and GST must never appear on the site again.
+
+    Operator decision 2026-11-15: one USD price for everyone, no GST wording anywhere (NZ GST is
+    handled inside Stripe). A page that starts talking about GST is the defect this catches.
+    """
     status_page, body_page, _ = http(f"{SITE}/concierge")
     status_js, body_js, _ = http(f"{SITE}/products.js")
     if status_page != 200 or status_js != 200:
@@ -441,7 +445,7 @@ def check_site_prices() -> list[dict]:
                                body_js.decode("utf-8", "replace"), pages)
     if problems:
         return [_fail("site:prices", "; ".join(problems)[:300])]
-    return [_ok("site:prices", "cards match the plan data, prices include GST")]
+    return [_ok("site:prices", "cards match the plan data; no GST wording")]
 
 
 def check_crm_capture() -> list[dict]:
