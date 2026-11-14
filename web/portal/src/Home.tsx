@@ -55,6 +55,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: 20}}>
         <Card>
           <Heading level={2}>Enquiries by channel</Heading>
+          {channels.length === 0 ? <p style={{opacity: 0.7, fontSize: 14}}>Nothing yet. Each channel that sends you an enquiry will appear here.</p> : null}
           <div style={{height: 240}}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={channels}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
@@ -63,6 +64,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
         </Card>
         <Card>
           <Heading level={2}>Quotations by status</Heading>
+          {quotes.length === 0 ? <p style={{opacity: 0.7, fontSize: 14}}>No quotes yet. The first one you save will show up here as a draft.</p> : null}
           <div style={{height: 240}}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={quoteStates}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
@@ -78,7 +80,16 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
             first message a customer sends appears here, with their name and number already filled in.</p>
         </div>
       ) : null}
-      {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.channel} · {lead.status}</p>)}
+      {leads.slice(0, 5).map((lead) => (
+        <div key={lead.id} className="c-row">
+          <div className="c-row-avatar">{(lead.name || lead.email || 'E').slice(0, 1).toUpperCase()}</div>
+          <div className="c-row-main">
+            <strong>{lead.name || lead.email || 'Enquiry'}</strong>
+            <span>{lead.channel || 'chat'} · {lead.status || 'new'}</span>
+          </div>
+          <span className="c-row-tag">{lead.status || 'new'}</span>
+        </div>
+      ))}
       {status ? <p role="status">{status}</p> : null}
     </div>
   );

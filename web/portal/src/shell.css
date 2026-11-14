@@ -1,0 +1,154 @@
+/* Studio shell: the product's own look, layered over the design system.
+   The first version was a centred grey column with a flat list of links — accurate and
+   completely uninspiring. These rules give it a gradient canvas, a real sidebar with
+   grouped, colour-coded navigation, and cards that look like they belong to 2026. */
+
+.c-shell {
+  --c-accent: var(--color-accent, #c8f560);
+  /* These are the design system's own tokens, so the shell follows the chosen light/dark mode.
+     Two earlier attempts guessed token names (`--color-bg`, `--color-text`) that do not exist:
+     the app rendered a white page behind dark cards, with white numbers on white. */
+  --c-ink: var(--color-text-primary, #101014);
+  --c-muted: var(--color-text-secondary, #6b6375);
+  --c-line: var(--color-border, rgba(0, 0, 0, 0.09));
+  --c-page: var(--color-background-body, #fff);
+  --c-surface: var(--color-background-card, rgba(127, 127, 127, 0.06));
+  --c-surface-strong: var(--color-background-surface, rgba(127, 127, 127, 0.12));
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, color-mix(in oklab, var(--c-accent) 22%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in oklab, #7c5cff 18%, transparent), transparent 55%),
+    var(--c-page);
+  color: var(--c-ink);
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "brand topbar" "nav content";
+}
+
+@media (max-width: 900px) {
+  .c-shell { grid-template-columns: 1fr; grid-template-areas: "topbar" "content"; }
+  .c-nav { display: none; }
+}
+
+.c-brand {
+  grid-area: brand;
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px 14px;
+  border-right: 1px solid var(--c-line);
+}
+.c-brand-mark {
+  width: 42px; height: 42px; border-radius: 14px; flex: none;
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 17px; letter-spacing: -0.02em; color: #101014;
+  background: linear-gradient(135deg, var(--c-accent), #7c5cff 70%, #22d3ee);
+  box-shadow: 0 10px 24px -12px color-mix(in oklab, var(--c-accent) 80%, transparent);
+}
+.c-brand-name { font-weight: 750; font-size: 17px; letter-spacing: -0.02em; color: var(--c-ink); }
+.c-brand-sub { font-size: 12px; color: var(--c-muted); white-space: nowrap; }
+.c-brand-sub a { color: inherit; }
+
+.c-topbar {
+  grid-area: topbar;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--c-line);
+  background: color-mix(in oklab, var(--c-page) 78%, transparent);
+  backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 20;
+}
+.c-topbar-spacer { margin-left: auto; }
+
+.c-nav {
+  grid-area: nav;
+  padding: 16px 14px 32px;
+  border-right: 1px solid var(--c-line);
+  display: flex; flex-direction: column; gap: 18px;
+  position: sticky; top: 0; align-self: start;
+  max-height: 100vh; overflow-y: auto;
+}
+.c-nav-group { display: flex; flex-direction: column; gap: 4px; }
+.c-nav-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--c-muted); padding: 0 10px; margin-bottom: 4px;
+}
+.c-nav-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.c-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 12px;
+  font-size: 14.5px; font-weight: 550; color: var(--c-ink);
+  background: transparent; border: 0; cursor: pointer; text-align: left; width: 100%;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.c-nav-item:hover { background: var(--c-surface); transform: translateX(2px); }
+.c-nav-item[data-active="true"] {
+  background: linear-gradient(100deg, color-mix(in oklab, var(--c-accent) 42%, transparent), color-mix(in oklab, #7c5cff 26%, transparent));
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c-accent) 45%, transparent);
+}
+.c-nav-item .c-nav-glyph { width: 18px; text-align: center; font-size: 15px; flex: none; opacity: 0.95; }
+.c-nav-badge {
+  margin-left: auto; font-size: 11px; font-weight: 800; min-width: 20px; text-align: center;
+  padding: 2px 6px; border-radius: 999px; color: #101014;
+  background: var(--c-accent);
+}
+
+.c-content { grid-area: content; padding: 24px 28px 64px; min-width: 0; }
+
+.c-hero {
+  border-radius: 22px; padding: 26px 28px; margin-bottom: 22px;
+  background:
+    radial-gradient(600px 220px at 8% 0%, color-mix(in oklab, var(--c-accent) 55%, transparent), transparent 70%),
+    linear-gradient(120deg, color-mix(in oklab, #7c5cff 30%, transparent), transparent 60%),
+    var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.c-hero h1 { margin: 0 0 6px; color: var(--c-ink); font-size: clamp(24px, 2.4vw, 34px); letter-spacing: -0.03em; }
+.c-hero p { margin: 0; color: var(--c-muted); font-size: 15px; max-width: 68ch; }
+
+.c-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 18px 0 6px; }
+.c-kpi {
+  border-radius: 18px; padding: 18px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+  position: relative; overflow: hidden;
+}
+.c-kpi::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 4px;
+  background: linear-gradient(180deg, var(--c-accent), #7c5cff);
+}
+.c-kpi strong { display: block; font-size: 30px; letter-spacing: -0.03em; color: var(--c-ink); }
+.c-kpi span { color: var(--c-muted); font-size: 13.5px; }
+
+.c-empty {
+  border-radius: 18px; padding: 26px; text-align: center;
+  background: var(--c-surface); box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.c-empty strong { display: block; color: var(--c-ink); font-size: 18px; margin-bottom: 6px; }
+.c-empty p { color: var(--c-muted); margin: 0 auto; max-width: 52ch; }
+
+/* Enquiry rows: a list of names and states rather than a paragraph of dots. */
+.c-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 14px; margin-bottom: 8px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.c-row-avatar {
+  width: 34px; height: 34px; border-radius: 11px; flex: none;
+  display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #101014;
+  background: linear-gradient(135deg, var(--c-accent), #7c5cff);
+}
+.c-row-main { display: flex; flex-direction: column; min-width: 0; }
+.c-row-main strong { font-size: 14.5px; }
+.c-row-main span { font-size: 12.5px; color: var(--c-muted); }
+.c-row-tag {
+  margin-left: auto; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 3px 9px; border-radius: 999px;
+  background: color-mix(in oklab, #22d3ee 22%, transparent);
+  color: var(--c-ink);
+}
+
+/* The starter stylesheet underlines headings; the product's headings should not look like links. */
+.c-shell h1, .c-shell h2, .c-shell h3 { text-decoration: none; border-bottom: 0; }

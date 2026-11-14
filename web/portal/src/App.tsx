@@ -15,6 +15,7 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
 import {celebrateOnce} from './celebrate';
+import {Icon} from './icons';
 import './shell.css';
 import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
@@ -120,6 +121,14 @@ function TranslationNote({locale}: {locale: string}) {
       isDismissable
     />
   );
+}
+
+/** The greeting should match the clock, not the time I wrote the string. */
+function greeting(): string {
+  const hour = Number(new Intl.DateTimeFormat('en-NZ', {hour: 'numeric', hour12: false, timeZone: 'Pacific/Auckland'}).format(new Date()));
+  if (hour < 12) return 'good morning';
+  if (hour < 17) return 'good afternoon';
+  return 'good evening';
 }
 
 function RequestLink({title, intro, note}: {title: string; intro: string; note?: string}) {
@@ -1539,35 +1548,35 @@ function Shell() {
 
   const NAV: {group: string; colour: string; items: {tab: string; label: string; glyph: string}[]}[] = [
     {group: 'Overview', colour: '#7c5cff', items: [
-      {tab: 'home', label: 'Home', glyph: '🏠'},
+      {tab: 'home', label: 'Home', glyph: 'home'},
     ]},
     {group: 'Customers', colour: '#22d3ee', items: [
-      {tab: 'crm', label: 'Enquiries', glyph: '💬'},
-      {tab: 'contacts', label: 'Contacts', glyph: '👥'},
-      {tab: 'bookings', label: 'Bookings', glyph: '📅'},
+      {tab: 'crm', label: 'Enquiries', glyph: 'chat'},
+      {tab: 'contacts', label: 'Contacts', glyph: 'users'},
+      {tab: 'bookings', label: 'Bookings', glyph: 'calendar'},
     ]},
     {group: 'Sales', colour: '#fbbf24', items: [
-      {tab: 'quotes', label: 'Quotes', glyph: '🧾'},
-      {tab: 'products', label: 'Products', glyph: '📦'},
-      {tab: 'designs', label: 'Designs and CAD', glyph: '📐'},
+      {tab: 'quotes', label: 'Quotes', glyph: 'quote'},
+      {tab: 'products', label: 'Products', glyph: 'box'},
+      {tab: 'designs', label: 'Designs and CAD', glyph: 'compass'},
     ]},
     {group: 'Marketing', colour: '#f472b6', items: [
-      {tab: 'social', label: 'Social', glyph: '📣'},
-      {tab: 'media', label: 'Marketing media', glyph: '🖼'},
+      {tab: 'social', label: 'Social', glyph: 'megaphone'},
+      {tab: 'media', label: 'Marketing media', glyph: 'image'},
     ]},
     {group: 'Insights', colour: '#34d399', items: [
-      {tab: 'reports', label: 'Reports', glyph: '📊'},
+      {tab: 'reports', label: 'Reports', glyph: 'chart'},
     ]},
     {group: 'Settings', colour: '#94a3b8', items: [
-      {tab: 'setup', label: 'Setup', glyph: '⚙️'},
-      {tab: 'permissions', label: 'Permissions', glyph: '🛡'},
-      {tab: 'team', label: 'Team', glyph: '🤝'},
-      {tab: 'yourcrm', label: 'Your CRM', glyph: '🗂'},
+      {tab: 'setup', label: 'Setup', glyph: 'gear'},
+      {tab: 'permissions', label: 'Permissions', glyph: 'shield'},
+      {tab: 'team', label: 'Team', glyph: 'handshake'},
+      {tab: 'yourcrm', label: 'Your CRM', glyph: 'folder'},
     ]},
   ];
 
   const HERO: Record<string, {title: string; line: string}> = {
-    home: {title: (brand.name || 'Your business') + ' — good morning', line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
+    home: {title: (brand.name || 'Your business') + ' — ' + greeting(), line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
     crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
     contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},
     bookings: {title: 'Bookings', line: 'Your calendar, with the jobs that customers booked themselves.'},
@@ -1653,7 +1662,7 @@ function Shell() {
             {group.items.map((item) => (
               <button key={item.tab} type="button" className="c-nav-item" data-active={tab === item.tab}
                       aria-current={tab === item.tab ? 'page' : undefined} onClick={() => setTab(item.tab)}>
-                <span className="c-nav-glyph" aria-hidden="true">{item.glyph}</span>
+                <span className="c-nav-glyph" style={{color: group.colour, display: 'inline-flex'}}><Icon name={item.glyph} colour={group.colour} /></span>
                 {tr(item.label)}
               </button>
             ))}
