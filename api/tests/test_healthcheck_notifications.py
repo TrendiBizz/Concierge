@@ -123,3 +123,24 @@ def test_a_broken_real_tenant_still_fails_the_check():
     chain = next(r for r in results if r["check"] == "inbound:chain")
     assert chain["status"] == "fail"
     assert "acme: mailbox" in chain["detail"]
+
+
+def test_the_sms_warning_alone_never_emails():
+    """The paired phone has never received a text. Nothing we can do here changes that, so it is
+    reported in every run and must never be the reason a mail is sent — otherwise the operator
+    gets one an hour about a capability, not a fault."""
+    problems = {"sms:inbound": {"check": "sms:inbound", "status": "warn",
+                                "detail": "1 of 1 paired phone(s) have never delivered a text in"}}
+    assert healthcheck.mailable(problems) == {}
+    alerts, reminders, recoveries = healthcheck.plan_notifications(
+        healthcheck.mailable(problems), {}, NOW)
+    assert (alerts, reminders, recoveries) == ([], [], [])
+
+
+def test_a_real_failure_still_emails_alongside_that_warning():
+    problems = {
+        "sms:inbound": {"check": "sms:inbound", "status": "warn", "detail": "never delivered"},
+        "inbound:chain": {"check": "inbound:chain", "status": "fail", "detail": "acme: consent"},
+    }
+    alerts, _, _ = healthcheck.plan_notifications(healthcheck.mailable(problems), {}, NOW)
+    assert [a["check"] for a in alerts] == ["inbound:chain"]

@@ -9,4 +9,12 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p /opt/trendi/monitoring
 
-exec python3 "$HERE/healthcheck.py" 2>&1 | tee -a /opt/trendi/monitoring/health.log
+LOG=/opt/trendi/monitoring/health.log
+
+# Keep stdout pure JSON. This used to be `2>&1 | tee -a "$LOG"`, which merged the check's notes
+# ("deploy grace: ...") and any traceback into the report: alert.sh then received text that was
+# not JSON and mailed "Failing checks: see payload" with the real reason buried. Cron also
+# redirects `2>&1` into the same file, so both sides have to keep the streams apart.
+python3 "$HERE/healthcheck.py" 2> >(tee -a "$LOG" >&2) | tee -a "$LOG"
+status=${PIPESTATUS[0]}
+exit "$status"
