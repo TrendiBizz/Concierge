@@ -25,6 +25,14 @@ URL="${URL:-https://concierge.trendibizz.com/studio}"
 SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY $HOST"
 RSSH="rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates --delete-delay -e 'ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY'"
 
+echo "==> stamping the service-worker cache name with this build"
+# The worker's cache is named after the build, so a new build starts from an empty cache instead of
+# serving yesterday's shell. Without this the name never changes and stale clients never recover.
+BUILD_ID=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$DIST/index.html" | head -1 | sed 's#assets/index-##;s#\.js##')
+[ -n "$BUILD_ID" ] || { echo "could not read the build id from $DIST/index.html" >&2; exit 1; }
+sed -i.bak "s/__BUILD__/$BUILD_ID/" "$DIST/sw-v2.js" && rm -f "$DIST/sw-v2.js.bak"
+echo "    build $BUILD_ID"
+
 echo "==> staging $DIST to $DEST.staging"
 $SSH "rm -rf $DEST.staging && mkdir -p $DEST.staging"
 eval $RSSH "$DIST/" "$HOST:$DEST.staging/"

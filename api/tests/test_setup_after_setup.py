@@ -32,3 +32,23 @@ def test_an_edge_error_never_reaches_the_owner_verbatim():
     source = (PORTAL / "api.ts").read_text()
     assert "const trusted = detail && status < 500" in source
     assert "!detail.includes('<')" in source
+
+
+def test_the_service_worker_can_never_pin_a_browser_to_an_old_build():
+    """Ctrl+R did not help, because the worker answered the navigation from its own cache."""
+    worker = (PORTAL.parent / "public" / "sw-v2.js").read_text()
+    # cache name is stamped per build, not a constant
+    assert "concierge-studio-__BUILD__" in worker
+    # a navigation is network-first with no-store, and the cached shell is for offline only
+    assert "fetch(event.request, {cache: 'no-store'})" in worker
+    assert "self.navigator.onLine === false" in worker
+    # the old v1 worker must be gone, both the file and its registration
+    assert not (PORTAL.parent / "public" / "sw.js").exists()
+    app = (PORTAL / "App.tsx").read_text()
+    assert "'/studio/sw-v2.js', {updateViaCache: 'none'}" in app
+    assert "registration.unregister()" in app
+    # and the deploy must stamp the build id
+    deploy = (PORTAL.parents[2] / "scripts" / "vps" / "deploy-studio.sh").read_text()
+    stamp = deploy.index("sed -i.bak")
+    copy = deploy.index('echo "==> staging')
+    assert stamp < copy, "the build id must be stamped before the dist is copied, or staging ships __BUILD__"

@@ -1997,6 +1997,12 @@ async def studio_file(path: str):
     target = (root / path).resolve()
     if not str(target).startswith(str(root)) or not _readable(target):
         return _studio_index(root)
+    if path.endswith('sw-v2.js'):
+        # The worker script must be revalidated on every visit, or a cached copy keeps a browser on
+        # an old build indefinitely (measured: Cloudflare served a HIT with no Cache-Control at all).
+        return FileResponse(target, media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache",
+                                     "Service-Worker-Allowed": "/studio/"})
     return FileResponse(target)
 
 

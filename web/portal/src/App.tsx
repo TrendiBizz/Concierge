@@ -1604,7 +1604,27 @@ function Shell() {
   }, [brand.name]);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/studio/sw.js').catch(() => undefined);
+    // A stale worker is worse than no worker: it can answer navigations from an old cache and a
+    // hard refresh does not always clear it. Register by full URL with updateViaCache none, drop
+    // any other Studio registration, and reload once when the new worker takes control.
+    if ('serviceWorker' in navigator) {
+      const container = navigator.serviceWorker;
+      container.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          const script = (registration.active || registration.waiting || registration.installing)?.scriptURL || '';
+          if (script.includes('/studio/') && !script.endsWith('/studio/sw-v2.js')) void registration.unregister();
+        }
+      }).catch(() => undefined);
+      container.addEventListener('controllerchange', () => {
+        const key = 'concierge:sw-reloaded';
+        if (sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+      });
+      container.register('/studio/sw-v2.js', {updateViaCache: 'none'})
+        .then((registration) => registration.update())
+        .catch(() => undefined);
+    }
     const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
