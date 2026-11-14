@@ -37,16 +37,41 @@ function logo(brand) {
   return h('div', { style: { fontSize: 42, fontWeight: 700, color: '#ffffff' } }, brand.name || '');
 }
 
+function accentTint(brand, amount) {
+  // Mix the business's accent into the dark canvas, so a poster without a photo still looks
+  // designed rather than like a rendering failure (which is exactly how it was reported).
+  const accent = (brand.accent || '#c8f560').replace('#', '');
+  const r = parseInt(accent.slice(0, 2), 16) || 200;
+  const g = parseInt(accent.slice(2, 4), 16) || 245;
+  const b = parseInt(accent.slice(4, 6), 16) || 96;
+  return `rgba(${r}, ${g}, ${b}, ${amount})`;
+}
+
 function showcase(brand, photos, text, [W, H]) {
   const photo = photos[0];
-  return h('div', { style: { display: 'flex', width: W, height: H, position: 'relative', backgroundColor: '#111111' } },
+  const accent = brand.accent || '#c8f560';
+  // Without a photo this is a colour field with big type in the middle: a finished-looking poster
+  // instead of a black rectangle with a headline at the bottom.
+  const fallback = photo ? null : h('div', {
+    style: {
+      position: 'absolute', width: W, height: H, display: 'flex',
+      backgroundImage: `radial-gradient(120% 90% at 15% 0%, ${accentTint(brand, 0.55)} 0%, rgba(17,17,17,0) 62%), radial-gradient(110% 80% at 90% 100%, ${accentTint(brand, 0.38)} 0%, rgba(17,17,17,0) 58%)`,
+      backgroundColor: '#141518',
+    },
+  });
+  return h('div', { style: { display: 'flex', width: W, height: H, position: 'relative', backgroundColor: '#141518' } },
+    fallback,
     photo ? h('img', { src: photo, style: { position: 'absolute', width: W, height: H, objectFit: 'cover' } }) : null,
-    h('div', { style: { position: 'absolute', width: W, height: H, backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.86))' } }),
+    photo ? h('div', { style: { position: 'absolute', width: W, height: H, backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.86))' } }) : null,
     h('div', { style: { position: 'absolute', top: 64, left: 64, right: 64, display: 'flex', alignItems: 'center' } }, logo(brand)),
-    h('div', { style: { position: 'absolute', left: 64, right: 64, bottom: 96, display: 'flex', flexDirection: 'column' } },
-      h('div', { style: { fontSize: 68, fontWeight: 700, color: '#ffffff', lineHeight: 1.06 } }, text.headline || ''),
-      text.subline ? h('div', { style: { fontSize: 34, color: '#e9edf2', marginTop: 20, lineHeight: 1.3 } }, text.subline) : null,
-      h('div', { style: { width: 180, height: 12, backgroundColor: brand.accent || '#c8f560', marginTop: 28 } })),
+    h('div', {
+      style: photo
+        ? { position: 'absolute', left: 64, right: 64, bottom: 96, display: 'flex', flexDirection: 'column' }
+        : { position: 'absolute', left: 72, right: 72, top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+    },
+      h('div', { style: { fontSize: photo ? 68 : 84, fontWeight: 700, color: '#ffffff', lineHeight: 1.04, letterSpacing: '-0.02em' } }, text.headline || ''),
+      text.subline ? h('div', { style: { fontSize: photo ? 34 : 38, color: '#e9edf2', marginTop: 22, lineHeight: 1.3 } }, text.subline) : null,
+      h('div', { style: { width: 180, height: 12, backgroundColor: accent, marginTop: 30 } })),
     brand.contact ? h('div', { style: { position: 'absolute', right: 64, bottom: 40, fontSize: 24, color: '#cfd6de' } }, brand.contact) : null,
   );
 }

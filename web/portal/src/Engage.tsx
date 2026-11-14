@@ -47,9 +47,33 @@ async function readPhoto(file: File): Promise<string> {
   });
 }
 
+/** The actual bytes, shown as a picture: the difference between "nothing generated" and a result. */
+function AssetPreview({token, id, video}: {token: string; id: string; video: boolean}) {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    let url = '';
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/owner/media/assets/' + id + '/file', {headers: {Authorization: 'Bearer ' + token}});
+        if (!response.ok) return;
+        url = URL.createObjectURL(await response.blob());
+        if (!cancelled) setSrc(url);
+      } catch {
+        // A missing thumbnail must never break the page.
+      }
+    })();
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [token, id]);
+  if (!src) return <div className="c-thumb c-thumb-empty" aria-hidden="true" />;
+  return video
+    ? <video className="c-thumb" src={src} muted playsInline />
+    : <img className="c-thumb" src={src} alt="" />;
+}
+
 export function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand: (b: Brand) => void}) {
   const api = useApi(token);
-  const [template] = useState('showcase');
+  const [template, setTemplate] = useState('showcase');
   const [headline, setHeadline] = useState('');
   const [subline, setSubline] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
@@ -83,8 +107,19 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
         payload.prompt = prompt;
       }
       const asset = await api('/owner/media/' + (kind === 'ai' ? 'ai-image' : kind), 'POST', payload) as Asset;
-      fetch('/owner/media/assets/' + asset.id + '/to-social', {method: 'POST', headers: {Authorization: 'Bearer ' + token}}).catch(() => undefined);
-      setStatus('Ready — added to your social composer.');
+      // Say what actually happened: this used to claim "added to your social composer" even when
+      // that follow-up call had failed, so the customer was told about work that never occurred.
+      let added = false;
+      try {
+        const social = await fetch('/owner/media/assets/' + asset.id + '/to-social', {
+          method: 'POST', headers: {Authorization: 'Bearer ' + token},
+        });
+        added = social.ok;
+      } catch {
+        added = false;
+      }
+      setStatus((kind === 'video' ? 'Video made' : 'Image made') + ' — it is in Your media below.'
+        + (added ? ' Also added to your social composer.' : ' Not added to the composer — open Social to pick it up.'));
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
@@ -122,6 +157,16 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
         </Card>
         <Card>
           <Heading level={2}>Branded image</Heading>
+          <label style={{display: 'block', marginBottom: 6}}>
+            <span style={{fontSize: 13, opacity: 0.75}}>Template</span>
+            <select value={template} onChange={(e) => setTemplate(e.target.value)}
+                    style={{display: 'block', width: '100%', marginTop: 4}}>
+              <option value="showcase">Showcase — one photo, headline over the top</option>
+              <option value="before_after">Before / after — two photos side by side</option>
+              <option value="quote">Quote — big text poster, no photo</option>
+              <option value="service">Service — list of what you do, no photo</option>
+            </select>
+          </label>
           <TextInput label="Headline" value={headline} onChange={setHeadline} />
           <TextArea label="Subline or bullets" value={subline} onChange={setSubline} rows={3} />
           <FileInput label="Photos" value={photos} onChange={(v) => setPhotos((v as File[]) || [])} isMultiple accept="image/*" />
@@ -145,9 +190,10 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))'}}>
         {assets.map((asset) => (
           <Card key={asset.id}>
+            <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
             <strong>{asset.kind === 'video' ? 'Video' : asset.kind === 'ai' ? 'AI image' : 'Branded image'}</strong>
-            <p>{asset.template} · {new Date(asset.created_at).toLocaleString()}</p>
-            <Button label="Open" variant="secondary" onClick={() => openAsset(asset.id)} />
+            <p style={{fontSize: 13, opacity: 0.75}}>{asset.template} · {new Date(asset.created_at).toLocaleString()}</p>
+            <Button label="Open full size" variant="secondary" onClick={() => openAsset(asset.id)} />
           </Card>
         ))}
       </div>
