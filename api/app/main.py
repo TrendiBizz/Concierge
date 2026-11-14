@@ -1915,14 +1915,15 @@ STUDIO_DIR = Path("/srv/studio")
 @app.get("/studio", include_in_schema=False)
 @app.get("/studio/", include_in_schema=False)
 async def studio_page():
-    return FileResponse(STUDIO_DIR / "index.html", media_type="text/html",
-                        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
+    return _studio_index(STUDIO_DIR.resolve())
 
 
 @app.get("/studio/assets/{path:path}", include_in_schema=False)
 async def studio_asset(path: str):
     target = (STUDIO_DIR / "assets" / path).resolve()
-    if not str(target).startswith(str((STUDIO_DIR / "assets").resolve())) or not target.is_file():
+    if not str(target).startswith(str((STUDIO_DIR / "assets").resolve())):
+        raise HTTPException(404, "Not found")
+    if not _readable(target):
         raise HTTPException(404, "Not found")
     # Vite emits content-addressed filenames, so an asset can be cached forever: a new build
     # produces new names. Without this the browser guessed, and a tab opened before a deploy
@@ -1930,13 +1931,45 @@ async def studio_asset(path: str):
     return FileResponse(target, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
+
+def _readable(path) -> bool:
+    """Can this file actually be opened right now?
+
+    `is_file()` answers "does a regular file exist", which is not the same question. During a
+    deploy the file exists but can be unreadable for a second (rsync writes it with the uploading
+    user's permissions before the chmod), and the old code raised PermissionError straight out of
+    the route: every request got a bare "Internal Server Error" instead of the app. Measured in
+    production on 2026-11-14: eight 500s on /studio/index.html during one rsync.
+    """
+    try:
+        if not path.is_file():
+            return False
+        with open(path, "rb"):
+            return True
+    except OSError:
+        return False
+
+
+def _studio_index(root):
+    """Serve the shell, or say plainly that it is being updated. Never a 500."""
+    index = root / "index.html"
+    if _readable(index):
+        return FileResponse(index, media_type="text/html",
+                            headers={"Cache-Control": "no-store",
+                                     "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
+    return HTMLResponse(
+        "<!doctype html><meta charset=utf-8><title>One moment</title>"
+        "<body style=\"font:16px system-ui;padding:48px;max-width:38rem;margin:auto\">"
+        "<h1>One moment</h1><p>We are updating the app. Refresh this page in a few seconds.</p>",
+        status_code=503, headers={"Retry-After": "5", "Cache-Control": "no-store"})
+
+
 @app.get("/studio/{path:path}", include_in_schema=False)
 async def studio_file(path: str):
     root = STUDIO_DIR.resolve()
     target = (root / path).resolve()
-    if not str(target).startswith(str(root)) or not target.is_file():
-        return FileResponse(root / "index.html", media_type="text/html",
-                            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
+    if not str(target).startswith(str(root)) or not _readable(target):
+        return _studio_index(root)
     return FileResponse(target)
 
 
