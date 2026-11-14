@@ -167,3 +167,36 @@ def test_media_rendering_finishes_before_the_edge_gives_up():
     media = (pathlib.Path(__file__).resolve().parents[1] / "app" / "media_studio.py").read_text()
     assert "RENDER_TIMEOUT_SECONDS = 85" in media
     assert "httpx.TimeoutException" in media
+
+
+def test_a_branded_poster_without_a_photo_is_still_designed():
+    """Reported as "nothing generated": the template drew a black rectangle with a headline.
+
+    Without a photo the poster must be a finished-looking accent colour field, not an empty canvas.
+    """
+    renderer = (pathlib.Path(__file__).resolve().parents[2] / "services" / "media-render" / "server.js").read_text()
+    showcase = re.search(r"function showcase\(.*?\n\}", renderer, re.S).group(0)
+    assert "accentTint" in showcase, "the no-photo poster needs the accent field"
+    assert "radial-gradient" in showcase
+    # It is not enough to compute the field: it has to be drawn. Removing the node while leaving
+    # the gradient string behind was a real regression path this check must catch.
+    assert "\n    fallback,\n" in showcase, "the accent field must be drawn, not just computed"
+    assert "fontsSize" not in showcase
+    assert "justifyContent: 'center'" in showcase, "type should be centred when there is no photo"
+
+
+def test_the_media_page_shows_what_it_made():
+    """"Nothing generated" was also a UI problem: cards listed a filename and a button."""
+    media = read("Engage.tsx")
+    assert "function AssetPreview" in media, "the asset needs a real preview"
+    assert "<video" in media and "<img" in media
+    assert "Image made" in media and "Video made" in media, "the status must say what happened"
+    assert "Also added to your social composer" in media, "only claim the composer add when it worked"
+    assert "Not added to the composer" in media
+
+
+def test_all_four_templates_are_reachable_and_before_after_asks_for_two_photos():
+    media = read("Engage.tsx")
+    for template in ("showcase", "before_after", "quote", "service"):
+        assert f'value="{template}"' in media, f"{template} is not offered"
+    assert "Before / after needs two photos" in media

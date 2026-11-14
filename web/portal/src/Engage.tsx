@@ -170,7 +170,18 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
           <TextInput label="Headline" value={headline} onChange={setHeadline} />
           <TextArea label="Subline or bullets" value={subline} onChange={setSubline} rows={3} />
           <FileInput label="Photos" value={photos} onChange={(v) => setPhotos((v as File[]) || [])} isMultiple accept="image/*" />
-          <Button label={busy ? 'Working…' : 'Generate image'} variant="primary" onClick={() => generate('image')} />
+          {template === 'before_after' && photos.length < 2 ? (
+            <p style={{fontSize: 13, color: '#fbbf24'}}>
+              Before / after needs two photos — the first is BEFORE, the second AFTER.
+            </p>
+          ) : template === 'showcase' && photos.length === 0 ? (
+            <p style={{fontSize: 13, opacity: 0.75}}>
+              No photo chosen, so this will be a colour-blocked poster in your accent colour.
+            </p>
+          ) : null}
+          <Button label={busy ? 'Working…' : 'Generate image'} variant="primary"
+                  isDisabled={busy || (template === 'before_after' && photos.length < 2)}
+                  onClick={() => void generate('image')} />
         </Card>
         <Card>
           <Heading level={2}>Short video</Heading>
