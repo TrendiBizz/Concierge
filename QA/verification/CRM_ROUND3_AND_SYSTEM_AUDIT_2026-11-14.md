@@ -63,3 +63,51 @@ condition per step (replied / booked / unsubscribed), a per-recipient cursor and
 list — it is a background engine, not a page. Building it badly would send duplicate messages to
 real customers, which is worse than not having it. It is recorded as the top outstanding CRM item
 in `HANDOFF.md` with what it needs.
+
+## Part two: what the independent crawl found, and what was done about it
+
+An independent sub-agent walked all 16 tabs in both themes with Playwright, exercised safe
+controls, collected every `a[href]`, measured overflow, and drove the ⌘K palette from six pages.
+Its own scope note: no writes, no sends, no deletes. It found **five real defects**, all fixed here.
+
+| # | Severity | Defect | Cause | Fix |
+| --- | --- | --- | --- | --- |
+| 141 | HIGH | ⌘K palette could navigate to a row that was not on screen | 9 rows drawn (`slice(0, 9)`), arrow keys allowed all 16 matches; the 9th ArrowDown moved the highlight off the rendered list, and Enter then went to an unseen page | a moving window keeps the highlight in view, plus "n–m of N" |
+| 142 | MEDIUM | A search with no hits claimed the business had no data | both empty states keyed off the *filtered* list, so "No enquiries yet — that is normal on day one" and "No contacts yet" appeared over real rows | "No enquiries/contacts match \"x\"" with a "clear the search" line; day-one copy only when nothing is filtered |
+| 143 | MEDIUM | The New quotation card clipped its line row | a fixed 3-column grid inside a 360px card: scrollWidth 665, `overflow-x: clip`, so the **Unit price** box was outside the card and untouchable | the three fields wrap and each keeps its label |
+| 144 | MEDIUM | A company could only be deleted | the row menu had one item, and rows had no open/edit path | Open button plus an editor with a save, and "Edit these details" in the menu |
+| 145 | LOW | Setup said "Five short steps" and showed three | copy outlived the wizard's shape | "Three short steps" |
+
+Live verification after deploying: palette reports "5–13 of 16" with the highlight on a rendered
+row ("Settings · Permissions"); Enquiries shows `No enquiries match "zzzz"` and no day-one claim;
+the quote card is 358px inside 360px with the unit-price box visible and reachable; Companies has
+Open buttons and an editable dialog with a save; Setup reads "Three short steps". Zero page errors.
+
+Mutation-proofs, each watched red then restored: the fixed slice again for #141, the day-one copy
+for #142, the clipping grid for #143, a menu without the edit item for #144, "Five short steps"
+for #145.
+
+## Also fixed from the crawl's layout evidence
+Products, Quotes, Contacts and Companies tables were wider than their panel (Products 2080px in
+1168px) and only reachable by sideways scrolling. Each was trimmed by folding secondary facts
+into the primary cell (unit + status into Product, paid + status into one cell, channel + message
+count into one, people + open deals into one) and moving stacked buttons behind a `MoreMenu`;
+Products' stock adjuster became a dialog. Now: Enquiries 1112, Contacts 1112, Companies 1112,
+Quotes 1112, Products 1112 — all inside a 1168px panel, with a test that fails if any table grows
+past its column budget.
+
+## What the crawl cleared (no action)
+- Every one of the 16 tabs renders in both themes with zero console errors and zero 4xx.
+- Only four `a[href]` exist in the app; `/privacy` and `/guide/bonsai-cladding` are 200,
+  bonsaibim.org is 200, blender.org answers 403 to automation only (bot protection).
+- No `href="#"`, no empty hrefs, no cross-host surprises beyond those two vendor links.
+- Contacts "Open", Calendar connect, density toggles and the Social view switch all work.
+- `/null` appearing as a stray tab in one media run was the crawl's own instrumentation; a clean
+  re-run opened one blob URL. Not reproducible, nothing changed.
+
+## Known, judged, and left alone (recorded, not silently dropped)
+- **Browser Back leaves the Studio** rather than returning to the previous tab: navigation is
+  buttons, not routes, and the URL stays `/studio`. Making it real needs the router rework that
+  the SPA deliberately avoids; it is listed in the handoff as a design decision to revisit.
+- The sidebar scrolls at 900px height to reach the last two items (16 items). Works, worth a
+  look if the product grows again.
