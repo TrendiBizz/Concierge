@@ -83,3 +83,40 @@ Live `products.js` now reads `monthly: { price: 250 }`, `yearly: { price: 2700 }
 `gstNote: "All prices are quoted in USD and include GST."`
 
 Full suite: **1227 passed**.
+
+## 5. The free solution for inbound *and* outbound SMS (built here, waiting on one phone)
+
+The operator asked for a free way to receive texts from anywhere and reply, and refused the
+"not possible" answer — correctly, because it is possible. `scripts/vps/SMS_FREE_GATEWAY.md` is
+the setup guide; `scripts/vps/smsgate_check.py` is the readiness proof.
+
+The transport already existed (`SMS_PROVIDER=smsgate`, `POST /api/v1/smsgate/{public_key}`,
+HMAC-signed, open-source [android-sms-gateway](https://github.com/capcom6/android-sms-gateway) on
+an Android phone). What was missing was (a) anyone being told it solves the problem for $0, and
+(b) a way to see *which* of the four moving parts is missing without a live text. That is what the
+checker does — it reads `api.env`, probes the gateway's send endpoint, probes our webhook's
+signature gate, and names every gap:
+
+```
+$ python3 scripts/vps/smsgate_check.py
+provider          : (unset)
+webhook bad sig   : https://chat.trendibizz.com/api/v1/smsgate/probe-key -> 403
+  MISSING  SMS_PROVIDER is 'unset', must be 'smsgate'
+  MISSING  SMSGATE_BASE_URL is empty … (4 more)
+```
+
+**Cost reality, stated plainly:** the app and integration are $0, receiving is $0 on any NZ plan,
+sending costs whatever that SIM's plan charges (free on unlimited-text plans, a few cents on
+prepaid), and no per-message API is in the path. It cannot be both free and high-volume, and it
+cannot use an alphanumeric sender — the number *is* the identity.
+
+**Guard.** `api/tests/test_smsgate_check.py` pins the checker's signature against the API's own
+validator, so the two can never drift into "every real text gets 403". Mutation: reversing the
+concatenation order in the checker (`timestamp + body`) turns the suite red; restored → 4 passed.
+
+**Harness defect found while running that mutation.** The first restore appeared to fail — the
+test stayed red after the file was put back. Cause: `spec_from_file_location` writes bytecode next
+to the script, and the restored file had the same size and an mtime inside the same second, so the
+**.pyc stayed valid and the mutated code kept running**. `rm -rf scripts/vps/__pycache__` cleared
+it. Anyone mutating a script that is imported by path must clear that cache before trusting a
+green result; otherwise a restore looks like a fix that did not work.
