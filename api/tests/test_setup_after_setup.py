@@ -19,16 +19,18 @@ def test_setup_detects_an_already_configured_business():
     assert 'label="Edit business details"' in source
 
 
-def test_permissions_are_asked_for_where_the_channel_is_used():
-    """A finished setup must not leave a Permissions console in the sidebar."""
+def test_setup_and_permissions_live_under_settings_and_fold_away():
+    """Available for changes, not waiting for attention once the business is installed."""
     app = (PORTAL / "App.tsx").read_text()
-    assert "{tab: 'permissions'" not in app
-    assert 'value="permissions"' not in app
-    assert "PermissionsPage" not in app
-    assert not (PORTAL / "Permissions.tsx").exists()
-    # ...and the ask happens on the page that needs the channel
-    assert "function ChannelAsk" in app
-    # the mount itself, not just the channel list: gating it behind `false` must fail this
+    # both are in the Settings group
+    settings = app[app.index("group: 'Settings'"):]
+    settings = settings[:settings.index("];")]
+    assert "{tab: 'setup'" in settings
+    assert "{tab: 'permissions', label: 'Channels and permissions'" in settings
+    # and the group starts folded, so a finished install is not told to set anything up
+    assert "const hidden = folded[group.group] ?? isSettings;" in app
+    assert "localStorage.setItem('concierge:nav-folded'" in app
+    # the ask still happens where the channel is used, for the first time
     assert "{tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']}" in app
     assert "{tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']}" in app
     assert "{tab === 'social' ? <ChannelAsk token={token} channels={['social']}" in app

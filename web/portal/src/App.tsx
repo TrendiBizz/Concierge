@@ -41,6 +41,7 @@ const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./loc
 const Home = lazy(() => import('./Home'));
 const Texts = lazy(() => import('./Texts'));
 const Designs = lazy(() => import('./Designs'));
+const PermissionsPage = lazy(() => import('./Permissions'));
 const ProductsPage = lazy(() => import('./Products'));
 const Crm = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Crm})));
 const Quotes = lazy(() => import('./CrmQuotes').then((m) => ({default: m.Quotes})));
@@ -1699,6 +1700,15 @@ function Shell() {
     );
   }
 
+  const [folded, setFolded] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('concierge:nav-folded') || '{}'); } catch { return {}; }
+  });
+  const toggleGroup = (name: string) => setFolded((current) => {
+    const next = {...current, [name]: !current[name]};
+    try { localStorage.setItem('concierge:nav-folded', JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
+
   const NAV: {group: string; colour: string; items: {tab: string; label: string; glyph: string}[]}[] = [
     {group: 'Overview', colour: '#7c5cff', items: [
       {tab: 'home', label: 'Home', glyph: 'home'},
@@ -1724,6 +1734,7 @@ function Shell() {
     ]},
     {group: 'Settings', colour: '#94a3b8', items: [
       {tab: 'setup', label: 'Setup', glyph: 'gear'},
+      {tab: 'permissions', label: 'Channels and permissions', glyph: 'shield'},
       {tab: 'team', label: 'Team', glyph: 'handshake'},
       {tab: 'yourcrm', label: 'Your CRM', glyph: 'folder'},
       {tab: 'replies', label: 'Saved replies', glyph: 'chat'},
@@ -1742,6 +1753,7 @@ function Shell() {
     social: {title: 'Social', line: 'Draft posts in your voice — nothing publishes until you say so.'},
     media: {title: 'Marketing media', line: 'The photos and clips worth posting, ready to reuse.'},
     reports: {title: 'Reports', line: 'What you earned, what you quoted, and what is still open.'},
+    permissions: {title: 'Channels and permissions', line: 'What Concierge may do for this business, and what it has to work with. Change anything here whenever you like.'},
     setup: {title: 'Set up your business', line: 'Three short steps, and the chat window starts working for you. No code.'},
     team: {title: 'Team', line: 'Who can get in, and what each of them can do.'},
     yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},
@@ -1762,7 +1774,7 @@ function Shell() {
       {tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']} question="handle your texts" /> : null}
       {tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']} question="answer and record calls" /> : null}
       {tab === 'social' ? <ChannelAsk token={token} channels={['social']} question="publish your social posts" /> : null}
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
     </>
   );
 
@@ -1815,10 +1827,20 @@ function Shell() {
         <CmdK commands={NAV.flatMap((group) => group.items.map((item) => ({
           id: item.tab, label: item.label, group: group.group, run: () => setTab(item.tab),
         })))} />
-        {NAV.map((group) => (
+        {NAV.map((group) => {
+          // Every group folds. Settings starts folded after install: the customer should not be
+          // told to set anything up once it is running, but it stays one click away for changes.
+          const isSettings = group.group === 'Settings';
+          const hidden = folded[group.group] ?? isSettings;
+          return (
           <div className="c-nav-group" key={group.group}>
-            <div className="c-nav-label"><span className="c-nav-dot" style={{background: group.colour}} />{tr(group.group)}</div>
-            {group.items.map((item) => (
+            <button type="button" className="c-nav-label" aria-expanded={!hidden}
+                    onClick={() => toggleGroup(group.group)}
+                    style={{display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left'}}>
+              <span className="c-nav-dot" style={{background: group.colour}} />{tr(group.group)}
+              <span aria-hidden="true" style={{marginLeft: 'auto', opacity: 0.5, fontSize: 11}}>{hidden ? '▸' : '▾'}</span>
+            </button>
+            {hidden ? null : group.items.map((item) => (
               <button key={item.tab} type="button" className="c-nav-item" data-active={tab === item.tab}
                       aria-current={tab === item.tab ? 'page' : undefined} onClick={() => setTab(item.tab)}>
                 <span className="c-nav-glyph" style={{color: group.colour, display: 'inline-flex'}}><Icon name={item.glyph} colour={group.colour} /></span>
@@ -1826,7 +1848,8 @@ function Shell() {
               </button>
             ))}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <main className="c-content">{content}</main>

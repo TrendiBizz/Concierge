@@ -67,13 +67,11 @@ def test_finishing_setup_celebrates_and_the_burst_respects_reduced_motion():
     assert "canvas.remove()" in celebrate, "the overlay must clean itself up"
 
 
-def test_the_permissions_page_is_gone_and_the_ask_is_inline():
-    """Permissions used to be a console in the sidebar. It is asked for where it is used now."""
-    import pathlib
-    src = pathlib.Path(__file__).resolve().parents[2] / "web" / "portal" / "src"
-    assert not (src / "Permissions.tsx").exists(), "the standalone Permissions page must be gone"
-    app = (src / "App.tsx").read_text()
-    assert "{tab: 'permissions'" not in app and 'value="permissions"' not in app
+def test_the_permissions_page_still_exists_for_later_changes():
+    """It is not deleted and not prominent: it lives under Settings, folded away by default."""
+    app = read("App.tsx")
+    assert "import('./Permissions')" in app, "the page must stay available for changes"
+    assert "{tab: 'permissions', label: 'Channels and permissions'" in app
     assert "function ChannelAsk" in app
 
 

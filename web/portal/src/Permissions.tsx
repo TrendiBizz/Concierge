@@ -1,0 +1,334 @@
+import {useCallback, useEffect, useState} from 'react';
+import {Button} from '@astryxdesign/core/Button';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
+import {Card} from '@astryxdesign/core/Card';
+import {Heading} from '@astryxdesign/core/Heading';
+import {Badge} from '@astryxdesign/core/Badge';
+import {celebrate} from './celebrate';
+
+/**
+ * Permissions panel.
+ *
+ * This screen exists because the live customer tenant silently dropped every inbound
+ * email: it had no owner account and no `email_read` consent, and nothing in the product
+ * either showed that or offered a way to fix it. The old owner console had this; the
+ * Studio portal (what customers actually see) did not.
+ *
+ * It shows two things: the consent toggles, and an end-to-end readiness check of the
+ * whole inbound chain, so onboarding cannot call email "ready" while mail is refused.
+ */
+
+type AuthState = Record<string, {authorized?: boolean; updated_at?: string | null}>;
+type AuditRow = {
+  id: number;
+  action: string;
+  actor?: string;
+  address?: string | null;
+  detail?: Record<string, unknown> | null;
+  created_at?: string;
+};
+type Suppression = {address: string; reason?: string; source?: string; created_at?: string};
+type Readiness = {
+  ok?: boolean;
+  blocked?: {check: string; message: string}[];
+  warnings?: {check: string; message: string}[];
+  checks?: Record<string, {ok: boolean; detail?: unknown; fix?: string}>;
+  last_success_at?: string | null;
+  rejected_24h?: number;
+};
+
+const CHANNELS: {key: string; label: string; help: string}[] = [
+  {key: 'email_read', label: 'Read inbound email',
+   help: 'Store enquiries and replies sent to your business address as drafts in your CRM.'},
+  {key: 'email_send', label: 'Send email replies',
+   help: 'Prepare and send replies from your business address. You still approve every message.'},
+  {key: 'telephone', label: 'Answer calls',
+   help: 'Let Concierge answer calls on a number you already own.'},
+  {key: 'call_recording', label: 'Record calls',
+   help: 'Store call recordings. Callers must be told; this is separate from answering.'},
+  {key: 'sms_read', label: 'Read inbound texts',
+   help: 'Store texts sent to your business number.'},
+  {key: 'sms_send', label: 'Send texts',
+   help: 'Send replies and reminders by text.'},
+  {key: 'social', label: 'Publish to social accounts',
+   help: 'Publish approved drafts to the accounts you connect.'},
+];
+
+const ACTIONS_SHOWN = new Set([
+  'inbound_rejected', 'inbound_blocked', 'bounce_received', 'address_suppressed',
+]);
+
+const ACTION_LABELS: Record<string, string> = {
+  inbound_rejected: 'Refused',
+  inbound_blocked: 'Blocked sender',
+  bounce_received: 'Bounce',
+  address_suppressed: 'Suppressed',
+};
+
+const CHECK_LABELS: Record<string, string> = {
+  api_enabled: 'Inbound email is switched on for this deployment',
+  owner_account: 'A business owner login exists',
+  consent: 'The owner has authorised reading email',
+  reply_address: 'The business has a reply address',
+  mailbox: 'The reply mailbox is enabled',
+  worker_rule: 'Cloudflare routes that address to the intake Worker',
+  sidecar: 'Signature checks (DKIM/DMARC) are reachable',
+};
+
+export default function Permissions({token, onDone}: {token: string; onDone?: () => void}) {
+  const [auth, setAuth] = useState<AuthState>({});
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [suppressed, setSuppressed] = useState<Suppression[]>([]);
+
+  const load = useCallback(async () => {
+    const headers = {Accept: 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})};
+    const [a, r, m, x] = await Promise.all([
+      fetch('/owner/onboarding/authorizations', {headers, cache: 'no-store'}),
+      fetch('/owner/onboarding/inbound-readiness', {headers, cache: 'no-store'}),
+      fetch('/owner/inbound-audit?limit=25', {headers, cache: 'no-store'}),
+      fetch('/owner/email-suppressions', {headers, cache: 'no-store'}),
+    ]);
+    if (a.ok) setAuth(await a.json().catch(() => ({})));
+    if (r.ok) setReadiness(await r.json().catch(() => null));
+    if (m.ok) setAudit(await m.json().catch(() => []));
+    if (x.ok) setSuppressed(await x.json().catch(() => []));
+  }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function toggle(channel: string, authorized: boolean) {
+    setBusy(true);
+    setStatus('');
+    try {
+      const response = await fetch('/owner/onboarding/authorizations', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', Accept: 'application/json',
+                  ...(token ? {Authorization: 'Bearer ' + token} : {})},
+        // Pressing Allow is the instruction; the single confirmation sits at the foot of the page.
+        body: JSON.stringify({channel, authorized, acknowledgement: authorized}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'Could not save the permission');
+      setStatus(authorized ? 'Permission granted.' : 'Permission withdrawn.');
+      await load();
+      // Mark the moment when every channel has been decided: this is the end of setup, and the
+      // last thing a new customer should feel is "done". Whatever they chose (yes or no) counts.
+      if (authorized) {
+        try {
+          const after = await fetch('/owner/onboarding/authorizations', {
+            headers: {Accept: 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})},
+          }).then((r) => r.json());
+          const decided = CHANNELS.every((channel) => after?.[channel.key]?.authorized !== undefined);
+          if (decided) celebrate();
+        } catch {
+          // A celebration is never worth an error on the page.
+        }
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not save the permission');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Finish onboarding.
+
+   * Which permissions they granted is their business: plenty of businesses will never let us
+   * read their email or answer their phone, and saying "no" is a valid answer. So the celebration
+   * hangs off pressing Continue, not off a full set of ticks — before this, a customer who
+   * declined everything never saw any confetti at all.
+   */
+  const anyAuthorised = CHANNELS.some((channel) => auth[channel.key]?.authorized);
+
+  function finish() {
+    celebrate();
+    setDone(true);
+    setStatus('Saved. You can change any of this later in Permissions.');
+    window.setTimeout(() => onDone?.(), 1000);
+  }
+
+  async function release(address: string) {
+    setBusy(true);
+    try {
+      const response = await fetch('/owner/email-suppressions/' + encodeURIComponent(address), {
+        method: 'DELETE',
+        headers: {Accept: 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})},
+      });
+      if (!response.ok) throw new Error('Could not remove the address');
+      setStatus('Address can be emailed again.');
+      await load();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not remove the address');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inbound = readiness?.checks || {};
+  // Owners should see what is broken without reading a delivery-chain diagram: the engineering
+  // detail lives behind a disclosure, and it opens itself only when something is failing.
+  const inboundFailing = Object.keys(CHECK_LABELS).filter((key) => inbound[key] && !inbound[key].ok);
+  const failing = CHANNELS.filter((c) => (c.key === 'email_read' || c.key === 'email_send'));
+  const other = CHANNELS.filter((c) => !(c.key === 'email_read' || c.key === 'email_send'));
+  const visits = audit.filter((row) => ACTIONS_SHOWN.has(row.action)).slice(0, 15);
+
+  return (
+    <div style={{padding: 24, display: 'flex', flexDirection: 'column', gap: 16}}>
+      <Card>
+        <Heading level={2}>Permissions</Heading>
+        <p>
+          Each capability below is an explicit instruction from the business. Granting one does not
+          connect an account or start anything by itself — Trendi verifies the provider separately,
+          and you can withdraw a permission at any time.
+        </p>
+        {status ? <p><Badge label={status} variant="info" /></p> : null}
+
+        <Heading level={3}>Inbound email</Heading>
+        {inboundFailing.length === 0 ? (
+          <p>Every step of inbound email is working for this business.</p>
+        ) : (
+          <p>
+            {inboundFailing.length} step(s) of the delivery chain are not working, so messages are
+            refused rather than stored. What needs fixing is listed below.
+          </p>
+        )}
+        <details style={{marginBottom: 16}}>
+          <summary style={{cursor: 'pointer', opacity: 0.75, fontSize: 13}}>
+            {inboundFailing.length === 0 ? 'Show the delivery-chain checks' : 'Show all checks'}
+          </summary>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8}}>
+          {Object.entries(CHECK_LABELS).map(([key, label]) => {
+            const check = inbound[key];
+            const state = check ? (check.ok ? 'ok' : 'blocked') : 'unknown';
+            return (
+              <div key={key} style={{display: 'flex', gap: 8, alignItems: 'baseline'}}>
+                <Badge label={state === 'ok' ? 'Working' : state === 'blocked' ? 'Blocked' : 'Unknown'}
+                       variant={state === 'ok' ? 'success' : state === 'blocked' ? 'error' : 'warning'} />
+                <span>{label}</span>
+                {check && !check.ok && check.fix ? <span style={{opacity: 0.75}}>— {check.fix}</span> : null}
+              </div>
+            );
+          })}
+          {readiness?.rejected_24h ? (
+            <Badge variant="warning"
+                   label={readiness.rejected_24h + ' message(s) refused in the last 24 hours'} />
+          ) : null}
+          {readiness?.last_success_at ? (
+            <span style={{opacity: 0.75}}>
+              Last message stored: {new Date(readiness.last_success_at).toLocaleString()}
+            </span>
+          ) : (
+            <span style={{opacity: 0.75}}>No inbound message has been stored for this business yet.</span>
+          )}
+        </div>
+        </details>
+
+        {failing.map((channel) => (
+          <PermissionRow key={channel.key} channel={channel} auth={auth}
+                         busy={busy} onToggle={toggle} />
+        ))}
+
+        <Heading level={3}>Refused and blocked mail</Heading>
+        <p>
+          Mail that was not stored: refused for missing permission, dropped by one of your sender
+          rules, or a bounce that came back. Nothing here is invisibly lost.
+        </p>
+        {visits.length === 0 ? (
+          <span style={{opacity: 0.75}}>No refused, blocked or bounced messages.</span>
+        ) : visits.map((row) => {
+          const detail = row.detail || {};
+          const sender = String(detail.sender ?? row.address ?? '');
+          const subject = String(detail.subject ?? '');
+          const reason = String(detail.reason ?? detail.status ?? '');
+          return (
+            <div key={row.id} style={{display: 'flex', flexDirection: 'column', gap: 2,
+                                      padding: '8px 0', borderTop: '1px solid var(--color-border)'}}>
+              <div style={{display: 'flex', gap: 8, alignItems: 'baseline'}}>
+                <Badge label={ACTION_LABELS[row.action] || row.action}
+                       variant={row.action === 'bounce_received' ? 'warning' : 'error'} />
+                <strong>{sender || '(unknown sender)'}</strong>
+                {row.created_at ? (
+                  <span style={{marginLeft: 'auto', opacity: 0.7}}>
+                    {new Date(row.created_at).toLocaleString()}
+                  </span>
+                ) : null}
+              </div>
+              {subject ? <span>{subject}</span> : null}
+              {reason ? <span style={{opacity: 0.75}}>{reason}</span> : null}
+            </div>
+          );
+        })}
+
+        <Heading level={3}>Suppressed addresses</Heading>
+        <p>
+          A hard bounce, a provider block or a complaint stops us emailing that address again.
+          Remove one only if you know the address works now.
+        </p>
+        {suppressed.length === 0 ? (
+          <span style={{opacity: 0.75}}>No suppressed addresses.</span>
+        ) : suppressed.map((item) => (
+          <div key={item.address} style={{display: 'flex', gap: 8, alignItems: 'center',
+                                          padding: '8px 0', borderTop: '1px solid var(--color-border)'}}>
+            <strong>{item.address}</strong>
+            <span style={{opacity: 0.75}}>{item.reason || item.source || ''}</span>
+            <span style={{marginLeft: 'auto'}}>
+              <Button label="Allow again" variant="secondary" isDisabled={busy}
+                      onClick={() => void release(item.address)} />
+            </span>
+          </div>
+        ))}
+
+        <Heading level={3}>Other channels</Heading>
+        {other.map((channel) => (
+          <PermissionRow key={channel.key} channel={channel} auth={auth}
+                         busy={busy} onToggle={toggle} />
+        ))}
+      </Card>
+
+      <div className="c-finish">
+        <div>
+          <strong>{done ? 'You are all set.' : 'That is everything you have to decide now.'}</strong>
+          <p>Permissions are yours to change later — nothing here is permanent, and the chat window
+            works whether or not you grant any of them.</p>
+          {anyAuthorised ? (
+            <CheckboxInput label="I confirm this business controls these accounts and authorises Concierge to use the ones I allowed."
+                           value={confirmed} onChange={setConfirmed} />
+          ) : null}
+        </div>
+        <Button label={done ? 'Opening your workspace…' : 'Continue'} variant="primary"
+                isDisabled={done || (anyAuthorised && !confirmed)} onClick={finish} />
+      </div>
+    </div>
+  );
+}
+
+function PermissionRow({channel, auth, busy, onToggle}: {
+  channel: {key: string; label: string; help: string};
+  auth: AuthState;
+  busy: boolean;
+  onToggle: (channel: string, authorized: boolean) => Promise<void>;
+}) {
+  const authorized = Boolean(auth[channel.key]?.authorized);
+  return (
+    <div style={{display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 0',
+                 borderTop: '1px solid var(--color-border)'}}>
+      <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+        <Badge label={authorized ? 'Authorised' : 'Not authorised'}
+               variant={authorized ? 'success' : 'warning'} />
+        <strong>{channel.label}</strong>
+        <span style={{marginLeft: 'auto'}}>
+          <Button label={authorized ? 'Withdraw' : 'Authorise'}
+                  variant={authorized ? 'secondary' : 'primary'}
+                  isDisabled={busy}
+                  onClick={() => void onToggle(channel.key, !authorized)} />
+        </span>
+      </div>
+      <span style={{opacity: 0.75}}>{channel.help}</span>
+    </div>
+  );
+}

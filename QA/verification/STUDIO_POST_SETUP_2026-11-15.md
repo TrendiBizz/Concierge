@@ -130,3 +130,29 @@ off finishing setup, not off granting everything).
 
 Deployed: shell `index-D5V7PJxD.js` (no Permissions, carries "handle your texts"), worker cache
 `concierge-studio-D5V7PJxD`. Suite **1206 passed, 36 skipped**.
+
+## 7. Setup and permissions: available for changes, not waiting for attention
+
+§6 removed the Permissions page outright, which overshot. The owner's clarification: *"once
+installation they should both be under something, not gone but not requiring the customer to see
+them after install has been completed, the reason they should still be available is if the
+customer wants to make changes."*
+
+**Final shape:**
+
+- **Both pages live in the Settings group**: `Setup` and `Channels and permissions` (the page
+  restored and renamed, because "Permissions" described our model, not the owner's job).
+- **Every sidebar group folds**, and **Settings starts folded**. The choice is remembered in
+  `localStorage['concierge:nav-folded']`, so an owner who opens it keeps it open, and one who
+  never does is never asked to set anything up again.
+- The **in-place asks stay** (§6): Texts, Enquiries and Social still offer "Allow" on the page
+  itself the first time, so a new channel does not need a trip to Settings.
+
+Guards: `test_setup_and_permissions_live_under_settings_and_fold_away` (both entries inside the
+Settings group, `folded[group.group] ?? isSettings`, the persisted key, and all three inline asks)
+and `test_the_permissions_page_still_exists_for_later_changes` in `test_studio_shell.py` (the lazy
+import and the sidebar entry must exist — the reverse of yesterday's assertion, which is the point:
+the page is available, not prominent). Mutation: defaulting groups to unfolded turns the first red.
+
+Deployed shell `index-BNo2FfyP.js` (contains "Channels and permissions" and the fold key). Suite
+**1206 passed, 36 skipped**.
