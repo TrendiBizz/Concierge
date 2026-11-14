@@ -774,8 +774,29 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
     );
   }
 
+  // A business that already has a name and a website is set up. Showing it the welcome wizard again
+  // reads as "your setup did not take", so it gets a summary and buttons instead.
+  const alreadySetUp = Boolean(business.name.trim() && business.site_url.trim());
+
   return (
     <div>
+      {alreadySetUp && step === 1 ? (
+        <Card>
+          <Heading level={2}>{business.name} is set up</Heading>
+          <p>
+            Concierge is working from <strong>{business.site_url}</strong>
+            {business.notify_email ? <> and sending notifications to <strong>{business.notify_email}</strong></> : null}.
+            Nothing here needs doing.
+          </p>
+          <p>Change the details, re-read the site, or go back to your dashboard:</p>
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <Button label="Edit business details" variant="secondary" onClick={() => setStep(2)} />
+            <Button label="Back to dashboard" variant="primary" onClick={onDone} />
+          </div>
+        </Card>
+      ) : null}
+      {!alreadySetUp || step > 1 ? (
+      <>
             <p>Give us your website and confirm what we found. You do not need to type what we can read.</p>
       <ol style={{display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', padding: 0}}>
         {['Welcome', 'Your business', 'Finish'].map((label, index) => (
@@ -785,7 +806,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
         ))}
       </ol>
 
-      {step === 1 ? (
+      {step === 1 && !alreadySetUp ? (
         <Card>
           <Heading level={2}>How Concierge works</Heading>
           <p>Website chat, email, SMS and phone enquiries come in. Concierge answers from your own business information, captures the contact, books agreed appointments and records everything in your CRM.</p>
@@ -979,6 +1000,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
       <div style={{display: 'flex', gap: 8, marginTop: 16}}>
         {step > 1 ? <Button label="Back" variant="ghost" onClick={() => setStep(step - 1)} /> : null}
       </div>
+      </>) : null}
       {problem ? <ErrorNote message={problem} /> : null}
       {<StatusLine text={status} />}
     </div>

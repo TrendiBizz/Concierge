@@ -170,6 +170,9 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
   }
 
   const inbound = readiness?.checks || {};
+  // Owners should see what is broken without reading a delivery-chain diagram: the engineering
+  // detail lives behind a disclosure, and it opens itself only when something is failing.
+  const inboundFailing = Object.keys(CHECK_LABELS).filter((key) => inbound[key] && !inbound[key].ok);
   const failing = CHANNELS.filter((c) => (c.key === 'email_read' || c.key === 'email_send'));
   const other = CHANNELS.filter((c) => !(c.key === 'email_read' || c.key === 'email_send'));
   const visits = audit.filter((row) => ACTIONS_SHOWN.has(row.action)).slice(0, 15);
@@ -186,11 +189,19 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
         {status ? <p><Badge label={status} variant="info" /></p> : null}
 
         <Heading level={3}>Inbound email</Heading>
-        <p>
-          Inbound email needs both the permission below and every step of the delivery chain to be
-          working. Until all of them are green, messages are refused rather than stored.
-        </p>
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16}}>
+        {inboundFailing.length === 0 ? (
+          <p>Every step of inbound email is working for this business.</p>
+        ) : (
+          <p>
+            {inboundFailing.length} step(s) of the delivery chain are not working, so messages are
+            refused rather than stored. What needs fixing is listed below.
+          </p>
+        )}
+        <details style={{marginBottom: 16}}>
+          <summary style={{cursor: 'pointer', opacity: 0.75, fontSize: 13}}>
+            {inboundFailing.length === 0 ? 'Show the delivery-chain checks' : 'Show all checks'}
+          </summary>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8}}>
           {Object.entries(CHECK_LABELS).map(([key, label]) => {
             const check = inbound[key];
             const state = check ? (check.ok ? 'ok' : 'blocked') : 'unknown';
@@ -215,6 +226,7 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
             <span style={{opacity: 0.75}}>No inbound message has been stored for this business yet.</span>
           )}
         </div>
+        </details>
 
         {failing.map((channel) => (
           <PermissionRow key={channel.key} channel={channel} auth={auth}

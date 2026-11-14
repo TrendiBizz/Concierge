@@ -482,7 +482,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                   <button key={asset.id} type="button" onClick={() => void attachAsset(asset.id)}
                           style={{padding: 0, border: 0, background: 'none', cursor: 'pointer'}}
                           aria-label={'Use ' + (asset.original_name || 'this media') + ' in the post'}
-                          title={asset.original_name || 'Marketing media'}
+                          title={asset.original_name || 'Marketing media'}>
                     <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
                   </button>
                 ))}
