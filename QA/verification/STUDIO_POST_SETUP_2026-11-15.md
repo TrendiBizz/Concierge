@@ -68,3 +68,38 @@ it red.
 `api/app/media_studio.py` + `api/app/schema.sql` (ALTER applied live) → `redeploy-api.sh`;
 portal → `deploy-studio.sh` (three `/studio` 200s). Live bundle contains "is set up",
 "Show the delivery-chain checks" and `X-Filename`. Suite: **1203 passed, 36 skipped**.
+
+## 5. Why a hard refresh changed nothing: the service worker
+
+After the deploy above, the server was serving the new build (`index-Citt6YJl.js` contained the
+setup summary, `Permissions-B_ZHRu89.js` contained the disclosure) and the owner still saw the old
+screens after Ctrl+R. The cause was `web/portal/public/sw.js`:
+
+- `const CACHE = 'concierge-studio-v1'` — a constant, so **nothing ever invalidated the cache**
+  across deploys, and `activate` only deleted caches whose name differed from itself.
+- navigation was network-first **with a cached-shell fallback**, so the one time the network
+  hiccuped (an API restart during the deploy) the owner was served yesterday's `index.html` from
+  the worker's own cache — which pulled yesterday's hashed chunks, themselves cache-first.
+- the file was served with **no `Cache-Control` at all** and Cloudflare answered `cf-cache-status:
+  HIT`, so even the worker script itself could not be refreshed promptly.
+
+**Fixed:**
+
+- `sw-v2.js` (new URL, so an old registration cannot answer for it): cache name carries the build
+  id (`concierge-studio-<build>`), a navigation is `fetch(..., {cache: 'no-store'})` and the cached
+  shell is used **only** when `navigator.onLine === false`, and `activate` purges every other cache.
+- Registration: `updateViaCache: 'none'`, `getRegistrations()` unregisters any other `/studio/`
+  worker, and a one-time `controllerchange` reload moves the tab onto the new build by itself.
+- `deploy-studio.sh` stamps `__BUILD__` with the new asset hash — **before** the copy. The first
+  attempt stamped after the rsync to staging, so staging shipped a literal `__BUILD__`; caught by
+  comparing the served file (`const CACHE = 'concierge-studio-__BUILD__'`) with the deployed one.
+- `/studio/sw-v2.js` is served `Cache-Control: no-cache` + `Service-Worker-Allowed: /studio/`
+  (measured after: `cf-cache-status: EXPIRED`, revalidated every visit).
+
+Proof on the live site: `const CACHE = 'concierge-studio-CshImAud'`, old `/studio/sw.js` no longer
+exists on disk (404s), shell carries the setup fix and the `sw-v2` registration.
+
+Guard: `test_the_service_worker_can_never_pin_a_browser_to_an_old_build` — asserts the stamped name,
+the no-store navigation, the offline-only fallback, that `sw.js` is gone, the `updateViaCache`
+registration, the unregister call, and that the stamp precedes the copy. Mutations that turn it red:
+dropping `{cache: 'no-store'}`, and moving the stamp after the copy.
