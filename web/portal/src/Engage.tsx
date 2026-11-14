@@ -222,6 +222,8 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   const [hashtags, setHashtags] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [attachedRefs, setAttachedRefs] = useState<string[]>([]);
+  const [library, setLibrary] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [when, setWhen] = useState('');
@@ -231,8 +233,13 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
 
   async function load() {
     try {
-      const [a, p, status, me] = await Promise.all([api('/owner/social/accounts'), api('/owner/social/posts'), api('/owner/social/status'), api('/owner/me')]);
+      const [a, p, status, me, media] = await Promise.all([
+        api('/owner/social/accounts'), api('/owner/social/posts'), api('/owner/social/status'),
+        api('/owner/me'), api('/owner/media/assets').catch(() => []),
+      ]);
       setAccounts(a as Account[]); setPosts(p as Post[]);
+      // Anything generated on the Media page is offered here, so "it goes to your composer" is true.
+      setLibrary((media as Asset[]) || []);
       setProviders(((status as {providers?: Record<string, boolean>}).providers || {}));
       setRole((me as {role: string}).role);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load social accounts'); }
@@ -279,20 +286,34 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     }
   }
 
-  async function upload(): Promise<string[] | undefined> {
-    if (!file) return undefined;
-    const response = await fetch('/owner/social/media', {method: 'POST', headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream'}, body: file});
+  async function upload(source: File | null = file): Promise<string[] | undefined> {
+    if (!source) return undefined;
+    const response = await fetch('/owner/social/media', {method: 'POST', headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream'}, body: source});
     if (!response.ok) throw new Error('Media upload failed');
     const data = await response.json();
     return ['upload:' + data.id];
+  }
+
+  async function attachAsset(id: string) {
+    setBusy(true); setStatus('Adding that to your post…');
+    try {
+      const response = await fetch('/owner/media/assets/' + id + '/file', {headers: {Authorization: 'Bearer ' + token}});
+      if (!response.ok) throw new Error('Media not available.');
+      const refs = (await upload(new File([await response.blob()], 'asset', {type: response.headers.get('content-type') || 'image/jpeg'}))) || [];
+      setAttachedRefs((current) => [...current, ...refs]);
+      setStatus('Added to this post.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that media'); }
+    setBusy(false);
   }
 
   async function prepare() {
     setBusy(true); setStatus('');
     try {
       if (!selected.length) throw new Error('Choose at least one connected account');
-      const media = await upload();
-      const draft = {content, account_ids: selected, link, hashtags, media: media || [], options: {}};
+      const uploaded = await upload();
+      // What we promised on the Media page: something you made there can go straight into a post.
+      const media = [...(uploaded || []), ...attachedRefs];
+      const draft = {content, account_ids: selected, link, hashtags, media, options: {}};
       const result = await api('/owner/social/compose', 'POST', draft) as Variant[];
       setVariants(result);
       setStatus('Previews ready. Review each network version before scheduling.');
@@ -343,6 +364,21 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <TextInput label="Link (optional)" type="url" value={link} onChange={setLink} />
           <TextInput label="Hashtags (optional)" value={hashtags} onChange={setHashtags} />
           <FileInput label="Image or video (optional)" value={file} onChange={(v) => setFile((v as File) || null)} accept="image/*,video/*" />
+          {library.length ? (
+            <div style={{margin: '8px 0'}}>
+              <span style={{fontSize: 13, opacity: 0.75}}>Or use something you made in Marketing media</span>
+              <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', marginTop: 6}}>
+                {library.slice(0, 8).map((asset) => (
+                  <button key={asset.id} type="button" onClick={() => void attachAsset(asset.id)}
+                          style={{padding: 0, border: 0, background: 'none', cursor: 'pointer'}}
+                          aria-label="Use this in the post">
+                    <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
+                  </button>
+                ))}
+              </div>
+              {attachedRefs.length ? <p style={{fontSize: 13}}>Attached: {attachedRefs.length}</p> : null}
+            </div>
+          ) : null}
           <div style={{margin: '12px 0'}}>
             <strong>Accounts</strong>
             {connectable.map((account) => (

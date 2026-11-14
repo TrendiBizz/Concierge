@@ -200,3 +200,18 @@ def test_all_four_templates_are_reachable_and_before_after_asks_for_two_photos()
     for template in ("showcase", "before_after", "quote", "service"):
         assert f'value="{template}"' in media, f"{template} is not offered"
     assert "Before / after needs two photos" in media
+
+
+def test_generated_media_can_be_used_in_a_post():
+    """The Media page promises generated work reaches the social composer. It must be pickable.
+
+    The first attempt at this shipped a picker with an empty list: the state existed and was read,
+    but nothing ever set it (a type-error fix removed the setter). Silent, and invisible until
+    someone clicked. So the check demands the loader call, not just the markup.
+    """
+    media = read("Engage.tsx")
+    assert "async function attachAsset" in media
+    assert "Use this in the post" in media
+    assert "[...(uploaded || []), ...attachedRefs]" in media, "attached media must reach the draft"
+    assert "setLibrary(" in media, "the library must actually be filled, not just declared"
+    assert "api('/owner/media/assets')" in media

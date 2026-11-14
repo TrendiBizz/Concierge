@@ -67,3 +67,32 @@ silently did not apply and the new guard caught it — which is why the guard ex
 * Video needs at least one photo; with none the server correctly answers 400 "At least one photo
   is required", and the UI now says so before you press it.
 * Guards: `tests/test_studio_shell.py` now 18; suite **1171**.
+
+## 5. "Added to your social composer" had nothing to pick it with
+
+**Cause.** `to-social` copied the asset into the social service's library, but the composer had no
+way to see or choose it — its only media path was a direct file upload. The promise in the page
+copy was therefore half true.
+
+**Fix.** The composer now lists your generated media as thumbnails ("Or use something you made in
+Marketing media"); clicking one uploads it and adds the reference to the post being written.
+
+**Proof.** Live Chrome run, in order: image generated → video generated (played: duration 3 s,
+1080×1350, `playing: true`, reaching 0.78 s) → Social page offered **8** pickable assets →
+clicked one → "Attached: 1". Screenshot `media-composer-picker-2026-11-14.png`.
+
+**Defect inside that fix, also fixed and guarded.** The first build of the picker shipped an
+empty list: the fetch ran and returned 200, but the result was dropped, because removing an unused
+setter to satisfy TypeScript left nothing to store it. The guard now requires `setLibrary(` to be
+called, not merely present; mutating the call out turns
+`test_generated_media_can_be_used_in_a_post` red.
+
+## Will it work when you press the button? Yes
+
+Verified end to end against production on 2026-11-14 18:35–18:45 NZDT:
+
+* branded image with a photo → "Image made — it is in Your media below. Also added to your social composer."
+* video with a photo → "Video made — …", thumbnail present, **playback confirmed**
+* AI image → real 1024×1024 JPEG
+* every asset card shows a decoded thumbnail; "Open full size" opens the actual image
+* the picker attaches to a post ("Attached: 1")
