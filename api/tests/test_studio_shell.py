@@ -215,3 +215,23 @@ def test_generated_media_can_be_used_in_a_post():
     assert "[...(uploaded || []), ...attachedRefs]" in media, "attached media must reach the draft"
     assert "setLibrary(" in media, "the library must actually be filled, not just declared"
     assert "api('/owner/media/assets')" in media
+
+
+def test_only_the_button_you_pressed_says_it_is_working():
+    """Reported: pressing Generate AI image made every other generator look busy too.
+
+    One shared boolean drove all three labels. Each button must key off its own action.
+    """
+    media = read("Engage.tsx")
+    assert "busy ? 'Working…'" not in media, "a shared busy flag is back"
+    for kind, label in (("image", "Making the image…"), ("video", "Making the video…"), ("ai", "Making the AI image…")):
+        assert f"busy === '{kind}' ? '{label}'" in media, f"{kind} has no scoped label"
+
+
+def test_media_can_be_deleted_from_the_page():
+    """The API could delete and the page could not, so pictures were undeletable in practice."""
+    media = read("Engage.tsx")
+    assert "async function removeAsset" in media
+    assert "'/owner/media/assets/' + asset.id, 'DELETE'" in media
+    assert "label={busy === 'delete' ? 'Deleting…' : 'Delete'}" in media
+    assert "window.confirm(" in media, "deleting should ask first"

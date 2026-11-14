@@ -202,12 +202,12 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
           <TextInput label="Headline" value={videoHeadline} onChange={setVideoHeadline} />
           <FileInput label="Photos" value={videoPhotos} onChange={(v) => setVideoPhotos((v as File[]) || [])} isMultiple accept="image/*" />
           <FileInput label="Music (optional)" value={music} onChange={(v) => setMusic((v as File) || null)} accept="audio/*" />
-          <Button label={busy ? 'Working…' : 'Generate video'} variant="primary" onClick={() => generate('video')} />
+          <Button label={busy === 'video' ? 'Making the video…' : 'Generate video'} variant="primary" isDisabled={busy !== ''} onClick={() => void generate('video')} />
         </Card>
         <Card>
           <Heading level={2}>AI image</Heading>
           <TextArea label="Prompt" value={prompt} onChange={setPrompt} rows={3} />
-          <Button label={busy ? 'Working…' : 'Generate AI image'} variant="primary" onClick={() => generate('ai')} />
+          <Button label={busy === 'ai' ? 'Making the AI image…' : 'Generate AI image'} variant="primary" isDisabled={busy !== ''} onClick={() => void generate('ai')} />
         </Card>
       </div>
       {status ? <p role="status">{status}</p> : null}

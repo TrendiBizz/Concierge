@@ -96,3 +96,26 @@ Verified end to end against production on 2026-11-14 18:35–18:45 NZDT:
 * AI image → real 1024×1024 JPEG
 * every asset card shows a decoded thumbnail; "Open full size" opens the actual image
 * the picker attaches to a post ("Attached: 1")
+
+## 6. Deleting pictures, and "everything says Working…"
+
+**Delete.** The API had `DELETE /owner/media/assets/{id}` from the start; the page never exposed
+it, so in practice pictures were permanent. Every card now has **Delete**, which asks "Delete this
+AI image? This cannot be undone.", deletes the row and the file, refreshes the list and the usage
+meters, and reports "Deleted. Your storage and monthly count both went down."
+
+Proof: 21 assets → 20 (also 21 → 20 on a second run), confirm dialog captured verbatim, status
+message shown, no page errors. Guard: `test_media_can_be_deleted_from_the_page`.
+
+**"All the other tabs show working."** One `const [busy, setBusy] = useState(false)` drove all
+three generators, so pressing Generate AI image relabelled Generate image and Generate video to
+"Working…" too. The flag is now the action itself (`'' | 'image' | 'video' | 'ai' | 'delete'`), each
+button keys off its own value, and the others are simply disabled while one runs.
+
+Proof: with the AI running, the only busy label on the page is "Making the AI image…"; the other
+two still read "Generate image" and "Generate video". Guard:
+`test_only_the_button_you_pressed_says_it_is_working` (mutating the shared flag back turns it red).
+
+Note for the record: two of the three button edits silently did nothing on the first attempt —
+the source had drifted under an earlier edit, and a string replace that finds nothing still
+"passes". The guard is what caught it, and the fix was applied line by line with a check after.
