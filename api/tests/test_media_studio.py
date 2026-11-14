@@ -122,3 +122,18 @@ def test_the_shell_has_a_command_palette_and_the_studio_has_one_status_line():
 def test_social_leads_with_one_job_at_a_time():
     assert "SegmentedControl" in PAGE and "Write a post" in PAGE
     assert "What to work on" in PAGE
+
+
+def test_lists_are_tables_and_setup_is_grouped():
+    """Item 14/15 of the improvement list: lists read as tables, Setup reads as groups.
+
+    Contacts, Quotes and Products already used the Table component; Bookings and the Reports lists
+    still printed one paragraph per row, and Setup was one unbroken stack of inputs.
+    """
+    shell = (ROOT / "web" / "portal" / "src" / "App.tsx").read_text()
+    assert shell.count("<Table") >= 3, "Bookings and Reports should render tables, not paragraphs"
+    assert "from '@astryxdesign/core/Section'" in shell, "Setup is not grouped with Section"
+    assert "dividers={['top']}" in shell
+    # the paragraph-per-row pattern that the tables replaced
+    assert "appointments.map((appointment, index) => (" not in shell
+    assert "leads.slice(0, 5).map((lead) => <p" not in shell

@@ -385,3 +385,20 @@ picker listed both and upload returned "Uploaded 2 files — they are in Your me
 a labelled "Jump to" field, filtering "quote" left "Sales · Quotes", clicking it closed the palette
 and set the active nav to Quotes; the Social radio group offers Write a post / Calendar / Your
 posts and switching to Calendar showed the calendar. No page errors in either mode.
+
+## 13. Items 14 and 15: tables and grouping
+
+Correction to my own earlier claim: Contacts, Quotes and Products already used the Astryx
+`Table`. What was still hand-built:
+
+* **Bookings → Appointments** printed one `Card` per appointment (title, time, nothing else).
+  Now a `Table`: What / When (formatted `Timestamp`) / Who / Status (`Badge`).
+* **Reports** printed "draft: 3" style paragraphs and a bullet list of enquiries. Now two tables —
+  quotes by status with counts *and* value, and the ten latest enquiries with channel, status and
+  when.
+* **Setup** had no grouping at all: one unbroken stack of inputs. The "Your business" and "Now the
+  chat window" blocks now sit inside `Section` with a top divider, so the page reads as groups.
+
+Proof: Reports renders **2** tables live; Bookings renders the Appointments heading and its empty
+state (no appointments on ACME yet); no page errors. Guard:
+`test_lists_are_tables_and_setup_is_grouped`. Suite **1180**.

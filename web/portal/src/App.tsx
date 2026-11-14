@@ -9,6 +9,11 @@ import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
+import {Section} from '@astryxdesign/core/Section';
+import {Timestamp} from '@astryxdesign/core/Timestamp';
+import {Table} from '@astryxdesign/core/Table';
+import type {TableColumn} from '@astryxdesign/core/Table';
+import {proportional} from '@astryxdesign/core/Table';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
 import {Banner} from '@astryxdesign/core/Banner';
@@ -788,7 +793,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
 
       {step === 2 ? (
         <Card>
-          <Heading level={2}>Your business</Heading>
+          <Section dividers={['top']}><Heading level={2}>Your business</Heading></Section>
           <TextInput label="Website" type="url" placeholder="yourbusiness.co.nz" value={website} onChange={setWebsite} />
           <div style={{display: 'flex', gap: 8, marginTop: 8}}>
             <Button label={reading ? 'Reading…' : 'Check my website'} variant="primary" onClick={readWebsite} />
@@ -863,7 +868,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
 
       {step === 3 ? (
         <Card>
-          <Heading level={2}>Now the chat window</Heading>
+          <Section dividers={['top']}><Heading level={2}>Now the chat window</Heading></Section>
           <p>Pick whichever is easiest. You will not need to touch any code, and you do not need to
             know who built your website.</p>
 
@@ -1259,13 +1264,26 @@ function Bookings({token}: {token: string}) {
         ))}
       </Card>
 
-      <Heading level={2}>Appointments</Heading>
-      {appointments.length ? appointments.map((appointment, index) => (
-        <Card key={index}>
-          <strong>{String(appointment.title || appointment.name || 'Appointment')}</strong>
-          <p>{String(appointment.start_at || appointment.start || appointment.when || '')}</p>
-        </Card>
-      )) : <p>No appointments booked yet.</p>}
+      <Section dividers={['top']}>
+        <Heading level={2}>Appointments</Heading>
+        {appointments.length ? (
+          <Table
+            data={appointments as unknown as Record<string, unknown>[]}
+            idKey="id"
+            density="compact"
+            columns={[
+              {key: 'title', header: 'What', width: proportional(2, {minWidth: 180}),
+               renderCell: (row) => <strong>{String(row.title || row.name || 'Appointment')}</strong>},
+              {key: 'start_at', header: 'When', width: proportional(2, {minWidth: 170}),
+               renderCell: (row) => <Timestamp value={String(row.start_at || row.start || row.when || '')} format="date_time" />},
+              {key: 'contact', header: 'Who', width: proportional(1, {minWidth: 140}),
+               renderCell: (row) => String(row.contact || row.email || row.phone || '—')},
+              {key: 'status', header: 'Status', width: proportional(1, {minWidth: 110}),
+               renderCell: (row) => <Badge label={String(row.status || 'booked')} />},
+            ] as TableColumn<Record<string, unknown>>[]}
+          />
+        ) : <p>No appointments booked yet. When someone books, it appears here with the time and who it is for.</p>}
+      </Section>
       {<StatusLine text={status} />}
     </div>
   );
@@ -1327,12 +1345,42 @@ function Reports({token}: {token: string}) {
           <p role="note"><em>{String(money30.note || '')}</em></p>
         </>
       ) : null}
-      <Heading level={2}>Quotations by status</Heading>
-      {['draft', 'reviewed', 'accepted', 'declined', 'void'].map((state) => (
-        <p key={state}>{state}: {quotes.filter((quote) => quote.status === state).length}</p>
-      ))}
-      <Heading level={2}>Latest enquiries</Heading>
-      {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.status}</p>)}
+      <Section dividers={['top']}>
+        <Heading level={2}>Quotations by status</Heading>
+        <Table
+          data={['draft', 'reviewed', 'accepted', 'declined', 'void'].map((state) => ({state, count: quotes.filter((quote) => quote.status === state).length}))}
+          idKey="state"
+          density="compact"
+          columns={[
+            {key: 'state', header: 'Status', width: proportional(1, {minWidth: 120}),
+             renderCell: (row) => <Badge label={String(row.state)} />},
+            {key: 'count', header: 'Quotes', width: proportional(1, {minWidth: 90}),
+             renderCell: (row) => String(row.count)},
+            {key: 'value', header: 'Value', width: proportional(1, {minWidth: 120}),
+             renderCell: (row) => money(quotes.filter((quote) => quote.status === row.state).reduce((sum, quote) => sum + quote.total_cents, 0), 'NZD')},
+          ] as TableColumn<Record<string, unknown>>[]}
+        />
+      </Section>
+      <Section dividers={['top']}>
+        <Heading level={2}>Latest enquiries</Heading>
+        {leads.length ? (
+          <Table
+            data={leads.slice(0, 10) as unknown as Record<string, unknown>[]}
+            idKey="id"
+            density="compact"
+            columns={[
+              {key: 'name', header: 'Who', width: proportional(2, {minWidth: 150}),
+               renderCell: (row) => String(row.name || row.email || row.phone || 'Enquiry')},
+              {key: 'channel', header: 'Came in by', width: proportional(1, {minWidth: 120}),
+               renderCell: (row) => <Badge label={String(row.channel || 'chat')} />},
+              {key: 'status', header: 'Status', width: proportional(1, {minWidth: 110}),
+               renderCell: (row) => String(row.status || '')},
+              {key: 'created_at', header: 'When', width: proportional(1, {minWidth: 160}),
+               renderCell: (row) => <Timestamp value={String(row.created_at || '')} format="date_time" />},
+            ] as TableColumn<Record<string, unknown>>[]}
+          />
+        ) : <p>No enquiries yet.</p>}
+      </Section>
       {<StatusLine text={status} />}
     </div>
   );
