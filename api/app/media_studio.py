@@ -66,6 +66,13 @@ class AiRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
 
 
+class AiVideoRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=2000)
+    format: Literal["square", "portrait", "story"] = "portrait"
+    shots: int = Field(default=4, ge=1, le=6)
+    music: str | None = Field(default=None, max_length=35_000_000)
+
+
 def _configured() -> str:
     url = get_settings().media_render_url.rstrip("/")
     if not url:
@@ -217,6 +224,24 @@ async def ai_image(body: AiRequest, user=Depends(owner_auth.current_user)):
     content = await _render("/ai-image", {"prompt": body.prompt})
     return await _store(user["tenant_id"], "ai", "ai", body.prompt, "square",
                         content, "image/jpeg", user.get("email", ""))
+
+
+@router.post("/ai-video", status_code=201)
+async def ai_video(body: AiVideoRequest, user=Depends(owner_auth.current_user)):
+    """A video the AI makes from a prompt: several generated frames, moved and cross-faded.
+
+    The provider on this account has no text-to-video model, so this is the closest real thing:
+    AI footage rather than a still card with words on it.
+    """
+    owner_auth.require_role(user, "editor")
+    await _check_quota(user["tenant_id"], "video")
+    brand = _brand_payload(await _brand(user["tenant_id"]))
+    content = await _render("/render/ai-video", {
+        "prompt": body.prompt, "format": body.format, "shots": body.shots, "brand": brand,
+        **({"music": body.music} if body.music else {}),
+    })
+    return await _store(user["tenant_id"], "video", "ai-video", body.prompt, body.format,
+                        content, "video/mp4", user.get("email", ""))
 
 
 @router.get("/usage")

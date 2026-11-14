@@ -232,18 +232,88 @@ async function renderVideo(body) {
   }
 }
 
-async function aiImage(body) {
+async function cloudflareImage(prompt) {
   if (!CF_ACCOUNT || !CF_TOKEN) throw Object.assign(new Error('AI images are not configured'), { status: 503 });
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: String(body.prompt || '').slice(0, 2000), steps: 4 }),
+    body: JSON.stringify({ prompt: String(prompt || '').slice(0, 2000), steps: 4 }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.result || !data.result.image) {
     throw Object.assign(new Error(`AI image failed (${response.status})`), { status: 502 });
   }
   return Buffer.from(data.result.image, 'base64');
+}
+
+async function aiImage(body) {
+  return cloudflareImage(body.prompt);
+}
+
+/* Camera moves, one per shot. Slow enough to read as footage rather than a slideshow. */
+const MOVES = [
+  "zoompan=z='min(zoom+0.0009,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
+  "zoompan=z='if(lte(zoom,1.0),1.18,max(1.001,zoom-0.0009))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
+  "zoompan=z='min(zoom+0.0009,1.18)':x='0':y='ih/2-(ih/zoom/2)'",
+  "zoompan=z='min(zoom+0.0009,1.18)':x='iw-iw/zoom':y='ih/2-(ih/zoom/2)'",
+];
+
+/**
+ * A video the AI actually makes: several frames generated from the prompt, then moved with real
+ * camera motion and cross-faded. Cloudflare's catalogue on this account has no text-to-video
+ * model (checked 2026-11-14: Text-to-Image x10, no video task), so the footage is AI frames
+ * animated here rather than a still card with a headline on it.
+ */
+async function renderAiVideo(body) {
+  const [W, H] = FORMATS[body.format] || FORMATS.portrait;
+  const prompt = String(body.prompt || '').trim();
+  if (prompt.length < 3) throw Object.assign(new Error('Describe the video you want'), { status: 400 });
+  const shots = Math.min(Math.max(1, Number(body.shots) || 4), 6);
+  const per = 3, transition = 0.6;
+  const total = shots * per - (shots - 1) * transition;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-aivideo-'));
+  try {
+    // Different angle per shot so it reads as a sequence, not the same picture four times.
+    const angles = ['wide establishing shot', 'close-up detail', 'medium shot from a low angle', 'overhead view', 'slow dolly forward', 'backlit golden-hour shot'];
+    const frames = await Promise.all(Array.from({ length: shots }, (_, i) =>
+      cloudflareImage(`${prompt}. ${angles[i % angles.length]}. Cinematic, photorealistic, vertical 4:5 composition.`)));
+    const files = frames.map((buffer, i) => {
+      const file = path.join(dir, `f${i}.jpg`);
+      fs.writeFileSync(file, buffer);
+      return file;
+    });
+    const brandName = String((body.brand || {}).name || '').replace(/[:'\\]/g, ' ');
+    const args = [];
+    files.forEach((file) => args.push('-loop', '1', '-t', String(per), '-i', file));
+    const music = body.music ? audioFile(body.music, dir) : '';
+    if (music) args.push('-i', music);
+
+    const parts = files.map((_, i) =>
+      `[${i}:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},${MOVES[i % MOVES.length]}:d=${per * 30}:s=${W}x${H}:fps=30,setsar=1,format=yuv420p[v${i}]`);
+    let last = 'v0';
+    for (let i = 1; i < files.length; i++) {
+      const offset = (i * (per - transition)).toFixed(2);
+      parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
+      last = `x${i}`;
+    }
+    if (brandName.trim()) {
+      parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:text='${brandName.trim()}':fontcolor=white@0.92:fontsize=${Math.round(W / 26)}:borderw=3:bordercolor=black@0.5:x=${Math.round(W / 22)}:y=h-${Math.round(H / 14)}[vout]`);
+    } else {
+      parts.push(`[${last}]null[vout]`);
+    }
+    if (music) {
+      parts.push(`[${files.length}:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
+    }
+    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
+    if (music) args.push('-map', '[a]', '-shortest'); else args.push('-an');
+    const out = path.join(dir, 'out.mp4');
+    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
+    await run('ffmpeg', ['-y', ...args], { timeout: 300000 });
+    return fs.readFileSync(out);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function send(res, status, type, body) {
@@ -266,6 +336,7 @@ const server = http.createServer((req, res) => {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
       if (req.url === '/render/image') return send(res, 200, 'image/png', await renderImage(body));
       if (req.url === '/render/video') return send(res, 200, 'video/mp4', await renderVideo(body));
+      if (req.url === '/render/ai-video') return send(res, 200, 'video/mp4', await renderAiVideo(body));
       if (req.url === '/ai-image') return send(res, 200, 'image/jpeg', await aiImage(body));
       return send(res, 404, 'application/json', Buffer.from('{"detail":"not found"}'));
     } catch (error) {

@@ -80,6 +80,7 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   const [videoPhotos, setVideoPhotos] = useState<File[]>([]);
   const [music, setMusic] = useState<File | null>(null);
   const [videoHeadline, setVideoHeadline] = useState('');
+  const [videoPrompt, setVideoPrompt] = useState('');
   const [prompt, setPrompt] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
@@ -103,12 +104,19 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
         payload.photos = await Promise.all(photos.slice(0, 20).map(readPhoto));
       } else if (kind === 'video') {
         payload.format = 'portrait'; payload.headline = videoHeadline;
-        payload.photos = await Promise.all(videoPhotos.slice(0, 20).map(readPhoto));
+        if (videoPrompt.trim().length >= 3) {
+          // AI makes the footage; photos are not needed.
+          payload.prompt = videoPrompt.trim();
+          payload.shots = 4;
+        } else {
+          payload.photos = await Promise.all(videoPhotos.slice(0, 20).map(readPhoto));
+        }
         if (music) payload.music = await readRaw(music);
       } else {
         payload.prompt = prompt;
       }
-      const asset = await api('/owner/media/' + (kind === 'ai' ? 'ai-image' : kind), 'POST', payload) as Asset;
+      const endpoint = kind === 'ai' ? 'ai-image' : (kind === 'video' && videoPrompt.trim().length >= 3) ? 'ai-video' : kind;
+      const asset = await api('/owner/media/' + endpoint, 'POST', payload) as Asset;
       // Say what actually happened: this used to claim "added to your social composer" even when
       // that follow-up call had failed, so the customer was told about work that never occurred.
       let added = false;
@@ -120,7 +128,7 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       } catch {
         added = false;
       }
-      setStatus((kind === 'video' ? 'Video made' : 'Image made') + ' — it is in Your media below.'
+      setStatus(((kind === 'video' && videoPrompt.trim().length >= 3) ? 'AI video made' : kind === 'video' ? 'Video made' : 'Image made') + ' — it is in Your media below.'
         + (added ? ' Also added to your social composer.' : ' Not added to the composer — open Social to pick it up.'));
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
@@ -218,10 +226,25 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
         </Card>
         <Card>
           <Heading level={2}>Short video</Heading>
+          <TextArea label="Describe the video — the AI makes the footage" value={videoPrompt}
+                    onChange={setVideoPrompt} rows={3} />
+          <p style={{fontSize: 13, opacity: 0.75, marginTop: -6}}>
+            Generates several AI shots of that scene and cuts them together with camera movement.
+          </p>
           <TextInput label="Headline" value={videoHeadline} onChange={setVideoHeadline} />
           <FileInput label="Photos" value={videoPhotos} onChange={(v) => setVideoPhotos((v as File[]) || [])} isMultiple accept="image/*" />
           <FileInput label="Music (optional)" value={music} onChange={(v) => setMusic((v as File) || null)} accept="audio/*" />
-          <Button label={busy === 'video' ? 'Making the video…' : 'Generate video'} variant="primary" isDisabled={busy !== ''} onClick={() => void generate('video')} />
+          {videoPrompt.trim().length >= 3 ? null : videoPhotos.length ? null : (
+            <p style={{fontSize: 13, opacity: 0.75}}>
+              Add photos for a slideshow, or describe a scene above and the AI will make the footage.
+            </p>
+          )}
+          <Button label={busy === 'video'
+                    ? (videoPrompt.trim().length >= 3 ? 'Making your AI video…' : 'Making the video…')
+                    : (videoPrompt.trim().length >= 3 ? 'Generate AI video' : 'Generate video')}
+                  variant="primary"
+                  isDisabled={busy !== '' || (!videoPrompt.trim() && !videoPhotos.length && !videoHeadline.trim())}
+                  onClick={() => void generate('video')} />
         </Card>
         <Card>
           <Heading level={2}>AI image</Heading>
