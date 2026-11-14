@@ -172,11 +172,17 @@ async def accept_invite(token: str) -> dict:
             invitation = await conn.fetchrow(
                 "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
                 "JOIN tenants t ON t.id=i.tenant_id "
-                "WHERE i.token_hash=$1 AND i.expires_at>now() FOR UPDATE OF i", digest(token),
+                "WHERE i.token_hash=$1 FOR UPDATE OF i", digest(token),
             )
-            if not invitation or not invite_still_good(
-                    invitation["used_at"], datetime.now(timezone.utc)):
-                raise ValueError("Invalid or expired link")
+            if not invitation:
+                # Mail clients wrap long URLs, and people paste half a link. Saying "expired" to a
+                # clipped link sends them to ask for a replacement that will be clipped the same way.
+                raise ValueError("Link not recognised")
+            expires_at = invitation["expires_at"] if "expires_at" in invitation.keys() else None
+            if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+                raise ValueError("This link has expired")
+            if not invite_still_good(invitation["used_at"], datetime.now(timezone.utc)):
+                raise ValueError("This link has already been used")
             existing = await conn.fetchrow(
                 "SELECT id FROM tenant_users WHERE tenant_id=$1 AND email=$2",
                 invitation["tenant_id"], invitation["email"],
@@ -190,7 +196,12 @@ async def accept_invite(token: str) -> dict:
             if existing:
                 user_id = existing["id"]
                 await conn.execute("UPDATE tenant_users SET active=true WHERE id=$1", user_id)
-                await conn.execute("DELETE FROM tenant_sessions WHERE user_id=$1", user_id)
+                # Do NOT drop their other sessions. This used to run
+                # `DELETE FROM tenant_sessions WHERE user_id=$1`, so a customer who clicked their
+                # link a second time (refresh, or the same email on the phone after using the
+                # desktop) was silently signed out of the tab they were working in. On 14 Nov that
+                # killed ACME's first session the moment the link was used again. Expired sessions
+                # are pruned instead; live ones are left alone.
             else:
                 user_id = await conn.fetchval(
                     "INSERT INTO tenant_users(tenant_id,email,role,password_hash) "
@@ -198,6 +209,8 @@ async def accept_invite(token: str) -> dict:
                     invitation["tenant_id"], invitation["email"], invitation["role"], NO_PASSWORD,
                 )
             await conn.execute("UPDATE tenant_invites SET used_at=now() WHERE id=$1", invitation["id"])
+            await conn.execute(
+                "DELETE FROM tenant_sessions WHERE user_id=$1 AND expires_at < now()", user_id)
             session = secrets.token_urlsafe(32)
             await conn.execute(
                 "INSERT INTO tenant_sessions(user_id,token_hash,expires_at) "

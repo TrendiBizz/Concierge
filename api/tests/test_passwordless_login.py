@@ -6,6 +6,7 @@ the invite link signs you in by itself, a returning customer asks for a fresh li
 password can ever match an account that was opened by link.
 """
 import asyncio
+import inspect
 
 import pytest
 
@@ -234,3 +235,34 @@ def test_the_refusal_says_what_actually_happened():
 
     source = inspect.getsource(app_main.owner_accept_invite)
     assert "str(error)" in source, "refusals must not all read 'expired or already used'"
+
+
+def test_using_a_link_twice_does_not_sign_the_other_tab_out(monkeypatch):
+    """Clicking the link again must not invalidate the session already in use.
+
+    `accept_invite` used to run `DELETE FROM tenant_sessions WHERE user_id=$1`, so a customer who
+    refreshed the page, or opened the same email on their phone after using the desktop, was
+    silently signed out of the tab they were working in. Reproduced against ACME on 14 Nov: the
+    first session answered 401 as soon as the link was redeemed a second time.
+    """
+    conn = _Conn(invitation={**INVITATION, "purpose": "invite"}, existing={"id": "user-1"})
+    _with_pool(monkeypatch, conn)
+    asyncio.run(owner_auth.accept_invite("tok_" + "x" * 40))
+    kills = [s for s, _ in conn.writes
+             if "DELETE FROM tenant_sessions" in s and "expires_at < now()" not in s]
+    assert not kills, "a sign-in must not delete the customer's live sessions"
+    assert any("expires_at < now()" in s for s, _ in conn.writes), (
+        "expired sessions should still be pruned")
+
+
+def test_a_clipped_link_is_not_reported_as_expired():
+    """Mail clients wrap long URLs; a half-pasted link must not claim to have expired."""
+    source = inspect.getsource(owner_auth.accept_invite)
+    assert '"Link not recognised"' in source
+    assert '"This link has expired"' in source
+    assert '"This link has already been used"' in source
+
+    from app import main as app_main
+
+    handler = inspect.getsource(app_main.owner_accept_invite)
+    assert "not complete" in handler, "the customer needs to know the link was clipped"

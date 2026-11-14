@@ -1979,11 +1979,14 @@ async def owner_accept_invite(body: OwnerLinkAccept):
         return await owner_auth.accept_invite(body.token)
     except ValueError as error:
         # Say what actually happened. Collapsing every refusal into "expired or already used" sent
-        # three separate investigations chasing the wrong fault; the reason was "account exists".
-        detail = str(error) or "This link is not valid"
-        if detail in ("Invalid or expired link", "Account no longer exists"):
-            detail = "This link has expired or has already been used. Ask for a new one below."
-        raise HTTPException(400, detail) from None
+        # three separate investigations chasing the wrong fault.
+        friendly = {
+            "Link not recognised": "That link is not complete. Ask for a new one below and it will work.",
+            "This link has expired": "This link has expired. Ask for a new one below.",
+            "This link has already been used": "This link has already been used. Ask for a new one below.",
+            "Account no longer exists": "That account no longer exists.",
+        }
+        raise HTTPException(400, friendly.get(str(error), str(error) or "That link did not work.")) from None
 
 
 @app.post("/owner/auth/link")
