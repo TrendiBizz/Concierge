@@ -1652,7 +1652,7 @@ function Shell() {
     social: {title: 'Social', line: 'Draft posts in your voice — nothing publishes until you say so.'},
     media: {title: 'Marketing media', line: 'The photos and clips worth posting, ready to reuse.'},
     reports: {title: 'Reports', line: 'What you earned, what you quoted, and what is still open.'},
-    setup: {title: 'Set up your business', line: 'Five short steps, and the chat window starts working for you. No code.'},
+    setup: {title: 'Set up your business', line: 'Three short steps, and the chat window starts working for you. No code.'},
     permissions: {title: 'What should Concierge do for you?', line: 'It only does what you allow, and you can switch any of it off again.'},
     team: {title: 'Team', line: 'Who can get in, and what each of them can do.'},
     yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},

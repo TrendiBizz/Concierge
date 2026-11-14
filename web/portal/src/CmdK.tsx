@@ -14,10 +14,16 @@ export type Command = {id: string; label: string; group?: string; run: () => voi
  * thing on a big screen. This is Astryx's Dialog + our own filtering rather than a bespoke modal,
  * so focus trapping, escape and scrim come from the design system.
  */
+const MAX_ROWS = 9;
+
 export function CmdK({commands}: {commands: Command[]}) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  // Only MAX_ROWS rows are drawn, but the arrow keys can reach every match. Without a moving
+  // window the highlight walks off the bottom of the list: the dialog looks unchanged, Enter
+  // then navigates to a page the person never saw. Measured live on 2026-11-14.
+  const [windowStart, setWindowStart] = useState(0);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -40,7 +46,15 @@ export function CmdK({commands}: {commands: Command[]}) {
       || (command.group || '').toLowerCase().includes(needle));
   }, [commands, query]);
 
-  function close() { setIsOpen(false); setQuery(''); setActive(0); }
+  const visible = useMemo(
+    () => matches.slice(windowStart, windowStart + MAX_ROWS), [matches, windowStart]);
+
+  useEffect(() => {
+    if (active < windowStart) setWindowStart(active);
+    else if (active >= windowStart + MAX_ROWS) setWindowStart(active - MAX_ROWS + 1);
+  }, [active, windowStart, matches.length]);
+
+  function close() { setIsOpen(false); setQuery(''); setActive(0); setWindowStart(0); }
 
   function runAt(index: number) {
     const command = matches[index];
@@ -53,7 +67,7 @@ export function CmdK({commands}: {commands: Command[]}) {
     <Dialog isOpen={isOpen} onOpenChange={(open) => { if (!open) close(); }}>
       <VStack gap={2}>
         <TextInput label="Jump to" value={query} hasAutoFocus
-                   onChange={(value) => { setQuery(value); setActive(0); }}
+                   onChange={(value) => { setQuery(value); setActive(0); setWindowStart(0); }}
                    onKeyDown={(event: React.KeyboardEvent) => {
                      if (event.key === 'ArrowDown') {
                        event.preventDefault();
@@ -66,11 +80,19 @@ export function CmdK({commands}: {commands: Command[]}) {
                        runAt(active);
                      }
                    }} />
-        {matches.length ? matches.slice(0, 9).map((command, index) => (
-          <Button key={command.id} variant={index === active ? 'primary' : 'secondary'}
-                  label={(command.group ? command.group + ' · ' : '') + command.label}
-                  onClick={() => runAt(index)} />
-        )) : <Text>Nothing matches that.</Text>}
+        {matches.length ? visible.map((command, offset) => {
+          const index = windowStart + offset;
+          return (
+            <Button key={command.id} variant={index === active ? 'primary' : 'secondary'}
+                    label={(command.group ? command.group + ' · ' : '') + command.label}
+                    onClick={() => runAt(index)} />
+          );
+        }) : <Text>Nothing matches that.</Text>}
+        {matches.length > MAX_ROWS ? (
+          <Text size="sm" color="secondary">
+            {windowStart + 1}–{Math.min(windowStart + MAX_ROWS, matches.length)} of {matches.length}
+          </Text>
+        ) : null}
         <Text size="sm" color="secondary">↑↓ to move · Enter to go · ⌘K to close</Text>
       </VStack>
     </Dialog>

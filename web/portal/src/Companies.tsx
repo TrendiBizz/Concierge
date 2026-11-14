@@ -8,6 +8,8 @@ import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {VStack} from '@astryxdesign/core/VStack';
 import {MoreMenu} from '@astryxdesign/core/MoreMenu';
+import {HStack} from '@astryxdesign/core/HStack';
+import {Dialog} from '@astryxdesign/core/Dialog';
 import {createApi as useApi} from './api';
 import {StatusLine} from './StatusLine';
 
@@ -31,6 +33,8 @@ export function Companies({token}: {token: string}) {
   const [domain, setDomain] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('');
+  const [editing, setEditing] = useState<Company | null>(null);
+  const [draft, setDraft] = useState({name: '', domain: '', notes: ''});
 
   async function load() {
     try { setCompanies(await api('/owner/companies') as Company[]); }
@@ -46,6 +50,22 @@ export function Companies({token}: {token: string}) {
       setStatus('Added. You can now put people inside this company from Contacts.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that company'); }
+  }
+
+  function openEditor(company: Company) {
+    setEditing(company);
+    setDraft({name: company.name, domain: company.domain || '', notes: company.notes || ''});
+  }
+
+  async function saveEditor() {
+    if (!editing) return;
+    try {
+      await api('/owner/companies/' + editing.id, 'PATCH',
+                {name: draft.name.trim(), domain: draft.domain.trim(), notes: draft.notes.trim()});
+      setStatus('Saved. Every contact at that company follows the new details.');
+      setEditing(null);
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save that company'); }
   }
 
   async function setParent(company: Company, parentId: string) {
@@ -115,15 +135,30 @@ export function Companies({token}: {token: string}) {
              )},
             {key: 'id', header: '', width: proportional(1, {minWidth: 70}),
              renderCell: (row) => (
-               <MoreMenu label={'More actions for ' + String(row.name || 'this company')} items={[
-                 {label: 'Delete this company', onClick: () => void remove(row as unknown as Company)},
-               ]} />
+               <HStack gap={2} vAlign="center">
+                 <Button label="Open" variant="secondary"
+                         onClick={() => openEditor(row as unknown as Company)} />
+                 <MoreMenu label={'More actions for ' + String(row.name || 'this company')} items={[
+                   {label: 'Edit these details', onClick: () => openEditor(row as unknown as Company)},
+                   {label: 'Delete this company', onClick: () => void remove(row as unknown as Company)},
+                 ]} />
+               </HStack>
              )},
           ] as TableColumn<Record<string, unknown>>[]}
         />
       ) : (
         <p>No companies yet. Add the businesses you work with most, then put your contacts inside them.</p>
       )}
+      <Dialog isOpen={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+        <Heading level={2}>Edit {editing?.name || 'this company'}</Heading>
+        <TextInput label="Company name" value={draft.name} onChange={(v: string) => setDraft({...draft, name: v})} />
+        <TextInput label="Website" value={draft.domain} onChange={(v: string) => setDraft({...draft, domain: v})} />
+        <TextArea label="Notes" value={draft.notes} onChange={(v: string) => setDraft({...draft, notes: v})} />
+        <HStack gap={2}>
+          <Button label="Save the changes" variant="primary" onClick={() => void saveEditor()} />
+          <Button label="Cancel" variant="ghost" onClick={() => setEditing(null)} />
+        </HStack>
+      </Dialog>
       <StatusLine text={status} />
     </div>
   );

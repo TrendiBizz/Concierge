@@ -172,7 +172,14 @@ export function Crm({token}: {token: string}) {
           )},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!shown.length ? <div className="c-empty"><strong>No enquiries yet — that is normal on day one</strong><p>When someone messages the chat window, emails you or rings, the enquiry lands here with their details already filled in.</p></div> : null}
+      {!shown.length ? (
+        query.trim() ? (
+          <div className="c-empty"><strong>No enquiries match "{query}"</strong>
+            <p>Clear the search to see them all. Nothing has been deleted.</p></div>
+        ) : (
+          <div className="c-empty"><strong>No enquiries yet — that is normal on day one</strong><p>When someone messages the chat window, emails you or rings, the enquiry lands here with their details already filled in.</p></div>
+        )
+      ) : null}
       {Object.entries(transcripts).map(([id, turns]) => (
         <Card key={id}>
           <Heading level={2}>Conversation</Heading>
@@ -385,10 +392,20 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
             </select>
           </label>
           {lines.map((line, index) => (
-            <div key={index} style={{display: 'grid', gridTemplateColumns: '2fr 0.7fr 1fr', gap: 8, margin: '8px 0'}}>
-              <input aria-label="Line description" placeholder="Description" value={line.description} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, description: e.target.value} : item))} style={{padding: 8}} />
-              <input aria-label="Quantity" placeholder="Qty" value={line.quantity} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, quantity: e.target.value} : item))} style={{padding: 8}} />
-              <input aria-label="Unit price" placeholder="Unit price" value={line.price} onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, price: e.target.value} : item))} style={{padding: 8}} />
+            <div key={index} style={{margin: '10px 0'}}>
+              {/* Three fields on one line need ~400px; the card is 360, so the unit price used to
+                  be clipped out of reach. They wrap instead, and each keeps its own label. */}
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
+                <input aria-label="Line description" placeholder="Description" value={line.description}
+                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, description: e.target.value} : item))}
+                       style={{padding: 8, flex: '3 1 160px', minWidth: 120}} />
+                <input aria-label="Quantity" placeholder="Qty" value={line.quantity}
+                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, quantity: e.target.value} : item))}
+                       style={{padding: 8, flex: '1 1 60px', minWidth: 56}} />
+                <input aria-label="Unit price" placeholder="Unit price" value={line.price}
+                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, price: e.target.value} : item))}
+                       style={{padding: 8, flex: '1 1 90px', minWidth: 84}} />
+              </div>
             </div>
           ))}
           <Button label="Add line" variant="ghost" onClick={() => setLines([...lines, {description: '', quantity: '1', price: ''}])} />
@@ -648,7 +665,14 @@ export function Contacts({token}: {token: string}) {
           {key: 'case_key', header: '', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Button label="Open" variant="secondary" onClick={() => open(row as unknown as Contact)} />},
         ] as TableColumn<Record<string, unknown>>[]}
       />
-      {!contacts.length ? <div className="c-empty"><strong>No contacts yet</strong><p>Every enquiry creates one automatically, and a repeat customer is merged onto the same card instead of appearing twice.</p></div> : null}
+      {!contacts.length ? (
+        query.trim() ? (
+          <div className="c-empty"><strong>No contacts match "{query}"</strong>
+            <p>Clear the search box above to see everyone.</p></div>
+        ) : (
+          <div className="c-empty"><strong>No contacts yet</strong><p>Every enquiry creates one automatically, and a repeat customer is merged onto the same card instead of appearing twice.</p></div>
+        )
+      ) : null}
 
       {selected ? (
         <Card>
