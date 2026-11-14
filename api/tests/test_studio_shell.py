@@ -190,9 +190,10 @@ def test_the_media_page_shows_what_it_made():
     media = read("Engage.tsx")
     assert "function AssetPreview" in media, "the asset needs a real preview"
     assert "<video" in media and "<img" in media
-    assert "Image made" in media and "Video made" in media, "the status must say what happened"
+    assert "Image made" in media, "the status must say what happened"
+    assert "Uploaded — it is in Your media below" in media, "an upload must say it landed"
     assert "Also added to your social composer" in media, "only claim the composer add when it worked"
-    assert "Not added to the composer" in media
+    assert "Use \"Send to social\" to post it." in media
 
 
 def test_all_four_templates_are_reachable_and_before_after_asks_for_two_photos():
@@ -226,9 +227,9 @@ def test_only_the_button_you_pressed_says_it_is_working():
     assert "busy ? 'Working…'" not in media, "a shared busy flag is back"
     # Each label must be gated on its own action, not the shared flag. One button has two
     # wordings, so check the gate and the wording separately.
-    for kind in ("image", "video", "ai"):
+    for kind in ("image", "ai", "upload"):
         assert f"busy === '{kind}'" in media, f"{kind} has no scoped gate"
-    for wording in ("Making the image", "Making the video", "Making the AI image"):
+    for wording in ("Making the image", "Making the AI image", "Uploading"):
         assert wording in media, f"missing {wording}"
 
 

@@ -13,7 +13,7 @@ from typing import Literal
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -53,24 +53,8 @@ class ImageRequest(BaseModel):
     photos: list[str] = Field(default_factory=list, max_length=20)
 
 
-class VideoRequest(BaseModel):
-    format: Literal["square", "portrait", "story"] = "portrait"
-    headline: str = Field(default="", max_length=200)
-    # A video does not need photos: without one the renderer animates a title card of the
-    # headline. Demanding a non-empty list here made "type a line and press Generate" impossible.
-    photos: list[str] = Field(default_factory=list, max_length=20)
-    music: str | None = Field(default=None, max_length=35_000_000)
-
-
 class AiRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
-
-
-class AiVideoRequest(BaseModel):
-    prompt: str = Field(min_length=3, max_length=2000)
-    format: Literal["square", "portrait", "story"] = "portrait"
-    shots: int = Field(default=4, ge=1, le=6)
-    music: str | None = Field(default=None, max_length=35_000_000)
 
 
 def _configured() -> str:
@@ -202,19 +186,44 @@ async def image(body: ImageRequest, user=Depends(owner_auth.current_user)):
                         content, "image/png", user.get("email", ""))
 
 
-@router.post("/video", status_code=201)
-async def video(body: VideoRequest, user=Depends(owner_auth.current_user)):
+VIDEO_TYPES = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
+IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+UPLOAD_LIMIT = 200_000_000
+
+
+@router.post("/upload", status_code=201)
+async def upload(request: Request, user=Depends(owner_auth.current_user)):
+    """Take a video the customer already made — with an AI tool elsewhere, or filmed themselves.
+
+    We do not generate video: the model catalogue on this account has no text-to-video model, and
+    promising one produced nothing but disappointment. What we do well is post it.
+    """
     owner_auth.require_role(user, "editor")
-    if not body.photos and not body.headline.strip():
-        raise HTTPException(400, "Add a headline, or a photo, and try again")
-    await _check_quota(user["tenant_id"], "video")
-    brand = _brand_payload(await _brand(user["tenant_id"]))
-    content = await _render("/render/video", {
-        "format": body.format, "brand": brand, "photos": _photos(body.photos),
-        "music": body.music, "text": {"headline": body.headline},
-    })
-    return await _store(user["tenant_id"], "video", "video", body.headline, body.format,
-                        content, "video/mp4", user.get("email", ""))
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if content_type in VIDEO_TYPES:
+        kind, suffix = "video", VIDEO_TYPES[content_type]
+    elif content_type in IMAGE_TYPES:
+        kind, suffix = "image", IMAGE_TYPES[content_type]
+    else:
+        raise HTTPException(400, "That file type is not supported. Send MP4, MOV, WebM, JPEG, PNG "
+                                 "or WebP.")
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "That file was empty")
+    if len(body) > UPLOAD_LIMIT:
+        raise HTTPException(413, "That file is over 200 MB. Trim it, or export at a smaller size.")
+    storage = await db.pool().fetchval("SELECT COALESCE(sum(size_bytes),0) FROM media_assets WHERE tenant_id=$1",
+                                       user["tenant_id"])
+    if storage + len(body) > get_settings().media_storage_limit_bytes:
+        raise HTTPException(413, "Media storage limit reached. Delete older media, then try again.")
+    row = await _store(user["tenant_id"], kind, "upload", "", "landscape", body,
+                       content_type, user.get("email", ""))
+    path = Path(row["storage_path"])
+    path.rename(path.with_suffix("." + suffix))
+    await db.pool().execute("UPDATE media_assets SET storage_path=$2 WHERE id=$1",
+                            row["id"], str(path.with_suffix("." + suffix)))
+    row["storage_path"] = str(path.with_suffix("." + suffix))
+    return row
 
 
 @router.post("/ai-image", status_code=201)
@@ -224,24 +233,6 @@ async def ai_image(body: AiRequest, user=Depends(owner_auth.current_user)):
     content = await _render("/ai-image", {"prompt": body.prompt})
     return await _store(user["tenant_id"], "ai", "ai", body.prompt, "square",
                         content, "image/jpeg", user.get("email", ""))
-
-
-@router.post("/ai-video", status_code=201)
-async def ai_video(body: AiVideoRequest, user=Depends(owner_auth.current_user)):
-    """A video the AI makes from a prompt: several generated frames, moved and cross-faded.
-
-    The provider on this account has no text-to-video model, so this is the closest real thing:
-    AI footage rather than a still card with words on it.
-    """
-    owner_auth.require_role(user, "editor")
-    await _check_quota(user["tenant_id"], "video")
-    brand = _brand_payload(await _brand(user["tenant_id"]))
-    content = await _render("/render/ai-video", {
-        "prompt": body.prompt, "format": body.format, "shots": body.shots, "brand": brand,
-        **({"music": body.music} if body.music else {}),
-    })
-    return await _store(user["tenant_id"], "video", "ai-video", body.prompt, body.format,
-                        content, "video/mp4", user.get("email", ""))
 
 
 @router.get("/usage")

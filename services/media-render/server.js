@@ -1,10 +1,8 @@
-/* Concierge media renderer: Satori images, FFmpeg slideshows, Cloudflare AI images. */
+/* Concierge media renderer: Satori images and Cloudflare AI images. It does not make video. */
 'use strict';
 const http = require('http');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { execFile } = require('child_process');
 const satoriModule = require('satori');
 const satori = satoriModule.default || satoriModule;
 const React = require('react');
@@ -137,101 +135,6 @@ async function renderImage(body) {
   return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
 }
 
-function decodePhoto(value, file) {
-  const match = /^data:image\/[a-z0-9.+-]+;base64,(.*)$/i.exec(value || '');
-  if (!match) throw Object.assign(new Error('Photos must be image data URIs'), { status: 400 });
-  fs.writeFileSync(file, Buffer.from(match[1], 'base64'));
-}
-
-function run(command, args, options) {
-  return new Promise((resolve, reject) => {
-    execFile(command, args, { ...options, maxBuffer: 8 << 20 }, (error, stdout, stderr) => {
-      if (error) reject(new Error((stderr || error.message).slice(-600)));
-      else resolve(stdout);
-    });
-  });
-}
-
-function audioFile(value, dir) {
-  const match = /^data:audio\/([a-z0-9.+-]+);base64,(.*)$/i.exec(value || '');
-  if (!match) throw Object.assign(new Error('Music must be an audio upload'), { status: 400 });
-  const ext = { mpeg: 'mp3', 'mp3': 'mp3', mp4: 'm4a', 'x-m4a': 'm4a', wav: 'wav', 'x-wav': 'wav', ogg: 'ogg', webm: 'webm' }[match[1].toLowerCase()] || 'mp3';
-  const file = path.join(dir, `music.${ext}`);
-  fs.writeFileSync(file, Buffer.from(match[2], 'base64'));
-  return file;
-}
-
-/** A still title card, drawn with the showcase template, used when a video has no photo. */
-async function titleCard(brand, text, [W, H]) {
-  const element = showcase(brand, [], text, [W, H]);
-  const svg = await satori(element, { width: W, height: H, fonts: FONTS });
-  return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
-}
-
-async function renderVideo(body) {
-  const [W, H] = FORMATS[body.format] || FORMATS.portrait;
-  const photos = (body.photos || []).map(dataUri).filter(Boolean).slice(0, 20);
-  const headline = String((body.text || {}).headline || '').trim();
-  // A video does not need a photo: with none we animate a title card of the brand and the
-  // headline, so "type a line and press Generate" is a complete instruction.
-  if (!photos.length && !headline) {
-    throw Object.assign(new Error('Add a headline, or a photo, and try again'), { status: 400 });
-  }
-  const clip = 3, transition = 0.5, cardSeconds = 6;
-  const total = photos.length ? photos.length * clip - (photos.length - 1) * transition : cardSeconds;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-video-'));
-  try {
-    const files = photos.map((photo, i) => {
-      const file = path.join(dir, `${i}.jpg`);
-      decodePhoto(photo, file);
-      return file;
-    });
-    const titleFile = path.join(dir, 'title.txt');
-    fs.writeFileSync(titleFile, headline.replace(/[\r\n]+/g, ' '));
-    const music = body.music ? audioFile(body.music, dir) : '';
-    const args = [];
-    if (!files.length) {
-      // No photo: one title card, slowly zoomed so it reads as motion rather than a still.
-      const card = path.join(dir, 'card.png');
-      fs.writeFileSync(card, await titleCard(body.brand || {}, body.text || {}, [W, H]));
-      files.push(card);
-      args.push('-loop', '1', '-t', String(cardSeconds), '-i', card);
-    } else {
-      files.forEach((file) => args.push('-loop', '1', '-t', String(clip), '-i', file));
-    }
-    if (music) args.push('-i', music);
-
-    const parts = files.map((_, i) => `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p[v${i}]`);
-    let last = 'v0';
-    if (!photos.length) {
-      // 6 seconds of gentle zoom on the card; the headline is already drawn into it.
-      parts.length = 0;
-      parts.push(`[0:v]scale=${W * 2}:${H * 2},zoompan=z='min(zoom+0.0006,1.12)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${cardSeconds * 30}:s=${W}x${H}:fps=30,setsar=1,format=yuv420p[vout]`);
-    } else {
-      for (let i = 1; i < files.length; i++) {
-        const offset = (i * (clip - transition)).toFixed(2);
-        parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
-        last = `x${i}`;
-      }
-      parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:textfile=${titleFile}:fontcolor=white:fontsize=${Math.round(W / 16)}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=h-(text_h*2.2)[vout]`);
-    }
-    if (music) {
-      // The music input follows the video inputs, however many there were.
-      parts.push(`[${files.length}:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
-    }
-    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
-    if (music) args.push('-map', '[a]', '-shortest');
-    else args.push('-an');
-    const out = path.join(dir, 'out.mp4');
-    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
-    await run('ffmpeg', ['-y', ...args], { timeout: 240000 });
-    return fs.readFileSync(out);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
 async function cloudflareImage(prompt) {
   if (!CF_ACCOUNT || !CF_TOKEN) throw Object.assign(new Error('AI images are not configured'), { status: 503 });
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
@@ -250,132 +153,6 @@ async function aiImage(body) {
   return cloudflareImage(body.prompt);
 }
 
-/**
- * The closest thing to real motion this stack can produce without a text-to-video model.
- *
- * Cloudflare's catalogue on this account is text-to-image only (probed 2026-11-14: ltx-video,
- * luma, runway all answer "No route for that URI"), and no video vendor key exists. So instead of
- * unrelated stills, we draw TWO keyframes of the same scene — its start state and its end state —
- * and dissolve between them while the frame gently sways. The subject therefore visibly changes
- * over the clip, which is what "a flower opening in a breeze" is asking for.
- */
-const SWAY = (W, H) =>
-  `crop=w=iw*0.92:h=ih*0.92:x='(iw-ow)/2+${Math.round(W / 60)}*sin(2*PI*t/2.6)':y='(ih-oh)/2+${Math.round(H / 90)}*sin(2*PI*t/3.4)',scale=${W}:${H}`;
-
-async function renderAiVideo(body) {
-  const [W, H] = FORMATS[body.format] || FORMATS.portrait;
-  const prompt = String(body.prompt || '').trim();
-  if (prompt.length < 3) throw Object.assign(new Error('Describe the video you want'), { status: 400 });
-  const clip = 4, dissolve = 2.2;
-  const total = clip * 2 - dissolve;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-aivideo-'));
-  try {
-    // Two states of one scene, phrased so the model draws the beginning and the end of the action.
-    const [first, last] = await Promise.all([
-      cloudflareImage(`${prompt}. The very start of this action, about to happen. Cinematic, photorealistic, vertical composition.`),
-      cloudflareImage(`${prompt}. The end of this action, a moment later, the action complete. Cinematic, photorealistic, vertical composition.`),
-    ]);
-    const a = path.join(dir, 'a.jpg'); fs.writeFileSync(a, first);
-    const b = path.join(dir, 'b.jpg'); fs.writeFileSync(b, last);
-    const brandName = String((body.brand || {}).name || '').replace(/[:'\\]/g, ' ');
-    const music = body.music ? audioFile(body.music, dir) : '';
-    const args = ['-loop', '1', '-t', String(clip), '-i', a, '-loop', '1', '-t', String(clip), '-i', b];
-    if (music) args.push('-i', music);
-
-    const parts = [
-      `[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,${SWAY(W * 2, H * 2)},setsar=1,format=yuv420p[v0]`,
-      `[1:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,${SWAY(W * 2, H * 2)},setsar=1,format=yuv420p[v1]`,
-      `[v0][v1]xfade=transition=fade:duration=${dissolve}:offset=${(clip - dissolve).toFixed(2)}[x]`,
-    ];
-    if (brandName.trim()) {
-      parts.push(`[x]drawtext=fontfile=${FONT_BOLD}:text='${brandName.trim()}':fontcolor=white@0.92:fontsize=${Math.round(W / 26)}:borderw=3:bordercolor=black@0.5:x=${Math.round(W / 22)}:y=h-${Math.round(H / 14)}[vout]`);
-    } else {
-      parts.push(`[x]null[vout]`);
-    }
-    if (music) {
-      parts.push(`[2:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
-    }
-    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
-    if (music) args.push('-map', '[a]', '-shortest'); else args.push('-an');
-    const out = path.join(dir, 'out.mp4');
-    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
-    await run('ffmpeg', ['-y', ...args], { timeout: 300000 });
-    return fs.readFileSync(out);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-async function aiImage(body) {
-  return cloudflareImage(body.prompt);
-}
-
-/* Camera moves, one per shot. Slow enough to read as footage rather than a slideshow. */
-const MOVES = [
-  "zoompan=z='min(zoom+0.0009,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
-  "zoompan=z='if(lte(zoom,1.0),1.18,max(1.001,zoom-0.0009))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
-  "zoompan=z='min(zoom+0.0009,1.18)':x='0':y='ih/2-(ih/zoom/2)'",
-  "zoompan=z='min(zoom+0.0009,1.18)':x='iw-iw/zoom':y='ih/2-(ih/zoom/2)'",
-];
-
-/**
- * A video the AI actually makes: several frames generated from the prompt, then moved with real
- * camera motion and cross-faded. Cloudflare's catalogue on this account has no text-to-video
- * model (checked 2026-11-14: Text-to-Image x10, no video task), so the footage is AI frames
- * animated here rather than a still card with a headline on it.
- */
-async function renderAiVideo(body) {
-  const [W, H] = FORMATS[body.format] || FORMATS.portrait;
-  const prompt = String(body.prompt || '').trim();
-  if (prompt.length < 3) throw Object.assign(new Error('Describe the video you want'), { status: 400 });
-  const shots = Math.min(Math.max(1, Number(body.shots) || 4), 6);
-  const per = 3, transition = 0.6;
-  const total = shots * per - (shots - 1) * transition;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-aivideo-'));
-  try {
-    // Different angle per shot so it reads as a sequence, not the same picture four times.
-    const angles = ['wide establishing shot', 'close-up detail', 'medium shot from a low angle', 'overhead view', 'slow dolly forward', 'backlit golden-hour shot'];
-    const frames = await Promise.all(Array.from({ length: shots }, (_, i) =>
-      cloudflareImage(`${prompt}. ${angles[i % angles.length]}. Cinematic, photorealistic, vertical 4:5 composition.`)));
-    const files = frames.map((buffer, i) => {
-      const file = path.join(dir, `f${i}.jpg`);
-      fs.writeFileSync(file, buffer);
-      return file;
-    });
-    const brandName = String((body.brand || {}).name || '').replace(/[:'\\]/g, ' ');
-    const args = [];
-    files.forEach((file) => args.push('-loop', '1', '-t', String(per), '-i', file));
-    const music = body.music ? audioFile(body.music, dir) : '';
-    if (music) args.push('-i', music);
-
-    const parts = files.map((_, i) =>
-      `[${i}:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},${MOVES[i % MOVES.length]}:d=${per * 30}:s=${W}x${H}:fps=30,setsar=1,format=yuv420p[v${i}]`);
-    let last = 'v0';
-    for (let i = 1; i < files.length; i++) {
-      const offset = (i * (per - transition)).toFixed(2);
-      parts.push(`[${last}][v${i}]xfade=transition=fade:duration=${transition}:offset=${offset}[x${i}]`);
-      last = `x${i}`;
-    }
-    if (brandName.trim()) {
-      parts.push(`[${last}]drawtext=fontfile=${FONT_BOLD}:text='${brandName.trim()}':fontcolor=white@0.92:fontsize=${Math.round(W / 26)}:borderw=3:bordercolor=black@0.5:x=${Math.round(W / 22)}:y=h-${Math.round(H / 14)}[vout]`);
-    } else {
-      parts.push(`[${last}]null[vout]`);
-    }
-    if (music) {
-      parts.push(`[${files.length}:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
-    }
-    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
-    if (music) args.push('-map', '[a]', '-shortest'); else args.push('-an');
-    const out = path.join(dir, 'out.mp4');
-    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
-    await run('ffmpeg', ['-y', ...args], { timeout: 300000 });
-    return fs.readFileSync(out);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 function send(res, status, type, body) {
   res.writeHead(status, { 'Content-Type': type, 'Content-Length': body.length, 'Cache-Control': 'no-store' });
@@ -396,8 +173,6 @@ const server = http.createServer((req, res) => {
     try {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
       if (req.url === '/render/image') return send(res, 200, 'image/png', await renderImage(body));
-      if (req.url === '/render/video') return send(res, 200, 'video/mp4', await renderVideo(body));
-      if (req.url === '/render/ai-video') return send(res, 200, 'video/mp4', await renderAiVideo(body));
       if (req.url === '/ai-image') return send(res, 200, 'image/jpeg', await aiImage(body));
       return send(res, 404, 'application/json', Buffer.from('{"detail":"not found"}'));
     } catch (error) {

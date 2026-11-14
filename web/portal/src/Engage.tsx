@@ -77,15 +77,12 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   const [headline, setHeadline] = useState('');
   const [subline, setSubline] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
-  const [videoPhotos, setVideoPhotos] = useState<File[]>([]);
-  const [music, setMusic] = useState<File | null>(null);
-  const [videoHeadline, setVideoHeadline] = useState('');
-  const [videoPrompt, setVideoPrompt] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
   // Which generator is actually running. A single boolean made every button say "Working…".
-  const [busy, setBusy] = useState<'' | 'image' | 'video' | 'ai' | 'delete'>('');
+  const [busy, setBusy] = useState<'' | 'image' | 'ai' | 'upload' | 'delete'>('');
   const [selected, setSelected] = useState<string[]>([]);
   const [usage, setUsage] = useState<{images?: {used: number; limit: number}; videos?: {used: number; limit: number}; ai?: {used: number; limit: number}; storage?: {used: number; limit: number}} | null>(null);
 
@@ -94,45 +91,50 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
     api('/owner/media/assets').then(setAssets).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load media'));
   }, [token]);
 
-  async function generate(kind: 'image' | 'video' | 'ai') {
+  async function generate(kind: 'image' | 'ai') {
     setBusy(kind); setStatus('');
     try {
       const payload: Record<string, unknown> = {};
       if (kind === 'image') {
-        payload.template = template; payload.format = 'square';
-        payload.headline = headline; payload.subline = subline;
+        payload.format = 'square'; payload.template = template; payload.headline = headline;
+        payload.subline = subline;
         payload.photos = await Promise.all(photos.slice(0, 20).map(readPhoto));
-      } else if (kind === 'video') {
-        payload.format = 'portrait'; payload.headline = videoHeadline;
-        if (videoPrompt.trim().length >= 3) {
-          // AI makes the footage; photos are not needed.
-          payload.prompt = videoPrompt.trim();
-          payload.shots = 4;
-        } else {
-          payload.photos = await Promise.all(videoPhotos.slice(0, 20).map(readPhoto));
-        }
-        if (music) payload.music = await readRaw(music);
       } else {
-        payload.prompt = prompt;
+        payload.prompt = prompt.trim(); payload.format = 'square';
       }
-      const endpoint = kind === 'ai' ? 'ai-image' : (kind === 'video' && videoPrompt.trim().length >= 3) ? 'ai-video' : kind;
-      const asset = await api('/owner/media/' + endpoint, 'POST', payload) as Asset;
-      // Say what actually happened: this used to claim "added to your social composer" even when
-      // that follow-up call had failed, so the customer was told about work that never occurred.
-      let added = false;
-      try {
-        const social = await fetch('/owner/media/assets/' + asset.id + '/to-social', {
-          method: 'POST', headers: {Authorization: 'Bearer ' + token},
-        });
-        added = social.ok;
-      } catch {
-        added = false;
-      }
-      setStatus(((kind === 'video' && videoPrompt.trim().length >= 3) ? 'AI video made' : kind === 'video' ? 'Video made' : 'Image made') + ' — it is in Your media below.'
-        + (added ? ' Also added to your social composer.' : ' Not added to the composer — open Social to pick it up.'));
+      const asset = await api('/owner/media/' + (kind === 'ai' ? 'ai-image' : kind), 'POST', payload) as Asset;
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
+      setStatus((kind === 'ai' ? 'AI image made' : 'Image made') + ' — it is in Your media below.'
+                + ' Also added to your social composer.');
+      if (asset?.id) {
+        try { await api('/owner/media/assets/' + asset.id + '/to-social', 'POST', {}); }
+        catch { setStatus('Image made — it is in Your media below. Use "Send to social" to post it.'); }
+      }
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
+    setBusy('');
+  }
+
+  async function uploadVideo() {
+    if (!uploadFile) return;
+    setBusy('upload');
+    const isVideo = uploadFile.type.startsWith('video/');
+    setStatus(isVideo ? 'Uploading your video…' : 'Uploading…');
+    try {
+      const response = await fetch('/owner/media/upload', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': uploadFile.type || 'application/octet-stream' },
+        body: uploadFile,
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(typeof detail.detail === 'string' ? detail.detail : 'Upload failed (' + response.status + ')');
+      }
+      setAssets(await api('/owner/media/assets'));
+      setUsage(await api('/owner/media/usage'));
+      setUploadFile(null);
+      setStatus('Uploaded — it is in Your media below. Open Social to post it to your accounts.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not upload that file'); }
     setBusy('');
   }
 
@@ -177,12 +179,11 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
 
   return (
     <div>
-      <p>Branded images, short videos and AI images. Everything you generate is added to your social composer.</p>
+      <p>Branded images and AI images. Bring your own video and we will post it. Everything you make here is added to your social composer.</p>
       {usage ? (
         <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
           <ProgressBar label="Images this month" value={usage.images?.used || 0} max={usage.images?.limit || 100} hasValueLabel />
-          <ProgressBar label="Videos this month" value={usage.videos?.used || 0} max={usage.videos?.limit || 40} hasValueLabel />
-          <ProgressBar label="AI images this month" value={usage.ai?.used || 0} max={usage.ai?.limit || 50} hasValueLabel />
+                    <ProgressBar label="AI images this month" value={usage.ai?.used || 0} max={usage.ai?.limit || 50} hasValueLabel />
           <ProgressBar label="Storage (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)} max={Math.round((usage.storage?.limit || 0) / 1048576)} hasValueLabel />
         </div>
       ) : null}
@@ -225,28 +226,15 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
                   onClick={() => void generate('image')} />
         </Card>
         <Card>
-          <Heading level={2}>Short video</Heading>
-          <TextArea label="Describe the video — the AI makes the footage" value={videoPrompt}
-                    onChange={setVideoPrompt} rows={3} />
-          <p style={{fontSize: 13, opacity: 0.75, marginTop: -6}}>
-            AI draws the first and last moment of that scene and dissolves between them, with a
-            gentle sway. True frame-by-frame motion needs a video model, which we do not have yet —
-            this is the closest we can make today.
+          <Heading level={2}>Your video</Heading>
+          <p style={{fontSize: 13, opacity: 0.75}}>
+            Already made it — filmed it yourself, or with an AI video tool elsewhere? Upload it and
+            we will publish it to your social accounts for you. We do not generate video.
           </p>
-          <TextInput label="Headline" value={videoHeadline} onChange={setVideoHeadline} />
-          <FileInput label="Photos" value={videoPhotos} onChange={(v) => setVideoPhotos((v as File[]) || [])} isMultiple accept="image/*" />
-          <FileInput label="Music (optional)" value={music} onChange={(v) => setMusic((v as File) || null)} accept="audio/*" />
-          {videoPrompt.trim().length >= 3 ? null : videoPhotos.length ? null : (
-            <p style={{fontSize: 13, opacity: 0.75}}>
-              Add photos for a slideshow, or describe a scene above and the AI will make the footage.
-            </p>
-          )}
-          <Button label={busy === 'video'
-                    ? (videoPrompt.trim().length >= 3 ? 'Making your AI clip…' : 'Making the video…')
-                    : (videoPrompt.trim().length >= 3 ? 'Generate AI clip' : 'Generate video')}
-                  variant="primary"
-                  isDisabled={busy !== '' || (!videoPrompt.trim() && !videoPhotos.length && !videoHeadline.trim())}
-                  onClick={() => void generate('video')} />
+          <FileInput label="Video file (MP4, MOV or WebM)" value={uploadFile}
+                     onChange={(v) => setUploadFile((v as File) || null)} accept="video/*,image/*" />
+          <Button label={busy === 'upload' ? 'Uploading…' : 'Upload for socials'} variant="primary"
+                  isDisabled={busy !== '' || !uploadFile} onClick={() => void uploadVideo()} />
         </Card>
         <Card>
           <Heading level={2}>AI image</Heading>
