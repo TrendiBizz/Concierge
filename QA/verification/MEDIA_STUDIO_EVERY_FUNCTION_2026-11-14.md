@@ -156,3 +156,63 @@ one call and returns how many went.
 Proof (live): three ticked → "3 of 20 selected" → confirm "Delete 3 items? This cannot be undone."
 → cards **20 → 17** → "Deleted 3. Your storage and monthly counts went down."
 Screenshot `media-bulk-delete-2026-11-14.png`.
+
+## 8. What "AI video" honestly is, and what a real video model needs
+
+### 8a. The defect: four unrelated stills sold as a video
+
+Asked for "a flower slowly opening and swaying in a breeze", the first build generated **four
+unrelated photographs** of a flower and moved the camera over each of them. Nothing opened,
+nothing swayed, and the UI said "Generate AI video". That is our failure of both implementation
+and honesty.
+
+**Fixed** (as far as this stack allows): the clip now draws **two states of the same scene** — the
+comment *"The very start of this action, about to happen"* and *"The end of this action, a moment
+later, the action complete"* — and dissolves between them while the frame sways on a slow sine.
+The subject visibly changes across the clip.
+
+Proof: start frame (`m_0.3`) shows a mostly-closed flower on its stem; end frame (`m_5.2`) shows it
+fully open and larger. Clip is 10.2 s, 1080×1350, generated through the page in ~21 s
+("AI clip made"). Guards: `test_the_ai_clip_shows_the_scene_changing_not_four_unrelated_stills`
+(mutating the end-state phrasing away turns it red) and
+`test_the_ai_clip_does_not_claim_to_be_generated_video`.
+
+**Copy corrected.** The button is "Generate AI clip", and the card says plainly: *"AI draws the
+first and last moment of that scene and dissolves between them, with a gentle sway. True
+frame-by-frame motion needs a video model, which we do not have yet."*
+
+### 8b. Why there is no true text-to-video: evidence, not an opinion
+
+Probed on the production host, 2026-11-14:
+
+| Model id | Result |
+| --- | --- |
+| `@cf/lightricks/ltx-video` | 400 `{"code":7000,"message":"No route for that URI"}` |
+| `@cf/luma/luma-video` | 400 same |
+| `@cf/runway/gen3` | 400 same |
+| `@cf/black-forest-labs/flux-1-schnell` | **200**, image returned |
+
+The account's catalogue (`/ai/models/search`): 75 models — 10 Text-to-Image, 40 Text Generation,
+4 Text-to-Speech, **0 video tasks**. No `RUNWAY/LUMA/PIKA/REPLICATE/FAL/OPENAI/GOOGLE/VEO` keys
+exist in `compose.env` or `api.env`.
+
+Host: **2 cores, 7 GB RAM, no GPU** (`nvidia-smi` absent). Local open-weight video models need a
+CUDA GPU with 8–24 GB VRAM, so they cannot run here.
+
+### 8c. Open item — true text-to-video (blocked on credentials or a GPU)
+
+Open-weight options on GitHub, with what they need:
+
+| Project | License | Minimum VRAM | Notes |
+| --- | --- | --- | --- |
+| **Wan 2.2 / 2.1** (Alibaba) | Apache-2.0 | 24 GB (5B, with offload); 1.3B variant fits ~8 GB | Best all-round; T2V and I2V |
+| **LTX-Video** (Lightricks) | LTX Open Weights License | 2B distilled runs on 8–12 GB | Built for speed; closest to "click and get a clip" |
+| **CogVideoX 1.5** (Zhipu) | CogVideoX License | 10 GB BF16 / 7 GB INT8 | 1360×768, 5 or 10 s |
+| **HunyuanVideo 1.5** (Tencent) | Tencent Community License | 14 GB with offload | Strong quality; licence terms need review |
+| **Mochi 1** (Genmo) | Apache-2.0 | 22 GB low-precision | 480p; permissive, hackable |
+
+Path chosen by the operator decides the work: a hosted API key (fal/Replicate host Wan and LTX)
+is wired into `/owner/media/ai-video` behind the existing renderer seam in roughly an hour and
+needs no hardware; self-hosting needs a rented GPU box and a second deployment. **No code change
+is possible until one of those exists** — this is recorded in the handoff Outstanding list with
+the next action.

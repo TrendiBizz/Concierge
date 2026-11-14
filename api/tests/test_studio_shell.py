@@ -224,8 +224,12 @@ def test_only_the_button_you_pressed_says_it_is_working():
     """
     media = read("Engage.tsx")
     assert "busy ? 'Working…'" not in media, "a shared busy flag is back"
-    for kind, label in (("image", "Making the image…"), ("video", "Making the video…"), ("ai", "Making the AI image…")):
-        assert f"busy === '{kind}' ? '{label}'" in media, f"{kind} has no scoped label"
+    # Each label must be gated on its own action, not the shared flag. One button has two
+    # wordings, so check the gate and the wording separately.
+    for kind in ("image", "video", "ai"):
+        assert f"busy === '{kind}'" in media, f"{kind} has no scoped gate"
+    for wording in ("Making the image", "Making the video", "Making the AI image"):
+        assert wording in media, f"missing {wording}"
 
 
 def test_media_can_be_deleted_from_the_page():
