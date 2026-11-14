@@ -216,3 +216,42 @@ is wired into `/owner/media/ai-video` behind the existing renderer seam in rough
 needs no hardware; self-hosting needs a rented GPU box and a second deployment. **No code change
 is possible until one of those exists** — this is recorded in the handoff Outstanding list with
 the next action.
+
+## 9. Operator decision: we do not make video at all — customers bring their own
+
+> "remove any verbiage allowing the making of ai videos, and change it to you provide the ai/real
+> video and we will upload it to socials, this is the safest route"
+
+Acted on in full. Every path that generated video is gone:
+
+| Removed | Where |
+| --- | --- |
+| `POST /owner/media/video` (photo slideshow / title card) | `api/app/media_studio.py` |
+| `POST /owner/media/ai-video` (AI keyframes) | `api/app/media_studio.py` |
+| `VideoRequest`, `AiVideoRequest` models | `api/app/media_studio.py` |
+| `renderVideo()`, `titleCard()`, `renderAiVideo()`, `SWAY`, `MOVES`, `decodePhoto`, `audioFile`, `run`, ffmpeg usage | `services/media-render/server.js` (service is now **images only**) |
+| "Short video" card, prompt field, photo/music pickers, video progress bar | `web/portal/src/Engage.tsx` |
+
+Replaced by **"Your video"**: *"Already made it — filmed it yourself, or with an AI video tool
+elsewhere? Upload it and we will publish it to your social accounts for you. **We do not generate
+video.**"* Backed by a new `POST /owner/media/upload` (MP4/MOV/WebM/JPEG/PNG/WebP, 200 MB cap,
+storage limit enforced).
+
+Proof, live on the production host:
+
+| Check | Result |
+| --- | --- |
+| `POST /owner/media/video` | **404** (route gone) |
+| `POST /owner/media/ai-video` | **404** (route gone) |
+| Upload a 1.4 MB MP4 | **201** in 0.7 s, `kind=video`, `template=upload`, stored as `.mp4` |
+| Upload `text/plain` | **400** "That file type is not supported. Send MP4, MOV, WebM, JPEG, PNG or WebP." |
+| Page: any "Generate video / AI video / AI clip" wording | **none** found on the Media page |
+| Page: upload through the card | **201**, cards **2 → 3**, "Uploaded — it is in Your media below. Open Social to post it to your accounts." |
+| Send to social | **200**, `kind=video`, `mime=video/mp4`, 1080×1350 |
+| Composer can attach | **3** pickable assets |
+
+Screenshot: `media-upload-video-2026-11-14.png`.
+
+Guards (mutated and watched to fail): `test_we_do_not_offer_to_make_video_any_more` (fails if any
+video generator, model, route or UI wording returns) and
+`test_a_video_the_customer_made_can_be_uploaded_for_socials`.
