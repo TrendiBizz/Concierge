@@ -355,3 +355,33 @@ deleting one card shows a green success Banner "Deleted. Your storage went down.
 drops 2 → 1. No page errors.
 
 Screenshots: `media-astryx-2026-11-14.png`, `media-status-banner-2026-11-14.png`.
+
+## 12. The improvement list, worked through
+
+| # | Improvement | State |
+| --- | --- | --- |
+| 1 | Drag-and-drop upload | **done** — dashed drop target; `drop` on two files listed both |
+| 2 | Multi-file upload | **done** — `isMultiple`; "2 files ready: one.jpg, two.jpg", uploaded both |
+| 3 | Real upload progress | **done** — XHR `upload.onprogress` feeding `ProgressBar`, plus "Uploading 2 of 3…" |
+| 4 | Card actions in a menu | **done** — `MoreMenu`: Open full size / Send to social / Delete |
+| 5 | Empty states | **done** on Media (`EmptyState`); other pages already had encouraging copy |
+| 6 | Skeletons instead of "Loading…" | **done** on the media grid |
+| 7 | Toasts for background outcomes | **done** — upload and send-to-social raise a toast; success also shows a Banner |
+| 8 | ⌘K command palette | **done** — every nav destination, filter, ↑↓, Enter, Esc; verified navigating to Quotes |
+| 9 | Social: one job at a time | **done** — `SegmentedControl`: Write a post / Calendar / Your posts |
+| 10 | Density control | **done** on the media grid — Comfortable / Compact changes card width and gap |
+| 11 | Keyboard focus visibility | **done** — `:focus-visible` ring on the shell; 3px, accent-coloured, offset |
+| 12 | Motion budget | **done** — one 180 ms rise, and `prefers-reduced-motion` kills all animation |
+| 13 | Light/dark parity | **done** — both modes exercised end to end; light-mode screenshot recorded |
+| 14 | Tables for lists | **not done** — Contacts, Reports and Bookings still build rows by hand |
+| 15 | Setup grouped with `Section`/`FormLayout` | **not done** — Setup is still one long stack of inputs |
+
+Items 14 and 15 are structural rewrites of pages with their own state and tests; they are the
+next action, recorded in `HANDOFF.md`.
+
+Proof of the live behaviour (2026-11-14, ACME Ltd, production):
+dropping two files listed "2 files ready: dropped-a.jpg, dropped-b.jpg"; selecting two through the
+picker listed both and upload returned "Uploaded 2 files — they are in Your media below"; ⌘K opened
+a labelled "Jump to" field, filtering "quote" left "Sales · Quotes", clicking it closed the palette
+and set the active nav to Quotes; the Social radio group offers Write a post / Calendar / Your
+posts and switching to Calendar showed the calendar. No page errors in either mode.

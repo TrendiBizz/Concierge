@@ -182,7 +182,7 @@ def test_media_can_be_deleted_from_the_page():
     media = read("Engage.tsx")
     assert "async function removeAsset" in media
     assert "'/owner/media/assets/' + asset.id, 'DELETE'" in media
-    assert "label={busy === 'delete' ? 'Deleting…' : 'Delete'}" in media
+    assert "'Deleting…'" in media and "Delete" in media, "no per-card delete"
     assert "window.confirm(" in media, "deleting should ask first"
 
 
@@ -200,4 +200,4 @@ def test_the_media_page_is_an_upload_page_not_a_generator():
 def test_an_uploaded_asset_says_what_it_is():
     media = read("Engage.tsx")
     assert "<Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />" in media
-    assert "Uploaded — it is in Your media below" in media
+    assert "in Your media below" in media

@@ -15,6 +15,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
+import {CmdK} from './CmdK';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
 import {createApi} from './api';
@@ -1634,6 +1635,9 @@ function Shell() {
       </header>
 
       <nav className="c-nav" aria-label="Sections">
+        <CmdK commands={NAV.flatMap((group) => group.items.map((item) => ({
+          id: item.tab, label: item.label, group: group.group, run: () => setTab(item.tab),
+        })))} />
         {NAV.map((group) => (
           <div className="c-nav-group" key={group.group}>
             <div className="c-nav-label"><span className="c-nav-dot" style={{background: group.colour}} />{tr(group.group)}</div>

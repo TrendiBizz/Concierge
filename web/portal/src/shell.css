@@ -199,3 +199,24 @@
   margin-bottom: 10px; background: var(--c-surface-strong); display: block;
 }
 .c-thumb-empty { box-shadow: inset 0 0 0 1px var(--c-line); }
+
+/* Keyboard users could not see where they were: the shell reset outlines without putting
+   anything in their place. A visible ring on focus-visible only, so mouse users see nothing. */
+.c-shell :focus-visible,
+.c-shell button:focus-visible,
+.c-shell [role='checkbox']:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--c-accent) 80%, #000 20%);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* One shared entrance, and nothing that ignores a reduce-motion preference.
+   The celebration already checks it; the shell's page transitions did not. */
+.c-content { animation: c-rise 180ms ease-out both; }
+@keyframes c-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-content, .c-shell * { animation: none !important; transition: none !important; }
+}

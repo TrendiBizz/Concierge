@@ -97,3 +97,28 @@ def test_no_page_hand_rolls_a_checkbox_or_a_status_line():
     assert (ROOT / "web" / "portal" / "src" / "StatusLine.tsx").exists()
     users = [p.name for p in pages if "./StatusLine" in p.read_text()]
     assert len(users) >= 6, f"StatusLine should be shared by every page, found {users}"
+
+
+def test_the_media_page_takes_dropped_and_multiple_files_with_real_progress():
+    """One file at a time through a file picker was the slowest part of the page."""
+    assert "onDrop" in PAGE, "a drop target is missing"
+    assert "Drop photos or videos here" in PAGE
+    assert "isMultiple" in PAGE, "multi-file selection is missing"
+    assert "upload.onprogress" in PAGE, "no byte progress; the page would show only 'Uploading…'"
+    assert "Uploading ' + (index + 1) + ' of ' + total" in PAGE, "no per-file progress copy"
+
+
+def test_the_shell_has_a_command_palette_and_the_studio_has_one_status_line():
+    shell = (ROOT / "web" / "portal" / "src" / "App.tsx").read_text()
+    palette = (ROOT / "web" / "portal" / "src" / "CmdK.tsx").read_text()
+    assert "<CmdK commands=" in shell, "the palette is not mounted"
+    assert "(event.metaKey || event.ctrlKey)" in palette, "⌘K/Ctrl-K is not wired"
+    assert "event.key === 'Enter'" in palette and "ArrowDown" in palette
+    styles = (ROOT / "web" / "portal" / "src" / "shell.css").read_text()
+    assert ":focus-visible" in styles, "keyboard focus is invisible"
+    assert "prefers-reduced-motion" in styles, "motion ignores the user's preference"
+
+
+def test_social_leads_with_one_job_at_a_time():
+    assert "SegmentedControl" in PAGE and "Write a post" in PAGE
+    assert "What to work on" in PAGE

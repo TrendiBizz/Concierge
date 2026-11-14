@@ -20,6 +20,7 @@ import {StatusLine} from './StatusLine';
 import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {Skeleton} from '@astryxdesign/core/Skeleton';
 import {useNotify} from './Notify';
+import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
@@ -66,6 +67,7 @@ export function Media({token}: {token: string}) {
   const [progress, setProgress] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
   const notify = useNotify();
@@ -256,7 +258,14 @@ export function Media({token}: {token: string}) {
         </Card>
       </div>
       {<StatusLine text={status} />}
-      <Heading level={2}>Your media</Heading>
+      <HStack gap={3} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+        <Heading level={2}>Your media</Heading>
+        <SegmentedControl label="How much to show per row" value={density}
+                          onChange={(value) => setDensity(value as 'comfortable' | 'compact')}>
+          <SegmentedControlItem value="comfortable" label="Comfortable" />
+          <SegmentedControlItem value="compact" label="Compact" />
+        </SegmentedControl>
+      </HStack>
       {assets.length ? (
         <HStack gap={3} vAlign="center" style={{margin: '4px 0 10px', flexWrap: 'wrap'}}>
           <CheckboxInput label="Select all" value={selected.length > 0 && selected.length === assets.length}
@@ -277,7 +286,7 @@ export function Media({token}: {token: string}) {
                     description="Add a photo or a video you already have, and it will appear here ready to post."
                     headingLevel={3} />
       )}
-      <Grid columns={{minWidth: 220}} gap={3}>
+      <Grid columns={{minWidth: density === 'compact' ? 150 : 260}} gap={density === 'compact' ? 2 : 3}>
         {assets.map((asset) => (
           <Card key={asset.id}>
             <CheckboxInput label="Select" isLabelHidden value={selected.includes(asset.id)}
@@ -306,6 +315,7 @@ export function Media({token}: {token: string}) {
 
 export function Social({token, brand}: {token: string; brand: Brand}) {
   const api = useApi(token);
+  const [view, setView] = useState<'compose' | 'calendar' | 'posts'>('compose');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [content, setContent] = useState('');
@@ -496,9 +506,16 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         </Card>
       ))}
 
-      <DateTimeInput label="Schedule time (optional, defaults to one hour from now)" value={(when || undefined) as never} onChange={(value) => setWhen(value || '')} description="Local time; leave blank for one hour from now." />
+      <SegmentedControl label="What to work on" value={view}
+                        onChange={(value) => setView(value as 'compose' | 'calendar' | 'posts')}>
+        <SegmentedControlItem value="compose" label="Write a post" />
+        <SegmentedControlItem value="calendar" label="Calendar" />
+        <SegmentedControlItem value="posts" label="Your posts" />
+      </SegmentedControl>
 
-      <Heading level={2}>Calendar</Heading>
+      {view === 'compose' ? (<DateTimeInput label="Schedule time (optional, defaults to one hour from now)" value={(when || undefined) as never} onChange={(value) => setWhen(value || '')} description="Local time; leave blank for one hour from now." />) : null}
+
+      {view === 'calendar' ? <Heading level={2}>Calendar</Heading> : null}
       <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
         <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
         <strong>{month.toLocaleString('en-NZ', {month: 'long', year: 'numeric'})}</strong>
@@ -538,7 +555,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         );
       })()}
 
-      <Heading level={2}>Your posts</Heading>
+      {view === 'posts' ? <Heading level={2}>Your posts</Heading> : null}
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
         {posts.map((post) => (
           <Card key={post.id}>
