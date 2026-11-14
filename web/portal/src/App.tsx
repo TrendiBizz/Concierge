@@ -97,13 +97,21 @@ function useApi(token: string) {
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
     });
-    const data = await response.json().catch(() => ({}));
+    const raw = await response.text();
+    // When the edge in front of us fails (Cloudflare serves its own page for 502/520/524), the
+    // body is HTML. The Media page used to print that HTML at the customer word for word.
+    let data: any = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
     if (response.status === 401 && token) window.dispatchEvent(new Event('concierge:sign-out'));
     if (!response.ok) {
       // FastAPI answers a validation error with a list of objects; never let a page print that as "[object Object]".
-      const detail = typeof data.detail === 'string' ? data.detail
-        : Array.isArray(data.detail) ? data.detail.map((d: {msg?: string}) => d.msg || 'A detail is not valid.').join(' ') : '';
-      throw new Error(detail || 'Request failed (' + response.status + ')');
+      const detail = typeof data?.detail === 'string' ? data.detail
+        : Array.isArray(data?.detail) ? data.detail.map((d: {msg?: string}) => d.msg || 'A detail is not valid.').join(' ') : '';
+      // 502/520/521/522/524/504 all mean "the far side did not answer properly". Say that, plainly.
+      const edge = [502, 504, 520, 521, 522, 523, 524].includes(response.status);
+      throw new Error(detail || (edge
+        ? 'That took too long at our end (' + response.status + '). Nothing was lost — try again.'
+        : 'Request failed (' + response.status + ')'));
     }
     return data;
   };
@@ -780,8 +788,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
 
   return (
     <div>
-      <Heading level={1}>Set up {name || business.name || 'your business'}</Heading>
-      <p>Give us your website and confirm what we found. You do not need to type what we can read.</p>
+            <p>Give us your website and confirm what we found. You do not need to type what we can read.</p>
       <ol style={{display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', padding: 0}}>
         {['Welcome', 'Your business', 'Finish'].map((label, index) => (
           <li key={label} style={{padding: '6px 12px', borderRadius: 999, border: '1px solid var(--color-border)', background: step === index + 1 ? 'var(--color-accent)' : 'transparent', color: step === index + 1 ? 'var(--color-on-accent)' : 'inherit', fontSize: 13}}>
@@ -1008,7 +1015,7 @@ function Bookings({token}: {token: string}) {
     fri: {start: '09:00', end: '17:00', open: true}, sat: {start: '09:00', end: '17:00', open: false},
     sun: {start: '09:00', end: '17:00', open: false},
   });
-  const [ack, setAck] = useState(false);
+
   const [textback, setTextback] = useState<{enabled?: boolean; count_30d?: number; recoveries?: Record<string, unknown>[]}>({});
   const [insights, setInsights] = useState<{insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>}>({});
   const [live, setLive] = useState<Record<string, unknown>[]>([]);
@@ -1138,8 +1145,8 @@ function Bookings({token}: {token: string}) {
       const businessHours: Record<string, string[][]> = {};
       for (const [key] of days) if (hours[key]?.open) businessHours[key] = [[hours[key].start, hours[key].end]];
       await api('/owner/onboarding/profile', 'PATCH', {slot_minutes: Number(slot), business_hours: businessHours});
-      if (enabled && !ack) throw new Error('Tick the acknowledgement before enabling booking.');
-      await api('/owner/onboarding/native-booking', 'POST', {enabled, acknowledgement: ack});
+      // Pressing Save is the acknowledgement; a separate tickbox on top of it was friction.
+      await api('/owner/onboarding/native-booking', 'POST', {enabled, acknowledgement: enabled});
       setStatus(enabled ? 'Booking enabled with these hours.' : 'Booking disabled.'); notify(enabled ? 'Booking enabled.' : 'Booking disabled.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save booking settings'); }
@@ -1184,9 +1191,6 @@ function Bookings({token}: {token: string}) {
             <input aria-label={label + ' end'} type="time" value={hours[key].end} disabled={!hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], end: e.target.value}})} />
           </div>
         ))}
-        <label style={{display: 'block', margin: '10px 0'}}>
-          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> The hours and rules are correct, and Concierge may book appointments.
-        </label>
         <Button label={busy ? 'Saving…' : 'Save booking settings'} variant="primary" onClick={saveBooking} />
       </Card>
 

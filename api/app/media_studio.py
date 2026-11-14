@@ -71,9 +71,22 @@ def _configured() -> str:
     return url
 
 
+# Cloudflare gives up on an origin that has not answered in about 100 seconds, and then serves
+# its own error page instead of ours. Waiting 200s meant a slow AI image was reported to the
+# customer as "The origin web server returned an invalid or incomplete response to Cloudflare" —
+# our own plumbing, printed at them. Finish first and say something useful.
+RENDER_TIMEOUT_SECONDS = 85.0
+
+
 async def _render(path: str, payload: dict) -> bytes:
-    async with httpx.AsyncClient(base_url=_configured(), timeout=200.0) as client:
-        response = await client.post(path, json=payload)
+    try:
+        async with httpx.AsyncClient(base_url=_configured(), timeout=RENDER_TIMEOUT_SECONDS) as client:
+            response = await client.post(path, json=payload)
+    except httpx.TimeoutException:
+        raise HTTPException(504, "That took longer than we allow. The image is still being made — "
+                                 "try again in a minute and it will usually come back straight away.")
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, f"The image studio is not answering ({type(exc).__name__}).") from exc
     if response.status_code >= 400:
         detail = response.text[:300] or f"Render HTTP {response.status_code}"
         raise HTTPException(502, detail)

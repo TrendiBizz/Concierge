@@ -176,3 +176,19 @@
 
 /* The end-of-onboarding panel stacks its confirmation under the copy. */
 .c-finish { align-items: flex-start; }
+
+/* The crash panel: an explanation and a way out, instead of a blank page. */
+.c-crash {
+  margin: 48px auto; max-width: 620px; padding: 26px 28px; border-radius: 20px;
+  background: var(--c-surface); box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.c-crash strong { display: block; font-size: 19px; margin-bottom: 8px; }
+.c-crash p { margin: 0 0 12px; color: var(--c-muted); }
+.c-crash pre {
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; overflow-x: auto;
+  background: color-mix(in oklab, var(--c-ink) 8%, var(--c-page)); font-size: 12.5px;
+}
+.c-crash-button {
+  border: 0; cursor: pointer; padding: 10px 18px; border-radius: 999px; font-weight: 700;
+  background: var(--c-accent); color: #101014;
+}

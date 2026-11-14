@@ -1924,7 +1924,10 @@ async def studio_asset(path: str):
     target = (STUDIO_DIR / "assets" / path).resolve()
     if not str(target).startswith(str((STUDIO_DIR / "assets").resolve())) or not target.is_file():
         raise HTTPException(404, "Not found")
-    return FileResponse(target)
+    # Vite emits content-addressed filenames, so an asset can be cached forever: a new build
+    # produces new names. Without this the browser guessed, and a tab opened before a deploy
+    # asked for a chunk the deploy had already removed — the lazy-loaded page then went blank.
+    return FileResponse(target, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/studio/{path:path}", include_in_schema=False)
