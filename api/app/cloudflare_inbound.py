@@ -16,7 +16,7 @@ from email.utils import parseaddr
 
 from fastapi import HTTPException, Request
 
-from . import (bounces, channel_authorization, db, email_auth, email_risk, email_scan,
+from . import (automated_mail, bounces, channel_authorization, db, email_auth, email_risk, email_scan,
                inbound_email, inbound_policy, suppressions)
 from .config import get_settings
 
@@ -116,29 +116,14 @@ def is_own_mail(sender: str, raw: bytes | None) -> bool:
     return bool(own) and parseaddr(sender or "")[1].strip().lower() == own
 
 
-AUTOMATED_PRECEDENCE = {"bulk", "junk", "list", "auto_reply"}
-
-
 def has_automated_headers(raw: bytes | None) -> bool:
     """True when another system marked this message as automatic (RFC 3834 and friends).
 
     `Auto-Submitted` anything but `no`, `Precedence: bulk|junk|list|auto_reply`, an
-    `X-Auto-Response-Suppress` header or a `List-Id` means a robot or a mailing list sent it.
-    The message is still kept for the owner; it only loses the automatic reply, because two
-    auto-responders will answer each other forever.
+    `X-Auto-Response-Suppress` header, a `List-Id` or a `List-Unsubscribe` means a robot or a
+    mailing list sent it. See ``automated_mail`` for the full sender classification.
     """
-    if not raw:
-        return False
-    try:
-        headers = BytesHeaderParser().parsebytes(raw[:65536])
-    except Exception:  # noqa: BLE001 - an unparsable message is simply not marked
-        return False
-    auto = str(headers.get("Auto-Submitted") or "").strip().lower()
-    if auto and not auto.startswith("no"):
-        return True
-    if str(headers.get("Precedence") or "").strip().lower() in AUTOMATED_PRECEDENCE:
-        return True
-    return headers.get("X-Auto-Response-Suppress") is not None or headers.get("List-Id") is not None
+    return automated_mail.header_reason(raw) is not None
 
 
 def bare_address(value: str) -> str:
@@ -309,8 +294,12 @@ async def handle(request: Request) -> dict:
             auth, payload["sender"], reply_to, payload["subject"], payload["text"],
             size=size, has_attachments=bool(has_attachments))
         flags = list(assessment["flags"]) + scan_flags
-        if has_automated_headers(raw_bytes):
-            flags.append("automated_sender")
+        # Robots (Stripe, Google, Cloudflare, no-reply, mailing lists) are not enquiries: no lead,
+        # no acknowledgement and no owner alert. 15 Nov 2026: a Stripe newsletter became a lead.
+        automated = automated_mail.classify(
+            payload["sender"], payload["subject"], raw_bytes, envelope_from)
+        if automated:
+            flags.extend(["automated_sender", "automated:" + automated])
         risk = assessment["risk"]
         order = {"low": 0, "medium": 1, "high": 2}
         if order.get(scan_risk, 0) > order.get(risk, 0):

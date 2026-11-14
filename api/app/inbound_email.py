@@ -6,7 +6,7 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import db, email_drafts, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
+from . import automated_mail, db, email_drafts, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
@@ -96,6 +96,33 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         raise InboundError("Invalid email content")
     # Stable, tenant-scoped event key without storing raw provider IDs in the key.
     key = provider + ":" + hashlib.sha256(message_id.encode()).hexdigest()
+    flags = list(flags or [])
+    automated = next((f.split(":", 1)[1] for f in flags if f.startswith("automated:")), None)
+    if automated is None:
+        automated = automated_mail.classify(sender, subject, envelope_from=envelope_from)
+        if automated is None and "automated_sender" in flags:
+            automated = "header"
+        if automated:
+            flags.append("automated:" + automated)
+    if automated and "automated_sender" not in flags:
+        flags.append("automated_sender")
+    if automated:
+        # A robot's mail is kept for the record but never becomes a lead, a task, an owner alert,
+        # an acknowledgement or a secretary job (15 Nov 2026: a Stripe newsletter did all of that).
+        try:
+            draft = await email_drafts.create(
+                tenant_id, sender, subject, text_body,
+                "AUTOMATED — not a customer enquiry; no lead or alert was created.", key,
+                auth=auth, risk=risk, flags=flags, status="discarded", recipient=recipient,
+            )
+            detail = {"reason": automated, "risk": risk, "status": draft.get("status")}
+            if envelope_from:
+                detail["envelope_from"] = envelope_from[:320]
+            await inbound_policy.audit(
+                tenant_id, draft["id"], "received_automated", "cloudflare-worker", detail)
+            return draft
+        except email_drafts.DraftError as exc:
+            raise InboundError(str(exc)) from exc
     try:
         # No model call: an untrusted message must never command the assistant.
         # High-risk messages are quarantined until a human releases them.
