@@ -10,7 +10,7 @@ import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {createApi as useApi} from './api';
 import {StatusLine} from './StatusLine';
 
-type Company = {id: string; name: string; domain?: string; notes?: string;
+type Company = {id: string; name: string; domain?: string; notes?: string; parent_id?: string | null;
   contacts: number; open_deals: number; open_value_cents: number};
 
 function money(cents: number) {
@@ -45,6 +45,15 @@ export function Companies({token}: {token: string}) {
       setStatus('Added. You can now put people inside this company from Contacts.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that company'); }
+  }
+
+  async function setParent(company: Company, parentId: string) {
+    try {
+      await api('/owner/companies/' + company.id, 'PATCH', {parent_id: parentId || null});
+      setStatus(parentId ? 'Saved. That company is now a branch of the one you chose.'
+                         : 'Saved. That company stands on its own again.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the hierarchy'); }
   }
 
   async function remove(company: Company) {
@@ -86,6 +95,17 @@ export function Companies({token}: {token: string}) {
              renderCell: (row) => String(row.open_deals ?? 0)},
             {key: 'open_value_cents', header: 'Open value', width: proportional(1, {minWidth: 120}),
              renderCell: (row) => money(Number(row.open_value_cents || 0))},
+            {key: 'parent_id', header: 'Part of', width: proportional(2, {minWidth: 170}),
+             renderCell: (row) => (
+               <select aria-label={'Parent company for ' + String(row.name || '')}
+                       value={String(row.parent_id || '')}
+                       onChange={(event) => void setParent(row as unknown as Company, event.target.value)}
+                       style={{padding: 6, borderRadius: 6, maxWidth: 170}}>
+                 <option value="">Stands alone</option>
+                 {companies.filter((other) => other.id !== row.id)
+                   .map((other) => <option key={other.id} value={other.id}>{other.name}</option>)}
+               </select>
+             )},
             {key: 'id', header: '', width: proportional(1, {minWidth: 70}),
              renderCell: (row) => (
                <MoreMenu label={'More actions for ' + String(row.name || 'this company')} items={[

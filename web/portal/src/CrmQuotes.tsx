@@ -10,6 +10,7 @@ import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {Dialog} from '@astryxdesign/core/Dialog';
 import {HStack} from '@astryxdesign/core/HStack';
+import {Text} from '@astryxdesign/core/Text';
 import {VStack} from '@astryxdesign/core/VStack';
 import {Timestamp} from '@astryxdesign/core/Timestamp';
 import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
@@ -487,6 +488,8 @@ export function Contacts({token}: {token: string}) {
   const [newValue, setNewValue] = useState('');
   const [team, setTeam] = useState<{id: string; email: string}[]>([]);
   const [companyList, setCompanyList] = useState<{id: string; name: string}[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulkOwner, setBulkOwner] = useState('');
 
   async function load(search: string) {
     try {
@@ -513,6 +516,17 @@ export function Contacts({token}: {token: string}) {
       setStatus(userId ? 'Saved. That person now owns this account.' : 'Saved. Nobody owns this account now.');
       await load(query);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the owner'); }
+  }
+
+  async function bulkAssign() {
+    if (!picked.length) { setStatus('Tick the people you want to assign first.'); return; }
+    try {
+      const result = await api('/owner/contacts/bulk-assign', 'POST',
+                                {case_keys: picked, user_id: bulkOwner || null}) as {updated: number};
+      setStatus('Assigned ' + result.updated + ' ' + (result.updated === 1 ? 'person' : 'people') + '.');
+      setPicked([]);
+      await load(query);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not assign those people'); }
   }
 
   async function setCompany(companyId: string) {
@@ -576,11 +590,34 @@ export function Contacts({token}: {token: string}) {
         thread — so a returning customer is recognised instead of appearing as a new enquiry.
       </p>
       <TextInput label="Search people" value={query} onChange={setQuery} />
+      <HStack gap={3} vAlign="end" style={{flexWrap: 'wrap'}}>
+        <Text size="sm" color="secondary">
+          {picked.length ? picked.length + ' selected' : 'Tick people to assign them in one go'}
+        </Text>
+        <label style={{display: 'block'}}>
+          Assign to
+          <select aria-label="Assign selected to" value={bulkOwner}
+                  onChange={(event) => setBulkOwner(event.target.value)}
+                  style={{display: 'block', padding: 8, borderRadius: 6, minWidth: 220}}>
+            <option value="">Nobody (clear owner)</option>
+            {team.map((person) => <option key={person.id} value={person.id}>{person.email}</option>)}
+          </select>
+        </label>
+        <Button label="Assign selected" variant="primary" isDisabled={!picked.length}
+                onClick={() => void bulkAssign()} />
+      </HStack>
       <Table
         data={contacts as unknown as Record<string, unknown>[]}
         idKey="case_key"
         density="compact"
         columns={[
+          {key: 'pick', header: '', width: proportional(1, {minWidth: 60}), renderCell: (row) => (
+            <CheckboxInput label={'Select ' + String(row.label || 'this person')}
+                           isLabelHidden value={picked.includes(String(row.case_key))}
+                           onChange={() => setPicked((current) => current.includes(String(row.case_key))
+                             ? current.filter((key) => key !== String(row.case_key))
+                             : [...current, String(row.case_key)])} />
+          )},
           {key: 'label', header: 'Customer', width: proportional(1, {minWidth: 160}), renderCell: (row) => <><strong>{String(row.label || '')}</strong>{row.company ? <span style={{opacity: 0.75}}> · {String(row.company)}</span> : null}</>},
           {key: 'channels', header: 'Channels', width: proportional(1, {minWidth: 120}), renderCell: (row) => (Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : '')},
           {key: 'event_count', header: 'Messages', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.event_count || 0)},

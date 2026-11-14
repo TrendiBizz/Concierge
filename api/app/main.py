@@ -2449,6 +2449,121 @@ async def owner_lead_assignee(lead_id: str, body: Assignee,
     return {"id": str(row["id"]),
             "assigned_to": str(row["assigned_to"]) if row["assigned_to"] else None}
 
+
+class BulkAssign(BaseModel):
+    case_keys: list[str] = Field(min_length=1, max_length=200)
+    user_id: str | None = None
+
+
+@app.post("/owner/contacts/bulk-assign")
+async def owner_contacts_bulk_assign(body: BulkAssign, user: dict = Depends(owner_auth.current_user)):
+    """Give a batch of people the same owner, or take the owner off all of them.
+
+    A team that cannot reassign twenty contacts at once will not use ownership at all.
+    """
+    owner_auth.require_role(user, "editor")
+    assignee = await _require_member(user["tenant_id"], body.user_id)
+    keys = [key.strip().lower()[:200] for key in body.case_keys if key.strip()]
+    updated = await db.pool().fetch(
+        "UPDATE customer_cases SET assigned_to=$3, updated_at=now() "
+        "WHERE tenant_id=$1 AND case_key = ANY($2::text[]) RETURNING case_key",
+        user["tenant_id"], keys, assignee)
+    return {"updated": len(updated), "assigned_to": assignee, "case_keys": [r["case_key"] for r in updated]}
+
+
+@app.get("/owner/reports/export.csv")
+async def owner_reports_export(days: int = 30, user: dict = Depends(owner_auth.current_user)):
+    """What a business needs to hand to an accountant or a spreadsheet.
+
+    The reports page could show the numbers but not let them leave, and it had no lost-reason or
+    source breakdown at all -- the two questions every owner asks first.
+    """
+    owner_auth.require_role(user, "viewer")
+    rows = await db.pool().fetch(
+        """
+        SELECT l.status, l.channel, l.lost_reason, count(*) AS enquiries,
+               coalesce(sum(l.value_cents),0) AS value_cents
+          FROM leads l
+         WHERE l.tenant_id = $1 AND l.created_at > now() - make_interval(days => $2)
+         GROUP BY l.status, l.channel, l.lost_reason
+         ORDER BY l.status, enquiries DESC
+        """, user["tenant_id"], max(1, min(days, 365)))
+    quotes = await db.pool().fetch(
+        """
+        SELECT status, count(*) AS quotes, coalesce(sum(total_cents),0) AS total_cents
+          FROM quotations WHERE tenant_id = $1 AND created_at > now() - make_interval(days => $2)
+         GROUP BY status ORDER BY status
+        """, user["tenant_id"], max(1, min(days, 365)))
+    lines = ["section,stage_or_status,channel,lost_reason,count,value_cents"]
+    for row in rows:
+        lines.append(_csv_row("enquiries", row["status"], row["channel"], row["lost_reason"],
+                              row["enquiries"], row["value_cents"]))
+    for row in quotes:
+        lines.append(_csv_row("quotes", row["status"], "", "", row["quotes"], row["total_cents"]))
+    return Response("\n".join(lines) + "\n", media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=concierge-report.csv"})
+
+
+def _csv_row(*cells) -> str:
+    out = []
+    for cell in cells:
+        text = "" if cell is None else str(cell)
+        out.append('"' + text.replace('"', '""') + '"' if any(ch in text for ch in ',"\n') else text)
+    return ",".join(out)
+
+
+class TemplateBody(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    subject: str = Field(default="", max_length=300)
+    body: str = Field(min_length=1, max_length=8000)
+
+
+@app.get("/owner/email-templates")
+async def owner_templates(user: dict = Depends(owner_auth.current_user)):
+    rows = await db.pool().fetch(
+        "SELECT id, name, subject, body, updated_at FROM email_templates "
+        "WHERE tenant_id=$1 ORDER BY name", user["tenant_id"])
+    return [dict(row) for row in rows]
+
+
+@app.post("/owner/email-templates", status_code=201)
+async def owner_template_create(body: TemplateBody, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        row = await db.pool().fetchrow(
+            "INSERT INTO email_templates (tenant_id, name, subject, body) VALUES ($1,$2,$3,$4) RETURNING *",
+            user["tenant_id"], body.name.strip(), body.subject.strip(), body.body.rstrip())
+    except Exception:
+        raise HTTPException(409, "You already have a saved reply with that name")
+    return dict(row)
+
+
+@app.patch("/owner/email-templates/{template_id}")
+async def owner_template_update(template_id: str, body: TemplateBody,
+                                user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        row = await db.pool().fetchrow(
+            "UPDATE email_templates SET name=$3, subject=$4, body=$5, updated_at=now() "
+            "WHERE id=$1::uuid AND tenant_id=$2 RETURNING *",
+            template_id, user["tenant_id"], body.name.strip(), body.subject.strip(), body.body.rstrip())
+    except Exception:
+        raise HTTPException(409, "You already have a saved reply with that name")
+    if row is None:
+        raise HTTPException(404, "Unknown saved reply")
+    return dict(row)
+
+
+@app.delete("/owner/email-templates/{template_id}")
+async def owner_template_delete(template_id: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    gone = await db.pool().fetchval(
+        "DELETE FROM email_templates WHERE id=$1::uuid AND tenant_id=$2 RETURNING id",
+        template_id, user["tenant_id"])
+    if gone is None:
+        raise HTTPException(404, "Unknown saved reply")
+    return {"deleted": True}
+
 @app.patch("/owner/crm/leads/{lead_id}")
 async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")

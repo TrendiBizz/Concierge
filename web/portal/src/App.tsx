@@ -1347,6 +1347,13 @@ function Reports({token}: {token: string}) {
         </>
       ) : null}
       <Section dividers={['top']}>
+        <Heading level={2}>Take it with you</Heading>
+        <p>Every number on this page as a CSV — enquiries by stage, channel and lost reason, and
+           quotes by status. It opens in Excel or Sheets.</p>
+        <Button label="Download the report (CSV)" variant="secondary"
+                onClick={() => window.open('/owner/reports/export.csv?days=30', '_blank', 'noopener')} />
+      </Section>
+      <Section dividers={['top']}>
         <Heading level={2}>Quotations by status</Heading>
         <Table
           data={['draft', 'reviewed', 'accepted', 'declined', 'void'].map((state) => ({state, count: quotes.filter((quote) => quote.status === state).length}))}

@@ -1166,3 +1166,16 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 CREATE INDEX IF NOT EXISTS companies_tenant_idx ON companies (tenant_id, name);
 ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES companies(id) ON DELETE SET NULL;
+
+-- Saved replies. Templates existed only as a single column per tenant (lead SMS, missed call),
+-- so a business retyped the same quote-follow-up every time.
+CREATE TABLE IF NOT EXISTS email_templates (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name        text NOT NULL,
+    subject     text NOT NULL DEFAULT '',
+    body        text NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, name)
+);
