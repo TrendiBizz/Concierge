@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, WebSocket
+from starlette.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -1898,6 +1899,27 @@ async def admin_owner_invite(slug: str, body: OwnerRecovery):
     if not result["queued"]:
         raise HTTPException(409, "An invitation is already queued for that address")
     return result
+
+
+@app.get("/", include_in_schema=False)
+async def owner_root():
+    """Types of the bare host: the owner app lives at /owner-ui, so send people there.
+
+    Before this, https://concierge.trendibizz.com/ answered 404 and a visitor had no way
+    forward except guessing the path. Found by the 2026-11-14 site audit.
+    """
+    return RedirectResponse("/owner-ui", status_code=307)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.svg", include_in_schema=False)
+async def owner_favicon():
+    """Browsers ask for this on every page; a 404 was the only error in the owner app console."""
+    icon = STATIC_DIR / "favicon.svg"
+    if not icon.is_file():
+        return Response(status_code=204)
+    return FileResponse(icon, media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/owner-ui")
