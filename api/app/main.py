@@ -28,6 +28,7 @@ from . import (
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
 from . import owner_invites
+from . import install_requests
 from . import privacy
 from . import platform_billing
 from . import invoices
@@ -2449,6 +2450,43 @@ class BusinessDetails(BaseModel):
     allow_deposit: bool = True
     deposit_percent: int = Field(default=50, ge=0, le=100)
     invoice_payment_terms_days: int = Field(default=7, ge=0, le=120)
+
+
+# ------------------------------------------- installing the chat on their site
+
+
+class InstallRequest(BaseModel):
+    website: str = Field(default="", max_length=300)
+    platform: str = Field(default="unsure", max_length=30)
+    contact_name: str = Field(default="", max_length=120)
+    contact_phone: str = Field(default="", max_length=40)
+    note: str = Field(default="", max_length=1000)
+
+
+@app.post("/owner/install-request")
+async def owner_install_request(body: InstallRequest, user: dict = Depends(owner_auth.current_user)):
+    """The customer asks us to put the chat on their site. No code, no third party."""
+    return await install_requests.create(
+        user["tenant_id"], body.website, body.platform, body.contact_name, body.contact_phone,
+        body.note)
+
+
+@app.get("/owner/install-requests")
+async def owner_install_requests(user: dict = Depends(owner_auth.current_user)):
+    return await install_requests.for_tenant(user["tenant_id"])
+
+
+@app.get("/admin/install-requests", dependencies=admin)
+async def admin_install_requests(status: str = ""):
+    return await install_requests.list_all(status)
+
+
+@app.post("/admin/install-requests/{request_id}/status", dependencies=admin)
+async def admin_install_request_status(request_id: str, status: str = "done"):
+    try:
+        return await install_requests.set_status(request_id, status)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
 
 
 @app.get("/owner/business")

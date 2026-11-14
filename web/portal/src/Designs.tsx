@@ -173,7 +173,7 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
       <Heading level={1}>Designs and CAD</Heading>
-      <p>Upload plans or 3D models, view them, and read wall areas from IFC models for cladding quotes.</p>
+      <p>Upload plans or 3D models, view them, and read measured wall areas from an IFC model.</p>
       <Card>
         <Heading level={2}>Who is this for?</Heading>
         <p>A quotation has to belong to a customer. Pick one here, and "Price this model" below will draft the quote against them.</p>
@@ -201,14 +201,14 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
       </Card>
       <Card>
         <Heading level={2}>New to this? Start here</Heading>
-        <p>You draw the house once in a free 3D program; Concierge measures the outside clad area and prices it at your rate. Four steps:</p>
+        <p>If your drawings come from a 3D model, Concierge can measure the wall area for you and price it at your rate. Four steps:</p>
         <ol>
           <li><strong>Install</strong> <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer">Blender</a> (free) and the <a href="https://bonsaibim.org/" target="_blank" rel="noreferrer">Bonsai</a> add-on (free). Bonsai is what writes the wall areas we measure.</li>
           <li><strong>Draw</strong> the outside walls, cast them as walls, and cut doors and windows as openings.</li>
-          <li><strong>Export</strong> as IFC4 with quantities switched on, then upload it below and press <em>IFC takeoff</em>.</li>
+          <li><strong>Export</strong> as IFC4 with quantities switched on, then upload it below and press <em>Measure areas</em>.</li>
           <li><strong>Price</strong> it: set your rate in the card below, pick the customer, press <em>Price this model</em>.</li>
         </ol>
-        <p><a href="/guide/bonsai-cladding" target="_blank" rel="noreferrer"><strong>Open the full walkthrough (printable)</strong></a> — the same steps in detail, with what to check before you trust a number.</p>
+        <p><a href="/guide/bonsai-cladding" target="_blank" rel="noreferrer"><strong>Open the 3D model walkthrough (printable)</strong></a> — the same steps in detail, with what to check before you trust a number.</p>
       </Card>
       <Card>
         <Heading level={2}>How your quotes are worked out</Heading>
@@ -233,10 +233,10 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
             <p>{Math.round(design.size_bytes / 1024)} KB · <Badge label={design.status} variant={design.status === 'parsed' ? 'success' : design.status === 'failed' ? 'error' : 'neutral'} /> · {new Date(design.created_at).toLocaleDateString()}</p>
             <Button label="View" variant="secondary" onClick={() => open(design)} />
             <Button label="Download" variant="ghost" onClick={() => open(design, true)} />
-            {design.filename.toLowerCase().endsWith('.ifc') ? <Button label="IFC takeoff" variant="primary" onClick={() => takeoff(design)} /> : null}
+            {design.filename.toLowerCase().endsWith('.ifc') ? <Button label="Measure areas" variant="primary" onClick={() => takeoff(design)} /> : null}
             {design.summary ? <Button label="Draft quote" variant="secondary" onClick={() => quoteFromTakeoff(design)} /> : null}
             {design.summary ? <Button label="Price this model" variant="primary" onClick={() => void quoteModel(design)} /> : null}
-            {design.summary ? <p>{String((design.summary as Record<string, unknown>).gross_wall_area_m2 ?? '')} m² gross · {String((design.summary as Record<string, unknown>).net_cladding_area_m2 ?? '')} m² cladding</p> : null}
+            {design.summary ? <p>{String((design.summary as Record<string, unknown>).gross_wall_area_m2 ?? '')} m² gross · {String((design.summary as Record<string, unknown>).net_cladding_area_m2 ?? '')} m² net</p> : null}
           </Card>
         ))}
         {!designs.length ? <p>No designs uploaded yet.</p> : null}

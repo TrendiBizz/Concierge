@@ -730,6 +730,12 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
   const [logoData, setLogoData] = useState<string | null>(null);
   const [install, setInstall] = useState<{found: boolean; detail: string} | null>(null);
   const [checkingSite, setCheckingSite] = useState(false);
+  const [helpName, setHelpName] = useState('');
+  const [helpPhone, setHelpPhone] = useState('');
+  const [helpPlatform, setHelpPlatform] = useState('unsure');
+  const [helpSite, setHelpSite] = useState('');
+  const [helpSent, setHelpSent] = useState(false);
+  const [helpBusy, setHelpBusy] = useState(false);
 
   useEffect(() => {
     api('/owner/onboarding').then((data) => {
@@ -797,8 +803,6 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
   const hosted = slug ? 'https://chat.trendibizz.com/demo/' + slug : '';
   const platform = suggestion?.platform;
   const handOff = platform ? platform.install_hint === 'Email this to my web person' : false;
-  const mailBody = 'Please add our chat window to our website by pasting this before </body>:\n\n' + snippet + '\n\nThis shows a chat window where customers can ask questions and leave their details. It is provided by Trendi Concierge (' + (business.name || name) + ').';
-  const alternatives = (suggestion?.logo_alternatives || []).filter((item) => item.data);
 
   function accentButton(colour: string) {
     const selected = accent.toLowerCase() === colour.toLowerCase();
@@ -907,30 +911,104 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
 
       {step === 3 ? (
         <Card>
-          <Heading level={2}>Put the chat window on your site</Heading>
-          {platform && platform.kind !== 'other' ? (
-            <p>We recognised your site as <strong>{platform.kind === 'wordpress' ? 'WordPress' : platform.kind.charAt(0).toUpperCase() + platform.kind.slice(1)}</strong>{platform.elementor ? ' with Elementor' : ''}. {handOff ? 'Your web person can add this in a minute.' : 'Add this before the closing body tag.'}</p>
-          ) : (
-            <p>Add this line to your website, just before the closing <code>&lt;/body&gt;</code> tag. If you do not look after your site yourself, send it to whoever does.</p>
-          )}
+          <Heading level={2}>Now the chat window</Heading>
+          <p>Pick whichever is easiest. You will not need to touch any code, and you do not need to
+            know who built your website.</p>
 
-          <TextArea label="Website embed code" value={snippet} onChange={() => {}} rows={3} />
-          <p style={{fontSize: 13, opacity: 0.8}}>
-            If your site sets a Content-Security-Policy, it must allow
-            <code> script-src https://chat.trendibizz.com</code> and
-            <code> connect-src https://chat.trendibizz.com</code> — otherwise the chat window is
-            blocked with no visible error. Send this line to whoever looks after your website.
-          </p>
-          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
-            <Button label="Copy embed code" variant="secondary" onClick={() => { void copyText(snippet).then((ok: boolean) => { setStatus(ok ? 'Copied.' : 'Select the code above and copy it — this browser blocked the clipboard.'); notify(ok ? 'Embed code copied.' : 'This browser blocked the clipboard.'); }); }} />
-            <Button label="Email this to my web person" variant="secondary" onClick={() => { location.href = 'mailto:?subject=' + encodeURIComponent('Add our chat window to our website') + '&body=' + encodeURIComponent(mailBody); }} />
-            <Button label={checkingSite ? 'Checking…' : 'Check my site'} variant="secondary" onClick={checkLiveSite} />
-          </div>
-          {install ? (
-            <p role="status" style={{marginTop: 8, fontSize: 14}}>
-              {install.found ? '✓ ' : ''}{install.detail}
+          <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
+            <Heading level={3}>Easiest: we put it on your site for you</Heading>
+            <p style={{fontSize: 14}}>
+              Tell us where your site is and we will add the chat window to it, usually the same day.
+              Nothing to install, nobody else to contact.
             </p>
+            {helpSent ? (
+              <p role="status" style={{fontSize: 14}}>
+                ✓ Request received. We will do it and email you as soon as it is live.
+              </p>
+            ) : (
+              <div style={{display: 'grid', gap: 10, maxWidth: 460}}>
+                <TextInput label="Your website" value={helpSite || website} onChange={setHelpSite} />
+                <label style={{display: 'grid', gap: 4, fontSize: 14}}>
+                  What is your site built with?
+                  <select value={helpPlatform} onChange={(e) => setHelpPlatform(e.target.value)}
+                          style={{padding: '8px 10px', background: 'transparent', color: 'inherit', border: '1px solid var(--line, #444)', borderRadius: 6}}>
+                    <option value="unsure">I am not sure</option>
+                    <option value="wordpress">WordPress</option>
+                    <option value="wix">Wix</option>
+                    <option value="squarespace">Squarespace</option>
+                    <option value="shopify">Shopify</option>
+                    <option value="webflow">Webflow</option>
+                    <option value="other">Something else</option>
+                  </select>
+                </label>
+                <TextInput label="Your name" value={helpName} onChange={setHelpName} />
+                <TextInput label="Best phone number" value={helpPhone} onChange={setHelpPhone} />
+                <Button label={helpBusy ? 'Sending…' : 'Set it up for me'} variant="primary" onClick={() => {
+                  setHelpBusy(true);
+                  api('/owner/install-request', 'POST', {
+                    website: helpSite || website, platform: helpPlatform,
+                    contact_name: helpName, contact_phone: helpPhone,
+                  }).then(() => { setHelpSent(true); notify('Request sent — we will email you when it is live.'); })
+                    .catch((e) => notify(e instanceof Error ? e.message : 'Could not send the request'))
+                    .finally(() => setHelpBusy(false));
+                }} />
+              </div>
+            )}
+          </div>
+
+          {hosted ? (
+            <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
+              <Heading level={3}>Or use a chat page we host — working right now</Heading>
+              <p style={{fontSize: 14}}>
+                Works with no website at all. Share this link, put it in your Facebook and Google
+                listings, or print the QR code for your van, quotes and signage.
+              </p>
+              <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
+                <QrCode value={hosted} label="QR code for your chat page" />
+                <div style={{fontSize: 14}}>
+                  <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
+                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                    <Button label="Copy link" variant="secondary" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
+                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(hostedQrSvg(hosted))}
+                       style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
+
+          <details style={{marginTop: 20}}>
+            <summary style={{fontSize: 14, cursor: 'pointer'}}>
+              If you or someone you know does edit the site, here is the one line of code
+            </summary>
+            <div style={{marginTop: 12}}>
+              <TextArea label="Chat window code" value={snippet} onChange={() => {}} rows={3} />
+              <p style={{fontSize: 13, opacity: 0.8}}>
+                Put it just before <code>&lt;/body&gt;</code>. If the site has a strict
+                Content-Security-Policy it must also allow
+                <code> script-src https://chat.trendibizz.com</code> and
+                <code> connect-src https://chat.trendibizz.com</code>.
+              </p>
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
+                <Button label="Copy the code" variant="secondary" onClick={() => { void copyText(snippet).then((ok: boolean) => { setStatus(ok ? 'Copied.' : 'Select the code above and copy it — this browser blocked the clipboard.'); notify(ok ? 'Code copied.' : 'This browser blocked the clipboard.'); }); }} />
+                <Button label={checkingSite ? 'Checking…' : 'Check my site'} variant="secondary" onClick={checkLiveSite} />
+              </div>
+              {install ? (
+                <p role="status" style={{marginTop: 8, fontSize: 14}}>
+                  {install.found ? '✓ ' : ''}{install.detail}
+                </p>
+              ) : null}
+            </div>
+          </details>
+
+          <Capabilities token={token} />
+
+          <p style={{marginTop: 16}}>Anything you have not allowed yet stays off, and you can switch it on later in the Permissions tab.</p>
+          <div style={{marginTop: 16}}>
+            <Button label="Open my workspace" variant="primary" onClick={onDone} />
+          </div>
+        </Card>
+      ) : null}
 
           {hosted ? (
             <div style={{marginTop: 20}}>

@@ -16,7 +16,7 @@ from .config import get_settings
 SUBJECT = "Your Concierge account is ready"
 
 
-def compose(business: str, link: str, guide_url: str) -> tuple[str, str]:
+def compose(business: str, link: str) -> tuple[str, str]:
     """The invitation a tradesman can follow without anyone on the phone.
 
     The copy is deliberately generic. It used to open by explaining 3D cladding takeoff as if that
@@ -52,12 +52,6 @@ YOUR FIRST TEN MINUTES
 Then everything else is in there too: enquiries, quotes, invoices, products, contacts, bookings, and
 your social accounts — connect whichever you use, and nothing is published without your approval.
 
-IF YOU PRICE CLADDING OR 3D TAKEOFF
-
-Optional, and only if it is how you work: draw a house once in Blender with the free Bonsai add-on,
-upload the .ifc, and Concierge measures the clad area, subtracts the windows and doors, adds your
-waste and prices it. Step-by-step guide: {guide_url}
-
 Any questions, just reply to this email.
 
 Kind regards,
@@ -79,7 +73,7 @@ async def send(slug: str, email: str) -> dict:
     link_info = await owner_auth.owner_link(tenant["id"], email)
     link = owner_auth.invitation_link(link_info["token"])
     origin = get_settings().owner_portal_url.rstrip("/")
-    subject, body = compose(tenant["name"], link, f"{origin}/guide/bonsai-cladding")
+    subject, body = compose(tenant["name"], link)
     # Dedupe on the LINK, not the address. Keying on the address made a re-send ("his link failed,
     # send another") return 409 "An invitation is already queued" forever, because the first
     # invitation had already used that key — so the one thing the operator needed to do was blocked.

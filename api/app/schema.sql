@@ -1127,3 +1127,19 @@ CREATE INDEX IF NOT EXISTS platform_invoices_email_idx ON platform_invoices(cust
 
 -- The invoice email must go out once, however many times Stripe retries the webhook.
 ALTER TABLE platform_invoices ADD COLUMN IF NOT EXISTS emailed_at timestamptz;
+
+-- "Put the chat on my site for me": a request a non-technical customer can file in one click.
+CREATE TABLE IF NOT EXISTS install_requests (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    website       text NOT NULL DEFAULT '',
+    platform      text NOT NULL DEFAULT 'unsure',
+    contact_name  text NOT NULL DEFAULT '',
+    contact_phone text NOT NULL DEFAULT '',
+    note          text NOT NULL DEFAULT '',
+    status        text NOT NULL DEFAULT 'new',
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    handled_at    timestamptz
+);
+CREATE INDEX IF NOT EXISTS install_requests_tenant_idx ON install_requests(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS install_requests_status_idx ON install_requests(status, created_at DESC);

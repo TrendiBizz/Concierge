@@ -23,16 +23,15 @@ def test_the_email_contains_a_working_sign_in_link_and_the_guide():
 
 def test_it_names_the_business_and_the_first_steps():
     """Generic first steps, not one trade's workflow. Cladding takeoff is a separate optional section."""
-    _, body = owner_invites.compose("Pukeko Construction", "link", "guide")
+    _, body = owner_invites.compose("Pukeko Construction", "link")
     assert "Pukeko Construction" in body
     for phrase in ("Business", "rates", "Quotes", "chat window", "Setup step"):
         assert phrase in body, phrase
-    assert "IF YOU PRICE CLADDING" in body
     assert "fresh one" in body
 
 
 def test_it_does_not_promise_a_price_the_business_has_not_set():
-    _, body = owner_invites.compose("X", "link", "guide")
+    _, body = owner_invites.compose("X", "link")
     assert "never invent a price" in " ".join(body.split())
 
 
@@ -64,20 +63,19 @@ def test_the_welcome_email_is_not_about_cladding_by_default():
     """Every business got an email opening with 3D cladding takeoff, as if that were the product."""
     from app import owner_invites
 
-    _subject, body = owner_invites.compose("Pukeko Construction", "https://example.test/#invite=x",
-                                           "https://example.test/guide")
+    _subject, body = owner_invites.compose("Pukeko Construction", "https://example.test/#invite=x")
     opening = body.split("WHAT IT DOES")[1].split("YOUR FIRST TEN MINUTES")[0].lower()
     assert "chat window" in opening, "the email must lead with what the product is"
-    assert "clad" not in opening, "cladding takeoff is an aside, not the opening pitch"
-    assert "IF YOU PRICE CLADDING" in body, "the takeoff route must still be offered, as optional"
+    lowered = body.lower()
+    for word in ("clad", "blender", "bonsai", "ifc", "takeoff"):
+        assert word not in lowered, f"one trade's workflow leaked into every welcome email: {word!r}"
 
 
 def test_the_welcome_email_does_not_sign_as_the_customer():
     """It read as if the tradesman's own company had emailed them about an account."""
     from app import owner_invites
 
-    _subject, body = owner_invites.compose("Pukeko Construction", "https://example.test/#invite=x",
-                                           "https://example.test/guide")
+    _subject, body = owner_invites.compose("Pukeko Construction", "https://example.test/#invite=x")
     signoff = body.rsplit("Kind regards,", 1)[1]
     assert "The Trendi Concierge team" in signoff
     assert "for Pukeko Construction" in signoff
