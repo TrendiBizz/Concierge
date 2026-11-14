@@ -17,6 +17,9 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Timestamp} from '@astryxdesign/core/Timestamp';
 import {StatusLine} from './StatusLine';
+import {MoreMenu} from '@astryxdesign/core/MoreMenu';
+import {Skeleton} from '@astryxdesign/core/Skeleton';
+import {useNotify} from './Notify';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
@@ -59,44 +62,96 @@ function AssetPreview({token, id, video}: {token: string; id: string; video: boo
 
 export function Media({token}: {token: string}) {
   const api = useApi(token);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
+  const notify = useNotify();
   // Which action is running, so one button never claims to be another's work.
-  const [busy, setBusy] = useState<'' | 'upload' | 'delete'>('');
+  const [busy, setBusy] = useState<'' | 'upload' | 'delete' | 'send'>('');
   const [selected, setSelected] = useState<string[]>([]);
   const [usage, setUsage] = useState<{storage?: {used: number; limit: number}; assets?: number} | null>(null);
 
   useEffect(() => {
     api('/owner/media/usage').then(setUsage).catch(() => undefined);
-    api('/owner/media/assets').then(setAssets).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load media'));
+    api('/owner/media/assets').then(setAssets)
+      .catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load media'))
+      .finally(() => setLoading(false));
   }, [token]);
 
-  async function uploadVideo() {
-    if (!uploadFile) return;
+  // Bytes, not a spinner: a 180 MB video over a phone connection needs a number.
+  function uploadOne(file: File): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', '/owner/media/upload');
+      request.setRequestHeader('Authorization', 'Bearer ' + token);
+      request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) { resolve(); return; }
+        let detail = 'Upload failed (' + request.status + ')';
+        try {
+          const body = JSON.parse(request.responseText);
+          if (typeof body.detail === 'string') detail = body.detail;
+        } catch { /* keep the status message */ }
+        reject(new Error(detail));
+      };
+      request.onerror = () => reject(new Error('Could not reach the server'));
+      request.send(file);
+    });
+  }
+
+  async function uploadFilesNow() {
+    if (!uploadFiles.length) return;
     setBusy('upload');
-    const isVideo = uploadFile.type.startsWith('video/');
-    setStatus(isVideo ? 'Uploading your video…' : 'Uploading…');
+    const total = uploadFiles.length;
+    const failed: string[] = [];
+    for (const [index, file] of uploadFiles.entries()) {
+      setStatus(total > 1 ? 'Uploading ' + (index + 1) + ' of ' + total + '…' : 'Uploading…');
+      setProgress(0);
+      try { await uploadOne(file); }
+      catch (e) { failed.push(file.name + ': ' + (e instanceof Error ? e.message : 'failed')); }
+    }
+    setProgress(null);
+    setAssets(await api('/owner/media/assets'));
+    setUsage(await api('/owner/media/usage'));
+    const uploaded = total - failed.length;
+    setUploadFiles([]);
+    setBusy('');
+    if (uploaded) {
+      setStatus('Uploaded ' + uploaded + (uploaded === 1 ? ' file — it is' : ' files — they are')
+                + ' in Your media below. Open Social to post.');
+      notify('Uploaded ' + uploaded + (uploaded === 1 ? ' file' : ' files'), 'info');
+    }
+    if (failed.length) setStatus('Could not upload ' + failed.join('; '));
+  }
+
+  function takeFiles(picked: File[]) {
+    const allowed = picked.filter((file) => /^(image|video)\//.test(file.type));
+    const rejected = picked.length - allowed.length;
+    if (rejected > 0) setStatus('Skipped ' + rejected + ' file' + (rejected === 1 ? '' : 's')
+                                + ' — only photos and videos can be posted.');
+    setUploadFiles(allowed);
+  }
+
+  async function sendToSocial(asset: Asset) {
+    setBusy('send'); setStatus('Adding to your social composer…');
     try {
-      const response = await fetch('/owner/media/upload', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token, 'Content-Type': uploadFile.type || 'application/octet-stream' },
-        body: uploadFile,
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => ({}));
-        throw new Error(typeof detail.detail === 'string' ? detail.detail : 'Upload failed (' + response.status + ')');
-      }
-      setAssets(await api('/owner/media/assets'));
-      setUsage(await api('/owner/media/usage'));
-      setUploadFile(null);
-      setStatus('Uploaded — it is in Your media below. Open Social to post it to your accounts.');
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not upload that file'); }
+      await api('/owner/media/assets/' + asset.id + '/to-social', 'POST', {});
+      setStatus('Added to your social composer. Open Social to write the post.');
+      notify('Added to your social composer', 'info');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not send that to social'); }
     setBusy('');
   }
 
   function toggleSelected(id: string) {
-    setSelected((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
+    setSelected((current) => current.includes(id)
+      ? current.filter((value) => value !== id)
+      : [...current, id]);
   }
 
   async function removeSelected() {
@@ -159,14 +214,45 @@ export function Media({token}: {token: string}) {
             AI tool elsewhere. We will publish it to your social accounts. We do not make images or
             video for you; we post what you bring.
           </p>
-          <FileInput label="Photo or video file (PNG, JPEG, WebP, MP4, MOV, WebM)" value={uploadFile}
-                     onChange={(v) => setUploadFile((v as File) || null)} accept="image/*,video/*" />
+          <div
+            onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              takeFiles(Array.from(event.dataTransfer.files));
+            }}
+            style={{
+              border: '2px dashed ' + (isDragging ? 'var(--color-accent, #c8f560)' : 'var(--color-border)'),
+              borderRadius: 12,
+              padding: 16,
+              margin: '8px 0',
+              textAlign: 'center',
+              background: isDragging ? 'rgba(200,245,96,0.08)' : 'transparent',
+            }}>
+            <Text>Drop photos or videos here</Text>
+            <FileInput label="…or choose files (PNG, JPEG, WebP, MP4, MOV, WebM)"
+                       value={uploadFiles} isMultiple
+                       onChange={(value) => takeFiles(
+                         Array.isArray(value) ? value : value ? [value] : [])}
+                       accept="image/*,video/*" />
+          </div>
+          {uploadFiles.length ? (
+            <Text size="sm" color="secondary">
+              {uploadFiles.length} file{uploadFiles.length === 1 ? '' : 's'} ready:{' '}
+              {uploadFiles.map((file) => file.name).join(', ')}
+            </Text>
+          ) : null}
+          {progress !== null ? (
+            <ProgressBar label="Uploading" value={progress} max={100} hasValueLabel />
+          ) : null}
           <Button label={busy === 'upload' ? 'Uploading…' : 'Upload for socials'} variant="primary"
-                  isDisabled={busy !== '' || !uploadFile} onClick={() => void uploadVideo()} />
-          <p style={{fontSize: 13, opacity: 0.75}}>
-            Your brand name, colour and logo live in <strong>Setup</strong> — they appear on your
-            quotes, invoices and chat widget.
-          </p>
+                  isDisabled={busy !== '' || !uploadFiles.length}
+                  onClick={() => void uploadFilesNow()} />
+          <Text size="sm" color="secondary">
+            Your brand name, colour and logo live in Setup — they appear on your quotes, invoices
+            and chat widget.
+          </Text>
         </Card>
       </div>
       {<StatusLine text={status} />}
@@ -181,7 +267,12 @@ export function Media({token}: {token: string}) {
                   onClick={() => void removeSelected()} />
         </HStack>
       ) : null}
-      {assets.length ? null : (
+      {loading ? (
+        <Grid columns={{minWidth: 220}} gap={3}>
+          {[0, 1, 2].map((index) => <Skeleton key={index} height={260} radius="rounded" />)}
+        </Grid>
+      ) : null}
+      {loading || assets.length ? null : (
         <EmptyState title="Nothing uploaded yet"
                     description="Add a photo or a video you already have, and it will appear here ready to post."
                     headingLevel={3} />
@@ -197,11 +288,15 @@ export function Media({token}: {token: string}) {
               <Timestamp value={asset.created_at} format="date_time" type="supporting" />
             </VStack>
 
-            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <HStack gap={2} vAlign="center">
               <Button label="Open" variant="secondary" onClick={() => openAsset(asset.id)} />
-              <Button label={busy === 'delete' ? 'Deleting…' : 'Delete'} variant="secondary"
-                      isDisabled={busy !== ''} onClick={() => void removeAsset(asset)} />
-            </div>
+              <MoreMenu label="More actions for this media" items={[
+                {label: 'Open full size', onClick: () => openAsset(asset.id)},
+                {label: 'Send to social', onClick: () => void sendToSocial(asset)},
+                {label: busy === 'delete' ? 'Deleting…' : 'Delete', isDisabled: busy !== '',
+                 onClick: () => void removeAsset(asset)},
+              ]} />
+            </HStack>
           </Card>
         ))}
       </Grid>
