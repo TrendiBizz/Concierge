@@ -14,6 +14,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {Timestamp} from '@astryxdesign/core/Timestamp';
 import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
 import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
+import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {StatusLine} from './StatusLine';
 
 type Brand = {name: string; accent: string; contact: string};
@@ -124,8 +125,13 @@ export function Crm({token}: {token: string}) {
         idKey="id"
         density="compact"
         columns={[
-          {key: 'name', header: 'Enquiry', width: proportional(1, {minWidth: 140}), renderCell: (row) => <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>},
-          {key: 'channel', header: 'Channel', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.channel || '')},
+          {key: 'name', header: 'Who', width: proportional(2, {minWidth: 150}), renderCell: (row) => (
+            <VStack gap={1}>
+              <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>
+              <Timestamp value={String(row.created_at || '')} format="date_time" type="supporting" />
+            </VStack>
+          )},
+          {key: 'channel', header: 'Came in by', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Badge label={String(row.channel || 'chat')} />},
           {key: 'status', header: 'Stage', width: proportional(1, {minWidth: 150}), renderCell: (row) => (
             editing === String(row.id) ? (
               <select value={String(row.status || 'new')} aria-label="Deal stage"
@@ -153,12 +159,14 @@ export function Crm({token}: {token: string}) {
                      style={{padding: 6, borderRadius: 6}} />
             ) : (row.next_action_at ? <Timestamp value={String(row.next_action_at)} format="date_time" /> : <span style={{opacity: 0.6}}>none</span>)
           )},
-          {key: 'created_at', header: 'Received', width: proportional(1, {minWidth: 150}), renderCell: (row) => new Date(String(row.created_at)).toLocaleString()},
-          {key: 'id', header: '', width: proportional(1, {minWidth: 200}), renderCell: (row) => (
+          {key: 'id', header: '', width: proportional(1, {minWidth: 120}), renderCell: (row) => (
             <HStack gap={2} vAlign="center">
-              <Button label={editing === String(row.id) ? 'Done' : 'Edit deal'} variant="secondary"
+              <Button label={editing === String(row.id) ? 'Done' : 'Edit'} variant="secondary"
                       onClick={() => setEditing(editing === String(row.id) ? null : String(row.id))} />
-              <Button label="Conversation" variant="ghost" onClick={() => transcript(String(row.id))} />
+              <MoreMenu label="More actions for this enquiry" items={[
+                {label: 'Edit the deal', onClick: () => setEditing(String(row.id))},
+                {label: 'Open the conversation', onClick: () => transcript(String(row.id))},
+              ]} />
             </HStack>
           )},
         ] as TableColumn<Record<string, unknown>>[]}

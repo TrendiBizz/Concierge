@@ -184,11 +184,15 @@ async def _erase_person_everywhere(conn, tenant_id, lead_id, email: str) -> dict
     await conn.execute(
         "UPDATE tasks SET title='Erased request', notes='' WHERE tenant_id=$1 AND lead_id=$2",
         tenant_id, lead_id)
+    # A quote keeps its numbers and lines; the person's name, phone and email go.
     await conn.execute(
-        "UPDATE quotations SET notes='' WHERE tenant_id=$1 AND lead_id=$2", tenant_id, lead_id)
+        "UPDATE quotations SET notes='', contact='{}'::jsonb WHERE tenant_id=$1 AND lead_id=$2",
+        tenant_id, lead_id)
+    # phone_calls has no lead_id: it links through the conversation's session_id.
     await conn.execute(
         "UPDATE phone_calls SET from_number='' WHERE tenant_id=$1 AND session_id IN "
-        "(SELECT id::text FROM conversations WHERE lead_id=$2)", tenant_id, lead_id)
+        "(SELECT c.session_id FROM conversations c JOIN leads l ON l.conversation_id = c.id "
+        "WHERE l.id = $2)", tenant_id, lead_id)
     await conn.execute(
         "DELETE FROM contact_consents WHERE tenant_id=$1 AND lower(contact_key)=$2", tenant_id, email)
     return {"cases": len(case_ids)}

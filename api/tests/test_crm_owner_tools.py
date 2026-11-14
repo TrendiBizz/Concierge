@@ -155,3 +155,13 @@ def test_the_crm_page_lets_you_move_a_deal_and_tick_off_a_to_do():
     assert "Deal stage" in page and "Deal value in dollars" in page
     assert "'/owner/tasks'" in page and "'/owner/tasks/' + todo.id, 'PATCH'" in page
     assert "What needs doing" in page, "the to-do list is still read-only text"
+
+
+def test_the_enquiries_table_fits_the_page():
+    """Seven fixed 200px columns made the table 1400px wide inside a 1168px panel. The first
+    columns were clipped and there was no way to scroll to them."""
+    page = (ROOT / "web" / "portal" / "src" / "CrmQuotes.tsx").read_text()
+    enquiries = page.split("Search enquiries", 1)[1].split("No enquiries yet", 1)[0]
+    columns = enquiries.count("{key: '")
+    assert columns <= 6, f"the enquiries table has {columns} columns: it will overflow and clip"
+    assert "MoreMenu" in enquiries, "row actions must live behind one menu, not two buttons"
