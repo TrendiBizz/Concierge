@@ -65,3 +65,21 @@ API there (`{"detail":"Unknown key"}` on a junk key — the expected pre-auth an
   `https://chat.trendibizz.com/api/v1/smsgate/<tenant public_key>`, grant `sms_read`. This is the
   one that also fixes customer replies from the real business number, because the handset itself
   receives the texts.
+
+## 4. Collision with the 09:48 Workwatch deploy (recorded so it is not repeated)
+
+At 09:48 NZDT a Workwatch session deployed the same site with **USD $2,550 a year / "15% off"**,
+then committed only `website/site-i18n.json` (`8ccbd26`). Jo's later instruction supersedes that:
+**$3,000 a year, 10% off when paid in full = $2,700**. Two agents editing the same live tree is
+how a wrong price reaches customers, so the sequence is written down here:
+
+1. Pulled the live tree again (to keep the bot's i18n cleanup) instead of pushing my older copy.
+2. Re-applied the operator's figures to that tree, including the yearly blurb.
+3. Deployed, then verified the rendered pages: `/concierge` shows `USD $250`, `$2,700`,
+   "10% off when paid in full", "including GST"; `/pricing` shows `$1,500` and `$1,000`.
+4. Copied the changed files back into `website/` and rebased on `8ccbd26` → `e8b036d`.
+
+Live `products.js` now reads `monthly: { price: 250 }`, `yearly: { price: 2700 }`,
+`gstNote: "All prices are quoted in USD and include GST."`
+
+Full suite: **1227 passed**.
