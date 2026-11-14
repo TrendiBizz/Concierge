@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Is the free Android SMS gateway ready? Reads the live config, probes both directions, sends nothing.
+"""Is the SMS transport ready? Reads the live config, probes the webhooks, sends nothing.
+
+Two routes are checked, because they need different things:
+  smsgate  a phone and a SIM (free per message, needs hardware)
+  twilio   a rented number (no hardware, costs per message)
 
 Run on the VPS (it reads /opt/trendi/shared/api.env and talks to the API + the gateway):
 
@@ -65,6 +69,9 @@ def main() -> int:
     notes: list[str] = []
 
     provider = env.get("SMS_PROVIDER", "")
+    twilio_sid = env.get("TWILIO_ACCOUNT_SID", "")
+    twilio_token = env.get("TWILIO_AUTH_TOKEN", "")
+    twilio_from = env.get("TWILIO_FROM_NUMBER") or env.get("TWILIO_MESSAGING_SERVICE_SID", "")
     base = env.get("SMSGATE_BASE_URL", "").rstrip("/")
     user = env.get("SMSGATE_USERNAME", "")
     password = env.get("SMSGATE_PASSWORD", "")
@@ -72,7 +79,36 @@ def main() -> int:
     path = env.get("SMSGATE_SEND_PATH") or "/3rdparty/v1/messages"
 
     print(f"provider          : {provider or '(unset)'}")
-    if provider != "smsgate":
+    if provider == "twilio":
+        # No hardware: a number is rented from Twilio and both directions go over its API.
+        for name, value in (("TWILIO_ACCOUNT_SID", twilio_sid), ("TWILIO_AUTH_TOKEN", twilio_token),
+                            ("TWILIO_FROM_NUMBER (or MESSAGING_SERVICE_SID)", twilio_from)):
+            if not value:
+                problems.append(f"{name} is empty")
+            print(f"{name:<33}: {'set' if value else '(unset)'}")
+        status, body = request(f"{API}/api/v1/sms/probe-key", data=b"From=%2B64210000000&Body=probe",
+                               headers={"Content-Type": "application/x-www-form-urlencoded"})
+        print(f"webhook probe     : {API}/api/v1/sms/probe-key -> {status or 'unreachable'}")
+        if status == 404:
+            notes.append("the Twilio webhook path reaches the API (unknown key, as expected)")
+        elif status == 0:
+            problems.append(f"twilio webhook unreachable: {body[:120].decode(errors='replace')}")
+        elif status == 503:
+            problems.append("the API says 'SMS is not configured' - SMS_PROVIDER or TWILIO_AUTH_TOKEN not loaded")
+        tenant_slug = os.environ.get("TENANT_SLUG", "")
+        notes.append(f"grant sms_read/sms_send and set sms_transport=twilio for {tenant_slug or 'the tenant'}")
+        print()
+        for note in notes:
+            print(f"  note  {note}")
+        for problem in problems:
+            print(f"  MISSING  {problem}")
+        if problems:
+            print(f"\n{len(problems)} thing(s) missing. See scripts/vps/SMS_FREE_GATEWAY.md")
+            return 1
+        print("\nReady: point the Twilio number's Messaging webhook at "
+              f"{API}/api/v1/sms/<tenant public_key> and text it.")
+        return 0
+    if provider not in ("smsgate", ""):
         problems.append(f"SMS_PROVIDER is '{provider or 'unset'}', must be 'smsgate'")
     for name, value in (("SMSGATE_BASE_URL", base), ("SMSGATE_USERNAME", user),
                         ("SMSGATE_PASSWORD", password), ("SMSGATE_SIGNING_KEY", key)):

@@ -5,7 +5,49 @@ services:
     restart: unless-stopped
     env_file:
       - {path: /opt/trendi/shared/postgres.env, format: raw}
-    command: [postgres, -c, max_connections=40, -c, shared_buffers=64MB]
+    # Tuned 2026-11-15 for THIS box: 2 vCPU / 8 GiB shared with the API, the website, Asterisk,
+    # Chatwoot and Twenty. Method taken from arjaythedev/multicore-server-challenge (its box/pg-conf.sh
+    # is pgtune's "web" profile for 8 threads and 100 connections) - but that profile assumes Postgres
+    # owns the machine and gives it RAM/4 = 2 GB of shared_buffers. Here it shares the box, and the
+    # database is ~20 MB, so the memory values are deliberately capped and only the two settings that
+    # change planner and observability behaviour are taken at full strength:
+    #   random_page_cost 4 -> 1.1        (storage is SSD; 4 makes the planner over-prefer seq scans)
+    #   effective_io_concurrency 1 -> 200 (same reason: no seek penalty to model)
+    #   shared_preload_libraries=pg_stat_statements (we had no way to see per-query cost at all)
+    command:
+      - postgres
+      - -c
+      - max_connections=40
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - min_wal_size=512MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - max_worker_processes=2
+      - -c
+      - max_parallel_workers=2
+      - -c
+      - max_parallel_workers_per_gather=1
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.max=2000
+      - -c
+      - pg_stat_statements.track=all
     volumes: [database:/var/lib/postgresql/data]
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U postgres -d concierge"]
