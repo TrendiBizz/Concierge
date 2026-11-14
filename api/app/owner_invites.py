@@ -46,8 +46,8 @@ YOUR FIRST TEN MINUTES
 3. Set your rates and your minimum charge, then save. These are your numbers — Concierge will never
    invent a price.
 4. Open "Quotes". Anything that arrives from the chat window is here, ready to review and send.
-5. Put the chat window on your website: the Setup step has a line to paste before </body>. If you
-   would rather not touch the site, there is a hosted chat page you can share or scan as a QR code.
+5. Put the chat window on your website — the Setup step can have us do it for you, and there is a
+   hosted chat page (with a QR code you can print) if you would rather not change the site at all.
 
 Then everything else is in there too: enquiries, quotes, invoices, products, contacts, bookings, and
 your social accounts — connect whichever you use, and nothing is published without your approval.

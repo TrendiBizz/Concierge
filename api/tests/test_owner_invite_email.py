@@ -25,6 +25,8 @@ def test_it_names_the_business_and_the_first_steps():
     assert "Pukeko Construction" in body
     for phrase in ("Business", "rates", "Quotes", "chat window", "Setup step"):
         assert phrase in body, phrase
+    assert "have us do it for you" in body, "the email must match the Setup step that offers to install"
+    assert "paste before </body>" not in body, "we do not ask customers to paste code in the first email"
     assert "fresh one" in body
 
 
