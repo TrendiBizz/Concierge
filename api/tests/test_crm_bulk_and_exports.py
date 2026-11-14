@@ -207,6 +207,8 @@ def test_the_pages_offer_these_controls():
     assert "/owner/reports/export.csv" in reports, "the reports page cannot export"
     replies = (ROOT / "web" / "portal" / "src" / "SavedReplies.tsx").read_text()
     assert "/owner/email-templates" in replies
+    assert "{tab: 'replies', label: 'Saved replies'" in reports, "saved replies has no page of its own"
+    assert "SavedReplies token={token}" in reports
     companies = (ROOT / "web" / "portal" / "src" / "Companies.tsx").read_text()
     assert "Stands alone" in companies, "no way to nest a company"
 

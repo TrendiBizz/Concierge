@@ -81,3 +81,15 @@ def test_the_deploy_script_sets_permissions_before_files_go_live():
     body = script.read_text()
     assert "--chmod=" in body, "rsync must set readable permissions as files land"
     assert "curl" in body and "200" in body, "the deploy must verify the page actually serves"
+
+
+def test_the_report_button_fetches_with_the_token_instead_of_opening_a_bare_tab():
+    """Auth is a bearer token in memory, not a cookie. window.open sends no credentials, so the
+    CSV answered 401 in a blank tab -- the same trap the contacts export already documents."""
+    source = (pathlib.Path(__file__).resolve().parents[2] / "web" / "portal" / "src" / "App.tsx").read_text()
+    assert "window.open('/owner/reports/export.csv" not in source, (
+        "the report must not be opened as a bare navigation: it carries no bearer token")
+    assert "downloadReport" in source
+    report = source.split("async function downloadReport", 1)[1][:900]
+    assert "Authorization: 'Bearer ' + token" in report, "the export fetch must send the token"
+    assert "createObjectURL" in report and "link.download" in report

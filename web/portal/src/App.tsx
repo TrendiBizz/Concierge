@@ -862,7 +862,6 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             <div style={{marginTop: 24}}>
               <p>We have not read your site yet. Press "Check my website" above, or enter your details yourself.</p>
               <TextInput label="Business name" value={name} onChange={setName} />
-              <SavedReplies token={token} />
               <Button label={busy ? 'Saving…' : 'Save and continue'} variant="secondary" onClick={saveEverything} />
             </div>
           )}
@@ -1293,6 +1292,32 @@ function Bookings({token}: {token: string}) {
 }
 
 function Reports({token}: {token: string}) {
+  const [exportNote, setExportNote] = useState('');
+
+  async function downloadReport() {
+    // Not window.open: auth is a bearer token in memory, not a cookie, so a bare navigation sends
+    // no credentials and the export answers 401 in a blank tab. Fetch with the header, then hand
+    // the bytes to the browser. (The contacts export already learned this the same way.)
+    setExportNote('');
+    try {
+      const response = await fetch('/owner/reports/export.csv?days=30', {
+        headers: {Authorization: 'Bearer ' + token}, cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('The export was refused (' + response.status + ').');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'concierge-report.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportNote('Downloaded. Enquiries by stage, channel and lost reason, plus quotes by status.');
+    } catch (error) {
+      setExportNote(error instanceof Error ? error.message : 'Could not download the report');
+    }
+  }
+
   const api = useApi(token);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -1353,7 +1378,8 @@ function Reports({token}: {token: string}) {
         <p>Every number on this page as a CSV — enquiries by stage, channel and lost reason, and
            quotes by status. It opens in Excel or Sheets.</p>
         <Button label="Download the report (CSV)" variant="secondary"
-                onClick={() => window.open('/owner/reports/export.csv?days=30', '_blank', 'noopener')} />
+                onClick={() => void downloadReport()} />
+        {exportNote ? <StatusLine text={exportNote} /> : null}
       </Section>
       <Section dividers={['top']}>
         <Heading level={2}>Quotations by status</Heading>
@@ -1611,6 +1637,7 @@ function Shell() {
       {tab: 'permissions', label: 'Permissions', glyph: 'shield'},
       {tab: 'team', label: 'Team', glyph: 'handshake'},
       {tab: 'yourcrm', label: 'Your CRM', glyph: 'folder'},
+      {tab: 'replies', label: 'Saved replies', glyph: 'chat'},
     ]},
   ];
 
@@ -1643,7 +1670,7 @@ function Shell() {
         <h1>{hero.title}</h1>
         <p>{hero.line}</p>
       </div>
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
     </>
   );
 
