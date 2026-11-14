@@ -56,7 +56,9 @@ class ImageRequest(BaseModel):
 class VideoRequest(BaseModel):
     format: Literal["square", "portrait", "story"] = "portrait"
     headline: str = Field(default="", max_length=200)
-    photos: list[str] = Field(default_factory=list, min_length=1, max_length=20)
+    # A video does not need photos: without one the renderer animates a title card of the
+    # headline. Demanding a non-empty list here made "type a line and press Generate" impossible.
+    photos: list[str] = Field(default_factory=list, max_length=20)
     music: str | None = Field(default=None, max_length=35_000_000)
 
 
@@ -196,6 +198,8 @@ async def image(body: ImageRequest, user=Depends(owner_auth.current_user)):
 @router.post("/video", status_code=201)
 async def video(body: VideoRequest, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
+    if not body.photos and not body.headline.strip():
+        raise HTTPException(400, "Add a headline, or a photo, and try again")
     await _check_quota(user["tenant_id"], "video")
     brand = _brand_payload(await _brand(user["tenant_id"]))
     content = await _render("/render/video", {
