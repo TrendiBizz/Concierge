@@ -77,7 +77,7 @@ const CHECK_LABELS: Record<string, string> = {
 export default function Permissions({token, onDone}: {token: string; onDone?: () => void}) {
   const [auth, setAuth] = useState<AuthState>({});
   const [readiness, setReadiness] = useState<Readiness | null>(null);
-  const [ack, setAck] = useState<Record<string, boolean>>({});
+  const [confirmed, setConfirmed] = useState(false);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -101,10 +101,6 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
   useEffect(() => { void load(); }, [load]);
 
   async function toggle(channel: string, authorized: boolean) {
-    if (authorized && !ack[channel]) {
-      setStatus('Tick the confirmation box first — the business must approve this explicitly.');
-      return;
-    }
     setBusy(true);
     setStatus('');
     try {
@@ -112,7 +108,8 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
         method: 'POST',
         headers: {'Content-Type': 'application/json', Accept: 'application/json',
                   ...(token ? {Authorization: 'Bearer ' + token} : {})},
-        body: JSON.stringify({channel, authorized, acknowledgement: authorized ? true : ack[channel] === true}),
+        // Pressing Allow is the instruction; the single confirmation sits at the foot of the page.
+        body: JSON.stringify({channel, authorized, acknowledgement: authorized}),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || 'Could not save the permission');
@@ -145,6 +142,8 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
    * hangs off pressing Continue, not off a full set of ticks — before this, a customer who
    * declined everything never saw any confetti at all.
    */
+  const anyAuthorised = CHANNELS.some((channel) => auth[channel.key]?.authorized);
+
   function finish() {
     celebrate();
     setDone(true);
@@ -217,7 +216,7 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
         </div>
 
         {failing.map((channel) => (
-          <PermissionRow key={channel.key} channel={channel} auth={auth} ack={ack} setAck={setAck}
+          <PermissionRow key={channel.key} channel={channel} auth={auth}
                          busy={busy} onToggle={toggle} />
         ))}
 
@@ -273,7 +272,7 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
 
         <Heading level={3}>Other channels</Heading>
         {other.map((channel) => (
-          <PermissionRow key={channel.key} channel={channel} auth={auth} ack={ack} setAck={setAck}
+          <PermissionRow key={channel.key} channel={channel} auth={auth}
                          busy={busy} onToggle={toggle} />
         ))}
       </Card>
@@ -283,19 +282,25 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
           <strong>{done ? 'You are all set.' : 'That is everything you have to decide now.'}</strong>
           <p>Permissions are yours to change later — nothing here is permanent, and the chat window
             works whether or not you grant any of them.</p>
+          {anyAuthorised ? (
+            <label className="c-confirm">
+              <input type="checkbox" checked={confirmed}
+                     onChange={(e) => setConfirmed(e.target.checked)} />
+              <span>I confirm this business controls these accounts and authorises Concierge to use
+                the ones I allowed.</span>
+            </label>
+          ) : null}
         </div>
         <Button label={done ? 'Opening your workspace…' : 'Continue'} variant="primary"
-                isDisabled={done} onClick={finish} />
+                isDisabled={done || (anyAuthorised && !confirmed)} onClick={finish} />
       </div>
     </div>
   );
 }
 
-function PermissionRow({channel, auth, ack, setAck, busy, onToggle}: {
+function PermissionRow({channel, auth, busy, onToggle}: {
   channel: {key: string; label: string; help: string};
   auth: AuthState;
-  ack: Record<string, boolean>;
-  setAck: (next: Record<string, boolean>) => void;
   busy: boolean;
   onToggle: (channel: string, authorized: boolean) => Promise<void>;
 }) {
@@ -315,13 +320,6 @@ function PermissionRow({channel, auth, ack, setAck, busy, onToggle}: {
         </span>
       </div>
       <span style={{opacity: 0.75}}>{channel.help}</span>
-      {!authorized ? (
-        <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 14}}>
-          <input type="checkbox" checked={Boolean(ack[channel.key])}
-                 onChange={(e) => setAck({...ack, [channel.key]: e.target.checked})} />
-          I confirm this business controls this channel and authorises Concierge to use it.
-        </label>
-      ) : null}
     </div>
   );
 }
