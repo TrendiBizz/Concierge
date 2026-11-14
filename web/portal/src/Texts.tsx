@@ -101,8 +101,8 @@ export function Texts({token}: {token: string}) {
       ) : null}
       {offline ? <StatusLine tone="warning" text="Your phone link is offline, so new texts are not reaching Concierge and replies wait. Open the Mac and check the Trendi Phone Connector is running." /> : null}
       <StatusLine text={status} />
-      <div style={{display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 16, minHeight: 520}}>
-        <VStack gap={1} role="list" aria-label="Text conversations" style={{overflowY: 'auto', maxHeight: 640}}>
+      <div style={{display: 'flex', flexWrap: 'wrap', gap: 16, minHeight: 520, alignItems: 'flex-start'}}>
+        <VStack gap={1} role="list" aria-label="Text conversations" style={{overflowY: 'auto', maxHeight: 640, flex: '0 1 300px', minWidth: 220}}>
           {list.length === 0 ? <Text>No text conversations yet. When a customer texts your business number, it shows here.</Text> : null}
           {list.map((c) => (
             <button key={c.id} type="button" role="listitem" className="c-nav-item" data-active={c.id === selected}
@@ -119,7 +119,7 @@ export function Texts({token}: {token: string}) {
             </button>
           ))}
         </VStack>
-        <div style={{display: 'flex', flexDirection: 'column', minHeight: 520}}>
+        <div style={{display: 'flex', flexDirection: 'column', minHeight: 520, flex: '1 1 420px', minWidth: 0}}>
           {thread ? (
             <>
               <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', paddingBottom: 8, flexWrap: 'wrap'}}>
@@ -137,10 +137,10 @@ export function Texts({token}: {token: string}) {
                   <ChatMessageList emptyState={<Text>No messages yet.</Text>}>
                     {thread.paused ? <ChatSystemMessage variant="divider">You are replying. Concierge is paused for this person.</ChatSystemMessage> : null}
                     {thread.messages.map((m) => (
-                      <ChatMessage key={m.id} sender={m.author === 'customer' ? 'user' : 'assistant'}
+                      <ChatMessage key={m.id} sender={m.author === 'customer' ? 'assistant' : 'user'}
                                    name={AUTHOR_LABEL[m.author]}
                                    metadata={<ChatMessageMetadata timestamp={<Timestamp value={m.at} />} />}>
-                        <ChatMessageBubble variant={m.author === 'ai' ? 'ghost' : 'filled'}>{m.text}</ChatMessageBubble>
+                        <ChatMessageBubble variant={m.author === 'customer' ? 'ghost' : 'filled'}>{m.text}</ChatMessageBubble>
                       </ChatMessage>
                     ))}
                   </ChatMessageList>
