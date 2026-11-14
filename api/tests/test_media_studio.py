@@ -48,3 +48,24 @@ def test_the_renderer_draws_a_title_card_when_there_is_no_photo():
     assert "async function titleCard(" in server
     assert "zoompan" in server, "the card must move, or it is a still image"
     assert "At least one photo is required" not in server
+
+
+def test_the_ai_clip_shows_the_scene_changing_not_four_unrelated_stills():
+    """Reported: "where is the flower opening and then swaying in a breeze" — we shipped four
+    unrelated stills with fake camera moves and called it a video."""
+    import pathlib, re
+    server = (pathlib.Path(__file__).resolve().parents[2] / "services" / "media-render" / "server.js").read_text()
+    fn = re.search(r"async function renderAiVideo\(body\)(.*?)\n\}", server, re.S).group(1)
+    assert "The very start of this action" in fn and "The end of this action" in fn, \
+        "the clip must draw a start state and an end state of the same scene"
+    assert "SWAY(" in fn, "the frame must sway, or a breeze is invisible"
+    assert "MOVES" not in fn, "unrelated stills with camera moves are not motion"
+
+
+def test_the_ai_clip_does_not_claim_to_be_generated_video():
+    """There is no text-to-video model on this account, so the UI must not imply one."""
+    import pathlib
+    page = (pathlib.Path(__file__).resolve().parents[2] / "web" / "portal" / "src" / "Engage.tsx").read_text()
+    assert "True frame-by-frame motion needs a video model" in page
+    assert "'Generate AI clip'" in page
+    assert "'Generate AI video'" not in page

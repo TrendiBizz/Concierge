@@ -250,6 +250,67 @@ async function aiImage(body) {
   return cloudflareImage(body.prompt);
 }
 
+/**
+ * The closest thing to real motion this stack can produce without a text-to-video model.
+ *
+ * Cloudflare's catalogue on this account is text-to-image only (probed 2026-11-14: ltx-video,
+ * luma, runway all answer "No route for that URI"), and no video vendor key exists. So instead of
+ * unrelated stills, we draw TWO keyframes of the same scene — its start state and its end state —
+ * and dissolve between them while the frame gently sways. The subject therefore visibly changes
+ * over the clip, which is what "a flower opening in a breeze" is asking for.
+ */
+const SWAY = (W, H) =>
+  `crop=w=iw*0.92:h=ih*0.92:x='(iw-ow)/2+${Math.round(W / 60)}*sin(2*PI*t/2.6)':y='(ih-oh)/2+${Math.round(H / 90)}*sin(2*PI*t/3.4)',scale=${W}:${H}`;
+
+async function renderAiVideo(body) {
+  const [W, H] = FORMATS[body.format] || FORMATS.portrait;
+  const prompt = String(body.prompt || '').trim();
+  if (prompt.length < 3) throw Object.assign(new Error('Describe the video you want'), { status: 400 });
+  const clip = 4, dissolve = 2.2;
+  const total = clip * 2 - dissolve;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'concierge-aivideo-'));
+  try {
+    // Two states of one scene, phrased so the model draws the beginning and the end of the action.
+    const [first, last] = await Promise.all([
+      cloudflareImage(`${prompt}. The very start of this action, about to happen. Cinematic, photorealistic, vertical composition.`),
+      cloudflareImage(`${prompt}. The end of this action, a moment later, the action complete. Cinematic, photorealistic, vertical composition.`),
+    ]);
+    const a = path.join(dir, 'a.jpg'); fs.writeFileSync(a, first);
+    const b = path.join(dir, 'b.jpg'); fs.writeFileSync(b, last);
+    const brandName = String((body.brand || {}).name || '').replace(/[:'\\]/g, ' ');
+    const music = body.music ? audioFile(body.music, dir) : '';
+    const args = ['-loop', '1', '-t', String(clip), '-i', a, '-loop', '1', '-t', String(clip), '-i', b];
+    if (music) args.push('-i', music);
+
+    const parts = [
+      `[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,${SWAY(W * 2, H * 2)},setsar=1,format=yuv420p[v0]`,
+      `[1:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,${SWAY(W * 2, H * 2)},setsar=1,format=yuv420p[v1]`,
+      `[v0][v1]xfade=transition=fade:duration=${dissolve}:offset=${(clip - dissolve).toFixed(2)}[x]`,
+    ];
+    if (brandName.trim()) {
+      parts.push(`[x]drawtext=fontfile=${FONT_BOLD}:text='${brandName.trim()}':fontcolor=white@0.92:fontsize=${Math.round(W / 26)}:borderw=3:bordercolor=black@0.5:x=${Math.round(W / 22)}:y=h-${Math.round(H / 14)}[vout]`);
+    } else {
+      parts.push(`[x]null[vout]`);
+    }
+    if (music) {
+      parts.push(`[2:a]aloop=loop=-1:size=2e9,atrim=0:${total},volume=0.35,afade=t=out:st=${(total - 1).toFixed(2)}:d=1[a]`);
+    }
+    args.push('-filter_complex', parts.join(';'), '-map', '[vout]');
+    if (music) args.push('-map', '[a]', '-shortest'); else args.push('-an');
+    const out = path.join(dir, 'out.mp4');
+    args.push('-t', String(total), '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
+    await run('ffmpeg', ['-y', ...args], { timeout: 300000 });
+    return fs.readFileSync(out);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function aiImage(body) {
+  return cloudflareImage(body.prompt);
+}
+
 /* Camera moves, one per shot. Slow enough to read as footage rather than a slideshow. */
 const MOVES = [
   "zoompan=z='min(zoom+0.0009,1.18)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",

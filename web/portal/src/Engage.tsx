@@ -229,7 +229,9 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
           <TextArea label="Describe the video — the AI makes the footage" value={videoPrompt}
                     onChange={setVideoPrompt} rows={3} />
           <p style={{fontSize: 13, opacity: 0.75, marginTop: -6}}>
-            Generates several AI shots of that scene and cuts them together with camera movement.
+            AI draws the first and last moment of that scene and dissolves between them, with a
+            gentle sway. True frame-by-frame motion needs a video model, which we do not have yet —
+            this is the closest we can make today.
           </p>
           <TextInput label="Headline" value={videoHeadline} onChange={setVideoHeadline} />
           <FileInput label="Photos" value={videoPhotos} onChange={(v) => setVideoPhotos((v as File[]) || [])} isMultiple accept="image/*" />
@@ -240,8 +242,8 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
             </p>
           )}
           <Button label={busy === 'video'
-                    ? (videoPrompt.trim().length >= 3 ? 'Making your AI video…' : 'Making the video…')
-                    : (videoPrompt.trim().length >= 3 ? 'Generate AI video' : 'Generate video')}
+                    ? (videoPrompt.trim().length >= 3 ? 'Making your AI clip…' : 'Making the video…')
+                    : (videoPrompt.trim().length >= 3 ? 'Generate AI clip' : 'Generate video')}
                   variant="primary"
                   isDisabled={busy !== '' || (!videoPrompt.trim() && !videoPhotos.length && !videoHeadline.trim())}
                   onClick={() => void generate('video')} />
