@@ -50,7 +50,7 @@ def forecast(rows: list[dict], average_cents: int, per_stage: int = 50) -> dict:
     }
 
 
-async def change_status(lead_id, status: str, reason: str = "") -> dict | None:
+async def change_status(lead_id, status: str, reason: str = "", actor: str = "") -> dict | None:
     """Move a lead to a stage, record it, and tidy its follow-up. Returns the updated lead, or None if unknown."""
     if status not in STAGES:
         raise ValueError("unknown stage")
@@ -72,8 +72,9 @@ async def change_status(lead_id, status: str, reason: str = "") -> dict | None:
                 lead_id, status, (reason or "")[:300],
             )
             await conn.execute(
-                "INSERT INTO lead_events (lead_id, tenant_id, from_status, to_status, note) VALUES ($1, $2, $3, $4, $5)",
-                old["id"], old["tenant_id"], old["status"], status, (reason or "")[:300],
+                "INSERT INTO lead_events (lead_id, tenant_id, from_status, to_status, note, actor) "
+                "VALUES ($1, $2, $3, $4, $5, $6)",
+                old["id"], old["tenant_id"], old["status"], status, (reason or "")[:300], actor or "",
             )
             if status != "new":
                 await conn.execute(

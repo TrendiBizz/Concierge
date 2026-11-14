@@ -2247,6 +2247,61 @@ async def owner_deliver_voice_copy(lead_id: uuid.UUID, body: VoiceCopyRequest, u
     return await voice_records.deliver(tenant, lead_id, **body.model_dump())
 
 
+class OwnerTaskCreate(TaskCreate):
+    pass
+
+
+@app.get("/owner/tasks")
+async def owner_tasks(status: Literal["open", "done", "all"] = "open",
+                      user: dict = Depends(owner_auth.current_user)):
+    """The owner's own to-do list. Tasks existed but only admins could reach them."""
+    owner_auth.require_role(user, "viewer")
+    return await tasks.list_tasks(user["tenant_id"], status)
+
+
+@app.post("/owner/tasks", status_code=201)
+async def owner_task_create(body: OwnerTaskCreate, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    if body.lead_id:
+        try:
+            found = await db.pool().fetchval(
+                "SELECT 1 FROM leads WHERE id=$1::uuid AND tenant_id=$2", body.lead_id, user["tenant_id"])
+        except Exception:
+            raise HTTPException(400, "Invalid lead id")
+        if not found:
+            raise HTTPException(404, "Unknown lead")
+    try:
+        return await tasks.create(user["tenant_id"], body.title, body.notes, body.due_at,
+                                  lead_id=body.lead_id)
+    except tasks.TaskError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.patch("/owner/tasks/{task_id}")
+async def owner_task_update(task_id: int, body: TaskUpdate,
+                            user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    if not await db.pool().fetchval("SELECT 1 FROM tasks WHERE id=$1 AND tenant_id=$2",
+                                    task_id, user["tenant_id"]):
+        raise HTTPException(404, "Unknown to-do")
+    try:
+        row = await tasks.update(task_id, body.model_dump(exclude_unset=True))
+    except tasks.TaskError as exc:
+        raise HTTPException(400, str(exc))
+    if row is None:
+        raise HTTPException(404, "Unknown to-do")
+    return row
+
+
+@app.delete("/owner/tasks/{task_id}")
+async def owner_task_delete(task_id: int, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    if not await db.pool().fetchval("SELECT 1 FROM tasks WHERE id=$1 AND tenant_id=$2",
+                                    task_id, user["tenant_id"]):
+        raise HTTPException(404, "Unknown to-do")
+    return {"deleted": await tasks.delete(task_id)}
+
+
 @app.patch("/owner/crm/leads/{lead_id}")
 async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
@@ -2257,7 +2312,13 @@ async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(
         raise HTTPException(404, "Enquiry not found")
     if not exists:
         raise HTTPException(404, "Enquiry not found")
-    return await admin_update_lead(lead_id, body)
+    updated = await admin_update_lead(lead_id, body)
+    if body.status:
+        await db.pool().execute(
+            "UPDATE lead_events SET actor=$2 WHERE lead_id=$1::uuid AND actor='' "
+            "AND id = (SELECT max(id) FROM lead_events WHERE lead_id=$1::uuid)",
+            lead_id, user.get("email") or "")
+    return updated
 
 
 class CaseTakeoverRequest(BaseModel):

@@ -1094,6 +1094,9 @@ CREATE INDEX IF NOT EXISTS contact_consents_lookup_idx ON contact_consents(tenan
 
 -- Erasure must leave a trace: the row stays, the person's details do not.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS erased_at timestamptz;
+ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS erased_at timestamptz;
+-- Who changed a lead's stage. Without this the history could not say who did it.
+ALTER TABLE lead_events ADD COLUMN IF NOT EXISTS actor text NOT NULL DEFAULT '';
 
 -- Paying an invoice online. Trendi's own billing uses Stripe Payment Links; a business can put its
 -- own link (Stripe or otherwise) on an invoice so the customer pays by card.

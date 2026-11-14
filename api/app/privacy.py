@@ -152,10 +152,46 @@ async def erase(request_id: str, user: dict = Depends(owner_auth.current_user)):
                 if lead["conversation_id"]:
                     await conn.execute(
                         "DELETE FROM messages WHERE conversation_id=$1", lead["conversation_id"])
+                await _erase_person_everywhere(conn, user["tenant_id"], lead["id"], email)
             await conn.execute(
                 "UPDATE privacy_requests SET status='done', handled_at=now(), handled_by=$2 WHERE id=$1",
                 request_id, user.get("email") or "owner")
     return {"erased_leads": len(leads), "status": "done"}
+
+
+async def _erase_person_everywhere(conn, tenant_id, lead_id, email: str) -> dict:
+    """Erase the person from every table that holds them, not just the enquiry row.
+
+    The first version blanked `leads` and deleted the enquiry's messages, then reported "done".
+    The customer still existed in `customer_cases`, their whole `case_events` history, their
+    appointments, their quotes and their calls — so the request was answered but the data was not
+    gone. Records stay (the business needs its numbers); the person is removed from them.
+    """
+    cases = await conn.fetch(
+        "SELECT id FROM customer_cases WHERE tenant_id=$1 AND (lower(primary_email)=$2 OR lower(display_name)=$2)",
+        tenant_id, email)
+    case_ids = [row["id"] for row in cases]
+    for case_id in case_ids:
+        await conn.execute(
+            "UPDATE customer_cases SET display_name='Erased', primary_phone='', primary_email='', "
+            "company='', erased_at=now() WHERE id=$1", case_id)
+        await conn.execute(
+            "UPDATE case_events SET body='', source_key='' WHERE case_id=$1", case_id)
+        await conn.execute(
+            "UPDATE appointments SET name='Erased', phone='', email='', notes='' "
+            "WHERE tenant_id=$1 AND lead_id IN (SELECT id FROM leads WHERE case_id=$2)",
+            tenant_id, case_id)
+    await conn.execute(
+        "UPDATE tasks SET title='Erased request', notes='' WHERE tenant_id=$1 AND lead_id=$2",
+        tenant_id, lead_id)
+    await conn.execute(
+        "UPDATE quotations SET notes='' WHERE tenant_id=$1 AND lead_id=$2", tenant_id, lead_id)
+    await conn.execute(
+        "UPDATE phone_calls SET from_number='' WHERE tenant_id=$1 AND session_id IN "
+        "(SELECT id::text FROM conversations WHERE lead_id=$2)", tenant_id, lead_id)
+    await conn.execute(
+        "DELETE FROM contact_consents WHERE tenant_id=$1 AND lower(contact_key)=$2", tenant_id, email)
+    return {"cases": len(case_ids)}
 
 
 class Consent(BaseModel):

@@ -9,10 +9,27 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {Dialog} from '@astryxdesign/core/Dialog';
+import {HStack} from '@astryxdesign/core/HStack';
+import {VStack} from '@astryxdesign/core/VStack';
+import {Timestamp} from '@astryxdesign/core/Timestamp';
+import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {StatusLine} from './StatusLine';
 
 type Brand = {name: string; accent: string; contact: string};
-type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
+type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string;
+  created_at: string; message?: string; value_cents?: number; lost_reason?: string; next_action_at?: string};
+type Todo = {id: number; title: string; notes?: string; due_at?: string; status: string; kind?: string; lead_id?: string};
+
+// What the salesperson can move a deal to. These are the same five stages the API and the
+// dashboard already use, in the order a job actually travels.
+const STAGES: {value: string; label: string}[] = [
+  {value: 'new', label: 'New'},
+  {value: 'contacted', label: 'Contacted'},
+  {value: 'booked', label: 'Booked'},
+  {value: 'won', label: 'Won'},
+  {value: 'lost', label: 'Lost'},
+];
 type Turn = {role: string; content: string};
 type QuoteLine = {description: string; quantity: number; unit_price_cents: number; amount_cents?: number};
 type Quote = {id: string; payment_status?: string; payment_reference?: string; id2?: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number; public_token?: string; sent_at?: string};
@@ -35,18 +52,55 @@ export function Crm({token}: {token: string}) {
   const api = useApi(token);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
-  const [todos, setTodos] = useState<Record<string, unknown>[]>([]);
   const [query, setQuery] = useState('');
   const [transcripts, setTranscripts] = useState<Record<string, Turn[]>>({});
+  const [todoList, setTodoList] = useState<Todo[]>([]);
+  const [newTodo, setNewTodo] = useState('');
+  const [newTodoDue, setNewTodoDue] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
     api('/owner/crm').then((data) => {
       setLeads((data.leads || []) as Lead[]);
       setAppointments((data.appointments || []) as Record<string, unknown>[]);
-      setTodos((data.todos || []) as Record<string, unknown>[]);
     }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load enquiries'));
+    loadTodos();
   }, [token]);
+
+  async function loadTodos() {
+    try { setTodoList(await api('/owner/tasks?status=open') as Todo[]); }
+    catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load your to-dos'); }
+  }
+
+  async function saveLead(lead: Lead, fields: Record<string, unknown>) {
+    setStatus('Saving…');
+    try {
+      await api('/owner/crm/leads/' + lead.id, 'PATCH', fields);
+      setLeads((current) => current.map((row) => row.id === lead.id ? {...row, ...fields} as Lead : row));
+      setStatus('Saved. The pipeline and your dashboard use this straight away.');
+      setEditing(null);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save that'); }
+  }
+
+  async function addTodo() {
+    if (!newTodo.trim()) { setStatus('Say what needs doing first.'); return; }
+    try {
+      await api('/owner/tasks', 'POST', {title: newTodo.trim(),
+        due_at: newTodoDue ? new Date(newTodoDue).toISOString() : null});
+      setNewTodo(''); setNewTodoDue('');
+      setStatus('Added. It is on your list until you tick it off.');
+      await loadTodos();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that to-do'); }
+  }
+
+  async function finishTodo(todo: Todo) {
+    try {
+      await api('/owner/tasks/' + todo.id, 'PATCH', {status: 'done'});
+      setTodoList((current) => current.filter((row) => row.id !== todo.id));
+      setStatus('Done — ticked off your list.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not tick that off'); }
+  }
 
   async function transcript(id: string) {
     if (transcripts[id]) return;
@@ -72,9 +126,41 @@ export function Crm({token}: {token: string}) {
         columns={[
           {key: 'name', header: 'Enquiry', width: proportional(1, {minWidth: 140}), renderCell: (row) => <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>},
           {key: 'channel', header: 'Channel', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.channel || '')},
-          {key: 'status', header: 'Status', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Badge label={String(row.status || '')} variant={row.status === 'new' ? 'info' : 'neutral'} />},
+          {key: 'status', header: 'Stage', width: proportional(1, {minWidth: 150}), renderCell: (row) => (
+            editing === String(row.id) ? (
+              <select value={String(row.status || 'new')} aria-label="Deal stage"
+                      onChange={(event) => void saveLead(row as unknown as Lead, {status: event.target.value})}
+                      style={{padding: 6, borderRadius: 6}}>
+                {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+              </select>
+            ) : <Badge label={String(row.status || 'new')} variant={row.status === 'won' ? 'success' : row.status === 'lost' ? 'error' : row.status === 'new' ? 'info' : 'neutral'} />
+          )},
+          {key: 'value_cents', header: 'Value', width: proportional(1, {minWidth: 120}), renderCell: (row) => (
+            editing === String(row.id) ? (
+              <input type="number" min={0} defaultValue={Math.round(Number(row.value_cents || 0) / 100)}
+                     aria-label="Deal value in dollars" style={{width: 100, padding: 6, borderRadius: 6}}
+                     onBlur={(event) => {
+                       const cents = Math.round(Number(event.target.value || 0) * 100);
+                       if (cents !== Number(row.value_cents || 0)) void saveLead(row as unknown as Lead, {value_cents: cents});
+                     }} />
+            ) : (Number(row.value_cents || 0) ? money(Number(row.value_cents), 'NZD') : <span style={{opacity: 0.6}}>not set</span>)
+          )},
+          {key: 'next_action_at', header: 'Next step', width: proportional(1, {minWidth: 150}), renderCell: (row) => (
+            editing === String(row.id) ? (
+              <input type="datetime-local" aria-label="Next step due"
+                     defaultValue={row.next_action_at ? String(row.next_action_at).slice(0, 16) : ''}
+                     onChange={(event) => void saveLead(row as unknown as Lead, {next_action_at: event.target.value ? new Date(event.target.value).toISOString() : null})}
+                     style={{padding: 6, borderRadius: 6}} />
+            ) : (row.next_action_at ? <Timestamp value={String(row.next_action_at)} format="date_time" /> : <span style={{opacity: 0.6}}>none</span>)
+          )},
           {key: 'created_at', header: 'Received', width: proportional(1, {minWidth: 150}), renderCell: (row) => new Date(String(row.created_at)).toLocaleString()},
-          {key: 'id', header: '', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Button label="Conversation" variant="secondary" onClick={() => transcript(String(row.id))} />},
+          {key: 'id', header: '', width: proportional(1, {minWidth: 200}), renderCell: (row) => (
+            <HStack gap={2} vAlign="center">
+              <Button label={editing === String(row.id) ? 'Done' : 'Edit deal'} variant="secondary"
+                      onClick={() => setEditing(editing === String(row.id) ? null : String(row.id))} />
+              <Button label="Conversation" variant="ghost" onClick={() => transcript(String(row.id))} />
+            </HStack>
+          )},
         ] as TableColumn<Record<string, unknown>>[]}
       />
       {!shown.length ? <div className="c-empty"><strong>No enquiries yet — that is normal on day one</strong><p>When someone messages the chat window, emails you or rings, the enquiry lands here with their details already filled in.</p></div> : null}
@@ -88,7 +174,27 @@ export function Crm({token}: {token: string}) {
       ))}
       <div style={{display: 'flex', gap: 24, marginTop: 24, flexWrap: 'wrap'}}>
         <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p style={{opacity: 0.75}}>Nothing booked yet. When a customer books from your chat window or your page, it lands here.</p>}</div>
-        <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p style={{opacity: 0.75}}>No open tasks — nothing is waiting on you.</p>}</div>
+        <div style={{flex: 1, minWidth: 320}}>
+          <Heading level={2}>What needs doing</Heading>
+          <HStack gap={2} vAlign="end" style={{flexWrap: 'wrap'}}>
+            <TextInput label="Add a to-do" value={newTodo} onChange={setNewTodo}
+                       placeholder="ring Jo back about the driveway" />
+            <DateTimeInput label="Due (optional)" value={(newTodoDue || undefined) as never}
+                           onChange={(value) => setNewTodoDue(String(value || ''))} />
+            <Button label="Add to-do" variant="primary" onClick={() => void addTodo()} />
+          </HStack>
+          {todoList.length ? (
+            <VStack gap={2}>
+              {todoList.map((todo) => (
+                <HStack key={todo.id} gap={3} vAlign="center" style={{flexWrap: 'wrap'}}>
+                  <CheckboxInput label={todo.title || 'To-do'} value={false}
+                                 onChange={() => void finishTodo(todo)} />
+                  {todo.due_at ? <Timestamp value={todo.due_at} format="date_time" type="supporting" /> : null}
+                </HStack>
+              ))}
+            </VStack>
+          ) : <p style={{opacity: 0.75}}>Nothing waiting on you. A follow-up appears here automatically when an enquiry goes quiet.</p>}
+        </div>
       </div>
       {<StatusLine text={status} />}
     </div>
