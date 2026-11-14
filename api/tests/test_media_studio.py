@@ -65,3 +65,35 @@ def test_media_deletes_are_audit_logged():
     """
     assert 'log.info("media bulk delete tenant=%s by=%s count=%s ids=%s"' in API
     assert 'log.info("media delete tenant=%s by=%s id=%s path=%s"' in API
+
+
+def test_the_media_page_uses_the_design_system_not_hand_rolled_controls():
+    """We ship @astryxdesign/core (Meta's Astryx). Raw inputs and DIY status text are defects.
+
+    The page previously used a bare <input type="checkbox">, a <p role="status"> and inline grid
+    styles, so it looked and behaved differently from every other screen.
+    """
+    for component in ("CheckboxInput", "EmptyState", "Grid", "HStack", "VStack", "Text",
+                      "Timestamp"):
+        assert f"from '@astryxdesign/core/{component}'" in PAGE, f"{component} is not used"
+    assert '<input type="checkbox"' not in PAGE, "hand-rolled checkbox is back"
+    assert '<p role="status">' not in PAGE, "DIY status line is back; use Banner"
+    assert "Nothing uploaded yet" in PAGE, "an empty library needs an empty state"
+
+
+def test_no_page_hand_rolls_a_checkbox_or_a_status_line():
+    """Every screen uses the design system's controls; raw inputs drifted in one page at a time.
+
+    Found on the Media page first (bare checkbox, <p role="status">), then in Setup, Permissions,
+    Products and Social. This refuses any new one.
+    """
+    pages = list((ROOT / "web" / "portal" / "src").glob("*.tsx"))
+    offenders = [p.name for p in pages if '<input type="checkbox"' in p.read_text()]
+    assert not offenders, f"hand-rolled checkboxes in {offenders}"
+    status = [p.name for p in pages
+              if '<p role="status">' in p.read_text() and p.name != "StatusLine.tsx"]
+    assert not status, f"DIY status lines in {status}"
+    # One status treatment for the whole Studio, not a Banner rebuilt per page.
+    assert (ROOT / "web" / "portal" / "src" / "StatusLine.tsx").exists()
+    users = [p.name for p in pages if "./StatusLine" in p.read_text()]
+    assert len(users) >= 6, f"StatusLine should be shared by every page, found {users}"

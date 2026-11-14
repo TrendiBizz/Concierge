@@ -9,6 +9,7 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {Dialog} from '@astryxdesign/core/Dialog';
+import {StatusLine} from './StatusLine';
 
 type Brand = {name: string; accent: string; contact: string};
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string; created_at: string; message?: string};
@@ -89,7 +90,7 @@ export function Crm({token}: {token: string}) {
         <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p style={{opacity: 0.75}}>Nothing booked yet. When a customer books from your chat window or your page, it lands here.</p>}</div>
         <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p style={{opacity: 0.75}}>No open tasks — nothing is waiting on you.</p>}</div>
       </div>
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
@@ -348,7 +349,7 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
         <Button label="Sign off" variant="primary" onClick={async () => { if (pendingSignoff) { await signOff(pendingSignoff.id, pendingSignoff.version); setPendingSignoff(null); } }} />
         <Button label="Cancel" variant="ghost" onClick={() => setPendingSignoff(null)} />
       </Dialog>
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
@@ -503,7 +504,7 @@ export function Contacts({token}: {token: string}) {
           <Button label="Close" variant="ghost" onClick={() => setSelected(null)} />
         </Card>
       ) : null}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }

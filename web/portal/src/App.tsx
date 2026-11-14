@@ -8,6 +8,7 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
 import {FileInput} from '@astryxdesign/core/FileInput';
 import {Banner} from '@astryxdesign/core/Banner';
@@ -20,6 +21,7 @@ import {createApi} from './api';
 import './shell.css';
 import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
+import {StatusLine} from './StatusLine';
 import qrcode from 'qrcode-generator';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -465,7 +467,7 @@ function Team({token}: {token: string}) {
         ) : null}
       </Card>
       {problem ? <ErrorNote message={problem} /> : null}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
@@ -560,10 +562,10 @@ function YourCrm({token}: {token: string}) {
           {hook ? <Button label="Send queued now" variant="secondary" onClick={sendNow} /> : null}
           {hook ? <Button label="Remove" variant="ghost" onClick={removeHook} /> : null}
         </div>
-        {hook ? <p role="status">Connected to {hook.url}.</p> : <p>Sending is off until you add an address.</p>}
+        {hook ? <StatusLine text={'Connected to ' + hook.url + '.'} /> : <p>Sending is off until you add an address.</p>}
       </Card>
       {problem ? <ErrorNote message={problem} /> : null}
-      {result ? <p role="status">{result}</p> : null}
+      {<StatusLine text={result} />}
     </div>
   );
 }
@@ -969,7 +971,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
         {step > 1 ? <Button label="Back" variant="ghost" onClick={() => setStep(step - 1)} /> : null}
       </div>
       {problem ? <ErrorNote message={problem} /> : null}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
@@ -1152,9 +1154,8 @@ function Bookings({token}: {token: string}) {
 
       <Card>
         <Heading level={2}>Booking rules</Heading>
-        <label style={{display: 'block', margin: '8px 0'}}>
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Allow Concierge to book agreed appointments
-        </label>
+        <CheckboxInput label="Allow Concierge to book agreed appointments" value={enabled}
+                       onChange={setEnabled} />
         <label style={{display: 'block', margin: '8px 0'}}>
           Appointment length (minutes)
           <input type="number" min={5} max={240} value={slot} onChange={(e) => setSlot(Number(e.target.value) || 30)} style={{display: 'block', padding: 8}} />
@@ -1162,7 +1163,8 @@ function Bookings({token}: {token: string}) {
         <p><strong>Opening hours</strong></p>
         {days.map(([key, label]) => (
           <div key={key} style={{display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0', flexWrap: 'wrap'}}>
-            <label style={{minWidth: 90}}><input type="checkbox" checked={hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], open: e.target.checked}})} /> {label}</label>
+            <CheckboxInput label={label} value={hours[key].open}
+                           onChange={(open) => setHours({...hours, [key]: {...hours[key], open}})} />
             <input aria-label={label + ' start'} type="time" value={hours[key].start} disabled={!hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], start: e.target.value}})} />
             <input aria-label={label + ' end'} type="time" value={hours[key].end} disabled={!hours[key].open} onChange={(e) => setHours({...hours, [key]: {...hours[key], end: e.target.value}})} />
           </div>
@@ -1246,10 +1248,8 @@ function Bookings({token}: {token: string}) {
           booking link and record it as an enquiry — so the job is not lost. This is included;
           you can switch it off here.
         </p>
-        <label style={{display: 'block', margin: '8px 0'}}>
-          <input type="checkbox" checked={textback.enabled !== false}
-                 onChange={(e) => saveTextback(e.target.checked)} /> Text back callers we miss
-        </label>
+        <CheckboxInput label="Text back callers we miss" value={textback.enabled !== false}
+                       onChange={(checked) => saveTextback(checked)} />
         <p><strong>{textback.count_30d || 0}</strong> missed caller{(Number(textback.count_30d) === 1) ? '' : 's'} texted back in the last 30 days.</p>
         {(textback.recoveries || []).slice(0, 5).map((row, index) => (
           <p key={index} style={{margin: '4px 0'}}>
@@ -1265,7 +1265,7 @@ function Bookings({token}: {token: string}) {
           <p>{String(appointment.start_at || appointment.start || appointment.when || '')}</p>
         </Card>
       )) : <p>No appointments booked yet.</p>}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
@@ -1332,7 +1332,7 @@ function Reports({token}: {token: string}) {
       ))}
       <Heading level={2}>Latest enquiries</Heading>
       {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.status}</p>)}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }

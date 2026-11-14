@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
@@ -283,12 +284,8 @@ export default function Permissions({token, onDone}: {token: string; onDone?: ()
           <p>Permissions are yours to change later — nothing here is permanent, and the chat window
             works whether or not you grant any of them.</p>
           {anyAuthorised ? (
-            <label className="c-confirm">
-              <input type="checkbox" checked={confirmed}
-                     onChange={(e) => setConfirmed(e.target.checked)} />
-              <span>I confirm this business controls these accounts and authorises Concierge to use
-                the ones I allowed.</span>
-            </label>
+            <CheckboxInput label="I confirm this business controls these accounts and authorises Concierge to use the ones I allowed."
+                           value={confirmed} onChange={setConfirmed} />
           ) : null}
         </div>
         <Button label={done ? 'Opening your workspace…' : 'Continue'} variant="primary"

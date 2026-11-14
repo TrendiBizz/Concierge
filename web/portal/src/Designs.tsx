@@ -5,6 +5,7 @@ import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
 import {TextInput} from '@astryxdesign/core/TextInput';
+import {StatusLine} from './StatusLine';
 import {copyText} from './clipboard';
 
 type Profile = {id: string; name: string; unit: string; rate_cents: number; waste_percent: string; minimum_cents: number; measurement: string; currency: string; is_default: boolean};
@@ -254,7 +255,7 @@ export default function Designs({token, onOpenQuotes}: {token: string; onOpenQuo
         </Card>
       ) : null}
       {viewFile ? <Card><Heading level={2}>{viewName}</Heading><div ref={viewerRef} style={{height: 520, width: '100%'}} /><Button label="Close viewer" variant="ghost" onClick={() => { setViewFile(null); setViewName(''); }} /></Card> : null}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
       {quotedOnce && onOpenQuotes ? <p><Button label="Open Quotes to review or send it" variant="primary" onClick={onOpenQuotes} /></p> : null}
     </div>
   );

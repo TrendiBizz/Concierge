@@ -9,13 +9,14 @@ import {FileInput} from '@astryxdesign/core/FileInput';
 import {Badge} from '@astryxdesign/core/Badge';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
 import {DateTimeInput} from '@astryxdesign/core/DateTimeInput';
-import {Banner} from '@astryxdesign/core/Banner';
 import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {Grid} from '@astryxdesign/core/Grid';
 import {HStack} from '@astryxdesign/core/HStack';
+import {VStack} from '@astryxdesign/core/VStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Timestamp} from '@astryxdesign/core/Timestamp';
+import {StatusLine} from './StatusLine';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string};
@@ -142,8 +143,12 @@ export function Media({token}: {token: string}) {
       </Text>
       {usage ? (
         <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
-          <ProgressBar label="Storage used (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)}
-                       max={Math.round((usage.storage?.limit || 0) / 1048576)} hasValueLabel />
+          <ProgressBar label="Storage used" value={usage.storage?.used || 0}
+                       max={usage.storage?.limit || 1} />
+          <Text size="sm" color="secondary">
+            {((usage.storage?.used || 0) / 1048576).toFixed(1)} MB of{' '}
+            {Math.round((usage.storage?.limit || 0) / 1048576)} MB used
+          </Text>
         </div>
       ) : null}
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
@@ -164,13 +169,7 @@ export function Media({token}: {token: string}) {
           </p>
         </Card>
       </div>
-      {status ? (
-        <Banner status={/could not|failed|not supported|limit|unavailable|error/i.test(status)
-                          ? 'error'
-                          : /deleted|uploaded|saved|made|added/i.test(status) ? 'success' : 'info'}
-                title={status}
-                role={/could not|failed|not supported|limit|unavailable|error/i.test(status) ? 'alert' : undefined} />
-      ) : null}
+      {<StatusLine text={status} />}
       <Heading level={2}>Your media</Heading>
       {assets.length ? (
         <HStack gap={3} vAlign="center" style={{margin: '4px 0 10px', flexWrap: 'wrap'}}>
@@ -193,10 +192,10 @@ export function Media({token}: {token: string}) {
             <CheckboxInput label="Select" isLabelHidden value={selected.includes(asset.id)}
                            onChange={() => toggleSelected(asset.id)} />
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
-            <HStack gap={2} vAlign="center">
+            <VStack gap={1} hAlign="start">
               <Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />
-              <Timestamp value={asset.created_at} format="date_time" />
-            </HStack>
+              <Timestamp value={asset.created_at} format="date_time" type="supporting" />
+            </VStack>
 
             <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
               <Button label="Open" variant="secondary" onClick={() => openAsset(asset.id)} />
@@ -380,10 +379,11 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <div style={{margin: '12px 0'}}>
             <strong>Accounts</strong>
             {connectable.map((account) => (
-              <label key={account.id} style={{display: 'block', margin: '6px 0'}}>
-                <input type="checkbox" checked={selected.includes(account.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, account.id] : selected.filter((id) => id !== account.id))} />{' '}
-                {account.network.replaceAll('_', ' ')} — {account.display_name}
-              </label>
+              <CheckboxInput label={account.display_name || account.network}
+                                 value={selected.includes(account.id)}
+                                 onChange={(checked) => setSelected(checked
+                                   ? [...selected, account.id]
+                                   : selected.filter((id) => id !== account.id))} />
             ))}
           </div>
           <Button label={busy ? 'Preparing…' : 'Prepare previews'} variant="primary" onClick={prepare} />
@@ -454,7 +454,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         ))}
         {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}
       </div>
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }

@@ -199,5 +199,5 @@ def test_the_media_page_is_an_upload_page_not_a_generator():
 
 def test_an_uploaded_asset_says_what_it_is():
     media = read("Engage.tsx")
-    assert "<strong>{asset.kind === 'video' ? 'Video' : 'Image'}</strong>" in media
+    assert "<Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />" in media
     assert "Uploaded — it is in Your media below" in media

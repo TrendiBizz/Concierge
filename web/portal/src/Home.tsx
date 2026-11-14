@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {describeFailure} from './api';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
+import {StatusLine} from './StatusLine';
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
 
 type Brand = {name: string; accent: string};
@@ -91,7 +92,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
           <span className="c-row-tag">{lead.status || 'new'}</span>
         </div>
       ))}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
+import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
@@ -8,6 +9,7 @@ import {TextArea} from '@astryxdesign/core/TextArea';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
+import {StatusLine} from './StatusLine';
 
 type Product = {
   id: string;
@@ -154,9 +156,8 @@ export default function Products({token}: {token: string}) {
             <TextInput label="Stock quantity" value={form.stock} onChange={(v) => setForm({...form, stock: v})} />
           </div>
           <TextArea label="Description" value={form.description} onChange={(v) => setForm({...form, description: v})} rows={2} />
-          <label style={{display: 'block', margin: '8px 0'}}>
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm({...form, active: e.target.checked})} /> Active (offer in quotes and chat)
-          </label>
+          <CheckboxInput label="Active (offer in quotes and chat)" value={form.active}
+                         onChange={(active) => setForm({...form, active})} />
           <Button label={busy ? 'Saving…' : form.id ? 'Save changes' : 'Add product'} variant="primary" onClick={save} />
           {form.id ? <Button label="Cancel" variant="ghost" onClick={() => setForm(EMPTY)} /> : null}
         </Card>
@@ -194,7 +195,7 @@ export default function Products({token}: {token: string}) {
         ] as TableColumn<Record<string, unknown>>[]}
       />
       {!products.length ? <div className="c-empty"><strong>No products yet</strong><p>Add your first price — a product, a rate per square metre, or a fixed fee. Quotes and the chat window can only use numbers you have set.</p></div> : null}
-      {status ? <p role="status">{status}</p> : null}
+      {<StatusLine text={status} />}
     </div>
   );
 }
