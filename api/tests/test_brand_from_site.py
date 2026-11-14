@@ -179,9 +179,10 @@ def test_wordpress_with_elementor_is_recognised_for_the_install_step():
     assert platform["install_hint"] == "Install on my site"
 
 
-def test_an_unrecognised_platform_gets_a_hand_off_instruction():
+def test_an_unrecognised_platform_offers_to_do_it_for_them():
+    """The hint must never send a tradesman looking for a web person."""
     page = bfs.scan("<html><head></head><body>hello</body></html>", "https://a.nz/")
-    assert bfs.detect_platform(page, "")["install_hint"] == "Email this to my web person"
+    assert bfs.detect_platform(page, "")["install_hint"] == "We can add it for you"
 
 
 def test_a_nz_site_yields_nz_defaults_not_america_chicago():

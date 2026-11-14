@@ -11,14 +11,12 @@ import inspect
 from app import main, owner_invites
 
 
-def test_the_email_contains_a_working_sign_in_link_and_the_guide():
+def test_the_email_contains_a_working_sign_in_link():
     subject, body = owner_invites.compose(
-        "Pukeko Construction",
-        "https://concierge.trendibizz.com/studio#invite=TOKEN",
-        "https://concierge.trendibizz.com/guide/bonsai-cladding")
+        "Pukeko Construction", "https://concierge.trendibizz.com/studio#invite=TOKEN")
     assert subject == "Your Concierge account is ready"
     assert "https://concierge.trendibizz.com/studio#invite=TOKEN" in body
-    assert "guide/bonsai-cladding" in body
+    assert "guide/" not in body, "the invitation is not the place for one trade's walkthrough"
 
 
 def test_it_names_the_business_and_the_first_steps():

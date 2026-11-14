@@ -654,10 +654,10 @@ def detect_platform(page: SiteScan, html: str) -> dict:
             "wordpress": "Install on my site",
             "shopify": "Install on my site",
             "wix": "Install on my site",
-            "webflow": "Email this to my web person",
-            "squarespace": "Email this to my web person",
-            "other": "Email this to my web person",
-        }.get(kind, "Email this to my web person"),
+            "webflow": "Enter it in the site builder",
+            "squarespace": "Add it in Settings → Advanced → Code injection",
+            "other": "We can add it for you",
+        }.get(kind, "We can add it for you"),
         "signals": signals,
     }
 

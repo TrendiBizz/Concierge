@@ -799,10 +799,10 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
     setCheckingSite(false);
   }
 
+  const alternatives = (suggestion?.logo_alternatives || []).filter((item) => item.data);
   const snippet = business.public_key ? '<script src="https://chat.trendibizz.com/widget.js" data-key="' + business.public_key + '" defer></script>' : '';
   const hosted = slug ? 'https://chat.trendibizz.com/demo/' + slug : '';
   const platform = suggestion?.platform;
-  const handOff = platform ? platform.install_hint === 'Email this to my web person' : false;
 
   function accentButton(colour: string) {
     const selected = accent.toLowerCase() === colour.toLowerCase();
@@ -928,6 +928,12 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             ) : (
               <div style={{display: 'grid', gap: 10, maxWidth: 460}}>
                 <TextInput label="Your website" value={helpSite || website} onChange={setHelpSite} />
+                {platform && platform.kind !== 'other' ? (
+                  <p style={{fontSize: 13, opacity: 0.8, margin: 0}}>
+                    From your site we think it is <strong>{platform.kind === 'wordpress' ? 'WordPress' : platform.kind.charAt(0).toUpperCase() + platform.kind.slice(1)}</strong>
+                    {platform.elementor ? ' with Elementor' : ''} — correct us below if that is wrong.
+                  </p>
+                ) : null}
                 <label style={{display: 'grid', gap: 4, fontSize: 14}}>
                   What is your site built with?
                   <select value={helpPlatform} onChange={(e) => setHelpPlatform(e.target.value)}
@@ -1000,32 +1006,6 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
               ) : null}
             </div>
           </details>
-
-          <Capabilities token={token} />
-
-          <p style={{marginTop: 16}}>Anything you have not allowed yet stays off, and you can switch it on later in the Permissions tab.</p>
-          <div style={{marginTop: 16}}>
-            <Button label="Open my workspace" variant="primary" onClick={onDone} />
-          </div>
-        </Card>
-      ) : null}
-
-          {hosted ? (
-            <div style={{marginTop: 20}}>
-              <p style={{fontSize: 14}}>No website, or cannot edit it? Use your hosted chat page instead. Scan it with your phone to see what a customer sees:</p>
-              <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
-                <QrCode value={hosted} label="QR code for your hosted chat page" />
-                <div style={{fontSize: 14}}>
-                  <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
-                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                    <Button label="Copy link" variant="ghost" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
-                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(hostedQrSvg(hosted))}
-                       style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
 
           <Capabilities token={token} />
 
