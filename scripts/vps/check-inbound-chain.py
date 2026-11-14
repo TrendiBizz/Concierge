@@ -12,12 +12,18 @@ def main(path: str) -> int:
     bad = 0
     for tenant in tenants:
         ok = bool(tenant.get("ok"))
-        if not ok:
+        # A test business cannot complete the chain (no real owner grants consent); it is a
+        # different kind of "not ok" and must not turn the hourly check red. See the 2026-11-15
+        # email storm over trendi-fictitious.
+        if not ok and not tenant.get("is_test"):
             bad += 1
         blocked = ", ".join(b.get("check", "?") for b in tenant.get("blocked") or []) or "-"
         warned = ", ".join(w.get("check", "?") for w in tenant.get("warnings") or []) or "-"
-        print(f"{'OK  ' if ok else 'FAIL'} {tenant.get('slug', '?'):26} "
+        label = "OK  " if ok else ("TEST" if tenant.get("is_test") else "FAIL")
+        print(f"{label} {tenant.get('slug', '?'):26} "
               f"blocked={blocked:32} warnings={warned}")
+        if not ok and tenant.get("is_test"):
+            print("      (test tenant: reported, not alerted on)")
         for item in tenant.get("blocked") or []:
             print(f"      -> {item.get('message', '')}")
     print()

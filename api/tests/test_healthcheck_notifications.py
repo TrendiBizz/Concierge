@@ -96,3 +96,30 @@ def test_a_deploy_restart_is_recognised_as_deploying(monkeypatch):
 
     monkeypatch.setattr(healthcheck, "recently_started", lambda name, minutes=10: False)
     assert healthcheck.deploying() == ""
+
+
+def _inbound_stub(tenants):
+    """Run check_inbound against a canned readiness payload, with no stack involved."""
+    import json
+    healthcheck.http = lambda *a, **k: (200, json.dumps({"tenants": tenants}).encode(), 0.0)
+    healthcheck.run = lambda *a, **k: (0, "0")
+    return healthcheck.check_inbound({"ADMIN_TOKEN": "t"})
+
+
+def test_an_incomplete_test_tenant_is_reported_and_never_fails_the_check():
+    """2026-11-15: the hourly mail said fail=1 for trendi-fictitious, a fictitious business."""
+    results = _inbound_stub([
+        {"slug": "acme", "ok": True},
+        {"slug": "trendi-fictitious", "ok": False, "is_test": True,
+         "blocked": [{"check": "consent"}]},
+    ])
+    chain = next(r for r in results if r["check"] == "inbound:chain")
+    assert chain["status"] == "ok", chain
+    assert "trendi-fictitious is a test tenant" in chain["detail"]
+
+
+def test_a_broken_real_tenant_still_fails_the_check():
+    results = _inbound_stub([{"slug": "acme", "ok": False, "blocked": [{"check": "mailbox"}]}])
+    chain = next(r for r in results if r["check"] == "inbound:chain")
+    assert chain["status"] == "fail"
+    assert "acme: mailbox" in chain["detail"]

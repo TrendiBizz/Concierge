@@ -173,13 +173,32 @@ async def check(tenant_id) -> dict:
     }
     verdict = evaluate(facts)
     verdict["slug"] = tenant["slug"]
+    verdict["is_test"] = bool(tenant.get("is_test"))
     return verdict
+
+
+def summarise(tenants: list[dict]) -> dict:
+    """Which breakage is real. A test tenant is reported, never allowed to page anyone.
+
+    Pure so the rule can be tested without a database: a fictitious business has no real owner to
+    grant consent, so counting it as a failure meant a permanent hourly alert that talked over the
+    real ones.
+    """
+    broken = [t for t in tenants if not t.get("ok")]
+    live_broken = [t for t in broken if not t.get("is_test")]
+    test_broken = [t for t in broken if t.get("is_test")]
+    return {
+        "ok": not live_broken,
+        "green": len(tenants) - len(broken),
+        "live_broken": live_broken,
+        "test_broken": test_broken,
+    }
 
 
 async def check_all() -> dict:
     """Operator view: every tenant with a reply address, or that has ever had a draft."""
     rows = await db.pool().fetch(
-        "SELECT id, slug FROM tenants WHERE reply_address IS NOT NULL "
+        "SELECT id, slug, is_test FROM tenants WHERE reply_address IS NOT NULL "
         "OR EXISTS (SELECT 1 FROM email_drafts d WHERE d.tenant_id = tenants.id) ORDER BY slug")
     results = []
     for row in rows:
@@ -187,10 +206,13 @@ async def check_all() -> dict:
             results.append(await check(row["id"]))
         except Exception as exc:  # noqa: BLE001 - one broken tenant must not hide the rest
             log.exception("inbound readiness failed for %s", row["slug"])
-            results.append({"slug": row["slug"], "ok": False, "blocked": [
-                {"check": "inspection", "message": f"could not inspect tenant: {exc}"}]})
+            results.append({"slug": row["slug"], "ok": False, "is_test": bool(row.get("is_test")),
+                            "blocked": [{"check": "inspection",
+                                         "message": f"could not inspect tenant: {exc}"}]})
+    summary = summarise(results)
     return {
-        "ok": all(r.get("ok") for r in results) if results else True,
+        "ok": summary["ok"],
+        "test_tenants_failing": [t["slug"] for t in summary["test_broken"]],
         "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "tenants": results,
     }

@@ -83,6 +83,12 @@ CREATE INDEX IF NOT EXISTS voice_tokens_idx ON voice_tokens (tenant_id, minted_a
 -- Phase 2 additions (idempotent): booking, automation, SMS/email, CRM
 -- ===================================================================
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Pacific/Auckland';
+
+-- A deliberately fictitious business (used for demos and pipeline tests) must be able to exist
+-- without paging the operator: on 2026-11-15 an hourly "ALERT: Concierge health check failing"
+-- email reported "trendi-fictitious: consent" forever, because a fake business can never get a
+-- real owner to authorise email read. Test tenants are still reported, never alerted on.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false;
 -- A new client is a New Zealand business until somebody tells us otherwise: a US default made every
 -- booking, reminder and business-hours calculation wrong for a customer who never noticed the setting.
 ALTER TABLE tenants ALTER COLUMN timezone SET DEFAULT 'Pacific/Auckland';

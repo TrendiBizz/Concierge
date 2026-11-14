@@ -276,6 +276,18 @@ def check_cloudflare(api_env: dict) -> list[dict]:
     return results
 
 
+def chain_split(tenants: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Real breakage vs test-tenant noise. Pure, so the rule is testable.
+
+    A deliberately fictitious business has no real owner to authorise email read, so it can never
+    complete the inbound chain. That is not an operational failure: on 2026-11-15 it mailed
+    "trendi-fictitious: consent" every hour and buried the alerts that mattered.
+    """
+    broken = [t for t in tenants if not t.get("ok")]
+    return ([t for t in broken if not t.get("is_test")],
+            [t for t in broken if t.get("is_test")])
+
+
 def check_inbound(api_env: dict) -> list[dict]:
     admin = api_env.get("ADMIN_TOKEN") or ""
     if not admin:
@@ -288,13 +300,18 @@ def check_inbound(api_env: dict) -> list[dict]:
         data = json.loads(body.decode())
     except ValueError:
         return [_fail("inbound:readiness", "unparseable response")]
-    broken = [t for t in data.get("tenants") or [] if not t.get("ok")]
-    if broken:
+    tenants = data.get("tenants") or []
+    live_broken, test_broken = chain_split(tenants)
+    broken = live_broken + test_broken
+    note = ("" if not test_broken
+            else " (" + ", ".join(f"{t.get('slug')} is a test tenant" for t in test_broken) + ")")
+    if live_broken:
         detail = "; ".join(f"{t.get('slug')}: {','.join(b.get('check','?') for b in t.get('blocked') or [])}"
-                           for t in broken)
+                           for t in live_broken)
         results.append(_fail("inbound:chain", detail[:400]))
     else:
-        results.append(_ok("inbound:chain", f"{len(data.get('tenants') or [])} tenants green"))
+        green = len(tenants) - len(broken)
+        results.append(_ok("inbound:chain", f"{green} tenants green{note}"))
 
     code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select count(*) from inbound_audit where action='inbound_rejected' "
