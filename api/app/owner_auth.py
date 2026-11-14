@@ -119,8 +119,10 @@ async def redeem(token: str, password: str) -> dict:
             )
             if invitation["purpose"] == "recovery" and not existing:
                 raise ValueError("Account no longer exists")
-            if invitation["purpose"] == "invite" and existing:
-                raise ValueError("Account already exists")
+            # A valid invitation for an account that already exists must sign them in, not fail.
+            # On 14 Nov that check raised "Account already exists" for support@trendibizz.com because
+            # an operator link had already created the user, and the endpoint reported it as "this
+            # link has expired or has already been used" — a valid, unused link refusing to work.
             if existing:
                 await conn.execute(
                     "UPDATE tenant_users SET password_hash=$2, active=true WHERE id=$1",
@@ -181,8 +183,10 @@ async def accept_invite(token: str) -> dict:
             )
             if invitation["purpose"] == "recovery" and not existing:
                 raise ValueError("Account no longer exists")
-            if invitation["purpose"] == "invite" and existing:
-                raise ValueError("Account already exists")
+            # A valid invitation for an account that already exists must sign them in, not fail.
+            # On 14 Nov that check raised "Account already exists" for support@trendibizz.com because
+            # an operator link had already created the user, and the endpoint reported it as "this
+            # link has expired or has already been used" — a valid, unused link refusing to work.
             if existing:
                 user_id = existing["id"]
                 await conn.execute("UPDATE tenant_users SET active=true WHERE id=$1", user_id)

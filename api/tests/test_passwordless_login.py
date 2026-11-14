@@ -210,3 +210,27 @@ class _Request:
 
     class client:  # noqa: N801 - mirrors Starlette's attribute
         host = "203.0.113.7"
+
+
+def test_a_valid_invitation_signs_in_an_account_that_already_exists(monkeypatch):
+    """A link that is unused and in date must work even if the account is already there.
+
+    On 14 Nov support@trendibizz.com could not use a fresh invitation: an operator link had already
+    created the user, so `accept_invite` raised "Account already exists" and the API reported it as
+    "this link has expired or has already been used".
+    """
+    conn = _Conn(invitation={**INVITATION, "purpose": "invite"}, existing={"id": "user-1"})
+    _with_pool(monkeypatch, conn)
+    result = asyncio.run(owner_auth.accept_invite("tok_" + "x" * 40))
+    assert result["access_token"]
+    assert not any("INSERT INTO tenant_users" in s for s, _ in conn.writes), (
+        "an existing account must be signed in, not re-created")
+
+
+def test_the_refusal_says_what_actually_happened():
+    import inspect
+
+    from app import main as app_main
+
+    source = inspect.getsource(app_main.owner_accept_invite)
+    assert "str(error)" in source, "refusals must not all read 'expired or already used'"

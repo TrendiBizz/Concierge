@@ -17,7 +17,12 @@ SUBJECT = "Your Concierge account is ready"
 
 
 def compose(business: str, link: str, guide_url: str) -> tuple[str, str]:
-    """The invitation a tradesman can follow without anyone on the phone."""
+    """The invitation a tradesman can follow without anyone on the phone.
+
+    The copy is deliberately generic. It used to open by explaining 3D cladding takeoff as if that
+    were the whole product, which tells a builder or a kitchen fitter that the thing was not built
+    for them. Takeoff is a feature some businesses use, so it is offered as an aside.
+    """
     body = f"""Hi,
 
 Your Concierge account for {business} is ready.
@@ -26,34 +31,38 @@ Sign in here — no password needed, this link signs you straight in:
 
 {link}
 
-It is a single-use link. If it expires, ask us and we will send a fresh one.
+If the link is ever refused, ask us and we will send a fresh one. Nothing else is needed to start.
 
 WHAT IT DOES
 
-You draw a house once in a free 3D program, and Concierge measures the outside clad area, subtracts
-the windows and doors, adds your waste, and prices it at your rate per square metre. You review the
-quote and send it.
-
-The 3D program is free: Blender, plus a free add-on called Bonsai. Step-by-step guide:
-
-{guide_url}
+A chat window on your website answers customers day or night, captures their name, number and what
+they want, and puts the enquiry in your inbox. From there Concierge turns it into a quote at your
+own rates, a booking, and an invoice — and you approve anything before it reaches a customer.
 
 YOUR FIRST TEN MINUTES
 
 1. Click the sign-in link above.
-2. Open "Designs and CAD" (under Revenue, just below Quotes).
-3. Set your rate per m2, your waste %, and your minimum charge, then press Save rates. These are your
-   numbers — a quote will never invent a price.
-4. Upload a model exported from Bonsai (.ifc), press "IFC takeoff", then "Price this model".
-5. Open "Quotes" to review it and send it to the customer.
+2. Open "Business" and check your name, GST number and contact details.
+3. Set your rates and your minimum charge, then save. These are your numbers — Concierge will never
+   invent a price.
+4. Open "Quotes". Anything that arrives from the chat window is here, ready to review and send.
+5. Put the chat window on your website: the Setup step has a line to paste before </body>. If you
+   would rather not touch the site, there is a hosted chat page you can share or scan as a QR code.
 
-Then everything else is in there too: enquiries, quotes, products, contacts, bookings, and your social
-accounts — connect whichever you use, and nothing is published without your approval first.
+Then everything else is in there too: enquiries, quotes, invoices, products, contacts, bookings, and
+your social accounts — connect whichever you use, and nothing is published without your approval.
+
+IF YOU PRICE CLADDING OR 3D TAKEOFF
+
+Optional, and only if it is how you work: draw a house once in Blender with the free Bonsai add-on,
+upload the .ifc, and Concierge measures the clad area, subtracts the windows and doors, adds your
+waste and prices it. Step-by-step guide: {guide_url}
 
 Any questions, just reply to this email.
 
 Kind regards,
-The Concierge team
+The Trendi Concierge team
+for {business}
 """
     return SUBJECT, body
 
