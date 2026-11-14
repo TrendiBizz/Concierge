@@ -437,22 +437,31 @@ export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Bra
         density="compact"
         columns={[
           {key: 'title', header: 'Quotation', width: proportional(2, {minWidth: 180}), renderCell: (row) => <strong>{String(row.title || '')}</strong>},
-          {key: 'status', header: 'Status', width: proportional(1, {minWidth: 100}), renderCell: (row) => <Badge label={String(row.status || '')} variant={row.status === 'accepted' ? 'success' : row.status === 'declined' ? 'error' : row.status === 'reviewed' ? 'info' : 'neutral'} />},
-          {key: 'total_cents', header: 'Total', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.total_cents), String(row.currency || 'NZD'))},
-          {key: 'payment_status', header: 'Paid?', width: proportional(1, {minWidth: 110}), renderCell: (row) => (
-            <span>
+          {key: 'status', header: 'Status', width: proportional(2, {minWidth: 150}), renderCell: (row) => (
+            <VStack gap={1}>
+              <Badge label={String(row.status || '')} variant={row.status === 'accepted' ? 'success' : row.status === 'declined' ? 'error' : row.status === 'reviewed' ? 'info' : 'neutral'} />
               <Badge label={String(row.payment_status || 'unpaid')} variant={row.payment_status === 'paid' ? 'success' : row.payment_status === 'declared' ? 'info' : 'neutral'} />
               {role === 'owner' && row.status === 'accepted' && ['unpaid', 'declared'].includes(String(row.payment_status || 'unpaid'))
                 ? <Button label="Confirm paid" variant="secondary" onClick={() => confirmPayment(String(row.id), 'confirm')} /> : null}
-            </span>
+            </VStack>
           )},
-          {key: 'id', header: 'Actions', width: proportional(1, {minWidth: 260}), renderCell: (row) => (
-            <span style={{display: 'inline-flex', gap: 4, flexWrap: 'wrap'}}>
-              <Button label="PDF" variant="secondary" onClick={() => printQuote(String(row.id))} />
-              {row.public_token ? <Button label="Customer page" variant="ghost" onClick={() => window.open('/quote/' + row.public_token, '_blank', 'noopener')} /> : null}
-              {role === 'owner' && row.status === 'draft' ? <Button label="Review" variant="primary" onClick={() => setPendingSignoff(row as unknown as Quote)} /> : null}
-              {role === 'owner' && row.status === 'reviewed' ? <Button label="Send" variant="primary" onClick={() => sendQuote(String(row.id))} /> : null}
-            </span>
+          {key: 'total_cents', header: 'Total', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.total_cents), String(row.currency || 'NZD'))},
+          {key: 'id', header: '', width: proportional(1, {minWidth: 130}), renderCell: (row) => (
+            <HStack gap={2} vAlign="center">
+              {role === 'owner' && row.status === 'draft'
+                ? <Button label="Review" variant="primary" onClick={() => setPendingSignoff(row as unknown as Quote)} />
+                : role === 'owner' && row.status === 'reviewed'
+                ? <Button label="Send" variant="primary" onClick={() => sendQuote(String(row.id))} />
+                : <Button label="PDF" variant="secondary" onClick={() => printQuote(String(row.id))} />}
+              <MoreMenu label={'More actions for this quotation'} items={[
+                {label: 'Download the PDF', onClick: () => printQuote(String(row.id))},
+                {label: 'Open the customer page',
+                 onClick: () => { if (row.public_token) window.open('/quote/' + row.public_token, '_blank', 'noopener'); },
+                 isDisabled: !row.public_token},
+                {label: 'Send it to the customer', onClick: () => sendQuote(String(row.id)),
+                 isDisabled: !(role === 'owner' && row.status === 'reviewed')},
+              ]} />
+            </HStack>
           )},
         ] as TableColumn<Record<string, unknown>>[]}
       />
@@ -618,10 +627,21 @@ export function Contacts({token}: {token: string}) {
                              ? current.filter((key) => key !== String(row.case_key))
                              : [...current, String(row.case_key)])} />
           )},
-          {key: 'label', header: 'Customer', width: proportional(1, {minWidth: 160}), renderCell: (row) => <><strong>{String(row.label || '')}</strong>{row.company ? <span style={{opacity: 0.75}}> · {String(row.company)}</span> : null}</>},
-          {key: 'channels', header: 'Channels', width: proportional(1, {minWidth: 120}), renderCell: (row) => (Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : '')},
-          {key: 'event_count', header: 'Messages', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.event_count || 0)},
-          {key: 'automation_paused', header: 'Assistant', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Badge label={row.automation_paused ? 'paused' : 'replying'} variant={row.automation_paused ? 'warning' : 'neutral'} />},
+          {key: 'label', header: 'Customer', width: proportional(2, {minWidth: 170}), renderCell: (row) => (
+            <VStack gap={1}>
+              <span><strong>{String(row.label || '')}</strong>{row.company ? <span style={{opacity: 0.75}}> · {String(row.company)}</span> : null}</span>
+              <span>
+                <Badge label={row.automation_paused ? 'assistant paused' : 'assistant replying'}
+                       variant={row.automation_paused ? 'warning' : 'neutral'} />
+              </span>
+            </VStack>
+          )},
+          {key: 'channels', header: 'Reach', width: proportional(1, {minWidth: 130}), renderCell: (row) => (
+            <span>
+              {Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : 'none'}
+              <span style={{opacity: 0.65}}> · {String(row.event_count || 0)} messages</span>
+            </span>
+          )},
           {key: 'assignee_email', header: 'Owner', width: proportional(1, {minWidth: 140}),
            renderCell: (row) => row.assignee_email ? String(row.assignee_email) : <span style={{opacity: 0.6}}>nobody</span>},
           {key: 'last_at', header: 'Last contact', width: proportional(1, {minWidth: 150}), renderCell: (row) => row.last_at ? new Date(String(row.last_at)).toLocaleString() : '—'},

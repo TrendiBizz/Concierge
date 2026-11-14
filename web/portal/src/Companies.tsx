@@ -6,6 +6,7 @@ import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
+import {VStack} from '@astryxdesign/core/VStack';
 import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {createApi as useApi} from './api';
 import {StatusLine} from './StatusLine';
@@ -85,17 +86,23 @@ export function Companies({token}: {token: string}) {
           idKey="id"
           density="compact"
           columns={[
-            {key: 'name', header: 'Company', width: proportional(2, {minWidth: 160}),
-             renderCell: (row) => <strong>{String(row.name || '')}</strong>},
-            {key: 'domain', header: 'Website', width: proportional(2, {minWidth: 150}),
-             renderCell: (row) => String(row.domain || '—')},
-            {key: 'contacts', header: 'People', width: proportional(1, {minWidth: 90}),
-             renderCell: (row) => String(row.contacts ?? 0)},
-            {key: 'open_deals', header: 'Open deals', width: proportional(1, {minWidth: 110}),
-             renderCell: (row) => String(row.open_deals ?? 0)},
+            {key: 'name', header: 'Company', width: proportional(2, {minWidth: 170}),
+             renderCell: (row) => (
+               <VStack gap={1}>
+                 <strong>{String(row.name || '')}</strong>
+                 {row.domain ? <span style={{opacity: 0.65, fontSize: 12}}>{String(row.domain)}</span> : null}
+               </VStack>
+             )},
+            {key: 'contacts', header: 'People and deals', width: proportional(2, {minWidth: 150}),
+             renderCell: (row) => (
+               <span>
+                 {String(row.contacts ?? 0)} {Number(row.contacts) === 1 ? 'person' : 'people'}
+                 <span style={{opacity: 0.7}}> · {String(row.open_deals ?? 0)} open</span>
+               </span>
+             )},
             {key: 'open_value_cents', header: 'Open value', width: proportional(1, {minWidth: 120}),
              renderCell: (row) => money(Number(row.open_value_cents || 0))},
-            {key: 'parent_id', header: 'Part of', width: proportional(2, {minWidth: 170}),
+            {key: 'parent_id', header: 'Part of', width: proportional(2, {minWidth: 150}),
              renderCell: (row) => (
                <select aria-label={'Parent company for ' + String(row.name || '')}
                        value={String(row.parent_id || '')}

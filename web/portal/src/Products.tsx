@@ -3,6 +3,7 @@ import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {Card} from '@astryxdesign/core/Card';
+import {Dialog} from '@astryxdesign/core/Dialog';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {TextArea} from '@astryxdesign/core/TextArea';
@@ -10,6 +11,9 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
 import {StatusLine} from './StatusLine';
+import {VStack} from '@astryxdesign/core/VStack';
+import {HStack} from '@astryxdesign/core/HStack';
+import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 
 type Product = {
   id: string;
@@ -63,6 +67,7 @@ export default function Products({token}: {token: string}) {
   const [role, setRole] = useState('');
   const [form, setForm] = useState<Form>(EMPTY);
   const [adjust, setAdjust] = useState<Record<string, {delta: string; reason: string}>>({});
+  const [stockFor, setStockFor] = useState<Product | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -170,31 +175,59 @@ export default function Products({token}: {token: string}) {
         idKey="id"
         density="compact"
         columns={[
-          {key: 'name', header: 'Product', width: proportional(2, {minWidth: 180}), renderCell: (row) => (
-            <span><strong>{String(row.name || '')}</strong>{row.sku ? <span style={{opacity: 0.6}}> · {String(row.sku)}</span> : null}</span>
+          {key: 'name', header: 'Product', width: proportional(2, {minWidth: 190}), renderCell: (row) => (
+            <VStack gap={1}>
+              <span><strong>{String(row.name || '')}</strong>{row.sku ? <span style={{opacity: 0.6}}> · {String(row.sku)}</span> : null}</span>
+              <span style={{opacity: 0.7, fontSize: 12}}>
+                {String(row.unit || 'each')} · <Badge label={row.active ? 'active' : 'inactive'} variant={row.active ? 'success' : 'neutral'} />
+              </span>
+            </VStack>
           )},
-          {key: 'unit', header: 'Unit', width: proportional(1, {minWidth: 70}), renderCell: (row) => String(row.unit || 'each')},
           {key: 'sale_price_cents', header: 'Sale price', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.sale_price_cents))},
           ...(isOwner ? [{key: 'cost_price_cents', header: 'Cost', width: proportional(1, {minWidth: 90}), renderCell: (row: Record<string, unknown>) => row.cost_price_cents == null ? '—' : money(Number(row.cost_price_cents))}] : []),
           {key: 'stock_quantity', header: 'Stock', width: proportional(1, {minWidth: 70}), renderCell: (row) => String(row.stock_quantity ?? 0)},
-          {key: 'active', header: 'Status', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Badge label={row.active ? 'active' : 'inactive'} variant={row.active ? 'success' : 'neutral'} />},
-          {key: 'id', header: 'Actions', width: proportional(1, {minWidth: 260}), renderCell: (row) => {
+          {key: 'id', header: '', width: proportional(1, {minWidth: 150}), renderCell: (row) => {
             const product = row as unknown as Product;
-            const entry = adjust[product.id] || {delta: '', reason: ''};
             return (
-              <span style={{display: 'inline-flex', gap: 4, flexWrap: 'wrap', alignItems: 'center'}}>
-                <input aria-label={'Stock change for ' + product.name} placeholder="±qty" value={entry.delta}
-                  onChange={(e) => setAdjust({...adjust, [product.id]: {...entry, delta: e.target.value}})}
-                  style={{width: 64, padding: 6}} />
-                <Button label="Adjust stock" variant="secondary" onClick={() => stock(product)} />
-                {isOwner ? <Button label="Edit" variant="ghost" onClick={() => edit(product)} /> : null}
-                {isOwner && product.active ? <Button label="Deactivate" variant="ghost" onClick={() => deactivate(product)} /> : null}
-              </span>
+              <HStack gap={2} vAlign="center">
+                <Button label="Adjust stock" variant="secondary"
+                        onClick={() => setStockFor(product)} />
+                {isOwner ? (
+                  <MoreMenu label={'More actions for ' + product.name} items={[
+                    {label: 'Edit this product', onClick: () => edit(product)},
+                    {label: 'Deactivate', onClick: () => deactivate(product), isDisabled: !product.active},
+                  ]} />
+                ) : null}
+              </HStack>
             );
           }},
         ] as TableColumn<Record<string, unknown>>[]}
       />
       {!products.length ? <div className="c-empty"><strong>No products yet</strong><p>Add your first price — a product, a rate per square metre, or a fixed fee. Quotes and the chat window can only use numbers you have set.</p></div> : null}
+      <Dialog isOpen={Boolean(stockFor)} onOpenChange={(open) => { if (!open) setStockFor(null); }}>
+        <Heading level={2}>Adjust stock{stockFor ? ' — ' + stockFor.name : ''}</Heading>
+        <p>Use a negative number to take stock away, for example -2 when two were used on a job.</p>
+        <TextInput label="How many to add or remove"
+                   value={stockFor ? (adjust[stockFor.id]?.delta || '') : ''}
+                   onChange={(value: string) => {
+                     if (!stockFor) return;
+                     const entry = adjust[stockFor.id] || {delta: '', reason: ''};
+                     setAdjust({...adjust, [stockFor.id]: {...entry, delta: String(value)}});
+                   }}
+                   placeholder="-2" />
+        <TextInput label="Why (optional)"
+                   value={stockFor ? (adjust[stockFor.id]?.reason || '') : ''}
+                   onChange={(value: string) => {
+                     if (!stockFor) return;
+                     const entry = adjust[stockFor.id] || {delta: '', reason: ''};
+                     setAdjust({...adjust, [stockFor.id]: {...entry, reason: String(value)}});
+                   }} />
+        <HStack gap={2}>
+          <Button label="Save the change" variant="primary" isDisabled={busy}
+                  onClick={async () => { if (stockFor) { await stock(stockFor); setStockFor(null); } }} />
+          <Button label="Cancel" variant="ghost" onClick={() => setStockFor(null)} />
+        </HStack>
+      </Dialog>
       {<StatusLine text={status} />}
     </div>
   );

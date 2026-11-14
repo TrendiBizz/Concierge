@@ -235,3 +235,25 @@ def test_every_dropdown_has_a_name_a_screen_reader_can_read():
                 continue
             offenders.append(f"{page.name}: <select{attrs[:40]}>")
     assert offenders == [], "dropdowns with no accessible name: " + "; ".join(offenders)
+
+
+def test_no_table_is_allowed_to_grow_past_a_five_column_budget():
+    """Every column the Table component lays out costs roughly 200px. Measured live on
+    2026-11-14: Products 7 columns = 2080px inside a 1168px panel, Quotes 1560, Contacts 1280,
+    Companies 1200 — all reachable only by horizontal scrolling, with the last columns hidden.
+
+    A guard here rather than a comment, because the obvious way to add a field is one more column.
+    """
+    import re
+    pages = pathlib.Path(ROOT / "web" / "portal" / "src")
+    limit = {"Products.tsx": 5, "CrmQuotes.tsx": 6, "Companies.tsx": 5, "App.tsx": 7}
+    problems = []
+    for name, budget in limit.items():
+        source = (pages / name).read_text()
+        for table in source.split("<Table")[1:]:
+            body = table.split("columns={[", 1)[1] if "columns={[" in table else ""
+            body = body.split("] as TableColumn", 1)[0]
+            columns = len(re.findall(r"\{key: '", body))
+            if columns > budget:
+                problems.append(f"{name}: {columns} columns (budget {budget})")
+    assert problems == [], "tables that will scroll sideways: " + "; ".join(problems)
