@@ -61,8 +61,7 @@ export function Crm({token}: {token: string}) {
 
   return (
     <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
-      <Heading level={1}>CRM and enquiries</Heading>
-      <p>Every enquiry from chat, email, SMS and phone lands here, with the conversation and next step.</p>
+      <p style={{fontSize: 15}}>Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step. Reply, quote or book from the same card.</p>
       <TextInput label="Search enquiries" value={query} onChange={setQuery} />
       <Table
         data={shown as unknown as Record<string, unknown>[]}
@@ -86,8 +85,8 @@ export function Crm({token}: {token: string}) {
         </Card>
       ))}
       <div style={{display: 'flex', gap: 24, marginTop: 24, flexWrap: 'wrap'}}>
-        <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p>None booked.</p>}</div>
-        <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p>No open tasks.</p>}</div>
+        <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p style={{opacity: 0.75}}>Nothing booked yet. When a customer books from your chat window or your page, it lands here.</p>}</div>
+        <div><Heading level={2}>Tasks</Heading>{todos.length ? todos.map((t, i) => <p key={i}>{String(t.title || 'Task')} · {String(t.status || '')}</p>) : <p style={{opacity: 0.75}}>No open tasks — nothing is waiting on you.</p>}</div>
       </div>
       {status ? <p role="status">{status}</p> : null}
     </div>

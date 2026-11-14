@@ -46,12 +46,10 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
   const quoteStates = ['draft', 'reviewed', 'accepted', 'declined'].map((state) => ({name: state, count: quotes.filter((quote) => quote.status === state).length}));
 
   return (
-    <div style={{maxWidth: 1040, margin: '0 auto', padding: '0 24px 48px'}}>
-      <Heading level={1}>{brand.name || 'Your business'} at a glance</Heading>
-      <p>Enquiries, quotes and marketing in one place.</p>
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))'}}>
+    <div>
+      <div className="c-kpis">
         {[['Enquiries', leads.length], ['Quoted value', money(quoted, 'NZD')], ['Posts', posts.length], ['Media', assets.length]].map(([label, value]) => (
-          <Card key={String(label)}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
+          <div className="c-kpi" key={String(label)}><strong>{value}</strong><span>{label}</span></div>
         ))}
       </div>
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: 20}}>
@@ -73,6 +71,13 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
         </Card>
       </div>
       <Heading level={2}>Latest enquiries</Heading>
+      {leads.length === 0 ? (
+        <div className="c-empty">
+          <strong>No enquiries yet — and that is normal on day one.</strong>
+          <p>Your chat window is ready. Once it is on your site (or you share your chat page), the
+            first message a customer sends appears here, with their name and number already filled in.</p>
+        </div>
+      ) : null}
       {leads.slice(0, 5).map((lead) => <p key={lead.id}>{lead.name || lead.email || 'Enquiry'} · {lead.channel} · {lead.status}</p>)}
       {status ? <p role="status">{status}</p> : null}
     </div>

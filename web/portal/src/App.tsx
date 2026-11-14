@@ -14,9 +14,9 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
+import {celebrateOnce} from './celebrate';
+import './shell.css';
 import {copyText} from './clipboard';
-import {AppShell} from '@astryxdesign/core/AppShell';
-import {SideNav, SideNavSection, SideNavItem} from '@astryxdesign/core/SideNav';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import qrcode from 'qrcode-generator';
 import en from './locales/en.json';
@@ -119,50 +119,6 @@ function TranslationNote({locale}: {locale: string}) {
       description={<>Automated and not reviewed by a native speaker. We welcome corrections — <a href={'mailto:admin@trendibizz.com?subject=' + encodeURIComponent('Translation feedback: ' + locale)}>tell us what to improve</a>.</>}
       isDismissable
     />
-  );
-}
-
-function BrandHeader({brand, tab, setTab, onSignOut, onInstall, locale, setLocale, tr, mode, setMode, showTabs = true, layout, setLayout}: {brand: Brand; tab: string; setTab: (v: string) => void; onSignOut: () => void; onInstall?: () => void; locale: string; setLocale: (v: string) => void; tr: (key: string) => string; mode: string; setMode: (v: string) => void; showTabs?: boolean; layout: string; setLayout: (v: string) => void}) {
-  return (
-    <header style={{borderBottom: '1px solid var(--color-border)', padding: '16px 0', marginBottom: 24}}>
-      <div style={{display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 1040, margin: '0 auto', padding: '0 24px'}}>
-        {brand.logo ? <img src={brand.logo} alt="" style={{height: 44, width: 'auto'}} /> : null}
-        <div style={{display: 'flex', flexDirection: 'column'}}>
-          <strong style={{fontSize: 20}}>{brand.name || 'Concierge'}</strong>
-          <span style={{fontSize: 13, color: 'var(--color-text-secondary)'}}>
-            Powered by Trendi · <a href="/privacy" style={{color: 'inherit', textDecoration: 'underline'}}>Privacy</a>
-          </span>
-        </div>
-        <div style={{display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center'}}>
-          <select aria-label="Colour mode" value={mode} onChange={(e) => setMode(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-          </select>
-          <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}>
-            {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-          </select>
-          {showTabs ? <TabList value={tab} onChange={setTab}>
-            <Tab value="home" label={tr('Home')} />
-            <Tab value="setup" label={tr('Setup')} />
-            <Tab value="designs" label={tr('Designs')} />
-            <Tab value="products" label={tr('Products')} />
-            <Tab value="bookings" label={tr('Bookings')} />
-            <Tab value="reports" label={tr('Reports')} />
-            <Tab value="quotes" label={tr('Quotes')} />
-            <Tab value="crm" label={tr('Enquiries')} />
-            <Tab value="contacts" label={tr('Contacts')} />
-            <Tab value="permissions" label={tr('Permissions')} />
-            <Tab value="team" label={tr('Team')} />
-            <Tab value="yourcrm" label={tr('Your CRM')} />
-            <Tab value="social" label={tr('Social')} />
-            <Tab value="media" label={tr('Marketing media')} />
-          </TabList> : null}
-          <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 8, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
-          {onInstall ? <Button label={tr('Install app')} variant="secondary" onClick={onInstall} /> : null}
-          <Button label={tr('Sign out')} variant="ghost" onClick={onSignOut} />
-        </div>
-      </div>
-      <div style={{height: 4, background: brand.accent || '#c8f560', marginTop: 16}} />
-    </header>
   );
 }
 
@@ -1581,53 +1537,132 @@ function Shell() {
     );
   }
 
+  const NAV: {group: string; colour: string; items: {tab: string; label: string; glyph: string}[]}[] = [
+    {group: 'Overview', colour: '#7c5cff', items: [
+      {tab: 'home', label: 'Home', glyph: '🏠'},
+    ]},
+    {group: 'Customers', colour: '#22d3ee', items: [
+      {tab: 'crm', label: 'Enquiries', glyph: '💬'},
+      {tab: 'contacts', label: 'Contacts', glyph: '👥'},
+      {tab: 'bookings', label: 'Bookings', glyph: '📅'},
+    ]},
+    {group: 'Sales', colour: '#fbbf24', items: [
+      {tab: 'quotes', label: 'Quotes', glyph: '🧾'},
+      {tab: 'products', label: 'Products', glyph: '📦'},
+      {tab: 'designs', label: 'Designs and CAD', glyph: '📐'},
+    ]},
+    {group: 'Marketing', colour: '#f472b6', items: [
+      {tab: 'social', label: 'Social', glyph: '📣'},
+      {tab: 'media', label: 'Marketing media', glyph: '🖼'},
+    ]},
+    {group: 'Insights', colour: '#34d399', items: [
+      {tab: 'reports', label: 'Reports', glyph: '📊'},
+    ]},
+    {group: 'Settings', colour: '#94a3b8', items: [
+      {tab: 'setup', label: 'Setup', glyph: '⚙️'},
+      {tab: 'permissions', label: 'Permissions', glyph: '🛡'},
+      {tab: 'team', label: 'Team', glyph: '🤝'},
+      {tab: 'yourcrm', label: 'Your CRM', glyph: '🗂'},
+    ]},
+  ];
+
+  const HERO: Record<string, {title: string; line: string}> = {
+    home: {title: (brand.name || 'Your business') + ' — good morning', line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
+    crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
+    contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},
+    bookings: {title: 'Bookings', line: 'Your calendar, with the jobs that customers booked themselves.'},
+    quotes: {title: 'Quotes', line: 'What you have quoted, what was accepted, and what is still with the customer.'},
+    products: {title: 'Products', line: 'Your prices and rates. Concierge never invents one of these.'},
+    designs: {title: 'Designs and CAD', line: 'Plans and models, with measured areas when you have them.'},
+    social: {title: 'Social', line: 'Draft posts in your voice — nothing publishes until you say so.'},
+    media: {title: 'Marketing media', line: 'The photos and clips worth posting, ready to reuse.'},
+    reports: {title: 'Reports', line: 'What you earned, what you quoted, and what is still open.'},
+    setup: {title: 'Set up your business', line: 'Five short steps, and the chat window starts working for you. No code.'},
+    permissions: {title: 'What should Concierge do for you?', line: 'It only does what you allow, and you can switch any of it off again.'},
+    team: {title: 'Team', line: 'Who can get in, and what each of them can do.'},
+    yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},
+  };
+
+  const hero = HERO[tab] || {title: '', line: ''};
+
   const content = (
     <>
       {/* Pausing something that has never run is not a first step: keep it off the setup wizard. */}
       {tab !== 'setup' ? <PauseStrip token={token} /> : null}
       <TranslationNote locale={locale} />
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => setTab('home')} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
+      {tab !== 'setup' ? (
+        <div className="c-hero">
+          <h1>{hero.title}</h1>
+          <p>{hero.line}</p>
+        </div>
+      ) : null}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} brand={brand} setBrand={setBrand} /></Suspense>}
     </>
   );
-  const header = (
-    <BrandHeader brand={brand} tab={tab} setTab={setTab} onSignOut={() => setToken('')} onInstall={installEvent ? () => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); } : undefined} locale={locale} setLocale={setLocale} tr={tr} mode={mode} setMode={setMode} showTabs={layout === 'tabs'} layout={layout} setLayout={setLayout} />
-  );
-  const sidebar = (
-    <SideNav>
-      <SideNavSection title={tr('Workspace')}>
-        <SideNavItem label={tr('Home')} isSelected={tab === 'home'} onClick={() => setTab('home')} />
-        <SideNavItem label={tr('Setup')} isSelected={tab === 'setup'} onClick={() => setTab('setup')} />
-        <SideNavItem label={tr('Permissions')} isSelected={tab === 'permissions'} onClick={() => setTab('permissions')} />
-        <SideNavItem label={tr('Team')} isSelected={tab === 'team'} onClick={() => setTab('team')} />
-        <SideNavItem label={tr('Your CRM')} isSelected={tab === 'yourcrm'} onClick={() => setTab('yourcrm')} />
-      </SideNavSection>
-      <SideNavSection title={tr('Customers')}>
-        <SideNavItem label={tr('Enquiries')} isSelected={tab === 'crm'} onClick={() => setTab('crm')} />
-        <SideNavItem label={tr('Contacts')} isSelected={tab === 'contacts'} onClick={() => setTab('contacts')} />
-        <SideNavItem label={tr('Bookings')} isSelected={tab === 'bookings'} onClick={() => setTab('bookings')} />
-      </SideNavSection>
-      <SideNavSection title={tr('Revenue')}>
-        <SideNavItem label={tr('Quotes')} isSelected={tab === 'quotes'} onClick={() => setTab('quotes')} />
-        <SideNavItem label={tr('Products')} isSelected={tab === 'products'} onClick={() => setTab('products')} />
-        <SideNavItem label={tr('Reports')} isSelected={tab === 'reports'} onClick={() => setTab('reports')} />
-        <SideNavItem label={tr('Designs and CAD')} isSelected={tab === 'designs'} onClick={() => setTab('designs')} />
-      </SideNavSection>
-      <SideNavSection title={tr('Marketing')}>
-        <SideNavItem label={tr('Social')} isSelected={tab === 'social'} onClick={() => setTab('social')} />
-        <SideNavItem label={tr('Marketing media')} isSelected={tab === 'media'} onClick={() => setTab('media')} />
-      </SideNavSection>
-    </SideNav>
-  );
+
+  const initials = (brand.name || 'Concierge').split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]?.toUpperCase() || '').join('');
 
   return (
     <Theme theme={theme} mode={mode as 'light' | 'dark' | 'system'}>
     <NotifyProvider>
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-    {layout === 'sidebar' ? (
-      <AppShell topNav={header} sideNav={sidebar} mobileNav={{hasToggle: true}} contentPadding={0} height="auto">{content}</AppShell>
-    ) : (
-      <div>{header}{content}</div>
-    )}
+    <div className="c-shell">
+      <div className="c-brand">
+        {brand.logo ? <img src={brand.logo} alt="" style={{height: 42, width: 'auto', borderRadius: 12}} /> : <div className="c-brand-mark">{initials || 'C'}</div>}
+        <div>
+          <div className="c-brand-name">{brand.name || 'Concierge'}</div>
+          <div className="c-brand-sub">
+            Powered by <strong>Trendi</strong> · <a href="/privacy">Privacy</a>
+          </div>
+        </div>
+      </div>
+
+      <header className="c-topbar">
+        <select aria-label="Colour mode" value={mode} onChange={(e) => setMode(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}>
+          <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+        </select>
+        <select aria-label={tr('Language')} value={locale} onChange={(e) => setLocale(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}>
+          {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+        </select>
+        {layout === 'tabs' ? <TabList value={tab} onChange={setTab}>
+          <Tab value="home" label={tr('Home')} />
+          <Tab value="setup" label={tr('Setup')} />
+          <Tab value="designs" label={tr('Designs')} />
+          <Tab value="products" label={tr('Products')} />
+          <Tab value="bookings" label={tr('Bookings')} />
+          <Tab value="reports" label={tr('Reports')} />
+          <Tab value="quotes" label={tr('Quotes')} />
+          <Tab value="crm" label={tr('Enquiries')} />
+          <Tab value="contacts" label={tr('Contacts')} />
+          <Tab value="permissions" label={tr('Permissions')} />
+          <Tab value="team" label={tr('Team')} />
+          <Tab value="yourcrm" label={tr('Your CRM')} />
+          <Tab value="social" label={tr('Social')} />
+          <Tab value="media" label={tr('Marketing media')} />
+        </TabList> : null}
+        <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
+        <div className="c-topbar-spacer" />
+        {installEvent ? <Button label={tr('Install app')} variant="secondary" onClick={() => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); }} /> : null}
+        <Button label={tr('Sign out')} variant="ghost" onClick={() => setToken('')} />
+      </header>
+
+      <nav className="c-nav" aria-label="Sections">
+        {NAV.map((group) => (
+          <div className="c-nav-group" key={group.group}>
+            <div className="c-nav-label"><span className="c-nav-dot" style={{background: group.colour}} />{tr(group.group)}</div>
+            {group.items.map((item) => (
+              <button key={item.tab} type="button" className="c-nav-item" data-active={tab === item.tab}
+                      aria-current={tab === item.tab ? 'page' : undefined} onClick={() => setTab(item.tab)}>
+                <span className="c-nav-glyph" aria-hidden="true">{item.glyph}</span>
+                {tr(item.label)}
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      <main className="c-content">{content}</main>
+    </div>
     </InternationalizationProvider>
     </NotifyProvider>
     </Theme>

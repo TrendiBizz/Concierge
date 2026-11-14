@@ -3,6 +3,7 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
+import {celebrate} from './celebrate';
 
 /**
  * Permissions panel.
@@ -116,6 +117,19 @@ export default function Permissions({token}: {token: string}) {
       if (!response.ok) throw new Error(data.detail || 'Could not save the permission');
       setStatus(authorized ? 'Permission granted.' : 'Permission withdrawn.');
       await load();
+      // Mark the moment when every channel has been decided: this is the end of setup, and the
+      // last thing a new customer should feel is "done". Whatever they chose (yes or no) counts.
+      if (authorized) {
+        try {
+          const after = await fetch('/owner/onboarding/authorizations', {
+            headers: {Accept: 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})},
+          }).then((r) => r.json());
+          const decided = CHANNELS.every((channel) => after?.[channel.key]?.authorized !== undefined);
+          if (decided) celebrate();
+        } catch {
+          // A celebration is never worth an error on the page.
+        }
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not save the permission');
     } finally {

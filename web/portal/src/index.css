@@ -50,12 +50,15 @@
   }
 }
 
+/* The Vite starter pinned the whole app to 1126px with a centred, text-align:center column.
+   That single rule is why the Studio sat in a narrow strip in the middle of a wide screen and
+   why the footer link read "Privac". The app owns its own layout now. */
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  text-align: left;
+  border: 0;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
