@@ -83,7 +83,8 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   const [prompt, setPrompt] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
+  // Which generator is actually running. A single boolean made every button say "Working…".
+  const [busy, setBusy] = useState<'' | 'image' | 'video' | 'ai' | 'delete'>('');
   const [usage, setUsage] = useState<{images?: {used: number; limit: number}; videos?: {used: number; limit: number}; ai?: {used: number; limit: number}; storage?: {used: number; limit: number}} | null>(null);
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
   }, [token]);
 
   async function generate(kind: 'image' | 'video' | 'ai') {
-    setBusy(true); setStatus('');
+    setBusy(kind); setStatus('');
     try {
       const payload: Record<string, unknown> = {};
       if (kind === 'image') {
@@ -123,7 +124,20 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
-    setBusy(false);
+    setBusy('');
+  }
+
+  async function removeAsset(asset: Asset) {
+    const label = asset.kind === 'video' ? 'video' : asset.kind === 'ai' ? 'AI image' : 'image';
+    if (!window.confirm('Delete this ' + label + '? This cannot be undone.')) return;
+    setBusy('delete'); setStatus('Deleting…');
+    try {
+      await api('/owner/media/assets/' + asset.id, 'DELETE');
+      setAssets(await api('/owner/media/assets'));
+      setUsage(await api('/owner/media/usage'));
+      setStatus('Deleted. Your storage and monthly count both went down.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not delete that'); }
+    setBusy('');
   }
 
   async function openAsset(id: string) {
@@ -179,8 +193,8 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
               No photo chosen, so this will be a colour-blocked poster in your accent colour.
             </p>
           ) : null}
-          <Button label={busy ? 'Working…' : 'Generate image'} variant="primary"
-                  isDisabled={busy || (template === 'before_after' && photos.length < 2)}
+          <Button label={busy === 'image' ? 'Making the image…' : 'Generate image'} variant="primary"
+                  isDisabled={busy !== '' || (template === 'before_after' && photos.length < 2)}
                   onClick={() => void generate('image')} />
         </Card>
         <Card>
@@ -204,7 +218,11 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
             <strong>{asset.kind === 'video' ? 'Video' : asset.kind === 'ai' ? 'AI image' : 'Branded image'}</strong>
             <p style={{fontSize: 13, opacity: 0.75}}>{asset.template} · {new Date(asset.created_at).toLocaleString()}</p>
-            <Button label="Open full size" variant="secondary" onClick={() => openAsset(asset.id)} />
+            <div style={{display: 'flex', gap: 8}}>
+              <Button label="Open full size" variant="secondary" onClick={() => openAsset(asset.id)} />
+              <Button label={busy === 'delete' ? 'Deleting…' : 'Delete'} variant="secondary"
+                      isDisabled={busy !== ''} onClick={() => void removeAsset(asset)} />
+            </div>
           </Card>
         ))}
       </div>
