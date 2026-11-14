@@ -2302,6 +2302,153 @@ async def owner_task_delete(task_id: int, user: dict = Depends(owner_auth.curren
     return {"deleted": await tasks.delete(task_id)}
 
 
+
+class CompanyBody(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    domain: str = Field(default="", max_length=200)
+    notes: str = Field(default="", max_length=1000)
+
+
+class CompanyUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    domain: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=1000)
+    parent_id: str | None = None
+
+
+class Assignee(BaseModel):
+    user_id: str | None = None
+
+
+async def _require_member(tenant_id, user_id: str) -> str | None:
+    """An assignee must be someone who can actually get in to this workspace."""
+    if user_id in (None, "", "unassigned"):
+        return None
+    try:
+        found = await db.pool().fetchval(
+            "SELECT id FROM tenant_users WHERE id=$1::uuid AND tenant_id=$2 AND active", user_id, tenant_id)
+    except Exception:
+        raise HTTPException(400, "Invalid team member id")
+    if not found:
+        raise HTTPException(404, "That person is not on your team")
+    return str(found)
+
+
+async def _require_company(tenant_id, company_id: str) -> str:
+    try:
+        found = await db.pool().fetchval(
+            "SELECT id FROM companies WHERE id=$1::uuid AND tenant_id=$2", company_id, tenant_id)
+    except Exception:
+        raise HTTPException(400, "Invalid company id")
+    if not found:
+        raise HTTPException(404, "Unknown company")
+    return str(found)
+
+
+@app.get("/owner/companies")
+async def owner_companies(user: dict = Depends(owner_auth.current_user)):
+    """Companies, each with the people and open value attached to it."""
+    rows = await db.pool().fetch(
+        """
+        SELECT c.id, c.name, c.domain, c.notes, c.parent_id,
+               (SELECT count(*) FROM customer_cases k WHERE k.company_id = c.id) AS contacts,
+               (SELECT count(*) FROM leads l JOIN customer_cases k ON l.case_id = k.id
+                 WHERE k.company_id = c.id AND l.status IN ('new','contacted','booked')) AS open_deals,
+               (SELECT coalesce(sum(l.value_cents),0) FROM leads l JOIN customer_cases k ON l.case_id = k.id
+                 WHERE k.company_id = c.id AND l.status IN ('new','contacted','booked')) AS open_value_cents
+          FROM companies c WHERE c.tenant_id = $1 ORDER BY c.name
+        """, user["tenant_id"])
+    return [dict(row) for row in rows]
+
+
+@app.post("/owner/companies", status_code=201)
+async def owner_company_create(body: CompanyBody, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    try:
+        row = await db.pool().fetchrow(
+            "INSERT INTO companies (tenant_id, name, domain, notes) VALUES ($1,$2,$3,$4) RETURNING *",
+            user["tenant_id"], body.name.strip(), body.domain.strip(), body.notes.strip())
+    except Exception:
+        raise HTTPException(409, "You already have a company with that name")
+    return dict(row)
+
+
+@app.patch("/owner/companies/{company_id}")
+async def owner_company_update(company_id: str, body: CompanyUpdate,
+                               user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    fields = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "Nothing to update")
+    if "parent_id" in fields:
+        fields["parent_id"] = await _require_company(user["tenant_id"], fields["parent_id"]) if fields["parent_id"] else None
+    parts = [f"{col} = ${i}" for i, col in enumerate(fields, start=3)]
+    row = await db.pool().fetchrow(
+        f"UPDATE companies SET {', '.join(parts)}, updated_at = now() "
+        "WHERE id = $1::uuid AND tenant_id = $2 RETURNING *",
+        company_id, user["tenant_id"], *fields.values())
+    if row is None:
+        raise HTTPException(404, "Unknown company")
+    return dict(row)
+
+
+@app.delete("/owner/companies/{company_id}")
+async def owner_company_delete(company_id: str, user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    gone = await db.pool().fetchval(
+        "DELETE FROM companies WHERE id=$1::uuid AND tenant_id=$2 RETURNING id",
+        company_id, user["tenant_id"])
+    if gone is None:
+        raise HTTPException(404, "Unknown company")
+    return {"deleted": True}
+
+
+@app.put("/owner/contacts/{case_key}/company")
+async def owner_contact_company(case_key: str, body: dict,
+                                user: dict = Depends(owner_auth.current_user)):
+    """Put a person inside a company, or take them out of one."""
+    owner_auth.require_role(user, "editor")
+    company_id = await _require_company(user["tenant_id"], body.get("company_id")) if body.get("company_id") else None
+    row = await db.pool().fetchrow(
+        "UPDATE customer_cases SET company_id=$3, updated_at=now() "
+        "WHERE tenant_id=$1 AND case_key=$2 RETURNING case_key",
+        user["tenant_id"], case_key.strip().lower()[:200], company_id)
+    if row is None:
+        raise HTTPException(404, "Unknown contact")
+    return {"case_key": row["case_key"], "company_id": company_id}
+
+
+@app.put("/owner/contacts/{case_key}/assignee")
+async def owner_contact_assignee(case_key: str, body: Assignee,
+                                 user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    assignee = await _require_member(user["tenant_id"], body.user_id)
+    row = await db.pool().fetchrow(
+        "UPDATE customer_cases SET assigned_to=$3, updated_at=now() "
+        "WHERE tenant_id=$1 AND case_key=$2 RETURNING case_key",
+        user["tenant_id"], case_key.strip().lower()[:200], assignee)
+    if row is None:
+        raise HTTPException(404, "Unknown contact")
+    return {"case_key": row["case_key"], "assigned_to": assignee}
+
+
+@app.put("/owner/crm/leads/{lead_id}/assignee")
+async def owner_lead_assignee(lead_id: str, body: Assignee,
+                              user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "editor")
+    assignee = await _require_member(user["tenant_id"], body.user_id)
+    try:
+        row = await db.pool().fetchrow(
+            "UPDATE leads SET assigned_to=$3, updated_at=now() "
+            "WHERE id=$1::uuid AND tenant_id=$2 RETURNING id, assigned_to",
+            lead_id, user["tenant_id"], assignee)
+    except Exception:
+        raise HTTPException(404, "Enquiry not found")
+    if row is None:
+        raise HTTPException(404, "Enquiry not found")
+    return {"id": str(row["id"]),
+            "assigned_to": str(row["assigned_to"]) if row["assigned_to"] else None}
+
 @app.patch("/owner/crm/leads/{lead_id}")
 async def owner_crm_update(lead_id: str, body: LeadUpdate, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
@@ -2651,6 +2798,9 @@ async def owner_contacts(
     rows = await db.pool().fetch(
         """
         SELECT c.case_key, c.display_name, c.company, c.primary_phone, c.primary_email,
+               c.assigned_to, c.company_id,
+               (SELECT u.email FROM tenant_users u WHERE u.id = c.assigned_to) AS assignee_email,
+               (SELECT co.name FROM companies co WHERE co.id = c.company_id) AS company_name,
                c.automation_paused, c.takeover_at, c.updated_at,
                (SELECT count(*) FROM case_events e WHERE e.case_id = c.id) AS event_count,
                (SELECT string_agg(DISTINCT e.channel, ',') FROM case_events e

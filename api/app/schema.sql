@@ -1146,3 +1146,23 @@ CREATE TABLE IF NOT EXISTS install_requests (
 );
 CREATE INDEX IF NOT EXISTS install_requests_tenant_idx ON install_requests(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS install_requests_status_idx ON install_requests(status, created_at DESC);
+
+-- Who owns a record. A team of two cannot share a queue when every record belongs to nobody.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES tenant_users(id) ON DELETE SET NULL;
+ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES tenant_users(id) ON DELETE SET NULL;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES tenant_users(id) ON DELETE SET NULL;
+
+-- Companies as a record in their own right, instead of a stranded text field on each contact.
+CREATE TABLE IF NOT EXISTS companies (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name        text NOT NULL,
+    domain      text NOT NULL DEFAULT '',
+    notes       text NOT NULL DEFAULT '',
+    parent_id   uuid REFERENCES companies(id) ON DELETE SET NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, name)
+);
+CREATE INDEX IF NOT EXISTS companies_tenant_idx ON companies (tenant_id, name);
+ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES companies(id) ON DELETE SET NULL;

@@ -485,6 +485,8 @@ export function Contacts({token}: {token: string}) {
   const [addresses, setAddresses] = useState<{id: number; kind: string; value: string; label: string; source: string}[]>([]);
   const [newKind, setNewKind] = useState('phone');
   const [newValue, setNewValue] = useState('');
+  const [team, setTeam] = useState<{id: string; email: string}[]>([]);
+  const [companyList, setCompanyList] = useState<{id: string; name: string}[]>([]);
 
   async function load(search: string) {
     try {
@@ -493,6 +495,32 @@ export function Contacts({token}: {token: string}) {
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load contacts'); }
   }
   useEffect(() => { load(query); }, [token, query]);
+  useEffect(() => {
+    api('/owner/team').then((data) => setTeam(((data as {members?: {id: string; email: string}[]}).members || [])))
+      .catch(() => setTeam([]));
+    api('/owner/companies').then((data) => setCompanyList(data as {id: string; name: string}[]))
+      .catch(() => setCompanyList([]));
+  }, [token]);
+
+  async function setAssignee(userId: string) {
+    if (!selected) return;
+    try {
+      await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/assignee', 'PUT',
+                {user_id: userId || null});
+      setStatus(userId ? 'Saved. That person now owns this account.' : 'Saved. Nobody owns this account now.');
+      await load(query);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the owner'); }
+  }
+
+  async function setCompany(companyId: string) {
+    if (!selected) return;
+    try {
+      await api('/owner/contacts/' + encodeURIComponent(selected.case_key) + '/company', 'PUT',
+                {company_id: companyId || null});
+      setStatus(companyId ? 'Saved. They are now part of that company.' : 'Saved. They are not in a company now.');
+      await load(query);
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the company'); }
+  }
 
   async function open(contact: Contact) {
     try {
@@ -553,6 +581,8 @@ export function Contacts({token}: {token: string}) {
           {key: 'channels', header: 'Channels', width: proportional(1, {minWidth: 120}), renderCell: (row) => (Array.isArray(row.channels) ? (row.channels as string[]).join(', ') : '')},
           {key: 'event_count', header: 'Messages', width: proportional(1, {minWidth: 90}), renderCell: (row) => String(row.event_count || 0)},
           {key: 'automation_paused', header: 'Assistant', width: proportional(1, {minWidth: 110}), renderCell: (row) => <Badge label={row.automation_paused ? 'paused' : 'replying'} variant={row.automation_paused ? 'warning' : 'neutral'} />},
+          {key: 'assignee_email', header: 'Owner', width: proportional(1, {minWidth: 140}),
+           renderCell: (row) => row.assignee_email ? String(row.assignee_email) : <span style={{opacity: 0.6}}>nobody</span>},
           {key: 'last_at', header: 'Last contact', width: proportional(1, {minWidth: 150}), renderCell: (row) => row.last_at ? new Date(String(row.last_at)).toLocaleString() : '—'},
           {key: 'case_key', header: '', width: proportional(1, {minWidth: 90}), renderCell: (row) => <Button label="Open" variant="secondary" onClick={() => open(row as unknown as Contact)} />},
         ] as TableColumn<Record<string, unknown>>[]}
@@ -563,6 +593,26 @@ export function Contacts({token}: {token: string}) {
         <Card>
           <Heading level={2}>{selected.label}{selected.company ? ' · ' + selected.company : ''}</Heading>
           <p>{selected.primary_phone || 'no phone'} · {selected.primary_email || 'no email'} · {selected.event_count} events across {(selected.channels || []).join(', ') || 'no channels yet'}</p>
+          <HStack gap={3} vAlign="end" style={{flexWrap: 'wrap', margin: '8px 0'}}>
+            <label style={{display: 'block'}}>
+              Who owns this account
+              <select aria-label="Account owner" value={(selected as unknown as {assigned_to?: string}).assigned_to || ''}
+                      onChange={(event) => void setAssignee(event.target.value)}
+                      style={{display: 'block', padding: 8, borderRadius: 6, minWidth: 220}}>
+                <option value="">Nobody yet</option>
+                {team.map((person) => <option key={person.id} value={person.id}>{person.email}</option>)}
+              </select>
+            </label>
+            <label style={{display: 'block'}}>
+              Company
+              <select aria-label="Company" value={(selected as unknown as {company_id?: string}).company_id || ''}
+                      onChange={(event) => void setCompany(event.target.value)}
+                      style={{display: 'block', padding: 8, borderRadius: 6, minWidth: 220}}>
+                <option value="">No company</option>
+                {companyList.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+              </select>
+            </label>
+          </HStack>
           <label style={{display: 'block', margin: '8px 0'}}>
             Why (recorded in the customer's history)
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. rang them back myself" style={{display: 'block', padding: 8, width: '100%'}} />
