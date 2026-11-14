@@ -314,3 +314,44 @@ Screenshot: `media-upload-only-2026-11-14.png`.
    route and the suite went green.
 2. The asset card's buttons truncated to "Open full s…" and "Del…". Shortened to "Open" and
    "Delete" with wrapping.
+
+## 11. Run through the design system (Astryx) and the defects that exposed
+
+The Studio ships `@astryxdesign/core` — Meta's Astryx (`github.com/meta/astryx`). The Media page
+had drifted away from it: a bare `<input type="checkbox">`, `<p role="status">`, inline grids and
+`fontSize: 13, opacity: 0.75` paragraphs. Rebuilt on the real components.
+
+| Now uses | Instead of |
+| --- | --- |
+| `Banner` (via one shared `StatusLine`) | `<p role="status">` on every page |
+| `CheckboxInput` | raw `<input type="checkbox">` |
+| `EmptyState` | an empty grid with no explanation |
+| `Grid` / `HStack` / `VStack` | inline `display:grid` style strings |
+| `Text` | ad-hoc font sizes and opacities |
+| `Badge` + `Timestamp` | a `<strong>` and `toLocaleString()` |
+| `ProgressBar` + a real MB figure | a bar that read "0%" while holding 1.3 MB |
+
+`src/StatusLine.tsx` is new: it infers `info` / `success` / `error` from the wording pages already
+use, so 12 status lines across six pages became consistent in one change.
+
+### Defects found while doing this, all fixed here
+
+1. **Badges truncated** to "Vid…" and "Ima…" once they sat beside a timestamp — moved into a
+   `VStack` so each takes its own line (verified: zero truncated badges in the DOM).
+2. **Storage read "0%"** with 1.3 MB stored, because the bar's max was rounded to MB. Now shows
+   "1.3 MB of 2048 MB used".
+3. **Raw checkboxes across five screens** (Setup, Permissions, Products, Social, Media) — all
+   replaced; a guard fails if any returns.
+4. **Twelve DIY status lines** across six pages — replaced by `StatusLine`.
+5. **Media deletes were unattributable.** Assets disappeared from ACME's library and neither the
+   container logs nor the database could say who removed them or when; the only delete paths are
+   the two authenticated endpoints and there is no cleanup job. Both now log
+   `tenant / caller / count / ids / path`. Open item carried in the handoff: confirm the audit line
+   appears on the next real delete.
+
+Live proof (dark mode, ACME Ltd): cards render with full "Video"/"Image" badges and single-line
+timestamps; storage reads "1.3 MB of 2048 MB used"; selecting all reports "2 of 2 selected";
+deleting one card shows a green success Banner "Deleted. Your storage went down." and the count
+drops 2 → 1. No page errors.
+
+Screenshots: `media-astryx-2026-11-14.png`, `media-status-banner-2026-11-14.png`.
