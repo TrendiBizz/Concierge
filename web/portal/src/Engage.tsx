@@ -24,28 +24,6 @@ function useApi(token: string) {
     return data;
   };
 }
-function readRaw(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('Could not read ' + file.name));
-    reader.readAsDataURL(file);
-  });
-}
-async function readPhoto(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) return readRaw(file);
-  return new Promise((resolve, reject) => {
-    const image = new Image(); const url = URL.createObjectURL(file);
-    image.onload = () => {
-      const max = 2048; const scale = Math.min(1, max / Math.max(image.width, image.height));
-      const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
-      canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url); resolve(canvas.toDataURL('image/jpeg', 0.86));
-    };
-    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read ' + file.name)); };
-    image.src = url;
-  });
-}
 
 /** The actual bytes, shown as a picture: the difference between "nothing generated" and a result. */
 function AssetPreview({token, id, video}: {token: string; id: string; video: boolean}) {
@@ -71,49 +49,20 @@ function AssetPreview({token, id, video}: {token: string; id: string; video: boo
     : <img className="c-thumb" src={src} alt="" />;
 }
 
-export function Media({token, brand, setBrand}: {token: string; brand: Brand; setBrand: (b: Brand) => void}) {
+export function Media({token}: {token: string}) {
   const api = useApi(token);
-  const [template, setTemplate] = useState('showcase');
-  const [headline, setHeadline] = useState('');
-  const [subline, setSubline] = useState('');
-  const [photos, setPhotos] = useState<File[]>([]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [status, setStatus] = useState('');
-  // Which generator is actually running. A single boolean made every button say "Working…".
-  const [busy, setBusy] = useState<'' | 'image' | 'ai' | 'upload' | 'delete'>('');
+  // Which action is running, so one button never claims to be another's work.
+  const [busy, setBusy] = useState<'' | 'upload' | 'delete'>('');
   const [selected, setSelected] = useState<string[]>([]);
-  const [usage, setUsage] = useState<{images?: {used: number; limit: number}; videos?: {used: number; limit: number}; ai?: {used: number; limit: number}; storage?: {used: number; limit: number}} | null>(null);
+  const [usage, setUsage] = useState<{storage?: {used: number; limit: number}; assets?: number} | null>(null);
 
   useEffect(() => {
     api('/owner/media/usage').then(setUsage).catch(() => undefined);
     api('/owner/media/assets').then(setAssets).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load media'));
   }, [token]);
-
-  async function generate(kind: 'image' | 'ai') {
-    setBusy(kind); setStatus('');
-    try {
-      const payload: Record<string, unknown> = {};
-      if (kind === 'image') {
-        payload.format = 'square'; payload.template = template; payload.headline = headline;
-        payload.subline = subline;
-        payload.photos = await Promise.all(photos.slice(0, 20).map(readPhoto));
-      } else {
-        payload.prompt = prompt.trim(); payload.format = 'square';
-      }
-      const asset = await api('/owner/media/' + (kind === 'ai' ? 'ai-image' : kind), 'POST', payload) as Asset;
-      setAssets(await api('/owner/media/assets'));
-      setUsage(await api('/owner/media/usage'));
-      setStatus((kind === 'ai' ? 'AI image made' : 'Image made') + ' — it is in Your media below.'
-                + ' Also added to your social composer.');
-      if (asset?.id) {
-        try { await api('/owner/media/assets/' + asset.id + '/to-social', 'POST', {}); }
-        catch { setStatus('Image made — it is in Your media below. Use "Send to social" to post it.'); }
-      }
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Render failed'); }
-    setBusy('');
-  }
 
   async function uploadVideo() {
     if (!uploadFile) return;
@@ -151,20 +100,20 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
       setSelected([]);
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
-      setStatus('Deleted ' + (result?.deleted ?? selected.length) + '. Your storage and monthly counts went down.');
+      setStatus('Deleted ' + (result?.deleted ?? selected.length) + '. Your storage went down.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not delete those'); }
     setBusy('');
   }
 
   async function removeAsset(asset: Asset) {
-    const label = asset.kind === 'video' ? 'video' : asset.kind === 'ai' ? 'AI image' : 'image';
+    const label = asset.kind === 'video' ? 'video' : 'image';
     if (!window.confirm('Delete this ' + label + '? This cannot be undone.')) return;
     setBusy('delete'); setStatus('Deleting…');
     try {
       await api('/owner/media/assets/' + asset.id, 'DELETE');
       setAssets(await api('/owner/media/assets'));
       setUsage(await api('/owner/media/usage'));
-      setStatus('Deleted. Your storage and monthly count both went down.');
+      setStatus('Deleted. Your storage went down.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not delete that'); }
     setBusy('');
   }
@@ -179,67 +128,33 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
 
   return (
     <div>
-      <p>Branded images and AI images. Bring your own video and we will post it. Everything you make here is added to your social composer.</p>
+      <p>
+        Upload the photos and videos you want posted — your own footage, or something you made with
+        an AI tool elsewhere. We publish them to your social accounts. We do not generate images or
+        video.
+      </p>
       {usage ? (
         <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '8px 0 16px'}}>
-          <ProgressBar label="Images this month" value={usage.images?.used || 0} max={usage.images?.limit || 100} hasValueLabel />
-                    <ProgressBar label="AI images this month" value={usage.ai?.used || 0} max={usage.ai?.limit || 50} hasValueLabel />
-          <ProgressBar label="Storage (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)} max={Math.round((usage.storage?.limit || 0) / 1048576)} hasValueLabel />
+          <ProgressBar label="Storage used (MB)" value={Math.round((usage.storage?.used || 0) / 1048576)}
+                       max={Math.round((usage.storage?.limit || 0) / 1048576)} hasValueLabel />
         </div>
       ) : null}
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         <Card>
-          <Heading level={2}>Brand kit</Heading>
-          <TextInput label="Brand name" value={brand.name} onChange={(v) => setBrand({...brand, name: v})} />
-          <TextInput label="Contact line" value={brand.contact} onChange={(v) => setBrand({...brand, contact: v})} />
-          <TextInput label="Accent colour" value={brand.accent} onChange={(v) => setBrand({...brand, accent: v})} />
-          <Button label="Save brand kit" variant="secondary" onClick={async () => {
-            try { const saved = await api('/owner/media/brand', 'PUT', brand); setBrand({...brand, ...saved, logo: saved.logo_data || brand.logo}); setStatus('Brand kit saved.'); } catch (e) { setStatus(e instanceof Error ? e.message : 'Save failed'); }
-          }} />
-        </Card>
-        <Card>
-          <Heading level={2}>Branded image</Heading>
-          <label style={{display: 'block', marginBottom: 6}}>
-            <span style={{fontSize: 13, opacity: 0.75}}>Template</span>
-            <select value={template} onChange={(e) => setTemplate(e.target.value)}
-                    style={{display: 'block', width: '100%', marginTop: 4}}>
-              <option value="showcase">Showcase — one photo, headline over the top</option>
-              <option value="before_after">Before / after — two photos side by side</option>
-              <option value="quote">Quote — big text poster, no photo</option>
-              <option value="service">Service — list of what you do, no photo</option>
-            </select>
-          </label>
-          <TextInput label="Headline" value={headline} onChange={setHeadline} />
-          <TextArea label="Subline or bullets" value={subline} onChange={setSubline} rows={3} />
-          <FileInput label="Photos" value={photos} onChange={(v) => setPhotos((v as File[]) || [])} isMultiple accept="image/*" />
-          {template === 'before_after' && photos.length < 2 ? (
-            <p style={{fontSize: 13, color: '#fbbf24'}}>
-              Before / after needs two photos — the first is BEFORE, the second AFTER.
-            </p>
-          ) : template === 'showcase' && photos.length === 0 ? (
-            <p style={{fontSize: 13, opacity: 0.75}}>
-              No photo chosen, so this will be a colour-blocked poster in your accent colour.
-            </p>
-          ) : null}
-          <Button label={busy === 'image' ? 'Making the image…' : 'Generate image'} variant="primary"
-                  isDisabled={busy !== '' || (template === 'before_after' && photos.length < 2)}
-                  onClick={() => void generate('image')} />
-        </Card>
-        <Card>
-          <Heading level={2}>Your video</Heading>
+          <Heading level={2}>Upload your media</Heading>
           <p style={{fontSize: 13, opacity: 0.75}}>
-            Already made it — filmed it yourself, or with an AI video tool elsewhere? Upload it and
-            we will publish it to your social accounts for you. We do not generate video.
+            A photo or a video you already have — filmed yourself, from your phone, or made with an
+            AI tool elsewhere. We will publish it to your social accounts. We do not make images or
+            video for you; we post what you bring.
           </p>
-          <FileInput label="Video file (MP4, MOV or WebM)" value={uploadFile}
-                     onChange={(v) => setUploadFile((v as File) || null)} accept="video/*,image/*" />
+          <FileInput label="Photo or video file (PNG, JPEG, WebP, MP4, MOV, WebM)" value={uploadFile}
+                     onChange={(v) => setUploadFile((v as File) || null)} accept="image/*,video/*" />
           <Button label={busy === 'upload' ? 'Uploading…' : 'Upload for socials'} variant="primary"
                   isDisabled={busy !== '' || !uploadFile} onClick={() => void uploadVideo()} />
-        </Card>
-        <Card>
-          <Heading level={2}>AI image</Heading>
-          <TextArea label="Prompt" value={prompt} onChange={setPrompt} rows={3} />
-          <Button label={busy === 'ai' ? 'Making the AI image…' : 'Generate AI image'} variant="primary" isDisabled={busy !== ''} onClick={() => void generate('ai')} />
+          <p style={{fontSize: 13, opacity: 0.75}}>
+            Your brand name, colour and logo live in <strong>Setup</strong> — they appear on your
+            quotes, invoices and chat widget.
+          </p>
         </Card>
       </div>
       {status ? <p role="status">{status}</p> : null}
@@ -267,8 +182,8 @@ export function Media({token, brand, setBrand}: {token: string; brand: Brand; se
               Select
             </label>
             <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
-            <strong>{asset.kind === 'video' ? 'Video' : asset.kind === 'ai' ? 'AI image' : 'Branded image'}</strong>
-            <p style={{fontSize: 13, opacity: 0.75}}>{asset.template} · {new Date(asset.created_at).toLocaleString()}</p>
+            <strong>{asset.kind === 'video' ? 'Video' : 'Image'}</strong>
+            <p style={{fontSize: 13, opacity: 0.75}}>{(asset.kind === 'video' ? 'Video' : 'Image')} · {new Date(asset.created_at).toLocaleString()}</p>
             <div style={{display: 'flex', gap: 8}}>
               <Button label="Open full size" variant="secondary" onClick={() => openAsset(asset.id)} />
               <Button label={busy === 'delete' ? 'Deleting…' : 'Delete'} variant="secondary"
