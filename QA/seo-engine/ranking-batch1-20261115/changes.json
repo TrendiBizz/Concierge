@@ -1,0 +1,306 @@
+{
+ "changes": [
+  {
+   "item": 4,
+   "file": "about.html",
+   "field": "meta description",
+   "old": "<meta content=\"Meet Trendi: Concierge customer and office assistance, SEO and AI visibility, and penetration testing. Operated by TRENDI LIMITED.\" name=\"description\"/>",
+   "new": "<meta content=\"Meet Trendi: Concierge customer and office assistance, SEO and AI visibility, and penetration testing for businesses worldwide. Operated by TRENDI LIMITED.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "after-hours-answering.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge answers after-hours calls and messages, captures details and books your agreed appointment times. USD $250/month, 3-month minimum.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge answers after-hours calls and messages, captures caller details and books your agreed appointment times. USD $250/month, 3-month minimum.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "ai-answering-service-vs-human.html",
+   "field": "meta description",
+   "old": "<meta content=\"AI or human answering service: availability, cost model, complex calls, consistency and when to use both. Concierge from USD $250 a month.\" name=\"description\"/>",
+   "new": "<meta content=\"AI or human answering service compared: availability, cost model, complex calls, consistency and when to use both. Concierge from USD $250 a month.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "ai-chat-widget.html",
+   "field": "meta description",
+   "old": "<meta content=\"Add a Concierge chat widget to your site: answers from your own pages, captures enquiries, books appointments. From USD $250/month.\" name=\"description\"/>",
+   "new": "<meta content=\"Add a Concierge AI chat widget to your website: answers from your own pages, captures enquiries, books appointments and hands over to you. From USD $250/month.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "ai-receptionist.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge is an AI receptionist: website chat, phone, email and SMS answering, booking and a built-in CRM. USD $250 a month, 3-month minimum.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge is an AI receptionist: website chat, phone, email and SMS answering, appointment booking and a built-in CRM. USD $250 a month, 3-month minimum.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "best-ai-receptionist.html",
+   "field": "meta description",
+   "old": "<meta content=\"A practical guide to choosing an AI receptionist: channels, pricing, data, booking, limits and what to test. Concierge from USD $250/month.\" name=\"description\"/>",
+   "new": "<meta content=\"A practical guide to choosing an AI receptionist: channels, pricing, data, booking, limits and what to test before go-live. Concierge from USD $250/month.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "concierge.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge handles enquiries, bookings and follow-up in one place, with a built-in CRM. Channels are configured and tested. From USD $250/month.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge is an AI receptionist for enquiries, bookings and follow-up, with a built-in CRM. Each channel is tested before it goes live. From USD $250/month.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "contact.html",
+   "field": "meta description",
+   "old": "<meta content=\"Contact Trendi about Concierge, SEO and AI visibility or penetration testing. Send your website and requirements to admin@trendibizz.com.\" name=\"description\"/>",
+   "new": "<meta content=\"Contact Trendi about Concierge, SEO and AI visibility or penetration testing. Send your website address and your requirements by email to admin@trendibizz.com.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "index.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge is an AI receptionist for small businesses: chat, phone, email and SMS enquiries, booking and a built-in CRM. From USD $250/month.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge is an AI receptionist for small businesses: chat, phone, email and SMS enquiries, appointment booking and a built-in CRM. From USD $250/month.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "missed-call-text-back.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge answers instead of missing the call, captures the enquiry and follows up by SMS where a call is missed and your provider supports it.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge answers instead of missing the call, captures the enquiry and follows up by text message where a call is missed and your phone provider supports it.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "penetration-testing.html",
+   "field": "meta description",
+   "old": "<meta content=\"Explore Trendi penetration testing: agreed scope, permission, findings and remediation guidance. A separate service, quoted on enquiry in USD.\" name=\"description\"/>",
+   "new": "<meta content=\"Trendi penetration testing for business websites and applications: agreed scope, written authorisation, findings and remediation guidance. Quoted on enquiry.\" name=\"description\"/>"
+  },
+  {
+   "item": 4,
+   "file": "virtual-receptionist.html",
+   "field": "meta description",
+   "old": "<meta content=\"Concierge is an AI virtual receptionist: answers calls, chat, email and SMS, captures enquiries and books appointments. From USD $250/month.\" name=\"description\"/>",
+   "new": "<meta content=\"Concierge is an AI virtual receptionist: answers calls, website chat, email and SMS, captures enquiries and books appointments for you. From USD $250/month.\" name=\"description\"/>"
+  },
+  {
+   "item": 3,
+   "file": "robots-txt-ai-search.html",
+   "field": "title",
+   "old": "<title>Robots.txt for Google and AI crawlers: 2026 guide | Trendi</title>",
+   "new": "<title>Googlebot robots.txt and AI crawlers: 2026 guide | Trendi</title>"
+  },
+  {
+   "item": 3,
+   "file": "robots-txt-ai-search.html",
+   "field": "og:title",
+   "old": "<meta content=\"Robots.txt for Google and AI crawlers: 2026 guide | Trendi\" property=\"og:title\"/>",
+   "new": "<meta content=\"Googlebot robots.txt and AI crawlers: 2026 guide | Trendi\" property=\"og:title\"/>"
+  },
+  {
+   "item": 3,
+   "file": "robots-txt-ai-search.html",
+   "field": "twitter:title",
+   "old": "<meta content=\"Robots.txt for Google and AI crawlers: 2026 guide | Trendi\" name=\"twitter:title\"/>",
+   "new": "<meta content=\"Googlebot robots.txt and AI crawlers: 2026 guide | Trendi\" name=\"twitter:title\"/>"
+  },
+  {
+   "item": 3,
+   "file": "tools/robots-ai-check.html",
+   "field": "title",
+   "old": "<title>Robots.txt AI crawlers checker: test your rules | Trendi</title>",
+   "new": "<title>Robots.txt checker for Googlebot and AI crawlers | Trendi</title>"
+  },
+  {
+   "item": 3,
+   "file": "tools/robots-ai-check.html",
+   "field": "og:title",
+   "old": "<meta content=\"Robots.txt AI crawlers checker: test your rules | Trendi\" property=\"og:title\"/>",
+   "new": "<meta content=\"Robots.txt checker for Googlebot and AI crawlers | Trendi\" property=\"og:title\"/>"
+  },
+  {
+   "item": 5,
+   "file": "ai-chat-widget.html",
+   "field": "title",
+   "old": "<title>AI chat widget for your website NZ | Trendi</title>",
+   "new": "<title>AI chat widget for your website | Trendi</title>"
+  },
+  {
+   "item": 5,
+   "file": "ai-chat-widget.html",
+   "field": "og:title",
+   "old": "<meta content=\"AI chat widget for your website NZ | Trendi\" property=\"og:title\"/>",
+   "new": "<meta content=\"AI chat widget for your website | Trendi\" property=\"og:title\"/>"
+  },
+  {
+   "item": 1,
+   "file": "ai-answering-service-vs-human.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose one</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose one</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "virtual-receptionist.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "after-hours-answering.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "missed-call-text-back.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/concierge\">Concierge</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/concierge\">Concierge</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "ai-receptionist-builders.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-receptionist-clinics\">Clinics and practices</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">Real estate</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-receptionist-clinics\">Clinics and practices</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">Real estate</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "ai-receptionist-real-estate.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-clinics\">Clinics and practices</a> \u00b7 <a href=\"/ai-receptionist-builders\">Builders and trades</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-clinics\">Clinics and practices</a> \u00b7 <a href=\"/ai-receptionist-builders\">Builders and trades</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "ai-receptionist-clinics.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">Real estate</a> \u00b7 <a href=\"/ai-receptionist-builders\">Builders and trades</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">Real estate</a> \u00b7 <a href=\"/ai-receptionist-builders\">Builders and trades</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/ai-receptionist-cost\">How much an AI receptionist costs</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "ai-chat-widget.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/concierge\">Concierge</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/concierge\">Concierge</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/ai-receptionist-cost\">How much an AI receptionist costs</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "best-ai-receptionist.html",
+   "field": "Related links",
+   "old": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a></p>",
+   "new": "<h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-receptionist-cost\">AI receptionist cost</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI vs human answering service</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/ai-visibility\">Guides: being found and mentioned</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a></p>"
+  },
+  {
+   "item": 1,
+   "file": "ai-receptionist.html",
+   "field": "Related links (hub)",
+   "old": "<li><a href=\"/ai-chat-widget\">The AI chat widget</a></li></ul></section></main>",
+   "new": "<li><a href=\"/ai-chat-widget\">The AI chat widget</a></li><li><a href=\"/virtual-receptionist\">Virtual receptionist</a></li><li><a href=\"/after-hours-answering\">After-hours answering</a></li></ul></section></main>"
+  },
+  {
+   "item": 1,
+   "file": "ai-receptionist-cost.html",
+   "field": "Related block (new)",
+   "old": "</main>",
+   "new": "<section class=\"section--surface design-section\"><div class=\"wrap\"><h2>Related</h2><p><a href=\"/ai-receptionist\">AI receptionist overview</a> \u00b7 <a href=\"/ai-answering-service-vs-human\">AI answering service vs human</a> \u00b7 <a href=\"/virtual-receptionist\">Virtual receptionist</a> \u00b7 <a href=\"/after-hours-answering\">After-hours answering</a> \u00b7 <a href=\"/missed-call-text-back\">Missed-call text back</a> \u00b7 <a href=\"/ai-receptionist-builders\">AI receptionist for builders and trades</a> \u00b7 <a href=\"/ai-receptionist-real-estate\">AI receptionist for real estate</a> \u00b7 <a href=\"/ai-receptionist-clinics\">AI receptionist for clinics</a> \u00b7 <a href=\"/ai-chat-widget\">AI chat widget for your website</a> \u00b7 <a href=\"/best-ai-receptionist\">How to choose an AI receptionist</a></p></div></section></main>"
+  }
+ ],
+ "manifest": [
+  {
+   "file": "about.html",
+   "before": "dec32837c33251fd92f24374182b2ca5e9f14e191b692359aea652766d239a13",
+   "after": "12a0d6d3a16759e7f7c44d4119e47a87f064f6874611c53795f5d8a0fe8c006d"
+  },
+  {
+   "file": "after-hours-answering.html",
+   "before": "b64ab36c609e268d70c4ffaf6c19367bf04e1d34255fdd4b213d73c3e8c23a42",
+   "after": "40939f59285faeeb13a9e749e290c531d5e800addafa76a733d31a9c9f7b05ab"
+  },
+  {
+   "file": "ai-answering-service-vs-human.html",
+   "before": "5aa402ff38d99d9e1b4a0ae53c40f3876588dcc848b856669d2de6faf271448e",
+   "after": "93f5b7ae4ce2f4fe27072c1a546218dfa74ce80a4237a5ad7cc88c0ae1505180"
+  },
+  {
+   "file": "ai-chat-widget.html",
+   "before": "5e813a5d3fc9e2ed81bda7e35bc98b852810d2e1df689c1cfc3ff4f743247c9a",
+   "after": "8e8b489d3a31a4059645105ac7f33777ad2ead8379f0f0ad67f79e101935f7c4"
+  },
+  {
+   "file": "ai-receptionist-builders.html",
+   "before": "fc52d9e26e47ed335cc40e606e852d9f5f1838dbcacbf063a031b3b331c17105",
+   "after": "ecea933c7490d9375671e0a839829feb61b15ff065cc2d1f85b22f6c4959232b"
+  },
+  {
+   "file": "ai-receptionist-clinics.html",
+   "before": "2e64697ad8610b08f91226996f84fc269ff40c6ac1295f017e37e02c3716fcd7",
+   "after": "c97e018ebd8c00cc97e1b58de7a297dd6891476931f9a2eed8e6d55d66ff4799"
+  },
+  {
+   "file": "ai-receptionist-cost.html",
+   "before": "4a902fed2cc733d5ee5e9599bd69fb2e10b579d2df92ef0aa5973e274cebd4d9",
+   "after": "63cd29bbf1f8505cae17d90b0327545cd75fba47f12c0eb7d895ceee66734034"
+  },
+  {
+   "file": "ai-receptionist-real-estate.html",
+   "before": "7f6ce80ef29ba327d3b40141aa3e606bfa628ed2cbf6b6b70524cb41a6259d86",
+   "after": "8f123f6528bf3f393aab1f72acd8ffc46d8b4b6c32a3cd77bae3cb7afe0169bd"
+  },
+  {
+   "file": "ai-receptionist.html",
+   "before": "0369bb858bcd46bde57d7e83586a7ed1ddc40f80e5cc021661520a0e614201f2",
+   "after": "6ea723c5259f37a2d6b69779b3d69f4e91b1004dd395e75471c006042e5b41b2"
+  },
+  {
+   "file": "best-ai-receptionist.html",
+   "before": "fc38e45c1fb2cd4fbd3766bfa94b7c9d3db4cab314e1f17cfdcfbb1f584512fb",
+   "after": "629143aac92e45e98c809ae8d35d51cbb8916c3af8e124b873fab4abcc7ab3f4"
+  },
+  {
+   "file": "concierge.html",
+   "before": "4b884eb5bd51affc5d2e78b1f87b637d3dab9c9cbd5334c98b52390fe262d629",
+   "after": "a8048cb93150eca0ea554427bec10177379977242911d624787b4c1f8a488910"
+  },
+  {
+   "file": "contact.html",
+   "before": "87d6dcec40ca8cb330148bf7d6d0519116d38adeb09146d8d27177dd84c29e3e",
+   "after": "f1276b043110439208364e039466e2feb6da97df536fe3049625af2d129ba5de"
+  },
+  {
+   "file": "index.html",
+   "before": "4f7dd1a35ed4baa5f54eec2d9dd70ebbbdfb02c7e2c390fc8f6628bb43479f60",
+   "after": "26de9ab6a0c6d281984f90813093a8bd9234a3e8dc7987922e5b3c9e054975c8"
+  },
+  {
+   "file": "missed-call-text-back.html",
+   "before": "48319a8f5d62affc1fc0efe7974663b1f357508fc6a462d1af0aad10088680ba",
+   "after": "758d4305620df21926b60629c2285415a8426037c0bcd980753a39363464f5e6"
+  },
+  {
+   "file": "penetration-testing.html",
+   "before": "a26913c64f7b0db4332feb3891e2696e3a6bb3760bec56e86f801abc03c70db7",
+   "after": "734e6f3a2d34b7ade6029f0986877a3cb51896003e6025c0793f6cd9a7cba655"
+  },
+  {
+   "file": "robots-txt-ai-search.html",
+   "before": "2a4b0afc594bc43a0d8539a03e1282c951bcdebe291acb2fecf0fbfde8c83271",
+   "after": "875eaf46a73c5c98a11e5d4cdb141e5ba07590e20a2256f8cc65c7b9dc4fceac"
+  },
+  {
+   "file": "tools/robots-ai-check.html",
+   "before": "3c2ccda32ff7a57ac6af1e7675bc994807be227c6528198e51e22bef2acc3f7a",
+   "after": "f53f1011178b628d39510c72ff843ef2811373795226d5d686164ffa2afdc749"
+  },
+  {
+   "file": "virtual-receptionist.html",
+   "before": "fbf6e798d29dd0ba108135b4b58e63cb535db71e3f65e47ae8e4b343b66aec7a",
+   "after": "e2373fdc04ba3b2593db7922e7585009e694ef448442197dad5103e8510f4ecc"
+  }
+ ]
+}
