@@ -252,4 +252,9 @@ def test_the_shell_has_no_horizontal_scroll_on_a_phone():
     assert "grid-template-columns: minmax(0, 1fr) !important" in narrow
     assert '"brand" "topbar" "nav" "content"' in narrow
     assert ".c-nav" in narrow and "display: none" not in narrow
-    assert "overflow-x: auto" in narrow
+    assert "max-height" in narrow and "overflow-y: auto" in narrow, (
+        "the phone navigation must stay reachable when it wraps")
+    assert "flex-wrap: wrap" in narrow, (
+        "on a phone the navigation must wrap into visible rows; a horizontal scroller left items\n"
+        "unclickable in the live crawl")
+    assert "display: none" not in narrow

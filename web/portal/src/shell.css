@@ -40,10 +40,12 @@
   .c-topbar { flex-wrap: wrap; row-gap: 8px; }
   .c-brand { border-right: 0; padding-bottom: 8px; }
   .c-nav {
-    display: flex; flex-direction: row; align-items: center; gap: 6px;
-    overflow-x: auto; overflow-y: hidden;
+    display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
+    /* Wrapping 17 destinations made the strip taller than a phone screen, and the last row was
+       unreachable (measured 2026-11-15: Reports sat at y=918 in an 844px viewport). The strip
+       now scrolls inside itself. */
+    max-height: 38vh; overflow-y: auto; overscroll-behavior: contain;
     padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--c-line);
-    scrollbar-width: thin;
   }
   .c-nav-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
   .c-nav-label, .c-nav-item { white-space: nowrap; }
