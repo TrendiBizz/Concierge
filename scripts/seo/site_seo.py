@@ -181,8 +181,14 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
                 problems.append(f"{rel}: canonical is {canonical.group(1)!r}, expected {expected!r}")
 
         # 2. noindex must be deliberate.
+        #    Google and Bing obey their own crawler-specific meta (googlebot, bingbot) as well as the
+        #    generic one, and the most restrictive wins. Reading only name="robots" let /glossary and
+        #    the crawler study ship "index" to everyone and "noindex" to Googlebot (found 15 Nov 2026).
+        robots_metas = re.findall(r'<meta content="([^"]*)" name="(robots|googlebot|bingbot)"', html)
         robots = re.search(r'<meta content="([^"]*)" name="robots"', html)
-        noindex = bool(robots and "noindex" in robots.group(1))
+        noindex = any("noindex" in content for content, _ in robots_metas)
+        if robots_metas and len({"noindex" in c for c, _ in robots_metas}) > 1:
+            problems.append(f"{rel}: robots metas disagree: " + ", ".join(f"{n}={c!r}" for c, n in robots_metas))
         if noindex and rel not in NOINDEX_ALLOWED:
             problems.append(f"{rel}: noindex, but it is not on the allowed list")
         if not noindex and rel in NOINDEX_ALLOWED:

@@ -139,6 +139,17 @@ def test_an_accidental_noindex_is_reported(tmp_path):
     assert any("about.html: noindex" in p for p in site_seo.audit(root))
 
 
+def test_a_googlebot_noindex_under_an_index_robots_meta_is_reported(tmp_path):
+    """/research/ai-crawler-blocking-2026 and /glossary, 15 Nov 2026: robots said index, googlebot said noindex."""
+    root = make_site(tmp_path)
+    html = page("/about", title="About").replace(
+        '<meta content="index, follow" name="robots"/>',
+        '<meta content="index, follow" name="robots"/><meta content="noindex, follow" name="googlebot"/>')
+    rewrite(root, "about.html", html)
+    problems = site_seo.audit(root)
+    assert any("about.html: robots metas disagree" in p for p in problems), problems
+
+
 def test_the_allowed_noindex_pages_must_stay_noindex(tmp_path):
     root = make_site(tmp_path, pages={
         "index.html": page("/", title="Home"),
