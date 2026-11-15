@@ -40,6 +40,25 @@ async function asset(request) {
       if (code===404) return new Response('Not found',{status:404});
     }
   }
+  // SEO-ENGINE-301 (15 Nov 2026, ranking plan item 13): one URL per page.
+  // 301 /page.html and /page/ to /page when site/page.html exists. Only lowercase [a-z0-9/-] page paths,
+  // so .txt/.xml/.json/.js/.css/images, the IndexNow key, /llms.txt, /robots.txt and /sitemap.xml never match.
+  // /concierge/*, /cdn-cgi/*, /.well-known/*, asset folders and /404 are excluded. Query string is kept.
+  {
+    let clean=null;
+    if (/^\/[a-z0-9][a-z0-9\/-]*\.html$/.test(pathname)) clean=pathname.slice(0,-5);
+    else if (/^\/[a-z0-9][a-z0-9\/-]*[a-z0-9]\/$/.test(pathname)) clean=pathname.slice(0,-1);
+    if (clean==='/index') clean='/';
+    const keep=/^\/(concierge|cdn-cgi|\.well-known|brand|fonts|assets|images)\//;
+    if (clean && !pathname.includes('//') && !keep.test(pathname) && clean!=='/404') {
+      const target=clean==='/'?'index.html':clean.slice(1)+'.html';
+      try {
+        const real=await fs.realpath(path.resolve(root,target));
+        if (real.startsWith(root+'/') && (await fs.stat(real)).isFile())
+          return new Response(null,{status:301,headers:{Location:clean+new URL(request.url).search}});
+      } catch {}
+    }
+  }
   const relative=pathname==='/'?'index.html':pathname.replace(/^\//,'');
   let file,stat;
   for (const candidate of [relative,relative+'.html',path.join(relative,'index.html')]) {
