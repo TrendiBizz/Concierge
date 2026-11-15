@@ -1,0 +1,10 @@
+# live base (on-disk bytes via Range: bytes=0-, captured 2026-11-15 16:08:24 NZDT)
+63cd29bbf1f8505cae17d90b0327545cd75fba47f12c0eb7d895ceee66734034  ai-receptionist-cost.html
+6ea723c5259f37a2d6b69779b3d69f4e91b1004dd395e75471c006042e5b41b2  ai-receptionist.html
+9704e0de8eea8bb16936ab8af72afb651d5324086e10d685519c320d10909d10  concierge-start.html
+# staged
+0109ce02d66c7f00ada164dbbadd85113cc72c15c4116fee0d62e46fddbf7c8b  ai-receptionist.html
+983294140c2b655e9eab96d66dd3b60aa71b9ba3b683b38ff4bd9504511acb9f  ai-receptionist-cost.html
+3341241493eb58d829676229be9520e1aa69820fab6b4320bc859fad634eea69  concierge-start.html
+fe64a4d596ba06a0c8acbf67361861cdbcb140f7ba8952eeb3afc59f3af64857  brand/screenshots/concierge-chat-window.webp
+5e95080ee90a156125c4cc2500c95fb79d91fec6702df6ce621b471be3c61976  brand/screenshots/concierge-setup-request.webp

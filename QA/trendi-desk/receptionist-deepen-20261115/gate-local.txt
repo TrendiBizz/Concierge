@@ -1,0 +1,29 @@
+=== Trendi SEO gate ===
+BASE_URL=http://127.0.0.1:8797
+time=2026-11-15 16:09:43 NZDT (Pacific/Auckland)
+
+PASS  GET / → 200
+PASS  no X-Robots-Tag: noindex on homepage
+PASS  homepage meta robots includes index
+PASS  canonical https://trendibizz.com/
+PASS  og:url https://trendibizz.com/
+PASS  JSON-LD contains Organization
+PASS  JSON-LD contains WebSite
+PASS  GET /robots.txt → 200
+PASS  robots.txt Content-Type text/plain
+PASS  robots.txt contains Allow
+PASS  robots.txt Sitemap: https://trendibizz.com/sitemap.xml
+PASS  GET IndexNow key file → 200 (/03e181565bff425da02ac8ea956fc758.txt)
+PASS  IndexNow key body equals key exactly
+PASS  GET /llms.txt → 200
+PASS  llms.txt Content-Type text/plain
+PASS  GET /sitemap.xml → 200
+PASS  sitemap.xml well-formed root element
+PASS  sitemap contains <loc>https://trendibizz.com/</loc>
+PASS  unknown path → HTTP 404
+WARN  skip www→apex (BASE_URL is not production apex/www)
+PASS  GET /favicon.ico → 200
+
+=== SUMMARY ===
+PASS=20 FAIL=0 WARN=1
+GATE RESULT: PASS
