@@ -35,9 +35,6 @@
 /tools/robots-ai-check.js
   Cache-Control: public, max-age=300, must-revalidate
 
-/glossary
-  X-Robots-Tag: noindex, follow
-
 /research/ai-crawler-blocking-2026/data.csv
   X-Robots-Tag: noindex, follow
   Content-Type: text/csv; charset=utf-8
