@@ -1708,8 +1708,12 @@ function Shell() {
     );
   }
 
-  const toggleGroup = (name: string) => setFolded((current) => {
-    const next = {...current, [name]: !current[name]};
+  // The visible state is `folded[group] ?? default`, and Settings defaults to folded. Toggling
+  // `!current[name]` therefore computed !undefined = true on the first click and did nothing:
+  // measured live 2026-11-15, the Settings header needed two clicks before Setup, Channels and
+  // permissions, Team, Your CRM or Saved replies could be reached at all.
+  const toggleGroup = (name: string, hidden: boolean) => setFolded((current) => {
+    const next = {...current, [name]: !hidden};
     try { localStorage.setItem('concierge:nav-folded', JSON.stringify(next)); } catch { /* private mode */ }
     return next;
   });
@@ -1842,7 +1846,7 @@ function Shell() {
           return (
           <div className="c-nav-group" key={group.group}>
             <button type="button" className="c-nav-label" aria-expanded={!hidden}
-                    onClick={() => toggleGroup(group.group)}
+                    onClick={() => toggleGroup(group.group, hidden)}
                     style={{display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left'}}>
               <span className="c-nav-dot" style={{background: group.colour}} />{tr(group.group)}
               <span aria-hidden="true" style={{marginLeft: 'auto', opacity: 0.5, fontSize: 11}}>{hidden ? '▸' : '▾'}</span>

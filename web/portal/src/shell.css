@@ -26,9 +26,28 @@
   grid-template-areas: "brand topbar" "nav content";
 }
 
+/* Phones and narrow windows. Measured on a live 390px viewport 2026-11-15: the document was
+   435px wide (45px of horizontal scroll on every screen), the sidebar kept a fixed 217px column
+   beside the content, and this block's own two-column override never applied. The navigation now
+   becomes a horizontally scrolling strip above the content instead of disappearing, so every tab
+   stays reachable on a phone. */
 @media (max-width: 900px) {
-  .c-shell { grid-template-columns: 1fr; grid-template-areas: "topbar" "content"; }
-  .c-nav { display: none; }
+  .c-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr) !important;
+    grid-template-areas: "brand" "topbar" "nav" "content" !important;
+  }
+  .c-topbar { flex-wrap: wrap; row-gap: 8px; }
+  .c-brand { border-right: 0; padding-bottom: 8px; }
+  .c-nav {
+    display: flex; flex-direction: row; align-items: center; gap: 6px;
+    overflow-x: auto; overflow-y: hidden;
+    padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--c-line);
+    scrollbar-width: thin;
+  }
+  .c-nav-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .c-nav-label, .c-nav-item { white-space: nowrap; }
+  .c-content { padding: 18px 14px 40px; min-width: 0; }
 }
 
 .c-brand {

@@ -228,3 +228,28 @@ def test_every_hook_is_declared_before_the_signed_out_return():
     assert not hooks_after, (
         f"hooks declared after the signed-out return: {sorted(set(hooks_after))} — "
         "moving one below it crashes the invitation sign-in with React #310")
+
+
+def test_the_folded_settings_group_opens_on_the_first_click():
+    """The visible state is `folded[group] ?? isSettings`, so toggling `!current[name]` computed
+    !undefined = true for Settings and the first click did nothing at all — measured live
+    2026-11-15: Setup, Channels and permissions, Team, Your CRM and Saved replies were unreachable
+    until the header was clicked twice."""
+    app = read("App.tsx")
+    assert "const toggleGroup = (name: string, hidden: boolean)" in app, (
+        "toggleGroup must know the effective state, not only the stored one")
+    assert "const next = {...current, [name]: !hidden}" in app
+    assert "onClick={() => toggleGroup(group.group, hidden)}" in app, (
+        "the header must pass the state it is actually rendering")
+
+
+def test_the_shell_has_no_horizontal_scroll_on_a_phone():
+    """Measured live 2026-11-15 at a 390px viewport: the document was 435px wide on every tab
+    (45px of sideways scroll) and the sidebar kept a fixed 217px column. The narrow layout must
+    hold one column and turn the navigation into a strip instead of hiding it."""
+    css = read("shell.css")
+    narrow = re.search(r"@media \(max-width: 900px\) \{(.*?)\n\}", css, re.S).group(1)
+    assert "grid-template-columns: minmax(0, 1fr) !important" in narrow
+    assert '"brand" "topbar" "nav" "content"' in narrow
+    assert ".c-nav" in narrow and "display: none" not in narrow
+    assert "overflow-x: auto" in narrow
