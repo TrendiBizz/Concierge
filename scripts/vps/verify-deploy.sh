@@ -24,11 +24,11 @@ compare() { # local_dir remote_dir label
   # Normalise both sides to "<md5> <path>": md5sum prints two spaces, macOS md5 -r prints one, and
   # macOS leaves AppleDouble ._ files in synced directories. Without this every file looks different
   # and the check reports drift that does not exist (found on the first run, 2026-11-15).
-  remote_list="$("${SSH[@]}" "$HOST" "cd '$remote_dir' 2>/dev/null && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5sum {} + | sed 's/ \+/ /' | sort -k2" 2>/dev/null)"
+  remote_list="$("${SSH[@]}" "$HOST" "cd '$remote_dir' 2>/dev/null && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5sum {} + | sed 's/ \+/ /' | LC_ALL=C sort -k2" 2>/dev/null)"
   if [ -z "$remote_list" ]; then
     echo "  $label: remote directory unreadable ($remote_dir)"; drift=1; return
   fi
-  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5 -r {} + 2>/dev/null | sed 's/  */ /' | sort -k2)"
+  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5 -r {} + 2>/dev/null | sed 's/  */ /' | LC_ALL=C sort -k2)"
   local diffout
   diffout="$(diff <(echo "$local_list") <(echo "$remote_list"))"
   if [ -n "$diffout" ]; then

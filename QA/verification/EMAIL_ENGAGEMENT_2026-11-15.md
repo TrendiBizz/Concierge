@@ -56,6 +56,55 @@ customer not seeing their sign-in email. It cannot be fixed from this repo: the 
 generated in the Brevo domain-authentication panel, which then issues the TXT record to publish.
 `email:auth` now reports it on every health run.
 
+## Correction: the DKIM alarm was wrong (same session, found while auditing the deploy)
+
+The first version of `email:auth` probed 13 selectors and reported "no DKIM record at any of them".
+That was a false alarm, and the cause was twofold:
+
+1. **The selector list was too short.** Brevo publishes the keys at `brevo1` and `brevo2`
+   (CNAMEs to `b1/b2.<domain>.dkim.brevo.com`), and signs with `s=brevo1`. The list held `brevo`
+   and `mail`, which resolve to nothing.
+2. **The probe accepted any TXT answer.** `dig +short TXT brevo1._domainkey...` prints the CNAME
+   target as well as the key, so a CNAME line could be mistaken for a key in one direction and a
+   valid key was never reached in the other.
+
+Verified by hand:
+
+```
+$ dig +short TXT brevo1._domainkey.trendibizz.com
+b1.trendibizz-com.dkim.brevo.com.
+brevo5.dkim.brevo.com.
+"k=rsa;p=MIIBIjANBgkq…"           <- valid key, dkim=pass for Brevo mail
+```
+
+The deployed check had already been corrected on the box (selector `brevo1`/`brevo2`, plus an
+`is_dkim_key()` helper that requires a real `p=` value) and never came back to the repo. Both halves
+are now in the repo with regression tests, and the live check reports `email:auth` ok — health is
+**43 ok / 1 warn (`sms:inbound`) / 0 fail**.
+
+Lesson, and the reason this section exists: the deployed file was *newer* than the repo, so a
+green health check was hiding a divergence. `scripts/vps/verify-deploy.sh` now compares
+`api/app`, `scripts/vps` and `website/site` against the box by checksum and exits non-zero on any
+difference.
+
+## Deploy parity audit (the question "is all this pushed, committed and deployed")
+
+`git`: HEAD `f9abbc1` = `origin/main`, working tree clean. `scripts/vps/verify-deploy.sh` against
+the box: **api/app 107 files match, scripts/vps 36 match, website/site 58 match.**
+
+Three drifts were found and closed in the process:
+
+| Drift | What it was | Resolution |
+|---|---|---|
+| `scripts/vps/healthcheck.py` | the box carried a newer DKIM fix than the repo | ported back into the repo, with tests |
+| `api/app` (4 files) | the repo carried committed work the box had never run — `automated_mail.py` (a Microsoft account-verification email had been treated as a customer enquiry and forwarded as an owner SMS containing a security code), `automation.py`, `cloudflare_inbound.py`, `inbound_email.py` (body-aware classify) | `rsync api/app/` + `redeploy-api.sh`; the API now runs repo state |
+| `scripts/vps` (10 files) | `deploy-studio.sh`, `harden_host.sh`, `smsgate_check.py`, seven `prove_*.py`, `order-phone-did.sh`, `rotate-cloudflare-token.sh` differed or were absent on the release tree | synced; the repo version of `rotate-cloudflare-token.sh` is the corrected one (box-local `/healthz`, `api.env` read as data) |
+| `website/site` | another session had deployed a newer site (about.html description gained "for businesses worldwide") after my mirror snapshot | mirror refreshed **from** the box; both now agree on 58 files |
+
+Two false positives in the new tool were fixed before trusting it: `md5sum` prints two spaces where
+macOS `md5 -r` prints one, macOS leaves `._*` AppleDouble files, and the two platforms order paths
+differently without `LC_ALL=C`. The first run reported every file as different.
+
 ## Proof (live, on the box)
 
 - Tables created by the idempotent schema on restart: `email_link`, `email_engagement`.
