@@ -66,13 +66,18 @@ async def on_lead_created(tenant: dict, lead: dict, *, message_key: str | None =
 
     contact = lead["phone"] or lead["email"] or "-"
     if not owner_notice_queued:
-        await _owner_alert(
-            tenant,
-            f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}",
+        from . import automated_mail
+        alert_subject = f"{_score_tag(lead)}New lead for {tenant['name']}: {lead['name'] or contact}"
+        alert_body = (
             f"{_score_lines(lead)}Name: {lead['name']}\nPhone: {lead['phone']}\nEmail: {lead['email']}\n"
-            f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n",
-            f"lead:{lead['id']}:owner",
+            f"Channel: {lead['channel']}\nPage: {lead.get('page_url') or '-'}\n\n{lead['message']}\n"
         )
+        # Defence in depth: ingest should already have dropped robot mail. If a verification
+        # or platform message still became a lead, do not text or email it to the owner.
+        if automated_mail.classify(lead.get("email") or "", alert_subject, body=alert_body):
+            log.info("suppressed owner alert for automated lead %s", lead.get("id"))
+        else:
+            await _owner_alert(tenant, alert_subject, alert_body, f"lead:{lead['id']}:owner")
 
     await lead_followup(tenant, lead)
 

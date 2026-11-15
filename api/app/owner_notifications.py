@@ -1,12 +1,14 @@
 """Business-specific operational notices, atomically queued with CRM changes."""
 import asyncio
-from . import channel_authorization, db, webpush
+from . import automated_mail, channel_authorization, db, webpush
 from .contact import is_email, normalize_phone
 from .config import get_settings
 import re
 
 
 def sms_body(subject, body):
+    body = automated_mail.redact_security_codes(body or "")
+    subject = automated_mail.redact_security_codes(subject or "")
     if len(body) <= 1400:
         return body
     links = re.findall(r"https?://[^\s]+/recordings/shared/[^\s]+", body)
@@ -16,7 +18,17 @@ def sms_body(subject, body):
     return subject[:160] + "\n" + body[:max(0, 1400-len(suffix)-162)] + suffix
 
 
+def _sender_from_alert_body(body: str) -> str:
+    match = re.search(r"(?im)^Email:\s*(\S+@\S+)", body or "")
+    return match.group(1).strip() if match else ""
+
+
 async def queue(tenant, subject, body, dedupe, *, lead_id=None, connection=None):
+    subject = automated_mail.redact_security_codes(subject or "")
+    body = automated_mail.redact_security_codes(body or "")
+    # Automated / verification mail must never alert the owner, even if a lead slipped through.
+    if automated_mail.classify(_sender_from_alert_body(body), subject, body=body):
+        return []
     runner = connection or db.pool()
     destinations = []
     if is_email(tenant.get('notify_email', '')):

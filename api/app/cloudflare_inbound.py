@@ -300,7 +300,8 @@ async def handle(request: Request) -> dict:
         # Robots (Stripe, Google, Cloudflare, no-reply, mailing lists) are not enquiries: no lead,
         # no acknowledgement and no owner alert. 15 Nov 2026: a Stripe newsletter became a lead.
         automated = automated_mail.classify(
-            payload["sender"], payload["subject"], raw_bytes, envelope_from)
+            payload["sender"], payload["subject"], raw_bytes, envelope_from,
+            body=payload.get("text") or "")
         if automated:
             flags.extend(["automated_sender", "automated:" + automated])
         risk = assessment["risk"]

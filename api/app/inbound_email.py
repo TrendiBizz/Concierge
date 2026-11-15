@@ -103,7 +103,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
     flags = list(flags or [])
     automated = next((f.split(":", 1)[1] for f in flags if f.startswith("automated:")), None)
     if automated is None:
-        automated = automated_mail.classify(sender, subject, envelope_from=envelope_from)
+        automated = automated_mail.classify(sender, subject, envelope_from=envelope_from, body=text_body)
         if automated is None and "automated_sender" in flags:
             automated = "header"
         if automated:
