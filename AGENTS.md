@@ -1,104 +1,77 @@
-# Working agreement for agents in this repository
+# Working agreement — Trendi Concierge
 
-## The bug rule — permanent, immutable, always enacted
+**This repository is the only place work lives.** One repository, one commit history, one deploy
+path. If a change is not committed here, it does not exist, and it will be lost or silently
+diverged by the next agent who touches the system.
 
-**Every bug or defect encountered in a session is fixed, tested and documented in that same
-session.** This rule outranks feature work, tidying, and the session-length limit: when they
-collide, hand off at a clean boundary *after* the bug is landed, never before it. It cannot be
-waived, relaxed, or traded away, and it is not satisfied by a workaround that hides the defect.
+Read this before writing anything. It is enforced by tooling, not by memory.
 
-It applies to **every** defect, however small, and to our own tooling — scripts, tests, deploy
-commands, configuration — not only to product code. It applies whether or not the human noticed
-it. Silence is the failure mode this rule exists to prevent.
+## The rule that keeps getting broken
 
-Each bug requires all three, in the same session:
+On 2026-11-15 three separate drifts were found in one session:
 
-1. **Fixed** — the defect itself.
-2. **Tested** — a check that fails without the fix and passes with it. Mutate the fix once and
-   watch that check go red before trusting it. Where the defect is operational (a deploy
-   command, a wrong hostname, a broken script), the test is the corrected command run and its
-   recorded output.
-3. **Documented** — cause, fix and proof, in that date's `QA/verification/` record, and in the
-   repo's working agreement when it changes how others should work.
+1. The website was being published from `/Users/jo/work-staging/trendibizz-live/site`, a loose
+   directory that was **not a git repository**. Three agents edited it. Seventeen files — including
+   three pages and the whole CSS/JS layer — reached production without ever being committed.
+2. The box carried a newer `healthcheck.py` than the repo: someone fixed a live defect on the
+   server, and the fix never came back.
+3. The repo carried API code the box had never run, including a real defect: a Microsoft
+   account-verification email was being treated as a customer enquiry and forwarded as an owner SMS
+   containing the security code.
 
-"There is no time", "come back to it", "known issue", "it is probably fine" and "try again later"
-are **not permitted outcomes**.
+None of this was visible from a green health check. "It works" and "it is what we committed" are
+different questions.
 
-The single exception is a bug that cannot be fixed in-session because something outside our
-control blocks it. That is not permission to defer quietly: record the exact blocker, what was
-tried, why it could not proceed, and an explicit open item with a next action in the handoff's
-Outstanding list. Evidence, then deferral — never a shrug.
+## Where things live
 
-## Fix first, report second
+| What | Path | Rules |
+|---|---|---|
+| The website source | `website/` | **The only site source.** Deploy with `scripts/vps/deploy-site.sh`. |
+| The API | `api/app/` | Deploy with `rsync api/app/` + `scripts/vps/redeploy-api.sh`. |
+| Host tooling | `scripts/vps/` | Deployed by copying; used by cron and systemd on the box. |
+| QA records | `QA/verification/` | One dated file per piece of work: cause, fix, proof. |
 
-**Never stop to ask whether a defect should be fixed.** If it is a defect we can fix from this
-repository, fix it, prove it, and report it afterwards in the same turn. Reporting a defect with a
-question attached ("shall I fix this?", "your call") is the failure this rule exists to prevent: the
-operator should not have to grant permission for work the bug rule already requires.
+Deployed locations on the box (`152.42.239.240`, release `20261108-vps`):
 
-Two narrow exceptions, both of which still require evidence and an entry in the handoff:
+```
+/opt/trendi/releases/20261108-vps/product/api/app/       <- the API
+/opt/trendi/releases/20261108-vps/product/scripts/vps/   <- host tooling
+/opt/trendi/releases/20261108-vps/website/site/          <- the served website
+```
 
-* the fix needs a **decision only the operator can make** — a legal consent for a *third party's*
-  account, money, or an irreversible destructive action;
-* the fix lies **outside this repository** — record the exact blocker, what was tried, and a next
-  action.
+## Non-negotiables
 
-When in doubt, fix it and say what you fixed.
+1. **Never edit the box and walk away.** If you fix something directly on the server, bring it back
+   into this repo in the same session, with a test. `scripts/vps/verify-deploy.sh` exists to catch
+   the case where you forget; the health check (`deploy:manifest`, `site:pages`) reports it too.
+2. **Never publish from a directory that is not this repo.** The site deploy script refuses a dirty
+   tree and stamps `.deploy-manifest.json` on the box, so any later hand edit is reported as drift.
+3. **Commit before you deploy.** A deploy that cannot be traced to a commit is not a deploy.
+4. **Run `scripts/vps/verify-deploy.sh` before saying "it is deployed".** Exit 0 means the repo and
+   every deployed file agree. It compares by checksum, so it does not rely on anyone's memory.
+5. **Every defect gets fixed, tested and documented in the same session** — cause, fix and proof in
+   that date's `QA/verification/` record. Mutation-check the test once: break the fix, watch the test
+   go red, restore it. A test that cannot fail is decoration.
+6. **Never verify a mail fix by replaying to production.** Never send real SMS or place real calls to
+   prove something works.
 
-## Session length limit
+## Branches and pushes
 
-**Work in units of at most ~25 tool calls, or one coherent unit of work — whichever comes first.**
+`main` is the deployed branch. Push only after the full suite passes:
 
-When the limit is reached: stop, report state, and hand off. Do not drift into "one more check".
+```bash
+cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q
+```
 
-Why this exists: the DSH Web GUI degrades as a session accumulates tool calls — after roughly
-250 calls in a session, tool invocations start rendering in the chat as raw XML (`<bash>`,
-`<parameter>`) instead of appearing as executed steps. The commands still run and their results
-still arrive, but the human can no longer read the conversation. Recovering means restarting the
-web server and repinning the browser tab, which is disruptive. Starting a fresh session well
-before that point is much cheaper.
+The repo is shared with other agents and an automatic checkpoint bot, so always `git pull --rebase`
+before pushing, and re-run `verify-deploy.sh` afterwards in case someone else deployed in between.
 
-A unit of work here is typically: one route or one port batch, plus its vectors, tests, mutation
-checks, gate run and status update. If a unit cannot be finished inside the budget, stop at a
-coherent boundary and write down exactly where the work stands, rather than leaving a
-half-applied change.
+## The one-command check
 
-### Handoff format
+```bash
+KEY=./Concierge ./scripts/vps/verify-deploy.sh   # repo vs box, by checksum
+KEY=./Concierge ./scripts/vps/deploy-site.sh     # publish the website (refuses anything uncommitted)
+```
 
-Leave, at the end of the response when stopping:
-
-- what is committed (with the commit hash) and what is not;
-- the exact files modified but uncommitted;
-- anything the next session must know in order to resume (running services, ports, shims, seeds);
-- **the outstanding list, carried forward in full** — blockers, known bugs, security items and
-  unverified features. Update `QA/verification/HANDOFF_CURRENT_<date>.md` with it, and make the
-  workspace `HANDOFF.md` name that file as "read first" plus summarise its Outstanding section.
-  A handoff that reports only the task just finished is incomplete, even when that task is done.
-
-## Repository-specific notes
-
-- `scripts/rust-gate.sh` must pass before any push. Never pipe it — an earlier
-  `cargo clippy | grep | head` hid lint failures and shipped red CI twice. Run `cargo fmt` on
-  the affected crates *after* the last edit, since the gate's `--check` fails otherwise.
-- Parity vectors come from the live Python (`parity/gen_vectorsNN.py` -> `vectorsNN.json`),
-  never typed by hand. Reading the Python and retyping field lists has failed repeatedly.
-- Mutate each new rule once and see a test fail before trusting it. A passing test that has
-  never been seen to fail proves nothing.
-- A differential harness run is the only thing that proves a route. Unit tests cannot catch a
-  wrong SQL parameter type or a wrong path-matching rule.
-- Local verification needs PostgreSQL 16 + pgvector (`pgvector/pgvector:pg16`). CI supplies its
-  port through `CONCIERGE_TEST_POSTGRES_PORT`; the harness defaults to 55432 locally, and a
-  `psql` shim may be needed on hosts without a PostgreSQL client.
-
-## Deploying
-
-- **Portal (Studio):** always `KEY=./Concierge ./scripts/vps/deploy-studio.sh`, never a bare
-  `rsync -a` into `/opt/trendi/shared/studio`. A bare rsync lands files with the uploading user's
-  permissions and only chmods afterwards, which leaves `index.html` unreadable for seconds — that
-  is what produced eight "Internal Server Error" pages for real visitors on 2026-11-14. The script
-  stages, fixes permissions before anything goes live, and refuses to report success unless
-  `/studio` answers 200 three times running.
-- **API:** rsync `api/app/` to `$REL/api/app/`, then `REL=... bash $REL/scripts/vps/redeploy-api.sh`
-  and read the tail: it must end with `social reachable` and `==> done`.
-- After any deploy, load `/studio` in a browser and confirm the page renders. A green deploy script
-  is evidence the file is served, not that the app works.
+If `verify-deploy.sh` reports drift, do not explain it away. Either deploy the repo state, or bring
+the box state back into the repo with a commit. There is no third option.

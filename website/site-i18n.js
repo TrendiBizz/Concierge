@@ -68,17 +68,41 @@
     });
     return values;
   }
-  async function translateMissing(values) {
-    var missing = values.filter(function (value) { return !dictionary[value]; });
-    for (var start = 0; start < missing.length; start += 40) {
-      var chunk = missing.slice(start, start + 40);
+  function loadCache() {
+    try {
+      var saved = JSON.parse(localStorage.getItem('trendi.i18n.' + locale) || '{}');
+      Object.keys(saved).forEach(function (key) { if (!dictionary[key] && saved[key] !== key) dictionary[key] = saved[key]; });
+    } catch (_) { /* ignore corrupt cache */ }
+  }
+  function saveCache() {
+    try { localStorage.setItem('trendi.i18n.' + locale, JSON.stringify(dictionary)); } catch (_) { /* quota */ }
+  }
+  function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+  async function translateChunk(chunk) {
+    var last = null;
+    for (var attempt = 0; attempt < 3; attempt++) {
       try {
         var response = await fetch(API, {method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({locale: locale, strings: chunk})});
-        if (!response.ok) continue;
-        var data = await response.json();
+        if (response.ok) return response.json();
+        last = response.status;
+        if (response.status !== 429 && response.status !== 503 && response.status !== 1015) break;
+      } catch (_) { last = 'network'; }
+      await wait(1500 * (attempt + 1));
+    }
+    return null;
+  }
+  async function translateMissing(values) {
+    var missing = values.filter(function (value) { return !dictionary[value] || dictionary[value] === value; });
+    for (var start = 0; start < missing.length; start += 80) {
+      var chunk = missing.slice(start, start + 80);
+      var data = await translateChunk(chunk);
+      if (data) {
         Object.keys(data.strings || {}).forEach(function (key) { dictionary[key] = data.strings[key]; });
-      } catch (_) { /* fall back to English for this chunk */ }
+        saveCache();
+        apply();
+      }
+      await wait(250);
     }
   }
   function build() {
@@ -115,8 +139,8 @@
       var local = await fetch('/site-i18n.json', {cache: 'no-store'}).then(function (r) { return r.json(); });
       dictionary = (local[locale] || {});
     } catch (_) { dictionary = {}; }
+    loadCache();
     build();
-    apply();
     var values = collect();
     await translateMissing(values);
     apply();

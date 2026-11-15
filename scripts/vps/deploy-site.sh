@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# The only supported way to publish the website.
+#
+# Why this exists: on 2026-11-15 the site lived in a loose directory
+# (/Users/jo/work-staging/trendibizz-live/site) that was not a git repository, three agents edited it,
+# and 17 files including 3 pages reached production that had never been committed. This script
+# refuses to publish anything that is not committed, and stamps a manifest on the box so that a
+# hand edit there is detected by the health check.
+#
+# Usage:  KEY=./Concierge ./scripts/vps/deploy-site.sh
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+HOST="${VPS_HOST:-root@152.42.239.240}"
+RELEASE="${VPS_RELEASE:-/opt/trendi/releases/20261108-vps}"
+REMOTE="$RELEASE/website/site"
+KEY="${KEY:-$REPO_ROOT/Concierge}"
+SRC="${SITE_SRC:-$REPO_ROOT/website}"
+SSH=(ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY")
+
+[ -d "$SRC" ] || { echo "no website source at $SRC" >&2; exit 1; }
+
+# 1. Nothing uncommitted may be published. This is the whole point of the script.
+if ! git -C "$REPO_ROOT" diff --quiet -- "$SRC" || ! git -C "$REPO_ROOT" diff --cached --quiet -- "$SRC"; then
+  echo "REFUSING: $SRC has uncommitted changes. Commit them first — production must be reproducible." >&2
+  git -C "$REPO_ROOT" status --short -- "$SRC" >&2
+  exit 1
+fi
+UNTRACKED="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard -- "$SRC")"
+if [ -n "$UNTRACKED" ]; then
+  echo "REFUSING: untracked files in $SRC (git add them first):" >&2
+  echo "$UNTRACKED" >&2
+  exit 1
+fi
+
+COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+echo "deploying $SRC at $COMMIT to $HOST:$REMOTE"
+
+# 2. Ship the files. --delete keeps production identical to the repo; AppleDouble files from macOS
+#    are excluded because they are not part of the site and would be served as junk.
+rsync -a --delete --exclude '._*' --exclude '.deploy-manifest.json' \
+  -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY" \
+  "$SRC/" "$HOST:$REMOTE/"
+
+# 3. Stamp the manifest: commit, time, and a hash per file. The health check compares the deployed
+#    tree against this, so an edit made directly on the box is reported instead of silently living on.
+"${SSH[@]}" "$HOST" "cd '$REMOTE' && python3 - '$COMMIT' <<'PY'
+import hashlib, json, os, sys, datetime
+root = '.'
+files = {}
+for base, _dirs, names in os.walk(root):
+    for name in names:
+        if name.startswith('._') or name == '.deploy-manifest.json':
+            continue
+        path = os.path.join(base, name)
+        rel = os.path.relpath(path, root)
+        with open(path, 'rb') as handle:
+            files[rel] = hashlib.sha256(handle.read()).hexdigest()
+manifest = {'commit': sys.argv[1], 'deployed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'files': files}
+with open('.deploy-manifest.json', 'w') as handle:
+    json.dump(manifest, handle, indent=1, sort_keys=True)
+print('manifest written:', len(files), 'files')
+PY"
+
+echo "--- verifying parity"
+KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"

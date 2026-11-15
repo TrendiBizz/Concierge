@@ -1,0 +1,5 @@
+Contact: mailto:admin@trendibizz.com
+Expires: 2027-10-26T12:00:00.000Z
+Canonical: https://trendibizz.com/.well-known/security.txt
+Policy: https://trendibizz.com/security
+Preferred-Languages: en

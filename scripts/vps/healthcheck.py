@@ -14,6 +14,7 @@ Reads secrets from /opt/trendi/shared/api.env and compose.env; never prints them
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import os
@@ -540,6 +541,63 @@ def check_email_auth() -> list[dict]:
     return [_ok("email:auth", f"{domain}: SPF, DMARC and DKIM ({dkim[0]}) all present")]
 
 
+DEPLOY_MANIFEST = "/opt/trendi/releases/20261108-vps/website/site/.deploy-manifest.json"
+
+
+def manifest_problems(manifest: dict, actual: dict[str, str]) -> list[str]:
+    """Files on the box that disagree with what the last deploy stamped.
+
+    On 2026-11-15 the site was published from a directory that was not a git repository, three
+    agents edited it, and 17 files reached production without ever being committed. A manifest
+    written at deploy time turns that into something visible: any file that differs from the
+    stamped hash, disappears, or appears was changed outside the repo.
+    """
+    expected = (manifest or {}).get("files") or {}
+    if not expected:
+        return ["manifest lists no files"]
+    problems = []
+    missing = sorted(p for p in expected if p not in actual)
+    changed = sorted(p for p, digest in expected.items() if p in actual and actual[p] != digest)
+    extra = sorted(p for p in actual if p not in expected)
+    if missing:
+        problems.append(f"{len(missing)} file(s) missing: {', '.join(missing[:3])}")
+    if changed:
+        problems.append(f"{len(changed)} file(s) changed on the box: {', '.join(changed[:3])}")
+    if extra:
+        problems.append(f"{len(extra)} file(s) added outside the repo: {', '.join(extra[:3])}")
+    return problems
+
+
+def check_deploy_manifest() -> list[dict]:
+    """Compare the deployed site against the manifest the deploy script stamped."""
+    site = os.path.dirname(DEPLOY_MANIFEST)
+    if not os.path.exists(DEPLOY_MANIFEST):
+        return [_warn("deploy:manifest",
+                      "the website has no .deploy-manifest.json — it was not published by "
+                      "scripts/vps/deploy-site.sh, so production cannot be traced to a commit")]
+    try:
+        with open(DEPLOY_MANIFEST, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return [_fail("deploy:manifest", f"manifest unreadable: {type(exc).__name__}")]
+    actual = {}
+    for base, _dirs, names in os.walk(site):
+        for name in names:
+            if name.startswith("._") or name == ".deploy-manifest.json":
+                continue
+            path = os.path.join(base, name)
+            try:
+                with open(path, "rb") as handle:
+                    actual[os.path.relpath(path, site)] = hashlib.sha256(handle.read()).hexdigest()
+            except OSError:
+                actual[os.path.relpath(path, site)] = ""
+    problems = manifest_problems(manifest, actual)
+    if problems:
+        return [_fail("deploy:manifest", "; ".join(problems))]
+    commit = str(manifest.get("commit") or "?")[:8]
+    return [_ok("deploy:manifest", f"{len(manifest['files'])} files match the deploy at {commit}")]
+
+
 def check_site_pages() -> list[dict]:
     """Fetch the pages that carry the ranking and conversion work and check them for damage.
 
@@ -844,7 +902,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
     for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall,
-                 check_site_pages, check_email_auth):
+                 check_site_pages, check_email_auth, check_deploy_manifest):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest

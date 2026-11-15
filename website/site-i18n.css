@@ -1,4 +1,4 @@
-#trendi-lang{position:fixed;left:18px;bottom:18px;z-index:99999;font:14px/1.4 system-ui,-apple-system,sans-serif}
+#trendi-lang{position:fixed;left:18px;bottom:18px;z-index:2147483000;font:14px/1.4 system-ui,-apple-system,sans-serif}
 #trendi-lang>button{border:1px solid #d7dde5;background:#fff;color:#15191f;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.14)}
 #trendi-lang-panel{display:none;margin-bottom:8px;background:#fff;border:1px solid #d7dde5;border-radius:12px;padding:14px;max-width:280px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
 #trendi-lang.open #trendi-lang-panel{display:block}
@@ -7,3 +7,12 @@
 .goog-te-banner-frame{display:none!important}
 body{top:0!important}
 .goog-te-gadget{font-size:0!important}
+
+/* On phones the chat widget's container (div#cc-root) sits over this button and swallows taps.
+   Keep it above the widget and make the pill itself the tap target. Measured 2026-11-14. */
+
+/* On phones the chat launcher is a 300x53 fixed button at left 70px, bottom 20px, with
+   z-index 2147483000 and later in the DOM - so it sat exactly on top of this pill and ate
+   every tap (measured 2026-11-14 at 390px). Lift the pill clear of the launcher and above
+   it in the stack; the launcher keeps its own fully interactive area. */
+@media (max-width:600px){#trendi-lang{bottom:88px;z-index:2147483002}#trendi-lang>button{min-height:44px;min-width:44px;position:relative;z-index:2147483003}}
