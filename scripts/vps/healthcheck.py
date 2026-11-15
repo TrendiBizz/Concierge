@@ -431,6 +431,7 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
     return problems
 
 
+SITE_SENDER_DOMAIN = SITE.split("//", 1)[-1].split("/", 1)[0].split(":", 1)[0]
 MONEY_PAGES = ("/", "/concierge", "/pricing", "/ai-receptionist", "/ai-receptionist-cost",
                "/after-hours-answering", "/missed-call-text-back", "/ai-chat-widget",
                "/ai-receptionist-clinics", "/ai-receptionist-real-estate",
@@ -468,6 +469,67 @@ def page_quality(html: str, minimum_words: int = THIN_PAGE_WORDS) -> list[str]:
     if BROKEN_LOCATION.search(html):
         problems.append("broken location wording")
     return problems
+
+
+DKIM_SELECTORS = ("brevo", "mail", "sib", "s1", "s2", "default", "k1", "google",
+                  "privateemail", "selector1", "selector2", "smtp", "dkim")
+
+
+def email_auth_problems(spf: list[str], dmarc: list[str], dkim: list[str],
+                        selectors: tuple[str, ...] = DKIM_SELECTORS) -> list[str]:
+    """Is this domain allowed to send mail that inboxes will trust?
+
+    On 2026-11-15 the site published `DMARC p=quarantine` while no DKIM record could be found at
+    any common selector. A domain that quarantines its own unauthenticated mail sends its own
+    invitations to the junk folder, and nothing about open tracking survives that.
+    """
+    problems: list[str] = []
+    spf_txt = " ".join(spf).lower()
+    if not spf_txt:
+        problems.append("no SPF record")
+    elif "v=spf1" not in spf_txt:
+        problems.append("SPF record is not a v=spf1 policy")
+    dmarc_txt = " ".join(dmarc).lower()
+    if not dmarc_txt:
+        problems.append("no DMARC record")
+    elif "v=dmarc1" in dmarc_txt and "p=none" in dmarc_txt:
+        problems.append("DMARC policy is p=none (nothing is enforced)")
+    if not dkim:
+        problems.append(f"no DKIM record at any of {len(selectors)} selectors")
+    return problems
+
+
+def _txt(name: str) -> list[str]:
+    """TXT values for a DNS name, or [] when the resolver is unavailable."""
+    try:
+        out = subprocess.run(["dig", "+short", "TXT", name], capture_output=True, text=True, timeout=8)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    values = []
+    for line in (out.stdout or "").splitlines():
+        line = line.strip().strip('"')
+        if line:
+            values.append(line.replace('" "', "").strip('"'))
+    return values
+
+
+def check_email_auth() -> list[dict]:
+    """SPF, DMARC and DKIM for the address our mail actually claims to come from."""
+    domain = (os.environ.get("MAIL_FROM_DOMAIN") or SITE_SENDER_DOMAIN).strip().lower()
+    spf = _txt(domain)
+    dmarc = _txt("_dmarc." + domain)
+    selector = os.environ.get("SMTP_DKIM_SELECTOR", "").strip()
+    selectors = (selector,) + DKIM_SELECTORS if selector else DKIM_SELECTORS
+    dkim = []
+    for name in selectors:
+        if _txt(f"{name}._domainkey.{domain}"):
+            dkim.append(name)
+            break
+    problems = email_auth_problems(spf, dmarc, dkim, selectors)
+    if problems:
+        hint = "" if spf or dmarc else " (DNS lookups returned nothing — is dig installed?)"
+        return [_warn("email:auth", f"{domain}: " + "; ".join(problems) + hint)]
+    return [_ok("email:auth", f"{domain}: SPF, DMARC and DKIM ({dkim[0]}) all present")]
 
 
 def check_site_pages() -> list[dict]:
@@ -774,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
     for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall,
-                 check_site_pages):
+                 check_site_pages, check_email_auth):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest

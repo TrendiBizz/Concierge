@@ -28,6 +28,7 @@ from . import (
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
 from . import suppressions
+from . import engagement
 from . import sms_inbox
 from . import owner_invites
 from . import install_requests
@@ -1705,6 +1706,27 @@ async def cloudflare_email_webhook(request: Request):
     return await cloudflare_inbound.handle(request)
 
 
+@app.get("/l/{token}")
+async def tracked_link(token: str, request: Request):
+    """Record an email link click, then send the visitor where the email pointed.
+
+    The destination comes from the database, keyed by an unguessable token, so this cannot be
+    turned into an open redirect. Repeat clicks return the same page and are recorded once: an
+    open counter that inflates with every refresh is worse than no counter.
+    """
+    try:
+        destination = await engagement.record_click(
+            token, ip=(request.client.host if request.client else ""),
+            user_agent=request.headers.get("user-agent", ""))
+    except Exception:  # noqa: BLE001 - a tracking failure must not break the recipient's click
+        log.warning("could not record click for link token %s", token[:12])
+        destination = (await engagement.resolve(token) or {}).get("url") if token else None
+    if not destination:
+        raise HTTPException(404, "Unknown or expired link")
+    return RedirectResponse(destination, status_code=302, headers={
+        "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+
 @app.get("/webhooks/brevo")
 async def brevo_email_webhook_status():
     """Human-friendly status for the POST-only webhook below.
@@ -1767,6 +1789,10 @@ async def brevo_email_webhook(request: Request, token: str = ""):
                 results.append({"ignored": "unknown tenant"})
                 continue
             event["tenant_id"] = row["tenant_id"]
+        if engagement.provider_kind(str(event.get("event") or "")):
+            # Delivered/opened/click are not suppressions; they belong on the engagement timeline.
+            results.append(await engagement.record_provider_event(event))
+            continue
         results.append(await suppressions.record_event(event))
     return {"processed": len(results), "results": results}
 
@@ -4146,3 +4172,32 @@ async def owner_social_approve(token: str, user: dict = Depends(owner_auth.curre
 async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
     return await social_bridge.decide(user, token, False)
+
+@app.get("/owner/email-engagement")
+async def owner_email_engagement(limit: int = 100, user: dict = Depends(owner_auth.current_user)):
+    _email_feature_gate()
+    return await engagement.for_tenant(user["tenant_id"], limit)
+
+
+@app.get("/admin/pending-invites")
+async def admin_pending_invites():
+    """Owners who were invited and have never signed in: the call list, not a report.
+
+    An "opened the email" flag is deliberately absent. The question that matters is whether the
+    person signed in, and that is recorded to the second by tenant_invites.used_at.
+    """
+    rows = await db.pool().fetch(
+        """
+        SELECT t.slug, t.name, i.email, i.created_at AS invited_at, i.expires_at,
+               (SELECT max(o.sent_at) FROM outbox o
+                 WHERE o.tenant_id=t.id AND o.kind IN ('owner_alert','owner_invite')
+                   AND lower(o.to_addr)=lower(i.email)) AS last_email_sent,
+               (SELECT max(e.created_at) FROM email_engagement e
+                 WHERE e.tenant_id=t.id AND lower(coalesce(e.to_addr,''))=lower(i.email)) AS last_engaged
+          FROM tenants t
+          JOIN LATERAL (SELECT * FROM tenant_invites WHERE tenant_id=t.id
+                         ORDER BY created_at DESC LIMIT 1) i ON true
+         WHERE i.used_at IS NULL
+         ORDER BY i.created_at
+        """)
+    return [dict(r) for r in rows]

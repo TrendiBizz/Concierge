@@ -1188,3 +1188,34 @@ CREATE TABLE IF NOT EXISTS email_templates (
     updated_at  timestamptz NOT NULL DEFAULT now(),
     UNIQUE (tenant_id, name)
 );
+
+-- Link and event tracking for email (2026-11-15). A 1x1 pixel is not used: it is fetched by
+-- privacy proxies and by security scanners, so it measures delivery infrastructure, not reading.
+-- Clicking a link is an action; a provider event is a soft signal recorded as such.
+CREATE TABLE IF NOT EXISTS email_link (
+    token       text PRIMARY KEY,
+    outbox_id   bigint NOT NULL REFERENCES outbox(id) ON DELETE CASCADE,
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    url         text NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_link_outbox_idx ON email_link (outbox_id);
+
+CREATE TABLE IF NOT EXISTS email_engagement (
+    id          bigserial PRIMARY KEY,
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    outbox_id   bigint REFERENCES outbox(id) ON DELETE SET NULL,
+    token       text,
+    kind        text NOT NULL,
+    message_id  text,
+    to_addr     text,
+    url         text,
+    ip          text,
+    user_agent  text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (token, kind)
+);
+-- Provider events arrive without a link token, so they dedupe on the message instead.
+CREATE UNIQUE INDEX IF NOT EXISTS email_engagement_provider_uniq
+    ON email_engagement (message_id, kind) WHERE token IS NULL AND message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS email_engagement_tenant_idx ON email_engagement (tenant_id, created_at DESC);

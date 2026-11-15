@@ -40,9 +40,11 @@ def _patch(monkeypatch, suppressed=False, tenant_extra=None):
     monkeypatch.setattr(outbox, "_finish", finish)
     sent = {}
 
-    async def capture(to_addr, subject, body, headers=None, from_name=None):
+    async def capture(to_addr, subject, body, headers=None, from_name=None, html=None):
+        # html is the tracked alternative added on 2026-11-15; it is absent unless tracking is on.
         sent["headers"] = headers or {}
         sent["to"] = to_addr
+        sent["html"] = html
 
     monkeypatch.setattr(outbox.mailer, "send_email", capture)
     return finish, sent

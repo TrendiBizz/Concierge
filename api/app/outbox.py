@@ -8,6 +8,7 @@ from email.utils import make_msgid
 from zoneinfo import ZoneInfo
 
 from . import casetimeline, channel_authorization, db, device_sms, flood_guard, mailer, sms, suppressions, tenants, unsub, tenant_pause
+from . import engagement
 from .config import get_settings
 from .contact import contact_key
 
@@ -240,9 +241,15 @@ async def _deliver(row: dict) -> None:
                 # Matching then falls back to the recipient address; the mail still goes out.
                 log.warning("could not persist message id for outbox row %s", row["id"])
         headers = {**(headers or {}), "Message-ID": message_id}
+        html_body = None
+        if engagement.enabled_for(row["kind"]):
+            try:
+                html_body = await engagement.render_html(row["id"], row["tenant_id"], body)
+            except Exception:  # noqa: BLE001 - a tracking fault must never cost the email
+                log.warning("could not build tracked links for outbox row %s", row["id"])
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", body, headers,
-            from_name=tenant.get("name") or None,
+            from_name=tenant.get("name") or None, html=html_body,
         )
         if row["kind"] == "email_secretary_reply":
             await casetimeline.mark_replied(

@@ -14,6 +14,20 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     owner_portal_url: str = "https://concierge.trendibizz.com/owner-ui"
     onboarding_url: str = "https://concierge.trendibizz.com/studio"
+    # Public origin that email links are rewritten through so a click can be recorded. Blank keeps
+    # every email plain text with its original links — tracking is an operator decision, not a default.
+    tracked_links_base: str = ""
+
+    @field_validator("tracked_links_base")
+    @classmethod
+    def valid_tracking_origin(cls, value: str) -> str:
+        value = (value or "").strip().rstrip("/")
+        if not value:
+            return ""
+        url = urlsplit(value)
+        if url.scheme != "https" or not url.hostname or url.path not in ("", "/") or url.query:
+            raise ValueError("Tracked links base must be a bare HTTPS origin, e.g. https://concierge.trendibizz.com")
+        return value
 
     @field_validator("owner_portal_url")
     @classmethod

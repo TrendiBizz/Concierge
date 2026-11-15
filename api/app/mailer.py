@@ -15,7 +15,8 @@ class EmailRateLimited(RuntimeError):
     pass
 
 
-def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None, from_name: str | None = None) -> None:
+def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None,
+               from_name: str | None = None, html: str | None = None) -> None:
     s = get_settings()
     msg = EmailMessage()
     msg["From"] = formataddr((from_name, s.smtp_from)) if from_name else s.smtp_from
@@ -27,6 +28,10 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
     for name, value in (headers or {}).items():
         msg[name] = value
     msg.set_content(body)
+    if html:
+        # A plain-text part is mandatory: it is what a text-only client shows and what a spam
+        # filter expects to find alongside the HTML.
+        msg.add_alternative(html, subtype="html")
 
     if s.smtp_security == "ssl":
         server: smtplib.SMTP = smtplib.SMTP_SSL(s.smtp_host, s.smtp_port, timeout=20)
@@ -45,7 +50,8 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
             pass
 
 
-async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None, from_name: str | None = None) -> None:
+async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None,
+                     from_name: str | None = None, html: str | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
     # Last resort for anything that bypasses the outbox: the same address, and the whole process.
@@ -53,4 +59,4 @@ async def send_email(to_addr: str, subject: str, body: str, headers: dict | None
         raise EmailRateLimited("Too many emails to this address in 10 minutes")
     if not flood_guard.memory_allow("email:all", "all", 200, 3600):
         raise EmailRateLimited("Too many emails in the last hour")
-    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name)
+    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name, html)
