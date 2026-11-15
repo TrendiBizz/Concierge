@@ -117,3 +117,28 @@ def test_a_normal_enquiry_still_becomes_a_lead(monkeypatch):
     assert draft["status"] == "draft"
     calls.capture.assert_awaited_once()
     assert calls.audit.await_args.args[2] == "received"
+
+
+def test_an_ahrefs_crawl_report_is_automated_even_without_list_headers():
+    """15 Nov 13:14: "Page has links to redirect [New]: 39 URLs" from sa@ahrefs.com became an
+    enquiry and an owner alert. It carries no List-Id, so the header checks never fired."""
+    from app.automated_mail import classify
+    # the local part catches it first ("sa"), the domain is the backstop: either way it is a robot
+    reason = classify("sa@ahrefs.com", "Page has links to redirect [New]: 39 URLs")
+    assert reason in ("localpart:sa", "domain:ahrefs.com"), reason
+    assert classify("reports@semrush.com", "Site audit ready") is not None
+    assert classify("someone@ahrefs.com", "Question about pricing") == "domain:ahrefs.com"  # domain alone
+
+
+def test_a_person_called_sam_is_still_a_person():
+    from app.automated_mail import classify
+    assert classify("sam@smallbuilders.co.nz", "Can you quote a fence?") is None
+    assert classify("sarah@ahrefsclient.co.nz", "Quote please") is None
+
+
+def test_list_unsubscribe_alone_marks_bulk_mail():
+    from app.automated_mail import classify
+    raw = (b"From: Team <hello@some-saas.example>\r\n"
+           b"Subject: Your monthly summary\r\n"
+           b"List-Unsubscribe: <https://some-saas.example/u>\r\n\r\nBody\r\n")
+    assert classify("hello@some-saas.example", "Your monthly summary", raw=raw).startswith("header:")

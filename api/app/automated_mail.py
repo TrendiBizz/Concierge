@@ -21,6 +21,10 @@ AUTOMATED_LOCALPARTS = (
     "noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "do_not_reply",
     "notifications", "notification", "notify", "mailer-daemon", "postmaster",
     "bounce", "bounces", "alerts", "alert",
+    # SEO, monitoring and billing digests. Ahrefs signs its crawl reports "sa@ahrefs.com" and puts
+    # no List-Id on them, so on 2026-11-15 a crawl report became an enquiry and an owner alert.
+    "sa", "news", "newsletter", "digest", "updates", "promo", "promotions", "marketing",
+    "reports", "report", "seo",
 )
 _SEPARATORS = "+-_."
 
@@ -30,11 +34,18 @@ AUTOMATED_DOMAINS = (
     "stripe.com", "google.com", "cloudflare.com", "github.com", "brevo.com", "sendinblue.com",
     "facebookmail.com", "linkedin.com", "mailchimp.com", "mcsv.net", "intuit.com", "xero.com",
     "digitalocean.com", "heygen.com", "calendly.com", "zoom.us", "atlassian.net",
+    # SEO and site-monitoring tools: they report, they never enquire.
+    "ahrefs.com", "semrush.com", "moz.com", "majestic.com", "screamingfrog.co.uk",
+    "sitebulb.com", "uptimerobot.com", "pingdom.com", "statuspage.io", "sentry.io",
+    "datadoghq.com", "newrelic.com",
 )
 
 AUTOMATED_SUBJECTS = ("automatic reply", "auto:", "auto-reply", "autoreply", "out of office",
                       "undeliverable", "delivery status notification", "mail delivery",
-                      "returned mail")
+                      "returned mail",
+                      # scheduled reports: "New crawl for Trendibizz", "Site audit: 39 URLs"
+                      "new crawl", "site audit", "crawl completed", "your weekly report",
+                      "site health")
 
 
 def _address(value: str) -> tuple[str, str]:
