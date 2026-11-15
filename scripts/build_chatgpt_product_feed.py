@@ -61,7 +61,7 @@ PRODUCTS = [
     {
         "item_id": "trendi-concierge-yearly",
         "title": "Trendi Concierge - AI Receptionist, Yearly Subscription",
-        "description": CONCIERGE_CORE + " Yearly plan: available after your first three months, 10% off "
+        "description": CONCIERGE_CORE + " Yearly plan: 10% off "
                        "the monthly price, one payment a year.",
         "url": f"{BASE}/ai-receptionist-cost",
         "price": "2700.00 USD",
