@@ -54,3 +54,16 @@ def test_the_check_is_wired_into_the_report():
     source = SCRIPT.read_text()
     loops = re.findall(r"for step in \(([^)]*)\)", source, re.S)
     assert any("check_email_auth" in loop for loop in loops), "check_email_auth must run"
+
+
+def test_brevo_selectors_are_probed_first():
+    # Brevo signs with s=brevo1 (brevo2 is the rotation key). Missing them produced a false
+    # "no DKIM" warning on 2026-11-15 while live mail showed dkim=pass d=trendibizz.com s=brevo1.
+    assert healthcheck.DKIM_SELECTORS[:2] == ("brevo1", "brevo2")
+
+
+def test_a_cname_target_alone_is_not_a_dkim_key():
+    # `dig +short TXT` on a CNAME prints the target host first; that line is not a key.
+    assert not healthcheck.is_dkim_key(["b1.trendibizz-com.dkim.brevo.com."])
+    assert not healthcheck.is_dkim_key(["brevo-code:4644711b"])
+    assert healthcheck.is_dkim_key(["b1.trendibizz-com.dkim.brevo.com.", "k=rsa;p=MIIBIjANBgkqhkiG9w0BAQEFAAOC"])

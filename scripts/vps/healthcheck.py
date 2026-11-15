@@ -471,8 +471,16 @@ def page_quality(html: str, minimum_words: int = THIN_PAGE_WORDS) -> list[str]:
     return problems
 
 
-DKIM_SELECTORS = ("brevo", "mail", "sib", "s1", "s2", "default", "k1", "google",
-                  "privateemail", "selector1", "selector2", "smtp", "dkim")
+# Brevo's domain authentication publishes brevo1/brevo2 as CNAMEs to its own key hosts, and signs
+# with s=brevo1. The first version of this list stopped at "brevo", so on 2026-11-15 it reported
+# "no DKIM at any of 13 selectors" while every Brevo message carried dkim=pass d=trendibizz.com.
+DKIM_SELECTORS = ("brevo1", "brevo2", "brevo", "mail", "sib", "s1", "s2", "default", "k1",
+                  "google", "privateemail", "selector1", "selector2", "smtp", "dkim")
+
+
+def is_dkim_key(values: list[str]) -> bool:
+    """A published DKIM public key, not just a CNAME target line or an unrelated TXT."""
+    return any(re.search(r"(?:^|;)\s*p=[A-Za-z0-9+/]{20,}", v.replace(" ", "")) for v in values)
 
 
 def email_auth_problems(spf: list[str], dmarc: list[str], dkim: list[str],
@@ -522,7 +530,7 @@ def check_email_auth() -> list[dict]:
     selectors = (selector,) + DKIM_SELECTORS if selector else DKIM_SELECTORS
     dkim = []
     for name in selectors:
-        if _txt(f"{name}._domainkey.{domain}"):
+        if is_dkim_key(_txt(f"{name}._domainkey.{domain}")):
             dkim.append(name)
             break
     problems = email_auth_problems(spf, dmarc, dkim, selectors)
