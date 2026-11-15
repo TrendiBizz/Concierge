@@ -50,6 +50,22 @@ def test_a_non_spf_txt_record_is_not_mistaken_for_a_policy():
     assert "SPF record is not a v=spf1 policy" in problems
 
 
+def test_brevo_selectors_are_probed_because_that_is_where_this_domain_publishes():
+    """Regression: the first version of this list stopped at "brevo" and reported "no DKIM at any of
+    13 selectors" on 2026-11-15 while Brevo was signing every message with s=brevo1."""
+    assert "brevo1" in healthcheck.DKIM_SELECTORS
+    assert "brevo2" in healthcheck.DKIM_SELECTORS
+
+
+def test_a_cname_target_is_not_accepted_as_a_dkim_key():
+    """`dig +short TXT brevo1._domainkey...` prints the CNAME target as well as the TXT. Treating that
+    line as a key is how a broken selector probe can look healthy."""
+    assert healthcheck.is_dkim_key(["b1.trendibizz-com.dkim.brevo.com."]) is False
+    assert healthcheck.is_dkim_key(['"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA"']) is True
+    assert healthcheck.is_dkim_key(["k=rsa; p=short"]) is False
+    assert healthcheck.is_dkim_key([]) is False
+
+
 def test_the_check_is_wired_into_the_report():
     source = SCRIPT.read_text()
     loops = re.findall(r"for step in \(([^)]*)\)", source, re.S)
