@@ -61,3 +61,42 @@ several hundred lines of CSS.
 The Worker's own HTML fallback still emits stylesheet text (it is deployed on Cloudflare, not from
 this repo). The API now cleans every message regardless, so this is a belt-and-braces item, not a
 live defect.
+
+**Lesson recorded for our tooling:** never verify an inbound-mail fix by replaying through the
+production endpoint — it mails the owner. Verify `classify()` and `clean_inbound_text()` directly,
+and use the test suite for the rest. Anything that must be end-to-end goes to a test tenant flagged
+`is_test`, never to a live tenant's owner address.
+
+## Second round: why it kept arriving, and the real gap
+
+Two more notifications reached the owner at 13:19 and 13:21. **Both were mine.** To prove the
+cleaning end-to-end I replayed a signed synthetic crawl message through
+`POST /api/v1/inbound/cloudflare`; the first delivery was the enquiry notification, the second the
+alert channel escalating ("Sent by email because the text message could not be confirmed"). That
+was a mistake in method: the replay exercised the *send* path, not just the parse path. The replay
+drafts, leads and queued outbox rows have been deleted/cancelled, and no further replays were run.
+
+It exposed a genuine second defect, though. `automated_mail.classify("sa@ahrefs.com",
+"Page has links to redirect [New]: 39 URLs")` returned **None**: Ahrefs signs crawl reports from
+`sa@ahrefs.com` and — measured on the live box — that mail carries no `List-Id`, so the header
+checks never fired. The enquiry and the alert were therefore correct behaviour for the classifier as
+written, which is the bug.
+
+**Fixed** (`app/automated_mail.py`):
+
+- SEO and monitoring domains — `ahrefs.com`, `semrush.com`, `moz.com`, `majestic.com`,
+  `screamingfrog.co.uk`, `sitebulb.com`, `uptimerobot.com`, `pingdom.com`, `statuspage.io`,
+  `sentry.io`, `datadoghq.com`, `newrelic.com`.
+- Machine local parts — `sa`, `news`, `newsletter`, `digest`, `updates`, `promo`, `promotions`,
+  `marketing`, `reports`, `report`, `seo` (exact or followed by a separator, so `sam@` is a person).
+- Scheduled-report subjects — `new crawl`, `site audit`, `crawl completed`, `your weekly report`,
+  `site health`.
+
+A classified-automated message now produces **no lead, no acknowledgement, no secretary job and no
+owner alert** — that gate already existed and is now actually reachable for this mail.
+
+Proof, without sending anything: on the live container,
+`classify('sa@ahrefs.com', 'Page has links to redirect [New]: 39 URLs') -> 'localpart:sa'` and
+`classify('sam@smallbuilders.co.nz', 'Quote please') -> None`. Guards in
+`api/tests/test_automated_mail.py` (26 tests); mutation removing the Ahrefs domain turns one red.
+Suite **1240 passed, 36 skipped**.
