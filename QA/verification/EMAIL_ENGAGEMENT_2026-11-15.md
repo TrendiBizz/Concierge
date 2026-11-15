@@ -156,11 +156,12 @@ Full suite: **1,340 passed**.
 
 ## Operator items created
 
-1. **Publish DKIM for trendibizz.com** in Brevo → Senders & IP → Domains (authenticate the domain),
-   then add the TXT records Brevo issues. `email:auth` will go green on the next health run.
+1. ~~Publish DKIM for trendibizz.com~~ — **not needed; the alarm was wrong.** Brevo publishes at
+   `brevo1`/`brevo2` and `email:auth` reports ok. See the correction section above.
 2. **Add site analytics** so a click can be attributed (Plausible self-serve, cookieless, no consent
-   banner needed).
-3. **Disclose link tracking** in `/privacy` before it is used on any customer-facing mail.
+   banner needed). Still open.
+3. ~~Disclose link tracking in `/privacy`~~ — **done** by a concurrent session (`3efff4f`), verified
+   live 15 Nov 17:18 NZDT.
 
 ## Deploy trail
 
