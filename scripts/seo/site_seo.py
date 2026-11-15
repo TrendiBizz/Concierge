@@ -181,20 +181,17 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
                 problems.append(f"{rel}: canonical is {canonical.group(1)!r}, expected {expected!r}")
 
         # 2. noindex must be deliberate.
-        robots = re.search(r'<meta content="([^"]*)" name="robots"', html)
-        noindex = bool(robots and "noindex" in robots.group(1))
+        #    Google and Bing obey their own crawler-specific meta (googlebot, bingbot) as well as the
+        #    generic one, and the most restrictive wins. Reading only name="robots" let /glossary and
+        #    the crawler study ship "index" to everyone and "noindex" to Googlebot (found 15 Nov 2026).
+        robots_metas = re.findall(r'<meta content="([^"]*)" name="(robots|googlebot|bingbot)"', html)
+        noindex = any("noindex" in content for content, _ in robots_metas)
+        if robots_metas and len({"noindex" in c for c, _ in robots_metas}) > 1:
+            problems.append(f"{rel}: robots metas disagree: " + ", ".join(f"{n}={c!r}" for c, n in robots_metas))
         if noindex and rel not in NOINDEX_ALLOWED:
             problems.append(f"{rel}: noindex, but it is not on the allowed list")
         if not noindex and rel in NOINDEX_ALLOWED:
             problems.append(f"{rel}: expected noindex but none found")
-
-        # A crawler-specific robots meta can contradict the general one, and Google obeys the more
-        # specific tag. `/glossary` carried `googlebot: noindex` beside `robots: index` for a day
-        # (2026-11-16) and this check passed, because it only ever read `name="robots"`.
-        for content, agent in re.findall(r'<meta content="([^"]*)" name="(googlebot)"', html):
-            if "noindex" in content and rel not in NOINDEX_ALLOWED:
-                problems.append(
-                    f"{rel}: {agent} is noindex while robots says index; the more specific tag wins")
 
         # 3. One h1, a title and a snippet that will not be cut off.
         h1s = len(re.findall(r"<h1[ >]", html))

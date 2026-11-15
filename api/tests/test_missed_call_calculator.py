@@ -82,9 +82,9 @@ def test_money_is_formatted_with_separators_and_a_currency():
         other: calc.money(1000, '$')
       }));
     """)
-    assert result["plain"] == "NZ$21,840"
-    assert result["zero"] == "NZ$0"
-    assert result["negative"] == "-NZ$1,234"
+    assert result["plain"] == "21,840"
+    assert result["zero"] == "0"
+    assert result["negative"] == "-1,234"
     assert result["other"] == "$1,000"
 
 

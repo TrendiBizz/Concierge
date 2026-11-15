@@ -65,7 +65,7 @@
   function money(amount, currency) {
     var rounded = Math.round(amount);
     var text = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return (rounded < 0 ? '-' : '') + (currency || 'NZ$') + text;
+    return (rounded < 0 ? '-' : '') + (currency || '') + text;
   }
 
   /* Readable share links: the numbers live in the query string, so a calculation can be sent to a

@@ -139,19 +139,26 @@ def test_an_accidental_noindex_is_reported(tmp_path):
     assert any("about.html: noindex" in p for p in site_seo.audit(root))
 
 
-def test_a_crawler_specific_noindex_is_reported(tmp_path):
-    """Google obeys `<meta name="googlebot">` over `<meta name="robots">`, so a page that says
-    "index" to everyone and "noindex" to Googlebot is invisible in the only index that matters.
-
-    Measured 2026-11-16: `/glossary` and `/research/ai-crawler-blocking-2026` both carried
-    `googlebot: noindex` beside `robots: index`, were listed in the sitemap, and the guard passed —
-    it only ever read `name="robots"`.
-    """
+def test_a_googlebot_noindex_under_an_index_robots_meta_is_reported(tmp_path):
+    """/research/ai-crawler-blocking-2026 and /glossary, 15 Nov 2026: robots said index, googlebot said noindex."""
     root = make_site(tmp_path)
     html = page("/about", title="About").replace(
-        "</head>", '<meta content="noindex, follow" name="googlebot"/></head>')
+        '<meta content="index, follow" name="robots"/>',
+        '<meta content="index, follow" name="robots"/><meta content="noindex, follow" name="googlebot"/>')
     rewrite(root, "about.html", html)
-    assert any("googlebot is noindex while robots says index" in p for p in site_seo.audit(root))
+    problems = site_seo.audit(root)
+    assert any("about.html: robots metas disagree" in p for p in problems), problems
+
+
+def test_a_bingbot_noindex_under_an_index_robots_meta_is_reported(tmp_path):
+    """Bing's own crawler meta is obeyed too, and it feeds ChatGPT search."""
+    root = make_site(tmp_path)
+    html = page("/about", title="About").replace(
+        '<meta content="index, follow" name="robots"/>',
+        '<meta content="index, follow" name="robots"/><meta content="noindex, follow" name="bingbot"/>')
+    rewrite(root, "about.html", html)
+    problems = site_seo.audit(root)
+    assert any("about.html: robots metas disagree" in p for p in problems), problems
 
 
 def test_a_crawler_specific_noindex_is_allowed_where_noindex_is_the_policy(tmp_path):

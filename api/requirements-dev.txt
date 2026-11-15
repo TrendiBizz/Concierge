@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest>=8,<9
+# test_brand_from_site.py opens the generated brand images with PIL; the app itself never imports it.
+Pillow>=10,<12

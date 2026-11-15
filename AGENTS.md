@@ -78,8 +78,13 @@ Deployed locations on the box (`152.42.239.240`, release `20261108-vps`):
 `main` is the deployed branch. Push only after the full suite passes:
 
 ```bash
-cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q
+cd api && PYTHONPATH="$(cd .. && pwd)/QA/verification/shims" \
+  TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
+  /Users/jo/work-staging/venv-concierge/bin/python -m pytest -q
 ```
+
+The interpreter, the shims path and `Pillow` are all load-bearing: the plain `python3 -m pytest -q`
+this file used to give collects 101 errors without them (`QA/verification/TEST_ENV_2026-11-16.md`).
 
 The repo is shared with other agents and an automatic checkpoint bot, so always `git pull --rebase`
 before pushing, and re-run `verify-deploy.sh` afterwards in case someone else deployed in between.
@@ -98,3 +103,14 @@ hand-run rsync. Publish tooling changes with that script, never by hand.
 
 If `verify-deploy.sh` reports drift, do not explain it away. Either deploy the repo state, or bring
 the box state back into the repo with a commit. There is no third option.
+
+## Agent shell environment
+
+If every git command fails with `error: missing config key GIT_CONFIG_KEY_0`, the harness is at
+fault, not this repo: its subprocess environment scrub stripped `GIT_CONFIG_KEY_n` but still
+forwarded `GIT_CONFIG_COUNT` and `GIT_CONFIG_VALUE_n`, so git reads a half-written command-line
+config. Fixed on 2026-11-16 in `@deepseek-ai/dsh-subprocess` (the whole `GIT_CONFIG_*` family is no
+longer inherited) — see `QA/verification/HARNESS_GIT_ENV_2026-11-16.md`. Because a running harness
+process keeps the old code until it restarts, prefix git with `env -u GIT_CONFIG_COUNT` in the
+meantime. This never means "git is broken in this repo" and it is never a reason to skip
+`verify-deploy.sh`.
