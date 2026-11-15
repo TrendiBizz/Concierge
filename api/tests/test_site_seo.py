@@ -475,3 +475,22 @@ def test_the_data_check_is_wired_into_the_report():
     source = (REPO / "scripts" / "vps" / "healthcheck.py").read_text()
     loops = re.findall(r"for step in \(([^)]*)\)", source, re.S)
     assert any("check_site_data" in loop for loop in loops)
+
+
+def test_host_tooling_has_a_supported_way_to_reach_the_box():
+    """A change to scripts/vps used to leave verify-deploy red with no documented remedy.
+
+    The site deploy publishes `website/` only. Host tooling is published by copying, and until this
+    script existed the only way to do it was a hand-run rsync — the same undocumented step that
+    produced the drifts AGENTS.md is written to prevent.
+    """
+    script = REPO / "scripts" / "vps" / "sync-tooling.sh"
+    assert script.is_file(), "sync-tooling.sh is missing"
+    assert script.stat().st_mode & 0o111, "sync-tooling.sh must be executable"
+    body = script.read_text()
+    assert "rsync" in body and "scripts/vps" in body
+    assert "--exclude '._*'" in body and "__pycache__" in body
+    assert body.rstrip().endswith('"$REPO_ROOT/scripts/vps/verify-deploy.sh"') or "verify-deploy.sh" in body
+    assert "REFUSING" in body, "tooling must refuse to publish an uncommitted tree"
+    agreement = (REPO / "AGENTS.md").read_text()
+    assert "sync-tooling.sh" in agreement, "AGENTS.md must tell agents how to publish host tooling"

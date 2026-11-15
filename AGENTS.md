@@ -28,7 +28,7 @@ different questions.
 |---|---|---|
 | The website source | `website/` | **The only site source.** Deploy with `scripts/vps/deploy-site.sh`. |
 | The API | `api/app/` | Deploy with `rsync api/app/` + `scripts/vps/redeploy-api.sh`. |
-| Host tooling | `scripts/vps/` | Deployed by copying; used by cron and systemd on the box. |
+| Host tooling | `scripts/vps/` | Deployed with `scripts/vps/sync-tooling.sh`; used by cron and systemd on the box. |
 | QA records | `QA/verification/` | One dated file per piece of work: cause, fix, proof. |
 
 Deployed locations on the box (`152.42.239.240`, release `20261108-vps`):
@@ -86,9 +86,14 @@ before pushing, and re-run `verify-deploy.sh` afterwards in case someone else de
 ## The one-command check
 
 ```bash
-KEY=./Concierge ./scripts/vps/verify-deploy.sh   # repo vs box, by checksum
-KEY=./Concierge ./scripts/vps/deploy-site.sh     # publish the website (refuses anything uncommitted)
+KEY=./Concierge ./scripts/vps/verify-deploy.sh    # repo vs box, by checksum
+KEY=./Concierge ./scripts/vps/deploy-site.sh      # publish the website (refuses anything uncommitted)
+KEY=./Concierge ./scripts/vps/sync-tooling.sh     # publish host tooling, then verify
 ```
+
+`sync-tooling.sh` exists because a change to `scripts/vps` (including the health check) used to leave
+`verify-deploy.sh` reporting `scripts/vps: DRIFT` with no supported way to clear it — the fix was a
+hand-run rsync. Publish tooling changes with that script, never by hand.
 
 If `verify-deploy.sh` reports drift, do not explain it away. Either deploy the repo state, or bring
 the box state back into the repo with a commit. There is no third option.
