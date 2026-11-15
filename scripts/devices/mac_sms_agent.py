@@ -46,6 +46,30 @@ def authentication_message(text):
     return code and ((context and authentication_code) or (do_not_share and 'code' in text.lower()))
 
 
+def attributed_text(blob):
+    """Plain text of a Messages attributedBody (typedstream NSAttributedString).
+
+    Recent macOS often stores an incoming text only in attributedBody and leaves message.text NULL;
+    reading text alone dropped those messages as "no_text", including enquiries from unknown numbers.
+    """
+    if not blob:
+        return ""
+    data = bytes(blob)
+    start = data.find(b"NSString")
+    if start < 0:
+        return ""
+    marker = data.find(b"+", start+8, start+20)
+    if marker < 0 or marker+1 >= len(data):
+        return ""
+    i = marker+1
+    size = data[i]; i += 1
+    if size == 0x81:
+        size = int.from_bytes(data[i:i+2], "little"); i += 2
+    elif size == 0x82:
+        size = int.from_bytes(data[i:i+4], "little"); i += 4
+    return data[i:i+size].decode("utf-8", "replace").strip("\ufffc").strip()
+
+
 FILTER_PATH = "~/.concierge/sms_filter.json"
 ADDRESS_BOOKS = "~/Library/Application Support/AddressBook/**/AddressBook-v22.abcddb"
 DEFAULT_FILTER = {
@@ -154,6 +178,10 @@ class BusinessFilter:
     def may_text(self, recipient, forwarded):
         """The platform may only text people whose texts we forwarded, or numbers that are not personal."""
         self.load()
+        if recipient == self.own:
+            # Owner alerts go to the owner's own number; that is never a third party's private chat.
+            # Without this, saving yourself in Contacts silently blocked every owner SMS alert.
+            return True
         if recipient in forwarded or recipient in self.settings["business"]:
             return True
         if recipient in self.settings["personal"]:
@@ -311,6 +339,8 @@ class PhoneAgent:
         services = ("SMS", "iMessage") if self.filter.settings.get("include_imessage") else ("SMS",)
         with self.database() as c:
             has_chats = c.execute("SELECT 1 FROM sqlite_master WHERE name='chat_message_join'").fetchone()
+            columns = {r[1] for r in c.execute("PRAGMA table_info(message)")}
+            body = "m.attributedBody" if "attributedBody" in columns else "NULL"
             group = ("(SELECT MAX(CASE WHEN ch.style=43 THEN 1 ELSE 0 END) FROM chat_message_join j "
                      "JOIN chat ch ON ch.ROWID=j.chat_id WHERE j.message_id=m.ROWID)") if has_chats else "0"
             where, args = ["m.is_from_me=0", "m.service IN (%s)" % ",".join("?"*len(services))], list(services)
@@ -319,11 +349,13 @@ class PhoneAgent:
             if since_seconds is not None:
                 # chat.db dates are nanoseconds since 2001-01-01.
                 where.append("m.date>?"); args.append(int((time.time()-978307200-since_seconds)*1e9))
-            sql = ("SELECT m.ROWID,m.guid,h.id,m.text,m.destination_caller_id,"+group+" FROM message m "
+            sql = ("SELECT m.ROWID,m.guid,h.id,m.text,m.destination_caller_id,"+group+","+body+" FROM message m "
                    "JOIN handle h ON h.ROWID=m.handle_id WHERE "+" AND ".join(where)+" ORDER BY m.ROWID")
             if limit:
                 sql += " LIMIT %d" % limit
-            return c.execute(sql, args).fetchall()
+            rows = c.execute(sql, args).fetchall()
+        return [(row, guid, sender, text or attributed_text(blob), line, grp)
+                for row, guid, sender, text, line, grp, blob in rows]
 
     def classify(self, sender_raw, text, line, group):
         if normalize(line) != self.config["from_number"]:

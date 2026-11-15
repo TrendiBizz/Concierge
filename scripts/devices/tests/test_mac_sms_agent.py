@@ -167,4 +167,36 @@ class PhoneAgentTest(unittest.TestCase):
         self.assertEqual(module.to_e164('0064 21 555 0123','64'),'+64215550123')
 
 
+    @staticmethod
+    def typedstream(text):
+        raw=text.encode()
+        size=bytes([len(raw)]) if len(raw)<0x80 else b"\x81"+len(raw).to_bytes(2,"little")
+        return b"\x04\x0bstreamtyped\x81\xe8\x03\x84\x01@\x84\x84\x84\x12NSAttributedString\x00\x84\x84\x08NSObject\x00\x85\x92\x84\x84\x84\x08NSString\x01\x94\x84\x01+"+size+raw+b"\x86\x84"
+
+    def test_attributed_text_decodes_short_and_long_bodies(self):
+        self.assertEqual(module.attributed_text(self.typedstream("Quote for a deck?")),"Quote for a deck?")
+        long="x"*300
+        self.assertEqual(module.attributed_text(self.typedstream(long)),long)
+        self.assertEqual(module.attributed_text(None),"")
+        self.assertEqual(module.attributed_text(b"garbage"),"")
+
+    def test_unknown_number_with_only_attributed_body_is_forwarded(self):
+        with sqlite3.connect(self.db) as c:
+            c.execute("ALTER TABLE message ADD COLUMN attributedBody BLOB")
+        stranger=self.handle('+64213334444')
+        self.use_filter(contacts={'+64211112222'},include_imessage=True)
+        self.agent.inbound()
+        self.add(handle=stranger,service='iMessage',text=None)
+        with sqlite3.connect(self.db) as c:
+            c.execute("UPDATE message SET attributedBody=? WHERE rowid=(SELECT MAX(rowid) FROM message)",
+                      (self.typedstream("Can I get a quote?"),))
+        self.assertEqual(self.agent.inbound(),1)
+        self.assertEqual(self.calls[0][1]['body'],'Can I get a quote?')
+
+    def test_owner_alert_to_own_number_is_allowed_even_when_saved_in_contacts(self):
+        self.use_filter(contacts={'+64278817368','+64211112222'})
+        self.assertTrue(self.agent.filter.may_text('+64278817368',set()))
+        self.assertFalse(self.agent.filter.may_text('+64211112222',set()))
+
+
 if __name__=='__main__':unittest.main()
