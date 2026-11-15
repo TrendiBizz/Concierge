@@ -16,8 +16,8 @@ from email.utils import parseaddr
 
 from fastapi import HTTPException, Request
 
-from . import (automated_mail, bounces, channel_authorization, db, email_auth, email_risk, email_scan,
-               inbound_email, inbound_policy, suppressions)
+from . import (automated_mail, bounces, channel_authorization, db, email_auth, email_risk,
+               email_scan, inbound_email, inbound_policy, inbound_text, suppressions)
 from .config import get_settings
 
 log = logging.getLogger("concierge.inbound")
@@ -165,6 +165,9 @@ async def handle(request: Request) -> dict:
             raise ValueError("Invalid field types")
         if len(payload["sender"]) > 320 or len(payload["subject"]) > 250:
             raise ValueError("Invalid fields")
+        # The Worker's HTML fallback leaves stylesheet text and quoted-printable escapes in `text`.
+        # Cleaning here fixes the stored draft, the enquiry and the owner's notification at once.
+        payload["text"] = inbound_text.clean_inbound_text(payload["text"])
         envelope_from = payload.get("envelope_from")
         if envelope_from is not None and (not isinstance(envelope_from, str)
                                           or len(envelope_from) > 320):

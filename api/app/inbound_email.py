@@ -94,6 +94,10 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         raise InboundError("Invalid email body")
     if "\x00" in text_body:
         raise InboundError("Invalid email content")
+    # Defence in depth: an older Worker may still post markup, and this is the last place before the
+    # text is stored and mailed to the owner.
+    from . import inbound_text
+    text_body = inbound_text.clean_inbound_text(text_body)
     # Stable, tenant-scoped event key without storing raw provider IDs in the key.
     key = provider + ":" + hashlib.sha256(message_id.encode()).hexdigest()
     flags = list(flags or [])
@@ -139,7 +143,10 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         # is the difference between a CRM record called "conrad@pukekoconstruction.co.nz" and one
         # called "Conrad Schiess, Pukeko Construction".
         signature = email_signature.parse_signature(text_body)
-        await enquiries.capture(tenant, "email", key, subject + "\n\n" + text_body,
+        notice = ""
+        if "automated_sender" in (flags or []):
+            notice = "(Automated message — not a customer enquiry.)\n\n"
+        await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + text_body,
                                 conversation_id=conversation_id, email=draft["sender"],
                                 name=signature["name"], company=signature["company"],
                                 phone=signature["phone"])
