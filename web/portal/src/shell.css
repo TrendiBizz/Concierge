@@ -26,31 +26,6 @@
   grid-template-areas: "brand topbar" "nav content";
 }
 
-/* Phones and narrow windows. Measured on a live 390px viewport 2026-11-15: the document was
-   435px wide (45px of horizontal scroll on every screen), the sidebar kept a fixed 217px column
-   beside the content, and this block's own two-column override never applied. The navigation now
-   becomes a horizontally scrolling strip above the content instead of disappearing, so every tab
-   stays reachable on a phone. */
-@media (max-width: 900px) {
-  .c-shell {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-rows: auto auto auto minmax(0, 1fr) !important;
-    grid-template-areas: "brand" "topbar" "nav" "content" !important;
-  }
-  .c-topbar { flex-wrap: wrap; row-gap: 8px; }
-  .c-brand { border-right: 0; padding-bottom: 8px; }
-  .c-nav {
-    display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
-    /* Wrapping 17 destinations made the strip taller than a phone screen, and the last row was
-       unreachable (measured 2026-11-15: Reports sat at y=918 in an 844px viewport). The strip
-       now scrolls inside itself. */
-    max-height: 38vh; overflow-y: auto; overscroll-behavior: contain;
-    padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--c-line);
-  }
-  .c-nav-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-  .c-nav-label, .c-nav-item { white-space: nowrap; }
-  .c-content { padding: 18px 14px 40px; min-width: 0; }
-}
 
 .c-brand {
   grid-area: brand;
@@ -240,4 +215,30 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .c-content, .c-shell * { animation: none !important; transition: none !important; }
+}
+
+/* Phones and narrow windows. Measured on a live 390px viewport 2026-11-15: the document was
+   435px wide (45px of horizontal scroll on every screen), the sidebar kept a fixed 217px column
+   beside the content, and this block's own two-column override never applied. The navigation now
+   becomes a horizontally scrolling strip above the content instead of disappearing, so every tab
+   stays reachable on a phone. */
+@media (max-width: 900px) {
+  .c-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr) !important;
+    grid-template-areas: "brand" "topbar" "nav" "content" !important;
+  }
+  .c-topbar { flex-wrap: wrap; row-gap: 8px; }
+  .c-brand { border-right: 0; padding-bottom: 8px; }
+  .c-nav {
+    display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
+    /* Wrapping 17 destinations made the strip taller than a phone screen, and the last row was
+       unreachable (measured 2026-11-15: Reports sat at y=918 in an 844px viewport). The strip
+       now scrolls inside itself. */
+    max-height: 38vh; overflow-y: auto; overscroll-behavior: contain;
+    padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--c-line);
+  }
+  .c-nav-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .c-nav-label, .c-nav-item { white-space: nowrap; }
+  .c-content { padding: 18px 14px 40px; min-width: 0; }
 }
