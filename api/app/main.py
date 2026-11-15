@@ -1707,6 +1707,7 @@ async def cloudflare_email_webhook(request: Request):
 
 
 @app.get("/l/{token}")
+@app.get("/studio/l/{token}", include_in_schema=False)
 async def tracked_link(token: str, request: Request):
     """Record an email link click, then send the visitor where the email pointed.
 

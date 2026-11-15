@@ -32,6 +32,12 @@ TRACKED_KINDS = frozenset({"owner_alert", "campaign", "email_secretary_reply"})
 MAX_LINKS_PER_MESSAGE = 40
 PROVIDER_KINDS = {"delivered": "delivered", "opened": "open", "open": "open", "click": "click"}
 
+# The edge proxy for concierge.trendibizz.com forwards /studio/* and /webhooks/* to the API and
+# answers everything else itself, so a tracked link has to live under /studio. Verified on the box
+# on 2026-11-15: https://concierge.trendibizz.com/l/<token> returned the edge's empty 404 while
+# /studio/l/<token> reaches the redirect below.
+TRACKED_PATH = "/studio/l"
+
 URL_RE = re.compile(r"https?://[^\s<>\"']+")
 TRAILING = ").,;:!?]'\"»"
 
@@ -145,7 +151,7 @@ async def render_html(outbox_id: int, tenant_id, text: str) -> str:
         pieces.append(html_lib.escape(text[cursor:match.start()]))
         label = html_lib.escape(raw)
         if token:
-            href = f"{base}/l/{token}"
+            href = f"{base}{TRACKED_PATH}/{token}"
             pieces.append(f'<a href="{html_lib.escape(href)}">{label}</a>')
         else:
             pieces.append(label)

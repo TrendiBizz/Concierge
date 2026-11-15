@@ -67,7 +67,7 @@ def test_render_html_escapes_the_body_and_rewrites_links(monkeypatch):
     monkeypatch.setattr(engagement, "remember_link", remember)
     html = asyncio.run(engagement.render_html(
         7, uuid.uuid4(), "Sign in: https://example.com/studio\n<script>alert(1)</script>"))
-    assert '<a href="https://concierge.trendibizz.com/l/tok123">https://example.com/studio</a>' in html
+    assert '<a href="https://concierge.trendibizz.com/studio/l/tok123">https://example.com/studio</a>' in html
     assert "&lt;script&gt;" in html and "<script>" not in html
 
 
@@ -285,3 +285,13 @@ def test_brevo_engagement_events_never_reach_the_suppression_path(monkeypatch):
     assert asyncio.run(run()).status_code == 200
     assert recorded == ["opened"]
     assert suppressed == ["hard_bounce"]
+
+
+def test_the_tracked_link_path_is_the_one_the_edge_proxy_forwards():
+    """concierge.trendibizz.com forwards /studio/* and /webhooks/* only; /l/* is answered by the
+    edge with an empty 404, which is why the redirect lives at /studio/l/<token>."""
+    assert engagement.TRACKED_PATH == "/studio/l"
+    from app import main as app_main
+    paths = {getattr(route, "path", "") for route in app_main.app.routes}
+    assert "/studio/l/{token}" in paths
+    assert "/l/{token}" in paths, "the internal route stays so the box can be tested locally"
