@@ -1,0 +1,7 @@
+105c105,108
+< <p>This site uses <a href="https://www.cloudflare.com/web-analytics/" rel="noopener">Cloudflare Web Analytics</a>, which does not use cookies and does not track you for advertising. We do not set first-party cookies for ads. If that changes, we will update this page.</p>
+---
+> <p>This site uses <a href="https://www.cloudflare.com/web-analytics/" rel="noopener">Cloudflare Web Analytics</a> to count page views and visits. It does not use cookies, does not build a profile of individual visitors and does not track you for advertising. We do not set first-party cookies for ads. If that changes, we will update this page.</p>
+> <h2>Email delivery and link tracking</h2>
+> <p>We send email through <a href="https://www.brevo.com/legal/privacypolicy/" rel="noopener">Brevo</a>. Brevo records whether each message was delivered and may record when it is opened or a link in it is clicked. It reports those events to us so we can see whether our mail is arriving.</p>
+> <p>Links in emails we send to businesses that use Concierge, such as account invitations and alerts, in campaign emails, and in email replies Concierge sends on a business's behalf, may pass through concierge.trendibizz.com/studio/l/&hellip; before opening the page they point to. We record the first click on each link with the time, the link, the IP address and the browser type, so we and the business that sent the email can see it was acted on. Invoices and automatic acknowledgements sent to a business's customers do not use these links.</p>
