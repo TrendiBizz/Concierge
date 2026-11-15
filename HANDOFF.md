@@ -1,143 +1,164 @@
-# Trendi Concierge — current handoff (repo root)
+# HANDOFF — Trendi Concierge
 
-Updated 2026-11-12. **Read first:** `QA/verification/HANDOFF_CURRENT_2026-11-11.md` — its last
-section, "Session 2026-11-12 (seventh) — competitor gap analysis", supersedes every older pointer
-below. That section also holds the ranked product additions from `COMPETITOR_GAP_2026-11-12.md`.
+**Read first:** `AGENTS.md` in this repo (the working agreement — enforced by tooling, and it now
+includes the website's technical SEO contract), then the QA record matching the area you touch.
+Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11-15.md` (content),
+`SEO_GROWTH_2026-11-15.md` (growth implementation — the most recent), `EMAIL_ENGAGEMENT_2026-11-15.md`,
+`CENTRAL_REPO_2026-11-15.md`.
 
-## Outstanding (current)
-- **Phone DID (paid)** — `scripts/vps/order-phone-did.sh`; needs a payment method/KYC. The SIP
-  stack itself is up (Asterisk pbx/bridge + Rust shell), so this is the last item before a
-  customer-dialable number.
-- ~~**Studio SPA has no Permissions screen**~~ — **STALE, corrected 2026-11-12**: it exists and is
-  wired (`web/portal/src/Permissions.tsx`, `App.tsx:130`) and shows consents, refusals and the
-  suppression list. Only the legacy `/owner-ui` duplicate remains.
-- ~~**Inbound rejections are invisible**~~ — **DONE 2026-11-12**: `GET /owner/inbound-audit` plus
-  the Studio Permissions screen show sender/subject/reason (`inbound_audit` table).
-- **Rotate the xAI/api keys** — `docker inspect` prints every service secret in clear text, and
-  those values reached a session transcript on 2026-11-12.
-- **Full-stack deploys must pass `--profile crm --profile public`** — otherwise
-  `docker compose up -d --remove-orphans` deletes the CRM and the Cloudflare tunnels.
-- **Replace the operator-created demo logins** for `pukeko-construction` and `concierge-test` with
-  real customer accounts.
-- Carried forward: Pukeko social OAuth + live publishing; richer internal admin console; removal of
-  the old test phone route; consent-copy review; offsite backup credentials; off-site SEO accounts;
-  Astryx Native watch (weekly Monday 09:00 NZ, still not production).
+## 1. Project and repo
 
-## Next action
-Build item **A** of `COMPETITOR_GAP_2026-11-12.md`: missed-call text-back (2–3 days, builds on
-`managed_phone.py`/`outbox.py`/`casetimeline.py`), then the timeline screen (C). The remaining
-operator-dashboard items (Brevo secret/key/plan, DMARC `p=reject`, Cloudflare token split, phone DID
-payment/KYC) are unchanged and summarised in the workspace `HANDOFF.md`.
+- **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
+  HEAD `02139f2`. Working tree clean at handoff time.
+- **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
+  (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
+- **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
+  (`ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ./Concierge root@…`).
+  Release dir `/opt/trendi/releases/20261108-vps`.
+- **Deploy — do not improvise.**
+  - Site: `KEY=./Concierge ./scripts/vps/deploy-site.sh`. Refuses a dirty tree, runs
+    `python3 scripts/seo/site_seo.py check`, stamps `.deploy-manifest.json`, verifies, then pings
+    IndexNow for the pages that changed.
+  - Host tooling (`scripts/vps/`, including the health check): `KEY=./Concierge ./scripts/vps/sync-tooling.sh`.
+    **New this session** — without it, editing the health check left `verify-deploy` red forever.
+  - API: `rsync api/app/` into `product/api/app/` then `bash scripts/vps/redeploy-api.sh`.
+  - Portal: `KEY=./Concierge ./scripts/vps/deploy-studio.sh`.
+- **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
+  → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61).
+- **Tests:** `cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q`
+  → **1413 passed**.
+- **Health (on the box):** `python3 scripts/vps/healthcheck.py --no-alert` →
+  **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
+- **Website technical SEO:** `python3 scripts/seo/site_seo.py check` (the deploy gate),
+  `python3 scripts/seo/site_seo.py sitemap --write` (the sitemap is generated, never hand-edited).
+- **Earlier record:** `HANDOFF_ARCHIVE_2026-11-15_1430.md` holds the session-by-session detail
+  (§6a–§6q, §7, §8). Nothing there was dropped; the worklist below is the current list.
 
-# Older pointers (historical)
+## 2. What the 2026-11-15 sessions did
 
-> **Current status (10 November 2026):** [WORKFLOW_STATUS_2026-11-10.md](QA/verification/WORKFLOW_STATUS_2026-11-10.md).
-> Read that first. The **Rust port is abandoned** — do not continue it and do not treat
-> `scripts/rust-gate.sh` as a requirement; the Python API on `main` is the product.
+The first three streams are recorded in their own files. The last one is this session:
 
-> Current deployment and continuation (10 November 2026): [HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md](QA/verification/HANDOFF_CURRENT_DEPLOYMENT_2026-11-10.md). Read this first for runtime state; it points to the complete product mandate.
->
-> Seven-step workflow live verification (10 November 2026): [PORTAL_WORKFLOW_LIVE_VERIFICATION_2026-11-10.md](QA/verification/PORTAL_WORKFLOW_LIVE_VERIFICATION_2026-11-10.md). What is implemented/tested/live versus unverified, the Cloudflare 403 explanation, and the two real remaining configuration gaps.
+1. **Audit** — 12 defects found and fixed (invitation sign-in crash, service-worker recovery, settings
+   nav, missing h1s, mobile overflow, baked-in SSH key, silent backup failure, missing restore drill,
+   unmonitored SIP firewall, `api.env` sourcing bug, stale cron copy). See `SYSTEM_AUDIT_2026-11-15.md`.
+2. **SEO content pass** — nine thin money pages grown to 903–1,238 words, ten snippets trimmed,
+   `/ai-visibility` turned into a guides index, a bulk "worldwide" geo rewrite reverted in seven
+   places, and a `site:pages` health guard. See `SEO_PASS_2026-11-15.md`.
+3. **Email engagement + mail auth** — first-party click tracking, Brevo events on the timeline,
+   HTML alternative, pending-invites list, `email:auth` check. DKIM was never missing (Brevo
+   publishes at `brevo1`/`brevo2`) — that false alarm is recorded so it is not re-raised.
+4. **One central repository, enforced** — the site publishes only from this repo, with a deploy
+   manifest and a checksum parity check. See `CENTRAL_REPO_2026-11-15.md`.
+5. **SEO growth implementation (this session)** — the outside audit's seven ideas, implemented as far
+   as they can be without inventing facts. Full detail in `SEO_GROWTH_2026-11-15.md`; the short version:
+   - A **technical SEO contract** now gates every deploy and is checked live (`site:seo`): canonical,
+     `noindex`, `dateModified`, snippet length, internal links, sitemap parity, `robots.txt` policy,
+     IndexNow key. `site:data` guards the research data's freshness.
+   - **Seven live defects fixed**, found by the guard on its first run: 21 AppleDouble files committed
+     to the web root; `/glossary` (1,043 words) `noindex` and missing from the sitemap; 11 pages with
+     no `dateModified`; 13 wrong sitemap `lastmod` values, one malformed `<url>`, one missing `lastmod`;
+     the research page linked from nowhere; a Dataset with no `distribution`; and a calculator parser
+     that turned junk input into "1 missed call a week".
+   - **New:** `/ai-receptionist-nz` (NZ hub), `/tools/missed-call-cost-calculator` (link magnet with a
+     shareable URL), the crawler research as a **living data page** (refresh log, CSV distribution,
+     freshness check), IndexNow submission on deploy (HTTP 200 for 24 changed URLs), and
+     `scripts/vps/sync-tooling.sh` after the deploy gate exposed that host tooling had no publish path.
+   - 54 new tests (1413 total), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
 
-> Latest engineering handoff (Rust port, Hermes gateway, CI repair): [QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md](QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md).
-> Current authoritative scope (9 November 2026): [Concierge portal secretary handoff](QA/verification/HANDOFF_CONCIERGE_PORTAL_WORKFLOW_2026-11-09.md). Read that first; the historical state below is superseded.
+## 3. Outstanding — the real worklist
 
-# Handoff - Website AI Concierge (read this first in the new chat)
+### Operator only (cannot be fixed from this repo)
 
-## Goal
-Build a self-hosted "AI concierge for small businesses" business (from a YouTube interview): a chat +
-voice widget on a client's website that answers from the site's content, captures leads, books
-appointments, and reports results. Voice via **Grok Voice Agent API**. Free/open-source tools
-where possible. Sell it on a monthly fee based on lead value, after a free 2-4 week trial and a
-live sandbox demo.
+1. **Stripe charges GST on top of advertised prices.** Measured: Concierge monthly advertises
+   USD $250, checkout totals **$287.50**; yearly $2,700 → $3,105; SEO monthly $1,500 → $1,725;
+   deposit $1,000 → $1,150. No page mentions GST. Decide: tax-inclusive prices, or change the
+   advertised numbers. `site:prices` will fail if GST wording ever appears in the pages instead.
+2. **Yearly is contradictory:** `/pricing` sells yearly publicly, while `products.js` keeps the
+   yearly link empty. Decide which is true, then align copy and links.
+3. **Rotate secrets:** the VPS root SSH key (was readable inside the API image) and the live Stripe
+   secret key; rotate the Stripe webhook secret too.
+4. **LinkedIn MDP review**, **TikTok token**, **Conrad's snippet**, **Ahrefs mail rule**,
+   **replacement Concierge payment link**, **Cloudflare JS detections** — unchanged from the archive.
+5. **Inbound SMS has never arrived** (`sms:inbound` warn, 1 paired phone). Needs a text sent to the
+   business number.
+6. **Decide about the Twenty CRM stack** (`docker compose --profile crm`): run it or retire it.
+7. **Search Console and Bing Webmaster:** verify the property and submit
+   `https://trendibizz.com/sitemap.xml`. Bing feeds ChatGPT search. Without Search Console there is
+   no data on which page is served for which query — the one thing the content work cannot measure
+   itself. IndexNow now covers Bing's crawl signal on every deploy, but not the dashboard.
+8. **No web analytics** — a click is recorded, the landing visit is not. Needs an account (Plausible
+   is the sane pick: cookieless, no consent banner).
+9. **Named author / team page** — schema `author` is the Organization until a real named author with a
+   bio exists.
 
-## State of play
+### Security / hygiene still open
 
-### Built and tested: `/home/user/concierge`
-- `docker-compose.yml`, `Caddyfile`, `.env.example`, `scripts/gen-env.sh`, `scripts/backup.sh`, `postgres/init.sh`, `README.md`
-- `api/app/`: FastAPI service (`main, rag, voice, tools, crawler, ingest, chunking, embeddings, llm, tenants, security, db, config, cli`, `schema.sql`)
-- `api/static/widget.js`: embeddable chat + Grok voice widget (shadow DOM, AudioWorklet mic capture, tool-call round trip)
-- `api/tests/test_units.py`: 20 passing unit tests (run from `api/`: `pytest -q tests`)
-- Core services: caddy, postgres+pgvector, redis, api. Optional profiles: chatwoot, twenty, uptime-kuma. (n8n was removed on 2026-11-12: it never ran a workflow and its service, volume and data are gone.)
+10. UDP 10000–10099 (RTP) is reachable from the internet; Docker DNAT bypasses ufw and only 5060 is
+    filtered. Closing rules are in the header of `scripts/vps/harden_host.sh`.
+11. containerd holds ~65 GB of old images (disk 47%). Keep 2–3 `before-*` tags, prune the rest.
+12. `/opt/trendi/releases` is world-readable and its test fixtures embed ~32 DSNs and a `whsec_`;
+    containers still run as root without `no-new-privileges`.
+13. `/var/run/reboot-required` is set. Reboot in a window, then confirm
+    `systemctl is-active trendi-sip-firewall.service` is `active` and health is 0 fail.
+14. **Commit-time teeth are not installed** — the enforcement catches drift after the fact. A
+    `pre-push` hook running the suite plus branch protection on `origin` still needs a decision.
+15. **Secrets stay off-repo by design.** `/opt/trendi/shared/api.env` is the source of truth; never
+    commit it or copy it into a release tree.
 
-### Verified for real
-Unit tests; the API against real Postgres 16 + pgvector with the real local embedding model
-(fastembed bge-small); the crawler (robots.txt respected); tenant admin, lead capture, stats,
-origin allow-lists, auth failures; the widget in headless Chromium with a fake microphone;
-`docker compose config` validates with all profiles.
+### Unverified product surface (unchanged from the archive)
 
-### Only tested against mocks
-The LLM (mock OpenAI-compatible server) and the Grok Voice WebSocket (mock). **No real xAI key was
-used. Nothing has run against real Grok.** The Docker image build and the Chatwoot / Twenty /
-Caddy containers were never booted (no Docker daemon in that environment).
+16. Phone answering end to end: inbound call to the business number, outbound AI callback, transfer
+    to the owner, voicemail, and RTP only after item 10.
+17. Inbound email and inbound SMS round trips (SMS blocked on item 5).
+18. Social publishing to Meta/Google/LinkedIn/TikTok on a real tenant, and the review-request flow.
+19. Owner-facing flows only touched by automation: quotes → invoice, designs and CAD uploads,
+    marketing-media library, reports export.
+20. Anything in §6/§7 of `HANDOFF_ARCHIVE_2026-11-15_1430.md` not named above.
 
-### Assumptions to confirm on the first real run (xAI docs are silent)
-1. Which field of the `POST /v1/realtime/client_secrets` response holds the token (`voice.py` accepts `value`, `client_secret.value`, `client_secret`, `token`).
-2. Assistant-transcript event names (widget listens for `response.output_audio_transcript.delta` / `response.audio_transcript.delta`) and the interruption event (`input_audio_buffer.speech_started`).
-3. The format of the opening "greet the visitor" message (`input_text` content).
-4. `CHAT_MODEL` default `grok-4` - set to a model the account really has.
-5. `audio.input.transcription.model = "grok-transcribe"` accepted.
-Fixed already: the widget no longer doubles the `xai-client-secret.` prefix.
+### SEO growth — what the outside audit asked for and what is left
 
-### Verified xAI facts (from docs.x.ai)
-WebSocket `wss://api.x.ai/v1/realtime` (optional `?model=grok-voice-latest`); API key as Bearer header
-server-side; browsers use an ephemeral token in the WebSocket subprotocol
-`xai-client-secret.<token>`, minted by `POST https://api.x.ai/v1/realtime/client_secrets` with
-`{"expires_after":{"seconds":300}}`. Events: `session.update`, `input_audio_buffer.append/commit/clear`,
-`conversation.item.create`, `response.create`; server: `response.output_audio.delta`,
-`response.function_call_arguments.done`, `response.done`,
-`conversation.item.input_audio_transcription.updated`. Parallel tool calls: send ALL
-`function_call_output` items before ONE `response.create`. Reported price about $0.05-0.08/min
-(sources disagree; confirm at docs.x.ai/docs/pricing).
+21. **Shareable report pages + "Checked by Trendi" badge** for `/tools/site-check` and
+    `/tools/robots-ai-check`. Not built: both tools render results into the DOM as they run, so a
+    report needs a stable result record, a URL-encoded store and a page that renders a stored result.
+    Half-building it ships broken shared links. **Next:** define the result record → store in the URL
+    fragment → `/tools/report/…` renders it → `/brand/checked-by-trendi.svg` badge links to the tool.
+22. **City pages (Auckland/Wellington/Christchurch).** Not built, deliberately: the audit's own
+    condition is a real case study per city, and there is none published. **Next:** one real case
+    study (Pukeko Construction is a live tenant) with real numbers, then one page per city.
+23. **Partner co-branded pages.** Needs named partners. **Next:** `website/partners.json` + a generator
+    that emits `/partners/<slug>` when the first partner agrees.
+24. **"Real questions from callers" data page.** Needs anonymised, consented transcripts from a real
+    tenant. Publishing invented "top questions" is the one thing this site says it does not do.
+25. **Publishing cadence** — two posts a month on the existing cluster; the first is queued in
+    `HANDOFF_ARCHIVE_2026-11-15_1430.md`: "we asked ChatGPT, Perplexity and Google AI Overviews the
+    same 12 NZ business questions".
+26. **Living data page refresh** — the December 2026 re-fetch is promised on the page and on the
+    refresh log. `site:data` warns at 45 days and fails at 120, so it cannot go quiet, but the refresh
+    itself is manual: re-run the collection, replace `research/ai-crawler-blocking-2026/data.csv`,
+    bump `temporalCoverage` + `dateModified` + the refresh log, then deploy (IndexNow fires itself).
+27. **Link earning** — pitch the crawler study to NZ business press; get the two tools listed in NZ
+    small-business and agency directories.
 
-## SeldonFrame evaluation (done): NOT adopted as base
-Cloned (unmodified) at `/home/user/seldonframe/seldonframe` - delete when done. Real project (about
-437k lines TS, 756 test files, AGPL-3.0), but: no Grok (phone voice = OpenAI Realtime SIP; chat runtime
-= Anthropic SDK); website embed is text-only; solo-maintained, 67 stars, last commit 2026-08-24;
-forking it to add Grok triggers AGPL publish obligations; self-host security issues (public
-pre-generated secrets in `.env.docker.example`; Postgres HTTP proxy port 4444 published on all
-interfaces with default creds); custom domains need Vercel API. Decision: keep our scaffold; borrow
-ideas only (quote-guard, enforced booking read-back, scripted evals, event-driven agents).
+### Repository hygiene
 
-## DONE in this session: GoHighLevel gap list (Phase 2)
-Added and tested (20 unit tests + a 50-check end-to-end suite against real Postgres, plus the
-dashboard in headless Chromium): native booking (hours/timezone/slots, `check_availability` /
-`book_appointment`, advisory-lock double-booking guard - 6 concurrent bookings of one slot -> exactly
-1 wins), **server-enforced read-back** (`conversations.pending_booking`), durable outbox with
-retries (confirmation, 24h/2h reminders, speed-to-lead SMS, review request, owner alert emails),
-Twilio SMS sender + signature-verified two-way inbound SMS (`/api/v1/sms/{public_key}`) with
-STOP/START/HELP and an opt-out table, SMTP mailer, SMS quiet hours (08:00-21:00 local), consent flag,
-**quote-guard** (a `$` amount must come from website content / tool results / the client's own text -
-visitor-typed amounts do NOT count), lead pipeline (status/notes/value), `/admin-ui` dashboard,
-`/report/<token>` client report (no PII), tenant clone (snapshots), `python -m app.evals` (dry run).
-New modules: `chat, convo, booking, automation, outbox, events, sms, mailer, contact, guard, evals`;
-`main.py`, `tools.py`, `rag.py`, `tenants.py`, `config.py`, `schema.sql`, `widget.js` were changed;
-`static/admin.html` is new. README documents all of it.
+28. **Delete `/Users/jo/work-staging/trendibizz-live/site.legacy-20261115`** once another deploy cycle
+    proves nothing writes to the old layout.
+29. **`scripts/seo/geo-daily.py` is unscheduled and its local state is stale.** The script itself
+    reads the current sitemap, so it works; but `.geo-state.json` (gitignored) still lists
+    `/nz-ai-seo`, a URL that has since become a 301, and nothing runs the script on a timer. Decide:
+    wire it to a timer (it pings IndexNow for changed pages and records Bing visibility) or delete it
+    now that `site_seo.py` owns IndexNow. This session's work makes it partly redundant.
 
-Test-only mocks live outside the repo (scratchpad): a scriptable mock LLM (`TOOL:{json}`, `SAY:`,
-`STUBBORN:` markers), mock Twilio REST, aiosmtpd SMTP, a webhook receiver, and `e2e.py`.
-**Not in the zip** - ask to recreate if wanted (or move them into `api/tests/e2e/`).
+## 4. Next action
 
-### Still NOT verified
-- Real xAI chat/voice (no key); the 5 voice assumptions listed above.
-- Real Twilio and real SMTP delivery; Twilio signature validation only against our own implementation
-  (public_base_url must exactly match the URL configured in Twilio).
-- `docker build`, and Chatwoot / Twenty / Caddy containers.
-- The eval scenarios against a real model (2 of 6 failed against the dumb mock, as expected).
-- Voice replies are not covered by the quote-guard (prompt + `search_knowledge` only).
+**One thing:** verify `trendibizz.com` in Google Search Console and Bing Webmaster and submit
+`https://trendibizz.com/sitemap.xml` (item 7), then fix the Stripe price/tax mismatch (item 1) in the
+same sitting — rankings that land on a checkout charging more than the page says convert badly.
 
-### Ideas for next steps (none started)
-1. First real run with an `XAI_API_KEY`; fix whatever the live API does differently.
-2. Move the e2e suite + mocks into `api/tests/e2e/` and add a CI workflow.
-3. Missed-call text-back and phone-line voice (Twilio Voice + SIP bridge such as avr-sts-xai).
-4. Multi-user logins/roles for the dashboard; per-client custom domains for the widget.
-5. Stripe/Invoice Ninja billing; email campaigns; forms/funnels only if clients ask.
+The growth work is now self-guarding: the next session that adds a page cannot ship it without a
+canonical, a date, a snippet that fits and a sitemap entry, and a data page that goes stale turns the
+health check red. That removes the "does anyone watch this?" question from items 21–26; what remains
+there is content only the operator can supply.
 
-## Test environment recipe (if re-creating)
-Python venv with `api/requirements-dev.txt`; Postgres 16 + pgvector via apt; fastembed downloads
-`BAAI/bge-small-en-v1.5` from Hugging Face on first use (network worked). Env for local API:
-`DATABASE_URL=postgresql://postgres@127.0.0.1:55432/concierge ADMIN_TOKEN=... XAI_API_KEY=test
-LLM_BASE_URL=<mock>/v1 XAI_CLIENT_SECRETS_URL=<mock>/v1/realtime/client_secrets
-XAI_REALTIME_URL=ws://127.0.0.1:8097/v1/realtime PUBLIC_BASE_URL=http://127.0.0.1:8000`.
-
-Read `QA/verification/HANDOFF_PORTAL_WORKFLOW_2026-11-10.md` for the portal workflow verification session: the five defects found and fixed, the verification stack, and what remains.
+Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy.sh`. If it is not
+`OK: repo and box agree`, the session is not finished.
