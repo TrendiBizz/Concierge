@@ -15,14 +15,26 @@ log() { echo "$(date -Is) $*"; }
 log "backup start $STAMP"
 
 docker exec trendi-postgres-1 pg_dump -U postgres -d concierge -Fc > "$WORK/concierge.dump"
-docker exec trendi-crm-db-1 sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$WORK/crm.dump"
 
-for spec in "trendi_social:social" "trendi_crm-storage:crm-storage"; do
+# The CRM stack (Twenty) runs under the compose `crm` profile and is normally stopped. Treat it as
+# optional: demanding it made every backup fail from 2026-11-13 (found 2026-11-15).
+running() { [ "$(docker inspect --format '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ]; }
+SKIPPED=()
+volumes=("trendi_social:social")
+if running trendi-crm-db-1 && running trendi-crm-redis-1; then
+  docker exec trendi-crm-db-1 sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$WORK/crm.dump"
+  volumes+=("trendi_crm-storage:crm-storage")
+else
+  SKIPPED+=("crm database, storage and redis: crm profile not running")
+fi
+
+for spec in "${volumes[@]}"; do
   volume="${spec%%:*}"
   name="${spec##*:}"
   docker run --rm -v "$volume":/data:ro -v "$WORK":/backup alpine:3.20 \
     tar czf "/backup/$name.tgz" -C /data .
 done
+printf '%s\n' "${SKIPPED[@]:-}" > "$WORK/SKIPPED.txt"
 
 tar czf "$WORK/shared.tgz" --exclude="shared/media" --exclude="shared/designs" -C "$ROOT" shared
 tar czf "$WORK/website.tgz" -C "$ROOT/releases/20261108-vps" website/site

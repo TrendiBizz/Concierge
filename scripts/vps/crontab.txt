@@ -2,8 +2,18 @@
 # Note the health line: stdout is the JSON report the alert reads, so stderr goes to its
 # own file. Redirecting `2>&1` into the report made it unparseable whenever the check printed
 # a note, and the mail then said 'Failing checks: see payload' (fixed 2026-11-15).
-30 14 * * * /opt/trendi/backups/backup-all.sh >> /opt/trendi/backups/backup.log 2>&1
+30 14 * * * /opt/trendi/releases/20261108-vps/product/scripts/vps/backup-all.sh >> /opt/trendi/backups/backup.log 2>&1
 7 * * * * /bin/bash -c 'echo "== $(date -Is)"; /opt/trendi/releases/20261108-vps/product/scripts/vps/check-inbound-chain.sh; echo "exit=$?"' >> /opt/trendi/backups/inbound-chain.log 2>&1
 */10 * * * * cd /opt/trendi/releases/20261108-vps/product && python3 scripts/vps/watchdog.py >>/opt/trendi/monitoring/health.log 2>&1
 */5 * * * * cd /opt/trendi/releases/20261108-vps/product && scripts/vps/healthcheck.sh > /tmp/healthcheck.json 2>/tmp/healthcheck.err || scripts/vps/alert.sh < /tmp/healthcheck.json >> /opt/trendi/monitoring/health.log 2>&1
 30 3 * * 0 /opt/trendi/releases/20261108-vps/product/scripts/vps/restore-drill.sh >> /opt/trendi/backups/restore-drill.log 2>&1
+
+# --- systemd timers, which cron does not show (measured on the box 2026-11-15) -------------
+# trendi-backup.timer           daily 03:15 NZ (14:15 UTC) — the restic snapshot, the canonical backup
+# trendi-auxiliary-backup.timer daily 03:45 NZ (14:45 UTC) — auxiliary volumes
+# trendi-restore-test.timer     1st of the month 03:45 NZ — restores into a scratch database
+# trendi-meta-review.timer      OnBootSec=45s, then frequently — the social meta-review worker
+# trendi-sip-firewall.service   enabled, must be running: it owns the SIP/RTP DROP rules
+#
+# The 14:30 UTC backup-all.sh tarball is the legacy belt-and-braces copy; restic is canonical.
+# Both used to fail when the optional crm compose profile was stopped (fixed 2026-11-15).

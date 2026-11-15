@@ -119,6 +119,10 @@ DEPLOY_GRACE_MINUTES = 10
 # phone has never POSTed a message to the API; nothing here can change that.
 STATUS_ONLY_CHECKS = {"sms:inbound"}
 
+BACKUPS_DIR = os.environ.get("TRENDI_BACKUPS_DIR", "/opt/trendi/backups")
+BACKUP_WARN_AFTER_HOURS = 26
+BACKUP_FAIL_AFTER_HOURS = 50
+
 
 def mailable(problems: dict) -> dict:
     """Drop the checks that describe a gap outside this repo. They are reported, never mailed."""
@@ -448,6 +452,37 @@ def check_site_prices() -> list[dict]:
     return [_ok("site:prices", "cards match the plan data; no GST wording")]
 
 
+def check_backups() -> list[dict]:
+    """Is there a recent backup archive, and did the last scheduled run succeed?
+
+    Added 2026-11-15 after the blind spot was measured: encrypted backups stopped on 12 Nov when the
+    optional CRM container was stopped, and the health report stayed green for two days because
+    nothing looked at backups at all. Fail after two missed daily runs, warn after one.
+    """
+    archives = sorted(Path(BACKUPS_DIR).glob("trendi-backup-*.tar.gz"),
+                      key=lambda path: path.stat().st_mtime)
+    results: list[dict] = []
+    if not archives:
+        results.append(_fail("backup:age", f"no archive in {BACKUPS_DIR}"))
+    else:
+        newest = archives[-1]
+        hours = (time.time() - newest.stat().st_mtime) / 3600
+        detail = f"newest {newest.name} is {hours:.1f}h old ({len(archives)} kept)"
+        if hours > BACKUP_FAIL_AFTER_HOURS:
+            results.append(_fail("backup:age", detail))
+        elif hours > BACKUP_WARN_AFTER_HOURS:
+            results.append(_warn("backup:age", detail))
+        else:
+            results.append(_ok("backup:age", detail))
+    code, out = run(["systemctl", "is-failed", "trendi-backup.service"], timeout=15)
+    state = out.strip().splitlines()[-1] if out.strip() else "unknown"
+    if state == "failed":
+        results.append(_fail("backup:service", "the last trendi-backup.service run failed"))
+    elif state in ("active", "inactive") and code == 0:
+        results.append(_ok("backup:service", f"last scheduled run: {state}"))
+    return results
+
+
 def check_crm_capture() -> list[dict]:
     """Does every enquiry that carried contact details also exist as a customer?
 
@@ -652,7 +687,7 @@ def main(argv: list[str] | None = None) -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
-    for step in (check_crm_capture, check_site_prices, check_sms_inbound):
+    for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest
