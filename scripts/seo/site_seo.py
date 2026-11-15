@@ -188,6 +188,14 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
         if not noindex and rel in NOINDEX_ALLOWED:
             problems.append(f"{rel}: expected noindex but none found")
 
+        # A crawler-specific robots meta can contradict the general one, and Google obeys the more
+        # specific tag. `/glossary` carried `googlebot: noindex` beside `robots: index` for a day
+        # (2026-11-16) and this check passed, because it only ever read `name="robots"`.
+        for content, agent in re.findall(r'<meta content="([^"]*)" name="(googlebot)"', html):
+            if "noindex" in content and rel not in NOINDEX_ALLOWED:
+                problems.append(
+                    f"{rel}: {agent} is noindex while robots says index; the more specific tag wins")
+
         # 3. One h1, a title and a snippet that will not be cut off.
         h1s = len(re.findall(r"<h1[ >]", html))
         if h1s != 1:

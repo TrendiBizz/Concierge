@@ -139,6 +139,30 @@ def test_an_accidental_noindex_is_reported(tmp_path):
     assert any("about.html: noindex" in p for p in site_seo.audit(root))
 
 
+def test_a_crawler_specific_noindex_is_reported(tmp_path):
+    """Google obeys `<meta name="googlebot">` over `<meta name="robots">`, so a page that says
+    "index" to everyone and "noindex" to Googlebot is invisible in the only index that matters.
+
+    Measured 2026-11-16: `/glossary` and `/research/ai-crawler-blocking-2026` both carried
+    `googlebot: noindex` beside `robots: index`, were listed in the sitemap, and the guard passed —
+    it only ever read `name="robots"`.
+    """
+    root = make_site(tmp_path)
+    html = page("/about", title="About").replace(
+        "</head>", '<meta content="noindex, follow" name="googlebot"/></head>')
+    rewrite(root, "about.html", html)
+    assert any("googlebot is noindex while robots says index" in p for p in site_seo.audit(root))
+
+
+def test_a_crawler_specific_noindex_is_allowed_where_noindex_is_the_policy(tmp_path):
+    root = make_site(tmp_path, pages={
+        "index.html": page("/", title="Home"),
+        "404.html": page("/404", title="Not found", robots="noindex, follow").replace(
+            "</head>", '<meta content="noindex, nofollow" name="googlebot"/></head>'),
+    })
+    assert not any("googlebot" in p for p in site_seo.audit(root))
+
+
 def test_the_allowed_noindex_pages_must_stay_noindex(tmp_path):
     root = make_site(tmp_path, pages={
         "index.html": page("/", title="Home"),
