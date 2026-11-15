@@ -97,12 +97,13 @@ def run(cmd: list[str], timeout: int = 15) -> tuple[int, str]:
         return 1, str(exc)
 
 
-def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: str = "GET"):
+def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: str = "GET",
+         read_limit: int = 4096):
     request = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})}, method=method)
     started = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read(4096)
+            body = response.read(read_limit)
             return response.status, body, time.monotonic() - started
     except urllib.error.HTTPError as exc:
         return exc.code, b"", time.monotonic() - started
@@ -430,6 +431,73 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
     return problems
 
 
+MONEY_PAGES = ("/", "/concierge", "/pricing", "/ai-receptionist", "/ai-receptionist-cost",
+               "/after-hours-answering", "/missed-call-text-back", "/ai-chat-widget",
+               "/ai-receptionist-clinics", "/ai-receptionist-real-estate",
+               "/ai-receptionist-builders", "/best-ai-receptionist", "/virtual-receptionist",
+               "/ai-answering-service-vs-human",
+               "/ai-visibility", "/security")
+THIN_PAGE_WORDS = 600
+DESCRIPTION_LIMIT = 160
+
+# A bulk "geo" rewrite replaced the country name with "worldwide" across the site on 2026-11-15,
+# producing "governed by worldwide law" in the terms, "the worldwide Privacy Act 2020" in the
+# privacy policy, an h1 reading "How to choose the best AI receptionist in worldwide", and a
+# reported search market of "worldwide" in the sample report. Grammar is the tell.
+BROKEN_LOCATION = re.compile(
+    r"(?:in|of|from|to|at|for|by) worldwide|worldwide law|worldwide Privacy|<td>worldwide</td>|<h2>worldwide</h2>")
+
+
+def page_quality(html: str, minimum_words: int = THIN_PAGE_WORDS) -> list[str]:
+    """On-page problems that cost rankings: thin copy, a broken snippet, missing canonical, no h1."""
+    problems = []
+    body = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S)
+    main = body[body.find("<main"):body.find("</main>")] if "<main" in body else body
+    words = len(re.findall(r"[A-Za-z0-9']+", re.sub(r"<[^>]+>", " ", main)))
+    if words < minimum_words:
+        problems.append(f"{words} words (floor {minimum_words})")
+    if len(re.findall(r"<h1[ >]", html)) != 1:
+        problems.append(f"{len(re.findall(r'<h1[ >]', html))} h1 tags")
+    if 'rel="canonical"' not in html:
+        problems.append("no canonical")
+    description = re.search(r'<meta content="([^"]*)" name="description"/>', html)
+    if not description:
+        problems.append("no meta description")
+    elif len(description.group(1)) > DESCRIPTION_LIMIT:
+        problems.append(f"description {len(description.group(1))} chars (limit {DESCRIPTION_LIMIT})")
+    if BROKEN_LOCATION.search(html):
+        problems.append("broken location wording")
+    return problems
+
+
+def check_site_pages() -> list[dict]:
+    """Fetch the pages that carry the ranking and conversion work and check them for damage.
+
+    Added 2026-11-15 with the content pass: nine commercial pages were under 600 words, ten
+    descriptions ran past the snippet, and a rewrite had replaced the jurisdiction with the word
+    "worldwide". Nothing watched the site's own pages, so none of it was noticed for days.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    results: list[dict] = []
+    def probe(path: str):
+        # A page check needs the whole document: reading the first 4 KB measures the <head>.
+        code, body, _ = http(SITE + path, timeout=20.0, read_limit=2_000_000)
+        return path, code, body.decode("utf-8", "replace") if code == 200 else ""
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        pages = list(pool.map(probe, MONEY_PAGES))
+    broken = []
+    for path, code, html in pages:
+        if code != 200:
+            broken.append(f"{path} {code}")
+            continue
+        problems = page_quality(html)
+        if problems:
+            broken.append(f"{path}: {', '.join(problems)}")
+    if broken:
+        return [_fail("site:pages", "; ".join(broken)[:400])]
+    return [_ok("site:pages", f"{len(pages)} key pages: copy, snippet, canonical and h1 all clean")]
+
+
 def check_site_prices() -> list[dict]:
     """Published prices must match the plan data, and GST must never appear on the site again.
 
@@ -705,7 +773,8 @@ def main(argv: list[str] | None = None) -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
-    for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall):
+    for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall,
+                 check_site_pages):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest
