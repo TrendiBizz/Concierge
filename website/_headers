@@ -1,0 +1,53 @@
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' 'nonce-{CSP_NONCE}' https://static.cloudflareinsights.com https://chat.trendibizz.com; connect-src 'self' https://cloudflareinsights.com https://chat.trendibizz.com wss://api.x.ai; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+
+/robots.txt
+  Content-Type: text/plain; charset=utf-8
+
+/03e181565bff425da02ac8ea956fc758.txt
+  Content-Type: text/plain; charset=utf-8
+
+/sitemap.xml
+  Content-Type: application/xml; charset=utf-8
+
+/.well-known/security.txt
+  Content-Type: text/plain; charset=utf-8
+
+/media/trendi-intro.mp4
+  Content-Type: video/mp4
+
+/styles.css
+  Cache-Control: public, max-age=300, must-revalidate
+
+/main.js
+  Cache-Control: public, max-age=300, must-revalidate
+
+/tools/robots-ai-check.js
+  Cache-Control: public, max-age=300, must-revalidate
+
+/glossary
+  X-Robots-Tag: noindex, follow
+
+/research/ai-crawler-blocking-2026
+  X-Robots-Tag: noindex, follow
+
+/research/ai-crawler-blocking-2026/data.csv
+  X-Robots-Tag: noindex, follow
+  Content-Type: text/csv; charset=utf-8
+  Content-Disposition: attachment; filename="trendi-ai-crawler-blocking-2026.csv"
+
+/site-i18n.css
+  Cache-Control: public, max-age=300, must-revalidate
+
+/site-i18n.js
+  Cache-Control: public, max-age=300, must-revalidate

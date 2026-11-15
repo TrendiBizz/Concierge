@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {Readable} from 'node:stream';
 import path from 'node:path';
+import {randomBytes} from 'node:crypto';
 const {default:worker}=await import('data:text/javascript;base64,'+
   (await fs.readFile('/website/deploy_known_good/_worker.js')).toString('base64'));
 
@@ -76,7 +77,11 @@ http.createServer(async(incoming,outgoing)=>{
     const request=new Request('https://'+incoming.headers.host+incoming.url,{method,headers:incoming.headers,
       ...(method!=='GET'&&method!=='HEAD'?{body:Buffer.concat(body)}:{})});
     const response=await worker.fetch(request,{PAGESPEED_API_KEY:process.env.PAGESPEED_API_KEY,ASSETS:{fetch:asset}},{waitUntil:promise=>promise.catch(()=>{})});
-    outgoing.writeHead(response.status,Object.fromEntries(response.headers));
+    const outHeaders=Object.fromEntries(response.headers);
+    // Per-request CSP nonce: Cloudflare JS detections copies it onto its injected __CF$cv$params script.
+    const csp=outHeaders['content-security-policy'];
+    if(csp&&csp.includes('{CSP_NONCE}'))outHeaders['content-security-policy']=csp.replaceAll('{CSP_NONCE}',randomBytes(16).toString('base64'));
+    outgoing.writeHead(response.status,outHeaders);
     if(method==='HEAD'||!response.body)outgoing.end();
     else Readable.fromWeb(response.body).pipe(outgoing);
   }catch{
