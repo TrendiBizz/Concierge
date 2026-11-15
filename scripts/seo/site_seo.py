@@ -116,10 +116,35 @@ def internal_links(html: str) -> set[str]:
     return links
 
 
-def resolves(root: Path, url: str) -> bool:
-    """Does an absolute site path correspond to a file we publish?"""
+def redirect_sources(root: Path = SITE_ROOT) -> set[str]:
+    """Paths that are not files but are served by website/_redirects.
+
+    `/concierge/sign-in` is a 302 to the portal and has no file behind it. A link checker that
+    ignores _redirects reports a healthy redirect as a broken link, and then the real broken links
+    get lost in the noise.
+    """
+    path = root / "_redirects"
+    if not path.is_file():
+        return set()
+    sources = set()
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2 and parts[0].startswith("/"):
+            sources.add(parts[0])
+    return sources
+
+
+def resolves(root: Path, url: str, redirects: set[str] | None = None) -> bool:
+    """Does an absolute site path correspond to a file we publish (or a redirect we serve)?"""
+    if redirects is None:
+        redirects = redirect_sources(root)
     if url in ("", "/"):
         return (root / "index.html").exists()
+    if url in redirects or url.rstrip("/") + "/" in redirects:
+        return True
     target = url.lstrip("/")
     if (root / target).is_file():
         return True
@@ -145,11 +170,12 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
         html = path.read_text(encoding="utf-8", errors="replace")
         url = page_url(rel)
 
-        # 1. Canonical must exist, be absolute, and be this page's own URL.
+        # 1. Canonical must exist, be absolute, and be this page's own URL. Pages excluded from
+        #    search are exempt: a canonical on a noindex page is noise, not a signal.
         canonical = re.search(r'<link href="([^"]+)" rel="canonical"', html)
-        if not canonical:
+        if not canonical and rel not in NOINDEX_ALLOWED:
             problems.append(f"{rel}: no canonical link")
-        else:
+        elif canonical:
             expected = SITE + url
             if canonical.group(1) != expected:
                 problems.append(f"{rel}: canonical is {canonical.group(1)!r}, expected {expected!r}")
@@ -201,15 +227,22 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
             if not resolves(root, link):
                 problems.append(f"{rel}: link {link} has no target file")
 
+        # 5b. The visible "last updated" line must agree with the structured data, or the page is
+        #     telling readers one thing and search engines another.
+        visible = re.search(r'data-updated="(\d{4}-\d{2}-\d{2})"', html)
+        if visible and modified and visible.group(1) != modified:
+            problems.append(f"{rel}: visible date {visible.group(1)} but dateModified {modified}")
+
         if not noindex:
             indexable[url] = rel
 
     # 6. The sitemap is generated data: it must equal the indexable page set, both directions.
     expected = build_sitemap(root)
-    if not SITEMAP.exists():
+    sitemap_path = root / "sitemap.xml"
+    if not sitemap_path.exists():
         problems.append("website/sitemap.xml is missing")
     else:
-        current = SITEMAP.read_text(encoding="utf-8")
+        current = sitemap_path.read_text(encoding="utf-8")
         if normalise_sitemap(current) != normalise_sitemap(expected):
             problems.extend(compare_sitemaps(current, expected, indexable))
 
@@ -218,13 +251,118 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
         problems.append(f"{path.relative_to(root).as_posix()}: AppleDouble file committed to the site")
 
     # 8. The IndexNow key published on the site must be the key the scripts will send.
-    data = load_indexnow_key()
+    data = load_indexnow_key(root)
     key_file = root / f"{data.get('key')}.txt"
     if not key_file.is_file():
         problems.append(f"IndexNow key file {key_file.name} is missing")
     elif key_file.read_text(encoding="utf-8").strip() != data.get("key"):
         problems.append(f"IndexNow key file {key_file.name} does not contain the key")
+
+    # 9. robots.txt is a policy, not a preference: search and AI-search crawlers must keep access
+    #    and training crawlers must stay blocked. One bad deploy here removes the site from search.
+    problems.extend(robots_problems(root))
+
+    # 10. A page that publishes original data has to be findable and its data has to be downloadable.
+    #     The 2026 crawler research was the site's best link asset and nothing linked to it.
+    problems.extend(living_data_problems(root))
     return problems
+
+
+def living_data_problems(root: Path = SITE_ROOT) -> list[str]:
+    problems = []
+    links_by_target: dict[str, list[str]] = {}
+    for path in iter_pages(root):
+        rel = path.relative_to(root).as_posix()
+        for link in internal_links(path.read_text(encoding="utf-8", errors="replace")):
+            links_by_target.setdefault(link.rstrip("/"), []).append(rel)
+
+    for path in iter_pages(root):
+        rel = path.relative_to(root).as_posix()
+        html = path.read_text(encoding="utf-8", errors="replace")
+        for block in ld_json_blocks(html):
+            dataset = find_type(block, "Dataset")
+            if not dataset:
+                continue
+            distribution = dataset.get("distribution") if isinstance(dataset, dict) else None
+            downloads = distribution if isinstance(distribution, list) else [distribution] if distribution else []
+            if not downloads:
+                problems.append(f"{rel}: Dataset has no distribution (nothing to download)")
+            for download in downloads:
+                url = str((download or {}).get("contentUrl") or "")
+                if not url.startswith(SITE):
+                    problems.append(f"{rel}: Dataset contentUrl is not on this site")
+                elif not resolves(root, url[len(SITE):]):
+                    problems.append(f"{rel}: Dataset contentUrl {url[len(SITE):]} has no file")
+            url = page_url(rel).rstrip("/")
+            inbound = [source for source in links_by_target.get(url, []) if source != rel]
+            if len(inbound) < 3:
+                problems.append(f"{rel}: original data linked from only {len(inbound)} other page(s) "
+                                "(a data page nothing links to cannot earn links)")
+    return problems
+
+
+def find_type(node, wanted: str):
+    if isinstance(node, dict):
+        if node.get("@type") == wanted:
+            return node
+        for value in node.values():
+            found = find_type(value, wanted)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = find_type(item, wanted)
+            if found:
+                return found
+    return None
+
+
+
+ROBOTS_MUST_ALLOW = ("Googlebot", "Bingbot", "OAI-SearchBot", "PerplexityBot", "Claude-SearchBot")
+ROBOTS_MUST_BLOCK = ("GPTBot", "CCBot", "Bytespider", "ClaudeBot", "Google-Extended")
+
+
+def parse_robots(text: str) -> dict[str, list[str]]:
+    """agent (lowercase) -> rules for that agent, plus '*' for the default group."""
+    groups: dict[str, list[str]] = {}
+    agents: list[str] = []
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        field, value = line.split(":", 1)
+        field, value = field.strip().lower(), value.strip()
+        if field == "user-agent":
+            agent = value.lower()
+            if agent not in groups:
+                groups[agent] = []
+            agents.append(agent)
+        elif field in ("allow", "disallow") and agents:
+            groups[agents[-1]].append(f"{field}: {value}")
+    return groups
+
+
+def robots_problems(root: Path = SITE_ROOT) -> list[str]:
+    path = root / "robots.txt"
+    if not path.is_file():
+        return ["robots.txt is missing"]
+    text = path.read_text(encoding="utf-8", errors="replace")
+    groups = parse_robots(text)
+    problems = []
+    for agent in ROBOTS_MUST_ALLOW:
+        rules = groups.get(agent.lower())
+        if rules is None:
+            problems.append(f"robots.txt: {agent} has no group")
+        elif any(rule == "disallow: /" for rule in rules):
+            problems.append(f"robots.txt: {agent} is blocked with Disallow: /")
+    for agent in ROBOTS_MUST_BLOCK:
+        rules = groups.get(agent.lower()) or []
+        if not any(rule.startswith("disallow: /") for rule in rules):
+            problems.append(f"robots.txt: training crawler {agent} is not blocked")
+    if "sitemap:" not in text.lower():
+        problems.append("robots.txt: no Sitemap line")
+    return problems
+
 
 
 def compare_sitemaps(current_xml: str, expected_xml: str, indexable: dict[str, str]) -> list[str]:
@@ -286,8 +424,8 @@ def build_sitemap(root: Path = SITE_ROOT, site: str = SITE) -> str:
     return "\n".join(lines) + "\n"
 
 
-def load_indexnow_key() -> dict:
-    data = json.loads(INDEXNOW_KEY_FILE.read_text(encoding="utf-8"))
+def load_indexnow_key(root: Path = SITE_ROOT) -> dict:
+    data = json.loads((root / "indexnow-key.json").read_text(encoding="utf-8"))
     if not re.fullmatch(r"[0-9a-f]{32}", str(data.get("key", ""))):
         raise SystemExit("indexnow-key.json must hold a 32-character hex key")
     return data

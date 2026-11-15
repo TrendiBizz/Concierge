@@ -41,6 +41,23 @@ Deployed locations on the box (`152.42.239.240`, release `20261108-vps`):
 
 ## Non-negotiables
 
+0. **The site has a technical SEO contract, and the deploy enforces it.** Before anything is
+   published, `scripts/vps/deploy-site.sh` runs `python3 scripts/seo/site_seo.py check`. It fails on
+   a missing or wrong canonical, an accidental `noindex`, a page with no `dateModified`, a
+   description over 160 characters, a broken internal link, a `robots.txt` that has stopped blocking
+   training crawlers, an IndexNow key that does not match its key file, and a sitemap that disagrees
+   with the pages. If it fails, fix the site; do not bypass it. The sitemap is generated, not
+   hand-edited:
+
+   ```bash
+   python3 scripts/seo/site_seo.py check          # the same gate the deploy uses
+   python3 scripts/seo/site_seo.py sitemap --write  # rebuild website/sitemap.xml from the pages
+   ```
+
+   After a deploy the script also pings IndexNow for the pages that changed, so Bing (and Bing-fed
+   AI search) re-crawls them in hours rather than weeks. Never hand-write sitemap entries: the check
+   compares it against the pages and will fail.
+
 1. **Never edit the box and walk away.** If you fix something directly on the server, bring it back
    into this repo in the same session, with a test. `scripts/vps/verify-deploy.sh` exists to catch
    the case where you forget; the health check (`deploy:manifest`, `site:pages`) reports it too.

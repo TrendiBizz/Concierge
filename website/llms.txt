@@ -10,9 +10,13 @@ The SEO and AI visibility service is USD $1,500 per month, with a three-month mi
 
 ## Public pages
 
+- [Missed call cost calculator](https://trendibizz.com/tools/missed-call-cost-calculator): work out what unanswered calls cost, in NZD, from your own numbers.
+- [AI crawler blocking 2026: data for 100 sites](https://trendibizz.com/research/ai-crawler-blocking-2026): robots.txt and llms.txt practice across 100 well-known B2B software sites, with the CSV.
+- [AI search glossary](https://trendibizz.com/glossary): plain-English definitions of GEO, AEO, llms.txt and AI crawlers.
 - [Virtual receptionist](https://trendibizz.com/virtual-receptionist): AI virtual receptionist for businesses worldwide.
 - [After-hours answering](https://trendibizz.com/after-hours-answering): answer enquiries outside office hours.
 - [Missed-call text back](https://trendibizz.com/missed-call-text-back): answer first, follow up when a call is missed.
+- [AI receptionist for New Zealand businesses](https://trendibizz.com/ai-receptionist-nz): after-hours and on-site call answering for NZ trades, clinics and service businesses.
 - [AI receptionist for builders and trades](https://trendibizz.com/ai-receptionist-builders): quote enquiries, project details and site visits.
 - [AI receptionist for real estate](https://trendibizz.com/ai-receptionist-real-estate)
 - [AI receptionist for clinics](https://trendibizz.com/ai-receptionist-clinics)

@@ -436,7 +436,8 @@ SITE_SENDER_DOMAIN = SITE.split("//", 1)[-1].split("/", 1)[0].split(":", 1)[0]
 MONEY_PAGES = ("/", "/concierge", "/pricing", "/ai-receptionist", "/ai-receptionist-cost",
                "/after-hours-answering", "/missed-call-text-back", "/ai-chat-widget",
                "/ai-receptionist-clinics", "/ai-receptionist-real-estate",
-               "/ai-receptionist-builders", "/best-ai-receptionist", "/virtual-receptionist",
+               "/ai-receptionist-builders", "/ai-receptionist-nz", "/best-ai-receptionist",
+               "/virtual-receptionist",
                "/ai-answering-service-vs-human",
                "/ai-visibility", "/security")
 THIN_PAGE_WORDS = 600
@@ -624,6 +625,140 @@ def check_site_pages() -> list[dict]:
     if broken:
         return [_fail("site:pages", "; ".join(broken)[:400])]
     return [_ok("site:pages", f"{len(pages)} key pages: copy, snippet, canonical and h1 all clean")]
+
+
+def check_site_seo() -> list[dict]:
+    """The deployed site's technical SEO contract: robots policy, sitemap, canonicals, noindex.
+
+    Added with the growth plan. The source tree is guarded before a deploy by
+    `scripts/seo/site_seo.py check`, but a deploy is not the only thing that can change what search
+    engines see: a proxy rule, a Cloudflare transform or a hand edit on the box all bypass it. This
+    checks what is actually served, from the outside, the same way a crawler sees it.
+
+    Fails on: a search or AI-search crawler blocked in robots.txt, a training crawler that stopped
+    being blocked, a sitemap URL that does not return 200, a page whose canonical does not match the
+    URL it is served at, a page that is noindex while listed in the sitemap, or an IndexNow key that
+    does not match the key file the site serves.
+    """
+    problems: list[str] = []
+
+    # 1. robots.txt keeps search and AI-search crawlers in, training crawlers out.
+    code, body, _ = http(f"{SITE}/robots.txt", timeout=15.0, read_limit=200_000)
+    if code != 200:
+        problems.append(f"robots.txt returned {code}")
+    else:
+        text = body.decode("utf-8", "replace")
+        groups: dict[str, list[str]] = {}
+        current: list[str] = []
+        for raw in text.splitlines():
+            line = raw.split("#", 1)[0].strip()
+            if ":" not in line:
+                continue
+            field, value = (part.strip() for part in line.split(":", 1))
+            field, value = field.lower(), value.lower()
+            if field == "user-agent":
+                current = groups.setdefault(value, [])
+            elif field in ("allow", "disallow") and current is not None:
+                current.append(f"{field}: {value}")
+        for agent in ("googlebot", "bingbot", "oai-searchbot", "perplexitybot", "claude-searchbot"):
+            rules = groups.get(agent)
+            if rules is None:
+                problems.append(f"robots.txt has no {agent} group")
+            elif any(rule == "disallow: /" for rule in rules):
+                problems.append(f"robots.txt blocks {agent}")
+        for agent in ("gptbot", "ccbot", "bytespider", "claudebot", "google-extended"):
+            if not any(rule.startswith("disallow: /") for rule in groups.get(agent, [])):
+                problems.append(f"robots.txt no longer blocks training crawler {agent}")
+        if "sitemap:" not in text.lower():
+            problems.append("robots.txt has no Sitemap line")
+
+    # 2. Every URL in the sitemap is served, canonical to itself, and not noindex.
+    code, body, _ = http(f"{SITE}/sitemap.xml", timeout=20.0, read_limit=1_000_000)
+    urls = re.findall(r"<loc>([^<]+)</loc>", body.decode("utf-8", "replace")) if code == 200 else []
+    if code != 200:
+        problems.append(f"sitemap.xml returned {code}")
+    elif not urls:
+        problems.append("sitemap.xml lists no URLs")
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def probe(url: str):
+            page_code, page_body, _ = http(url, timeout=20.0, read_limit=2_000_000)
+            return url, page_code, page_body.decode("utf-8", "replace") if page_code == 200 else ""
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for url, page_code, html in pool.map(probe, urls):
+                if page_code != 200:
+                    problems.append(f"{url} returned {page_code}")
+                    continue
+                canonical = re.search(r'<link href="([^"]+)" rel="canonical"', html)
+                expected = url if url.endswith("/") else url
+                if not canonical:
+                    problems.append(f"{url} has no canonical")
+                elif canonical.group(1).rstrip("/") != expected.rstrip("/"):
+                    problems.append(f"{url} canonical is {canonical.group(1)}")
+                robots = re.search(r'<meta content="([^"]*)" name="robots"', html)
+                if robots and "noindex" in robots.group(1):
+                    problems.append(f"{url} is noindex but listed in the sitemap")
+
+    # 3. The public IndexNow key is the key a submission would use.
+    code, body, _ = http(f"{SITE}/indexnow-key.json", timeout=15.0, read_limit=10_000)
+    if code != 200:
+        problems.append(f"indexnow-key.json returned {code}")
+    else:
+        try:
+            key = str(json.loads(body.decode("utf-8", "replace")).get("key") or "")
+        except ValueError:
+            key = ""
+        if not re.fullmatch(r"[0-9a-f]{32}", key):
+            problems.append("indexnow-key.json has no valid key")
+        else:
+            key_code, key_body, _ = http(f"{SITE}/{key}.txt", timeout=15.0, read_limit=1000)
+            if key_code != 200 or key_body.decode("utf-8", "replace").strip() != key:
+                problems.append(f"IndexNow key file /{key}.txt does not serve the key")
+
+    if problems:
+        return [_fail("site:seo", "; ".join(problems)[:400])]
+    return [_ok("site:seo",
+                f"robots policy holds; {len(urls)} sitemap URLs serve, canonical and indexable; "
+                "IndexNow key matches")]
+
+
+def check_site_data() -> list[dict]:
+    """The published dataset must be downloadable and recent enough to keep its promise.
+
+    Added with the growth plan: the crawler research is the site's only piece of original data, and
+    the page now tells readers it is refreshed monthly. A dataset page that quietly goes eighteen
+    months stale loses the citations it earned and stops being a reason for anyone to link here.
+    """
+    url = f"{SITE}/research/ai-crawler-blocking-2026"
+    code, body, _ = http(url, timeout=20.0, read_limit=2_000_000)
+    if code != 200:
+        return [_fail("site:data", f"{url} returned {code}")]
+    html = body.decode("utf-8", "replace")
+    match = re.search(r'"temporalCoverage"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"', html)
+    if not match:
+        return [_fail("site:data", "the dataset page publishes no temporalCoverage date")]
+    try:
+        collected = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return [_fail("site:data", f"temporalCoverage {match.group(1)!r} is not a date")]
+    age = (datetime.now(timezone.utc).date() - collected).days
+
+    csv_code, csv_body, _ = http(f"{SITE}/research/ai-crawler-blocking-2026/data.csv",
+                                 timeout=20.0, read_limit=4_000_000)
+    if csv_code != 200:
+        return [_fail("site:data", f"the CSV returned {csv_code}")]
+    rows = max(0, len(csv_body.splitlines()) - 1)
+    if rows < 50:
+        return [_fail("site:data", f"the CSV has only {rows} rows; the page claims 100 sites")]
+
+    detail = f"data collected {collected.isoformat()} ({age} days old), {rows} CSV rows"
+    if age > 120:
+        return [_fail("site:data", detail + " — over four months without a refresh")]
+    if age > 45:
+        return [_warn("site:data", detail + " — the page promises a monthly refresh")]
+    return [_ok("site:data", detail)]
 
 
 def check_site_prices() -> list[dict]:
@@ -902,7 +1037,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
     for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall,
-                 check_site_pages, check_email_auth, check_deploy_manifest):
+                 check_site_pages, check_site_seo, check_site_data, check_email_auth, check_deploy_manifest):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest

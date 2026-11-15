@@ -35,6 +35,21 @@ fi
 COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 echo "deploying $SRC at $COMMIT to $HOST:$REMOTE"
 
+# 1b. The site's technical SEO contract must hold before anything is published. A missing canonical,
+#     an accidental noindex, a sitemap that disagrees with the pages or a weakened robots.txt costs
+#     rankings for months, and none of it is visible in a browser. Fail here, not in Search Console.
+python3 "$REPO_ROOT/scripts/seo/site_seo.py" check
+
+# 1c. Remember what was live, so IndexNow can be told exactly which pages changed. A failure to read
+#     it is not fatal: the deploy is still correct, it just cannot report the diff.
+PREVIOUS=""
+PREVIOUS="$("${SSH[@]}" "$HOST" "python3 -c \"import json;print(json.load(open('$REMOTE/.deploy-manifest.json')).get('commit',''))\"" 2>/dev/null || true)"
+if [ -n "$PREVIOUS" ] && git -C "$REPO_ROOT" cat-file -e "$PREVIOUS^{commit}" 2>/dev/null; then
+  echo "previous deploy on the box: ${PREVIOUS:0:8}"
+else
+  PREVIOUS=""
+fi
+
 # 2. Ship the files. --delete keeps production identical to the repo; AppleDouble files from macOS
 #    are excluded because they are not part of the site and would be served as junk.
 rsync -a --delete --exclude '._*' --exclude '.deploy-manifest.json' \
@@ -63,3 +78,14 @@ PY"
 
 echo "--- verifying parity"
 KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"
+
+# 4. Tell IndexNow (Bing, Yandex, Seznam and Bing's partners — which feed ChatGPT search) which pages
+#    changed since the previous deploy. Google does not use IndexNow, so this is not a ranking step;
+#    it is the difference between a change being noticed in hours rather than weeks.
+#    Never fatal: a ping failure says nothing about whether the site is correct.
+if [ -n "$PREVIOUS" ]; then
+  python3 "$REPO_ROOT/scripts/seo/site_seo.py" ping --changed-in "$PREVIOUS" || \
+    echo "IndexNow ping failed; the deploy itself is complete" >&2
+else
+  echo "IndexNow: no previous manifest commit to diff against; no ping sent"
+fi

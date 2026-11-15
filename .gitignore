@@ -34,3 +34,6 @@ office-shots/
 tiktok-review/
 .geo-state.json
 QA/verification/geo-daily/
+
+# macOS AppleDouble resource forks — never web content, never committed
+._*

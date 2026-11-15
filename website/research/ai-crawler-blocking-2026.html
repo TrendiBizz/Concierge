@@ -34,9 +34,16 @@
       "url": "https://trendibizz.com/research/ai-crawler-blocking-2026",
       "temporalCoverage": "2026-11-02",
       "datePublished": "2026-11-02",
-      "dateModified": "2026-11-04",
+      "dateModified": "2026-11-15",
       "inLanguage": "en-NZ",
       "license": "https://creativecommons.org/licenses/by/4.0/",
+      "isAccessibleForFree": true,
+      "distribution": {
+        "@type": "DataDownload",
+        "encodingFormat": "text/csv",
+        "contentUrl": "https://trendibizz.com/research/ai-crawler-blocking-2026/data.csv",
+        "name": "Per-site robots.txt and llms.txt verdicts for 100 sites, 2 November 2026"
+      },
       "creator": {
         "@type": "Organization",
         "@id": "https://trendibizz.com/#organization",
@@ -132,7 +139,7 @@
 </header>
 <main class="legal article" id="main"><section class="page-intro design-section"><div class="wrap"><p class="eyebrow">THE SMALL BUSINESS FIELD GUIDE</p><h1>Do B2B software companies block AI crawlers? robots.txt and llms.txt on 100 well-known sites (2026)</h1></div></section>
 <div class="wrap reading-layout"><div class="reading-content">
-<div class="answer"><p>On 2 Nov 2026 we read the robots.txt and llms.txt files of 100 well-known B2B software sites in the US, UK, Australia and New Zealand. Of the 94 sites whose robots.txt we could read, 2 blocked any of 12 major AI crawlers at the site root, and neither blocked a search or user-fetch crawler. A re-fetch on 4 Nov 2026 confirmed this. 35 of 100 publish an llms.txt. The sample is small and list-based, and robots.txt is a request, not enforcement.</p></div><p class="byline">By Trendi · Published <time datetime="2026-11-02">2 November 2026</time> · Data fetched 2 November 2026, re-fetched 4 November 2026 (New Zealand time)</p>
+<div class="answer"><p>On 2 Nov 2026 we read the robots.txt and llms.txt files of 100 well-known B2B software sites in the US, UK, Australia and New Zealand. Of the 94 sites whose robots.txt we could read, 2 blocked any of 12 major AI crawlers at the site root, and neither blocked a search or user-fetch crawler. A re-fetch on 4 Nov 2026 confirmed this. 35 of 100 publish an llms.txt. The sample is small and list-based, and robots.txt is a request, not enforcement.</p></div><p class="byline">By Trendi · Published <time datetime="2026-11-02">2 November 2026</time> · Data fetched 2 November 2026, re-fetched 4 November 2026 (New Zealand time) · <strong>living page:</strong> refreshed monthly, next refresh December 2026</p>
 <section class="reading-chapter"><h2 id="key-findings">Key findings</h2>
 <p>All figures are from a snapshot on 2 Nov 2026, re-fetched on 4 Nov 2026 (New Zealand time, UTC+13); figures shown are from the 4 Nov re-fetch. Intervals are Wilson 95%. "Readable" means robots.txt answered: a real file, or a 404, empty or HTML response, which crawlers treat as "no rules". Readable n = 94 (US 23, UK 25, AU 23, NZ 23). The other 6 sites refused or challenged our request and are reported separately, never as allowed.</p>
 <ol>
@@ -231,7 +238,12 @@
 <p><a class="btn lime" download="trendi-ai-crawler-blocking-2026.csv" href="/research/ai-crawler-blocking-2026/data.csv">Download the per-site data (CSV, 100 rows)</a></p>
 <p>The data is published under the Creative Commons Attribution 4.0 licence (<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>), and you may reuse it with credit to Trendi and a link to this page.</p>
 <p>The file has one row per company: market, domain, source list, rank and URL, fetch time, and the robots.txt and llms.txt status, final URL and class. For each of 15 crawlers (the 12 AI crawlers, Claude-SearchBot, Claude-User and Googlebot) it gives a <code>v_</code> verdict (allowed, partial or blocked) and a <code>src_</code> column (named, star or none), plus the fetch pass used.</p>
-</section><section class="reading-chapter"><h2 id="how-to-cite">How to cite</h2>
+</section><section class="reading-chapter"><h2 id="refresh-log">Refresh log</h2>
+<p>This page keeps one fixed address. When the numbers are refreshed, the date changes here and the CSV is replaced in place, so a link to this page never goes stale and a number quoted from it can be checked against the version it came from.</p>
+<div class="table-scroll"><table class="compare"><caption>Refreshes of this dataset</caption><thead><tr><th scope="col">Refreshed</th><th scope="col">What changed</th><th scope="col">CSV</th></tr></thead><tbody><tr><td>2 November 2026</td><td>First collection: 100 sites across 4 markets, 13 crawler rules each</td><td>v1</td></tr><tr><td>4 November 2026</td><td>48-hour re-fetch of 9 contested robots.txt files; 2 verdicts changed</td><td>v2</td></tr><tr><td>Next scheduled</td><td>December 2026 re-fetch of the full set, plus 20 New Zealand businesses</td><td>v3</td></tr></tbody></table></div>
+<p>If you cite a figure, cite it with the refresh date. We will not silently rewrite a number you have already quoted; a correction is recorded as a new row above.</p>
+<p class="fine" data-updated="2026-11-15">Maintained by the Trendi team · Last updated 15 November 2026</p></section>
+<section class="reading-chapter"><h2 id="how-to-cite">How to cite</h2>
 <blockquote class="cite">
 <p>Trendi (2026). <em>Do B2B software companies block AI crawlers? robots.txt and llms.txt on 100 well-known sites (2026).</em> Trendibizz, 2 November 2026. https://trendibizz.com/research/ai-crawler-blocking-2026</p>
 </blockquote>
