@@ -14,8 +14,11 @@ ENV_FILE="${ENV_FILE:-/opt/trendi/shared/api.env}"
 API="${API:-http://127.0.0.1:8000}"
 
 [ -r "$ENV_FILE" ] || { echo "cannot read $ENV_FILE" >&2; exit 2; }
-# shellcheck disable=SC1090
-set -a; . "$ENV_FILE"; set +a
+# Read the file as data. Sourcing it ran ASTERISK_CHANNEL_DIAL=PJSIP/<number>@… as a redirect and
+# printed "number: No such file or directory" on every cron run (2026-11-15).
+# shellcheck source=env_lib.sh
+. "$(dirname "$0")/env_lib.sh"
+load_env "$ENV_FILE" || { echo "cannot read $ENV_FILE" >&2; exit 2; }
 [ -n "${ADMIN_TOKEN:-}" ] || { echo "ADMIN_TOKEN not set in $ENV_FILE" >&2; exit 2; }
 
 response=$(curl -sS -m 30 -w '\n%{http_code}' "$API/admin/inbound-readiness" \

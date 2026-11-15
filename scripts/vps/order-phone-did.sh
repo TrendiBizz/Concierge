@@ -280,8 +280,8 @@ step "POST /admin/tenants/$TENANT_SLUG/phone-numbers {\"e164\":\"$DID_E164\"}"
 step "PATCH /admin/tenants/$TENANT_SLUG/phone-numbers/$DID_E164 {\"enabled\":true}"
 step "PATCH /admin/tenants/$TENANT_SLUG {\"phone_enabled\":true}"
 if confirm "Run them now?"; then
-  ssh "$VPS_HOST" "set -a; . /opt/trendi/shared/api.env; set +a; \
-    base=http://127.0.0.1:8000; auth=\"Authorization: Bearer \$ADMIN_TOKEN\"; \
+  ssh "$VPS_HOST" "ADMIN=\$(grep -m1 '^ADMIN_TOKEN=' /opt/trendi/shared/api.env | cut -d= -f2-); \
+    base=http://127.0.0.1:8000; auth=\"Authorization: Bearer \$ADMIN\"; \
     curl -fsS -X POST -H \"\$auth\" -H 'content-type: application/json' \
       -d '{\"e164\":\"$DID_E164\"}' \$base/admin/tenants/$TENANT_SLUG/phone-numbers && echo && \
     curl -fsS -X PATCH -H \"\$auth\" -H 'content-type: application/json' \

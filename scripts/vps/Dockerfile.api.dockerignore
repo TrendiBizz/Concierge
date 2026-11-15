@@ -11,3 +11,13 @@
 # produce a different image from the one serving traffic. The running image carries 179 of them.
 **/._*
 **/.DS_Store
+
+# See api/.dockerignore: the VPS deploy key was once copied to api/app/Concierge and baked into
+# the image (found 2026-11-15). Key material must never enter the build context.
+**/Concierge
+**/Concierge.*
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+**/.env*

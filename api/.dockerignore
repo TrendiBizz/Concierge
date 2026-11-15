@@ -8,3 +8,17 @@
 *.db
 *.db-*
 tests
+
+# Never build credentials or key material into the API image. Measured 2026-11-15: the deploy's
+# private key had been copied to api/app/Concierge and shipped in the running image, world
+# readable inside the container — any code execution in the API would have handed over root on
+# the host. The key file was removed from the release tree and the image rebuilt.
+Concierge
+Concierge.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.env*

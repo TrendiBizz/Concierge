@@ -93,3 +93,24 @@ def test_the_report_button_fetches_with_the_token_instead_of_opening_a_bare_tab(
     report = source.split("async function downloadReport", 1)[1][:900]
     assert "Authorization: 'Bearer ' + token" in report, "the export fetch must send the token"
     assert "createObjectURL" in report and "link.download" in report
+
+
+def test_a_missing_file_is_a_404_not_the_app_shell(tmp_path, monkeypatch):
+    """Answering every missing /studio path with index.html made the old service-worker URL a
+    200 text/html document. A browser holding that worker then rejects the update on the MIME
+    type and can never replace it (measured live 2026-11-15). A real app URL still gets the
+    shell, because the SPA has no client-side routes but a deploy may briefly miss a page."""
+    (tmp_path / "index.html").write_text("<!doctype html><title>Studio</title>")
+    monkeypatch.setattr(app_main, "STUDIO_DIR", tmp_path)
+
+    async def run():
+        async with _client() as client:
+            for missing in ("/studio/sw.js", "/studio/sw-v2.js.bak", "/studio/robots.txt"):
+                response = await client.get(missing)
+                assert response.status_code == 404, f"{missing} answered {response.status_code}"
+                assert "text/html" not in response.headers.get("content-type", ""), (
+                    f"{missing} was answered with the app shell")
+            shell = await client.get("/studio/some/deep/route")
+            assert shell.status_code == 200 and "Studio" in shell.text
+    _reset()
+    asyncio.run(run())

@@ -1996,6 +1996,15 @@ async def studio_file(path: str):
     root = STUDIO_DIR.resolve()
     target = (root / path).resolve()
     if not str(target).startswith(str(root)) or not _readable(target):
+        # A browser navigating to an app URL gets the shell; a missing *file* must be an honest
+        # 404. Answering every missing path with index.html made /studio/sw.js a 200 text/html
+        # document: a browser still holding the old worker fetches it for an update, rejects it on
+        # the MIME type, and the stale worker can never be replaced (measured live 2026-11-15,
+        # against the previous record's claim that the old worker URL 404'd). The SPA has no
+        # client-side routes, so no real page lives at a path with a dot in its last segment.
+        name = path.rsplit("/", 1)[-1]
+        if "." in name:
+            raise HTTPException(404, "Not found")
         return _studio_index(root)
     if path.endswith('sw-v2.js'):
         # The worker script must be revalidated on every visit, or a cached copy keeps a browser on

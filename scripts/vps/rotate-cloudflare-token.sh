@@ -268,10 +268,14 @@ ssh "$VPS_HOST" 'cd /opt/trendi/releases/20261108-vps/product && docker compose 
 sleep 5
 say ""
 note "health:"
-curl -fsS -m 10 https://chat.trendibizz.com/healthz && echo || warn "healthz did not return 200"
+# Health is not on the public hostname: /healthz through Cloudflare answers 404 (measured
+# 2026-11-15). The check has to run against the API on the box itself, or this step warns about a
+# broken site that is in fact healthy.
+ssh "$VPS_HOST" 'curl -fsS -m 10 http://127.0.0.1:8000/healthz' && echo || warn "the API on the box did not answer its own health check"
 say ""
 note "token validity, checked from the VPS:"
-ssh "$VPS_HOST" "set -a; . /opt/trendi/shared/api.env; set +a; curl -fsS -m 10 -H \"Authorization: Bearer \${$CF_ENV_KEY}\" https://api.cloudflare.com/client/v4/user/tokens/verify" || warn "token verify failed - check the token's scopes"
+# The token is read as data, never sourced: api.env contains shell-special values (see env_lib.sh).
+ssh "$VPS_HOST" "KEY='$CF_ENV_KEY'; TOKEN=\$(grep -m1 \"^\$KEY=\" /opt/trendi/shared/api.env | cut -d= -f2-); curl -fsS -m 10 -H \"Authorization: Bearer \$TOKEN\" https://api.cloudflare.com/client/v4/user/tokens/verify" || warn "token verify failed - check the token's scopes"
 pause
 
 # ── Stage 5 ───────────────────────────────────────────────────────────────

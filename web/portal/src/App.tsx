@@ -1690,6 +1690,14 @@ function Shell() {
     api('/owner/media/brand').then((b) => setBrand({name: b.name || '', accent: b.accent || '#c8f560', contact: b.contact || '', logo: b.logo_data || null})).catch(() => undefined);
   }, [token]);
 
+  // Every hook must be declared before the signed-out return below. A hook after a conditional
+  // return changes the hook count when the invitation flow sets a token, and React then throws
+  // "Rendered more hooks than during the previous render" (error #310) — the first thing a new
+  // owner saw after clicking their invite link was the error boundary (2026-11-15).
+  const [folded, setFolded] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('concierge:nav-folded') || '{}'); } catch { return {}; }
+  });
+
   if (!token) {
     return (
       <Theme theme={theme}>
@@ -1700,9 +1708,6 @@ function Shell() {
     );
   }
 
-  const [folded, setFolded] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem('concierge:nav-folded') || '{}'); } catch { return {}; }
-  });
   const toggleGroup = (name: string) => setFolded((current) => {
     const next = {...current, [name]: !current[name]};
     try { localStorage.setItem('concierge:nav-folded', JSON.stringify(next)); } catch { /* private mode */ }
@@ -1746,6 +1751,7 @@ function Shell() {
     texts: {title: 'Texts', line: 'Every text conversation, with what Concierge said and what you said. Take over any customer, reply yourself, then hand back.'},
     crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
     contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},
+    companies: {title: 'Companies', line: 'The businesses behind your contacts, with the work and the value that belongs to each one.'},
     bookings: {title: 'Bookings', line: 'Your calendar, with the jobs that customers booked themselves.'},
     quotes: {title: 'Quotes', line: 'What you have quoted, what was accepted, and what is still with the customer.'},
     products: {title: 'Products', line: 'Your prices and rates. Concierge never invents one of these.'},
@@ -1756,6 +1762,7 @@ function Shell() {
     permissions: {title: 'Channels and permissions', line: 'What Concierge may do for this business, and what it has to work with. Change anything here whenever you like.'},
     setup: {title: 'Set up your business', line: 'Three short steps, and the chat window starts working for you. No code.'},
     team: {title: 'Team', line: 'Who can get in, and what each of them can do.'},
+    replies: {title: 'Saved replies', line: 'The answers you send often, written once and ready to reuse.'},
     yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},
   };
 

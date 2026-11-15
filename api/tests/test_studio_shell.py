@@ -202,3 +202,29 @@ def test_an_uploaded_asset_says_what_it_is():
     media = read("Engage.tsx")
     assert "<Badge label={asset.kind === 'video' ? 'Video' : 'Image'} />" in media
     assert "in Your media below" in media
+
+
+def test_every_navigation_tab_has_a_page_heading():
+    """The hero is the page's only <h1>. Companies and Saved replies had no HERO entry, so those
+    two pages rendered with no h1 at all (measured in a live browser, 2026-11-15)."""
+    app = read("App.tsx")
+    nav = re.search(r"const NAV.*?\n  \];", app, re.S).group(0)
+    tabs = set(re.findall(r"\{tab: '([a-z]+)'", nav))
+    hero = re.search(r"const HERO.*?\n  \};", app, re.S).group(0)
+    titled = set(re.findall(r"^\s{4}([a-z]+): \{title:", hero, re.M))
+    missing = sorted(tabs - titled)
+    assert not missing, f"no page heading for {missing}: those tabs render without an h1"
+
+
+def test_every_hook_is_declared_before_the_signed_out_return():
+    """A hook after `if (!token) return` changes the hook count when an invitation sets the
+    token, and React then throws #310 "Rendered more hooks than during the previous render".
+    Measured live 2026-11-15: every new owner's first screen after clicking the invite link was
+    the error boundary."""
+    app = read("App.tsx")
+    shell = app.split("function Shell()", 1)[1]
+    guard = shell.index("if (!token) {")
+    hooks_after = re.findall(r"\b(useState|useEffect|useMemo|useRef|useCallback)\b", shell[guard:])
+    assert not hooks_after, (
+        f"hooks declared after the signed-out return: {sorted(set(hooks_after))} — "
+        "moving one below it crashes the invitation sign-in with React #310")
