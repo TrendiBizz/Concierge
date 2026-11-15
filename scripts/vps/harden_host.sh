@@ -4,8 +4,16 @@
 #
 # What it does (and how to undo each part):
 #  1. SIP signalling (udp/5060) restricted to the Hero ranges via DOCKER-USER
-#     (Docker bypasses ufw). RTP 10000-10099 is deliberately left open so a
-#     media gateway on another address can never cause one-way audio.
+#     (Docker bypasses ufw). RTP 10000-10099 is deliberately left open so a media
+#     gateway on another address can never cause one-way audio — a documented
+#     trade-off, not an oversight: measured 2026-11-15, udp/10000-10099 is reachable
+#     from the internet. To close it after proving a call with the carrier:
+#       iptables -I DOCKER-USER 1 -p udp -m conntrack --ctstate DNAT \
+#         --ctorigdstport 10000:10099 -s 103.212.52.0/24 -j RETURN
+#       iptables -I DOCKER-USER 2 -p udp -m conntrack --ctstate DNAT \
+#         --ctorigdstport 10000:10099 -j DROP
+#     The unit must be enabled AND started: it was enabled but dead on 2026-11-15,
+#     so the 5060 DROP existed only until the next rule flush.
 #     Undo: iptables -D DOCKER-USER -p udp -m conntrack --ctstate DNAT \
 #              --ctorigdstport 5060 -j TRENDI-SIP ; systemctl disable --now trendi-sip-firewall
 #  2. IPv6 udp/5060 dropped (Hero is IPv4-only).
@@ -62,7 +70,7 @@ ExecStart=/usr/local/sbin/trendi-sip-firewall.sh
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable trendi-sip-firewall.service >/dev/null
+systemctl enable --now trendi-sip-firewall.service >/dev/null
 /usr/local/sbin/trendi-sip-firewall.sh
 echo "   DOCKER-USER now:"; iptables -S DOCKER-USER; iptables -S TRENDI-SIP
 

@@ -452,6 +452,24 @@ def check_site_prices() -> list[dict]:
     return [_ok("site:prices", "cards match the plan data; no GST wording")]
 
 
+def check_sip_firewall() -> list[dict]:
+    """The rule that keeps the SIP port closed must actually be loaded and owned by a running unit.
+
+    Found inactive on 2026-11-15: trendi-sip-firewall.service was enabled but dead, so the DROP
+    rules existed only because the last boot had applied them. A rule flush or a reboot without the
+    service would have reopened UDP/5060 to the internet (Docker bypasses ufw).
+    """
+    code, out = run(["systemctl", "is-active", "trendi-sip-firewall.service"], timeout=15)
+    state = out.strip()
+    if state != "active":
+        return [_fail("sip:firewall", f"trendi-sip-firewall.service is {state or 'unknown'}; "
+                                      "UDP/5060 is only closed until the next rule flush")]
+    code, rules = run(["iptables", "-S", "TRENDI-SIP"], timeout=15)
+    if code != 0 or "DROP" not in rules:
+        return [_fail("sip:firewall", "the TRENDI-SIP chain is missing or has no DROP rule")]
+    return [_ok("sip:firewall", "service active; TRENDI-SIP ends in DROP")]
+
+
 def check_backups() -> list[dict]:
     """Is there a recent backup archive, and did the last scheduled run succeed?
 
@@ -687,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
             results.extend(step(*args))
         except Exception as exc:  # noqa: BLE001
             results.append(_fail(f"check:{step.__name__}", str(exc)[:200]))
-    for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups):
+    for step in (check_crm_capture, check_site_prices, check_sms_inbound, check_backups, check_sip_firewall):
         try:
             results.extend(step())
         except Exception as exc:  # noqa: BLE001 - one broken check must not hide the rest

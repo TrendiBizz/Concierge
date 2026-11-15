@@ -57,3 +57,30 @@ def test_a_failed_scheduled_run_is_reported_even_if_an_old_archive_exists(monkey
 
 def test_the_backup_check_is_part_of_the_report():
     assert "check_backups" in SCRIPT.read_text()
+
+
+def test_an_inactive_sip_firewall_is_a_failure(monkeypatch):
+    """The unit was enabled but dead on 2026-11-15; the DROP rules survived only by luck."""
+    monkeypatch.setattr(healthcheck, "run", lambda *a, **k: (0, "inactive\n"))
+    results = healthcheck.check_sip_firewall()
+    assert results[0]["check"] == "sip:firewall" and results[0]["status"] == "fail"
+
+
+def test_a_missing_drop_rule_is_a_failure(monkeypatch):
+    def fake(args, **kwargs):
+        if args[1] == "is-active":
+            return 0, "active\n"
+        return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -s 103.212.52.0/24 -j RETURN\n"
+    monkeypatch.setattr(healthcheck, "run", fake)
+    results = healthcheck.check_sip_firewall()
+    assert results[0]["status"] == "fail"
+
+
+def test_an_active_firewall_with_a_drop_is_ok(monkeypatch):
+    def fake(args, **kwargs):
+        if args[1] == "is-active":
+            return 0, "active\n"
+        return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -j DROP\n"
+    monkeypatch.setattr(healthcheck, "run", fake)
+    results = healthcheck.check_sip_firewall()
+    assert results[0]["status"] == "ok"
