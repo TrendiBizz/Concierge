@@ -9,7 +9,7 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `02139f2`. Working tree clean at handoff time.
+  HEAD `8679c44`. Working tree clean at handoff time.
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -26,7 +26,7 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
 - **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
   → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61).
 - **Tests:** `cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q`
-  → **1413 passed**.
+  → **1417 passed**.
 - **Health (on the box):** `python3 scripts/vps/healthcheck.py --no-alert` →
   **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
 - **Website technical SEO:** `python3 scripts/seo/site_seo.py check` (the deploy gate),
@@ -63,7 +63,7 @@ The first three streams are recorded in their own files. The last one is this se
      shareable URL), the crawler research as a **living data page** (refresh log, CSV distribution,
      freshness check), IndexNow submission on deploy (HTTP 200 for 24 changed URLs), and
      `scripts/vps/sync-tooling.sh` after the deploy gate exposed that host tooling had no publish path.
-   - 54 new tests (1413 total), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
+   - 54 new tests (1413 total at that point; 1417 today), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
 
 ## 3. Outstanding — the real worklist
 
@@ -143,17 +143,25 @@ The first three streams are recorded in their own files. The last one is this se
 
 28. **Delete `/Users/jo/work-staging/trendibizz-live/site.legacy-20261115`** once another deploy cycle
     proves nothing writes to the old layout.
-29. **`scripts/seo/geo-daily.py` is unscheduled and its local state is stale.** The script itself
-    reads the current sitemap, so it works; but `.geo-state.json` (gitignored) still lists
-    `/nz-ai-seo`, a URL that has since become a 301, and nothing runs the script on a timer. Decide:
-    wire it to a timer (it pings IndexNow for changed pages and records Bing visibility) or delete it
-    now that `site_seo.py` owns IndexNow. This session's work makes it partly redundant.
+29. **`scripts/seo/geo-daily.py` — scheduled, and its change detection was broken (fixed 2026-11-16).**
+    It now runs on a daily schedule and records Bing visibility. Its `len(text)` fingerprint was
+    defeated by Cloudflare's per-request challenge script (`__CF$cv$params`), so every run reported
+    all pages changed and re-pinged IndexNow for the whole site; the fingerprint now strips that
+    script and hashes the content plus the page's own `dateModified`. Fixed, 3 tests
+    (`api/tests/test_geo_daily.py`), mutation-proved, state re-seeded for all 43 URLs — see
+    `QA/verification/GEO_DAILY_2026-11-16.md`. **Next:** if IndexNow keeps firing for pages nobody
+    edited, suspect a new response-noise source before touching the threshold.
 
 ## 4. Next action
 
 **One thing:** verify `trendibizz.com` in Google Search Console and Bing Webmaster and submit
 `https://trendibizz.com/sitemap.xml` (item 7), then fix the Stripe price/tax mismatch (item 1) in the
 same sitting — rankings that land on a checkout charging more than the page says convert badly.
+
+The GEO check is green on the technical side and empty on the commercial side: trendibizz.com is in
+Bing's index (`site:` at position 10) but absent for all five target prompts. The cheapest next
+content move is a dedicated `/ai-receptionist-for-small-business` page — the only one of the five
+with no page behind it (item 25 covers the rest of the content list).
 
 The growth work is now self-guarding: the next session that adds a page cannot ship it without a
 canonical, a date, a snippet that fits and a sitemap entry, and a data page that goes stale turns the
