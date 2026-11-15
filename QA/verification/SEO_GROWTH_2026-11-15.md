@@ -93,3 +93,30 @@ deploy.
 ## 5. Deploy record
 
 _(appended after `deploy-site.sh` and `verify-deploy.sh` were run)_
+- `deploy-site.sh` at `d0f9303` → audit OK, 108 files manifested, then `verify-deploy` reported
+  `scripts/vps: DRIFT` for `deploy-site.sh` and `healthcheck.py`.
+- **That drift is a defect of its own** and was fixed, not worked around: host tooling is published by
+  copying and no script did the copying, so any change to `scripts/vps` left the verification gate
+  red with only a hand-run `rsync` as remedy. New `scripts/vps/sync-tooling.sh` refuses an
+  uncommitted tree, syncs the directory (excluding AppleDouble files and `__pycache__`), and ends by
+  running `verify-deploy.sh`. Documented in `AGENTS.md`; guarded by
+  `test_host_tooling_has_a_supported_way_to_reach_the_box`.
+- `KEY=./Concierge ./scripts/vps/sync-tooling.sh` at `d6b4bb2` → `scripts/vps: matches (38 files)`,
+  `OK: repo and box agree`.
+- IndexNow: `site_seo.py ping --changed-in fd065ea4` (the commit that was live at session start) →
+  **HTTP 200 for 24 changed URLs**.
+- Final `deploy-site.sh` at `d6b4bb2` → 108 files manifested, `OK: repo and box agree`
+  (api/app 107 · scripts/vps 38 · website/site 61), `IndexNow: nothing changed, no ping sent`.
+- Live health on the box: **46 ok / 1 warn (`sms:inbound`) / 0 fail** (44 ok before; `site:seo` and
+  `site:data` are the two new checks). `sms:inbound` is unchanged: no inbound text has ever arrived.
+- Live HTTP 200: `/ai-receptionist-nz`, `/tools/missed-call-cost-calculator`,
+  `/tools/missed-call-cost-calculator.js`, `/glossary`, `/research/ai-crawler-blocking-2026`,
+  `/sitemap.xml` (45 URLs), `/llms.txt`.
+- Full suite: **1413 passed** (1,359 before this work).
+
+### What the guard will now catch on its own
+
+A future session that adds a page without a canonical, leaves `noindex` on by accident, forgets
+`dateModified`, writes a 170-character description, renames a page without updating the sitemap,
+weakens `robots.txt`, breaks an internal link, publishes an unlinked dataset, or lets the research
+data go stale will see the deploy refuse or the health check go red — instead of shipping it.
