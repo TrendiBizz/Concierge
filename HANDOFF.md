@@ -3,13 +3,19 @@
 **Read first:** `AGENTS.md` in this repo (the working agreement — enforced by tooling, and it now
 includes the website's technical SEO contract), then the QA record matching the area you touch.
 Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11-15.md` (content),
-`SEO_GROWTH_2026-11-15.md` (growth implementation — the most recent), `EMAIL_ENGAGEMENT_2026-11-15.md`,
+`SEO_GROWTH_2026-11-15.md` (growth implementation), `EMAIL_ENGAGEMENT_2026-11-15.md`,
 `CENTRAL_REPO_2026-11-15.md`.
+Records from 2026-11-16: `GEO_DAILY_2026-11-16.md`, and — read these before trusting any tool —
+`DEPLOY_GATE_MISDIAGNOSIS_2026-11-16.md` (why `verify-deploy` was red and why no publish was
+needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TEST_ENV_2026-11-16.md`
+(the command that actually runs the suite).
 
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `2b83e8c`. Working tree clean at handoff time.
+  HEAD `82c2af6` — a merge of `origin/main` (`08cbdda`, the deployed commit) into local `main`.
+  Local `main` and `origin/main` had diverged at `7f6e223`; they now agree again. Working tree
+  clean at handoff time.
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -24,9 +30,16 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
   - API: `rsync api/app/` into `product/api/app/` then `bash scripts/vps/redeploy-api.sh`.
   - Portal: `KEY=./Concierge ./scripts/vps/deploy-studio.sh`.
 - **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
-  → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61).
-- **Tests:** `cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q`
-  → **1419 passed**.
+  → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61 —
+  green at `82c2af6`, no publish was needed to get there).
+- **Tests:** `cd api && PYTHONPATH="$(cd .. && pwd)/QA/verification/shims" \
+  TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
+  /Users/jo/work-staging/venv-concierge/bin/python -m pytest -q` → **1420 passed**. The interpreter,
+  the shims and `Pillow` are all required; the old bare `python3 -m pytest -q` collects 101 errors
+  (`QA/verification/TEST_ENV_2026-11-16.md`).
+- **Agent shell git:** if every git command dies with `missing config key GIT_CONFIG_KEY_0`, it is the
+  harness, not the repo — prefix `env -u GIT_CONFIG_COUNT` until the harness restarts
+  (`QA/verification/HARNESS_GIT_ENV_2026-11-16.md`).
 - **Health (on the box):** `python3 scripts/vps/healthcheck.py --no-alert` →
   **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
 - **Website technical SEO:** `python3 scripts/seo/site_seo.py check` (the deploy gate),
@@ -63,7 +76,22 @@ The first three streams are recorded in their own files. The last one is this se
      shareable URL), the crawler research as a **living data page** (refresh log, CSV distribution,
      freshness check), IndexNow submission on deploy (HTTP 200 for 24 changed URLs), and
      `scripts/vps/sync-tooling.sh` after the deploy gate exposed that host tooling had no publish path.
-   - 54 new tests (1413 total at that point; 1419 today), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
+   - 54 new tests (1413 total at that point; 1420 today), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
+
+6. **The "red deploy gate" of 2026-11-16 was a missing merge, not a pending publish (corrected this
+   session).** The previous handoff said the box carried NZ$/GST hand edits and needed an approved
+   publish. Measured instead: the box's two calculator files hash-match its own deploy manifest and
+   the repo at `08cbdda` — it was never edited. Local `main` had simply diverged from `origin/main` at
+   `7f6e223` and never took `21cda5b` ("remove FREE, GST and NZ$") and its four successors. Local
+   `main` was the side carrying the GST wording; publishing it would have put that live. Merged
+   `origin/main` instead (`82c2af6`), kept origin's stronger `noindex` guard, dropped the duplicate
+   local loop. `verify-deploy.sh` is now **`OK: repo and box agree`** with no deploy performed. See
+   `QA/verification/DEPLOY_GATE_MISDIAGNOSIS_2026-11-16.md`.
+
+7. **Tooling defects found and fixed this session** (all three: fixed, tested, documented):
+   the harness subprocess env scrub that broke every git command
+   (`QA/verification/HARNESS_GIT_ENV_2026-11-16.md`), the documented test command that could not run
+   (`QA/verification/TEST_ENV_2026-11-16.md`), and `Pillow` missing from `requirements-dev.txt`.
 
 ## 3. Outstanding — the real worklist
 
@@ -152,41 +180,56 @@ The first three streams are recorded in their own files. The last one is this se
     `QA/verification/GEO_DAILY_2026-11-16.md`. **Next:** if IndexNow keeps firing for pages nobody
     edited, suspect a new response-noise source before touching the threshold.
 
-30. **`verify-deploy.sh` is RED right now, by design — two files need an approved deploy.** The box
-    (live) is running `tools/missed-call-cost-calculator.html` and `.js` from hand edits made on the
-    box on 2026-11-15 that never came back into the repo (manifest commit `08cbdda`). They carry NZ$
-    labels and a "GST and tax" note plus GST FAQ, which contradicts the operator decision recorded in
-    the health check ("one USD price for everyone, no GST wording anywhere"); the repo is correct, so
-    the fix is to publish, not to copy the box back. Nothing was published on 2026-11-16 — the
-    scheduled task forbids it without approval. **Next:** `KEY=./Concierge ./scripts/vps/deploy-site.sh`
-    (clean tree required), then `verify-deploy.sh` must print `OK: repo and box agree`. Two other
-    drift files (`glossary.html`, `research/ai-crawler-blocking-2026.html`) were fixed in the repo
-    this session and now match the box.
+30. **CLOSED 2026-11-16 — the calculator "drift" was a missing merge, not box hand edits.** The box
+    was never edited: its two calculator files hash-match `.deploy-manifest.json` and the repo at
+    `08cbdda`. Local `main` had diverged from `origin/main` at `7f6e223`, so it still carried the
+    NZ$/GST/NZD calculator text that `21cda5b` had already removed upstream — the *repo* was the
+    side contradicting the no-GST decision, and the proposed publish would have put it live. Fixed by
+    merging `origin/main` (`82c2af6`); `verify-deploy.sh` is `OK: repo and box agree` with nothing
+    published. See `QA/verification/DEPLOY_GATE_MISDIAGNOSIS_2026-11-16.md`.
 31. **A `googlebot`-only `noindex` was invisible to the deploy gate until 2026-11-16.** `/glossary`
     and `/research/ai-crawler-blocking-2026` carried `googlebot: noindex` beside `robots: index`, so
     Google was told not to index a 1,043-word guide and the living data page. Fixed in the repo and
     now caught by `site_seo.py`; the live pages already said `index`, so no deploy is needed for that
-    pair. See `QA/verification/GEO_DAILY_2026-11-16.md`.
+    pair. The merge kept `origin/main`'s stronger guard, which reads `robots`, `googlebot` **and**
+    `bingbot` and reports disagreement between them; a `bingbot` case is now tested. See
+    `QA/verification/GEO_DAILY_2026-11-16.md`.
+32. **The harness git-env patch is local to this machine and will not survive a `dsh` upgrade.** It
+    lives in the installed `@deepseek-ai/dsh-subprocess` (whole `GIT_CONFIG_*` family no longer
+    inherited); the regression test is `~/.dsh/tooling-tests/subprocess-env-scrub.test.mjs`. **Next:**
+    upstream the fix; after any `dsh` upgrade, run that test — if it fails, reapply the patch before
+    trusting git, the deploy gate or the suite.
+33. **The test environment is undocumented outside a QA record.** `venv-concierge`, the shims path and
+    now `Pillow` are all required to run the suite; a new machine or session will hit 101 collection
+    errors. **Next:** one checked-in script (`scripts/dev/test-suite.sh`) that asserts the interpreter,
+    exports the shims path and runs the suite — then the AGENTS.md command becomes one line again.
 
 ## 4. Next action
 
-**One thing first:** publish the two calculator files with an approved
-`KEY=./Concierge ./scripts/vps/deploy-site.sh` — `verify-deploy.sh` is red until then, and live is
-advertising NZ$ and GST copy against the USD, no-GST decision.
+**Nothing is blocked on a deploy any more.** `verify-deploy.sh` prints `OK: repo and box agree` at
+`82c2af6`, and the live calculator already carries the USD/no-GST copy the operator decision asks
+for. Do not run `deploy-site.sh` expecting to fix drift — the drift was the unmerged `origin/main`.
 
-**Then:** verify `trendibizz.com` in Google Search Console and Bing Webmaster and submit
-`https://trendibizz.com/sitemap.xml` (item 7), then fix the Stripe price/tax mismatch (item 1) in the
-same sitting — rankings that land on a checkout charging more than the page says convert badly.
+**Next, in this order:**
+
+1. Verify `trendibizz.com` in Google Search Console and Bing Webmaster, submit
+   `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search, and without Search
+   Console there is no data on which page answers which query — the one thing the content work
+   cannot measure itself.
+2. Fix the Stripe price/tax mismatch (item 1): checkout charges GST on top of advertised prices
+   ($250 → $287.50, $2,700 → $3,105, $1,500 → $1,725, $1,000 → $1,150). Decide tax-inclusive prices
+   or change the advertised numbers, and resolve the yearly-price contradiction (item 2) in the same
+   sitting.
+3. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
+
+Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
+16–18), the security/hygiene list (10–15), and the SEO content list (21–27) all still stand.
 
 The GEO check is green on the technical side and empty on the commercial side: trendibizz.com is in
 Bing's index (`site:` at position 10) but absent for all five target prompts. The cheapest next
 content move is a dedicated `/ai-receptionist-for-small-business` page — the only one of the five
 with no page behind it (item 25 covers the rest of the content list).
 
-The growth work is now self-guarding: the next session that adds a page cannot ship it without a
-canonical, a date, a snippet that fits and a sitemap entry, and a data page that goes stale turns the
-health check red. That removes the "does anyone watch this?" question from items 21–26; what remains
-there is content only the operator can supply.
-
 Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy.sh`. If it is not
-`OK: repo and box agree`, the session is not finished.
+`OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
+prefix until the harness restarts (item 32).
