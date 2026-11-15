@@ -97,12 +97,18 @@ The first three streams are recorded in their own files. The last one is this se
 
 ### Operator only (cannot be fixed from this repo)
 
-1. **Stripe charges GST on top of advertised prices.** Measured: Concierge monthly advertises
-   USD $250, checkout totals **$287.50**; yearly $2,700 → $3,105; SEO monthly $1,500 → $1,725;
-   deposit $1,000 → $1,150. No page mentions GST. Decide: tax-inclusive prices, or change the
-   advertised numbers. `site:prices` will fail if GST wording ever appears in the pages instead.
-2. **Yearly is contradictory:** `/pricing` sells yearly publicly, while `products.js` keeps the
-   yearly link empty. Decide which is true, then align copy and links.
+1. **Stripe charges tax on top of advertised prices, and the page's tax FAQ is a non-answer.**
+   Measured 2026-11-15: Concierge monthly advertises USD $250, checkout totals **$287.50**; yearly
+   $2,700 → $3,105; SEO monthly $1,500 → $1,725; deposit $1,000 → $1,150. Both pricing cards and the
+   `/pricing` FAQ say "Prices in USD", and the FAQ titled "Do prices include tax?" answers only
+   "Prices are in USD. " Decide one of two ways (`QA/verification/OPERATOR_FACTS_2026-11-16.md`):
+   **(A)** set Stripe prices tax-inclusive so the customer pays the advertised number, or **(B)** keep
+   tax exclusive and make the FAQ say tax is added at checkout. `site:prices` fails if the literal
+   word "GST" appears on `/pricing` or `/terms`, so neither option may use it.
+2. **CLOSED 2026-11-16 — yearly is not contradictory.** `products.js` carries a live yearly link
+   (`6oU28s8OH7b76528aQ04804`, USD 2,700/year, price `price_1UbnwwJVm2iwIxUdMoJ9g2Ve`), `/pricing` and
+   `/concierge` both advertise it, and all four buy links returned HTTP 200 on 2026-11-16. The old
+   "yearly link is empty" claim was stale. Only Jo's confirmation that yearly is still wanted remains.
 3. **Rotate secrets:** the VPS root SSH key (was readable inside the API image) and the live Stripe
    secret key; rotate the Stripe webhook secret too.
 4. **LinkedIn MDP review**, **TikTok token**, **Conrad's snippet**, **Ahrefs mail rule**,
@@ -110,10 +116,14 @@ The first three streams are recorded in their own files. The last one is this se
 5. **Inbound SMS has never arrived** (`sms:inbound` warn, 1 paired phone). Needs a text sent to the
    business number.
 6. **Decide about the Twenty CRM stack** (`docker compose --profile crm`): run it or retire it.
-7. **Search Console and Bing Webmaster:** verify the property and submit
-   `https://trendibizz.com/sitemap.xml`. Bing feeds ChatGPT search. Without Search Console there is
-   no data on which page is served for which query — the one thing the content work cannot measure
-   itself. IndexNow now covers Bing's crawl signal on every deploy, but not the dashboard.
+7. **Search Console and Bing Webmaster — and the two halves are not in the same state.** Measured
+   2026-11-16: the domain TXT already carries
+   `google-site-verification=avVhzA1EiofmOxiN_MaeFFNEsykt1q8QAfbrLBSStMA`, so Google ownership is
+   very likely already proven — the GSC job may only be "add `https://trendibizz.com/sitemap.xml`"
+   (43 URLs, HTTP 200, lastmods 2026-11-15). There is **no** Bing verification record. Bing feeds
+   ChatGPT search. Without Search Console there is no data on which page is served for which query —
+   the one thing the content work cannot measure itself. IndexNow covers Bing's crawl signal on every
+   deploy, but not the dashboard. See `QA/verification/OPERATOR_FACTS_2026-11-16.md`.
 8. **No web analytics** — a click is recorded, the landing visit is not. Needs an account (Plausible
    is the sane pick: cookieless, no consent banner).
 9. **Named author / team page** — schema `author` is the Organization until a real named author with a
