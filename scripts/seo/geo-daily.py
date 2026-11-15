@@ -10,6 +10,7 @@ Output: QA/verification/geo-daily/YYYY-MM-DD.md (created, not overwritten).
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import re
 import urllib.parse
@@ -32,6 +33,26 @@ PROMPTS = [
     "AI receptionist for small business",
     "Trendi Concierge",
 ]
+
+
+# Cloudflare injects a per-request bot-challenge script (random `ray` token) into every HTML
+# response. Measuring `len(text)` therefore changed on every fetch: the 2026-11-15 and 2026-11-16
+# runs both reported *every* page as changed and re-pinged IndexNow for the whole site daily.
+SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>.*?</script>", re.S)
+CF_MARKERS = ("__CF$cv$params", "cdn-cgi/challenge-platform", "challenge-platform/scripts")
+MODIFIED = re.compile(r'"dateModified"\s*:\s*"([^"]+)"')
+
+
+def fingerprint(text: str) -> str:
+    """Stable fingerprint of the page's own content, ignoring the Cloudflare injection."""
+    stable = SCRIPT_BLOCK.sub(
+        lambda m: "" if any(marker in m.group(0) for marker in CF_MARKERS) else m.group(0), text)
+    stable = "\n".join(
+        line for line in stable.splitlines()
+        if not any(marker in line for marker in CF_MARKERS))
+    modified = MODIFIED.search(stable)
+    digest = hashlib.sha256(stable.encode()).hexdigest()[:16]
+    return digest + ":" + (modified.group(1) if modified else "")
 
 
 def get(url: str, timeout: int = 25) -> tuple[int, bytes]:
@@ -83,12 +104,10 @@ def main() -> None:
         if code != 200:
             failures.append(f"{url} ({code})")
             continue
-        text = page.decode("utf-8", "replace")
-        lastmod = re.search(r'<meta[^>]+property="article:modified_time"[^>]+content="([^"]+)"', text)
-        fingerprint = str(len(text)) + ":" + (lastmod.group(1) if lastmod else "")
-        if state.get(url) != fingerprint:
+        page_fingerprint = fingerprint(page.decode("utf-8", "replace"))
+        if state.get(url) != page_fingerprint:
             changed.append(url)
-            state[url] = fingerprint
+            state[url] = page_fingerprint
     report.append(f"- pages checked: {len(urls) - len(failures)}, failing: {len(failures)}")
     if failures:
         report.append("  - " + "\n  - ".join(failures))
