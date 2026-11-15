@@ -9,7 +9,7 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `8679c44`. Working tree clean at handoff time.
+  HEAD `2b83e8c`. Working tree clean at handoff time.
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -26,7 +26,7 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
 - **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
   → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61).
 - **Tests:** `cd api && TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres python3 -m pytest -q`
-  → **1417 passed**.
+  → **1419 passed**.
 - **Health (on the box):** `python3 scripts/vps/healthcheck.py --no-alert` →
   **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
 - **Website technical SEO:** `python3 scripts/seo/site_seo.py check` (the deploy gate),
@@ -63,7 +63,7 @@ The first three streams are recorded in their own files. The last one is this se
      shareable URL), the crawler research as a **living data page** (refresh log, CSV distribution,
      freshness check), IndexNow submission on deploy (HTTP 200 for 24 changed URLs), and
      `scripts/vps/sync-tooling.sh` after the deploy gate exposed that host tooling had no publish path.
-   - 54 new tests (1413 total at that point; 1417 today), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
+   - 54 new tests (1413 total at that point; 1419 today), three mutation proofs, deploy verified, live health 46 ok / 0 fail.
 
 ## 3. Outstanding — the real worklist
 
@@ -152,9 +152,29 @@ The first three streams are recorded in their own files. The last one is this se
     `QA/verification/GEO_DAILY_2026-11-16.md`. **Next:** if IndexNow keeps firing for pages nobody
     edited, suspect a new response-noise source before touching the threshold.
 
+30. **`verify-deploy.sh` is RED right now, by design — two files need an approved deploy.** The box
+    (live) is running `tools/missed-call-cost-calculator.html` and `.js` from hand edits made on the
+    box on 2026-11-15 that never came back into the repo (manifest commit `08cbdda`). They carry NZ$
+    labels and a "GST and tax" note plus GST FAQ, which contradicts the operator decision recorded in
+    the health check ("one USD price for everyone, no GST wording anywhere"); the repo is correct, so
+    the fix is to publish, not to copy the box back. Nothing was published on 2026-11-16 — the
+    scheduled task forbids it without approval. **Next:** `KEY=./Concierge ./scripts/vps/deploy-site.sh`
+    (clean tree required), then `verify-deploy.sh` must print `OK: repo and box agree`. Two other
+    drift files (`glossary.html`, `research/ai-crawler-blocking-2026.html`) were fixed in the repo
+    this session and now match the box.
+31. **A `googlebot`-only `noindex` was invisible to the deploy gate until 2026-11-16.** `/glossary`
+    and `/research/ai-crawler-blocking-2026` carried `googlebot: noindex` beside `robots: index`, so
+    Google was told not to index a 1,043-word guide and the living data page. Fixed in the repo and
+    now caught by `site_seo.py`; the live pages already said `index`, so no deploy is needed for that
+    pair. See `QA/verification/GEO_DAILY_2026-11-16.md`.
+
 ## 4. Next action
 
-**One thing:** verify `trendibizz.com` in Google Search Console and Bing Webmaster and submit
+**One thing first:** publish the two calculator files with an approved
+`KEY=./Concierge ./scripts/vps/deploy-site.sh` — `verify-deploy.sh` is red until then, and live is
+advertising NZ$ and GST copy against the USD, no-GST decision.
+
+**Then:** verify `trendibizz.com` in Google Search Console and Bing Webmaster and submit
 `https://trendibizz.com/sitemap.xml` (item 7), then fix the Stripe price/tax mismatch (item 1) in the
 same sitting — rankings that land on a checkout charging more than the page says convert badly.
 

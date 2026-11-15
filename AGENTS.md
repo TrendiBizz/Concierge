@@ -43,7 +43,8 @@ Deployed locations on the box (`152.42.239.240`, release `20261108-vps`):
 
 0. **The site has a technical SEO contract, and the deploy enforces it.** Before anything is
    published, `scripts/vps/deploy-site.sh` runs `python3 scripts/seo/site_seo.py check`. It fails on
-   a missing or wrong canonical, an accidental `noindex`, a page with no `dateModified`, a
+   a missing or wrong canonical, an accidental `noindex` (including a `googlebot`-only one, which
+   Google obeys over `robots`), a page with no `dateModified`, a
    description over 160 characters, a broken internal link, a `robots.txt` that has stopped blocking
    training crawlers, an IndexNow key that does not match its key file, and a sitemap that disagrees
    with the pages. If it fails, fix the site; do not bypass it. The sitemap is generated, not
