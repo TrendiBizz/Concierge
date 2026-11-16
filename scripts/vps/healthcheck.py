@@ -845,7 +845,7 @@ def check_sip_firewall() -> list[dict]:
             lines = jumps.splitlines()
             sip = next(i for i, l in enumerate(lines) if "-j TRENDI-SIP" in l)
             accept = next((i for i, l in enumerate(lines) if "-j NETAVARK_FORWARD" in l), None)
-            if False:
+            if accept is not None and accept < sip:
                 # netavark's FORWARD chain ACCEPTs traffic bound for containers; ahead of our jump it would let SIP through.
                 return [_fail("sip:firewall", "NETAVARK_FORWARD is ahead of the TRENDI-SIP jump in FORWARD; "
                                               "SIP is open to the internet until trendi-sip-firewall.service is re-run")]
