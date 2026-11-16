@@ -16,10 +16,11 @@
 set -Eeuo pipefail
 
 dir="${1:?usage: podman-migrate-stack.sh COMPOSE_DIR [--pg SERVICE:USER] [--profile NAME]...}"; shift
-pg=""; profiles=()
+pgs=(); profiles=(); envf=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --pg) pg="${2:?--pg needs SERVICE:USER}"; shift 2 ;;
+    --pg) pgs+=("${2:?--pg needs SERVICE:USER}"); shift 2 ;;   # repeatable: one dump per database service
+    --env-file) envf=(--env-file "${2:?--env-file needs a path}"); shift 2 ;;
     --profile) profiles+=(--profile "${2:?--profile needs a name}"); shift 2 ;;
     *) echo "unknown option $1" >&2; exit 1 ;;
   esac
@@ -31,8 +32,8 @@ for f in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do [[ 
 
 WAIT_TRIES="${WAIT_TRIES:-60}"   # x3s
 PODMAN_SOCK="unix:///run/podman/podman.sock"
-dc()  { docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
-pdc() { DOCKER_HOST="$PODMAN_SOCK" docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
+dc()  { docker compose ${envf[@]+"${envf[@]}"} "${COMPOSE_FILE_ARG[@]}" ${profiles[@]+"${profiles[@]}"} "$@"; }
+pdc() { DOCKER_HOST="$PODMAN_SOCK" docker compose ${envf[@]+"${envf[@]}"} "${COMPOSE_FILE_ARG[@]}" ${profiles[@]+"${profiles[@]}"} "$@"; }
 
 # Refuse before changing anything: Podman's compat API splits an exec-form healthcheck argument on spaces, so
 # `test: [CMD, python, -c, "import x; ..."]` runs `python -c import` and is unhealthy forever (found 2026-11-17).
@@ -57,16 +58,18 @@ docker ps -a --filter "label=com.docker.compose.project=$project" \
   --format '{{.Names}}\t{{.Image}}\t{{.Status}}' > "$BK/containers-before.txt"
 cp -a "$dir/." "$BK/project/"
 mapfile -t images < <(dc config --images | sort -u)
-mapfile -t volumes < <(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+# Volumes come from what the containers actually mount, not from compose labels: an `external: true` volume carries no label.
+mapfile -t volumes < <(docker ps -aq --filter "label=com.docker.compose.project=$project" \
+  | xargs -r docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}}{{"\n"}}{{end}}{{end}}' | sort -u | grep -v '^$' || true)
 echo "    images: ${images[*]}"; echo "    volumes: ${volumes[*]:-none}"
 
 # 2. a logical dump while the database still runs: the one backup that is consistent by construction
-if [[ -n "$pg" ]]; then
+for pg in ${pgs[@]+"${pgs[@]}"}; do
   svc="${pg%%:*}"; user="${pg##*:}"
-  dc exec -T "$svc" pg_dumpall -U "$user" > "$BK/pg_dumpall.sql"
-  [[ -s "$BK/pg_dumpall.sql" ]] || { echo "pg_dumpall produced nothing; stopping before any change" >&2; exit 1; }
-  echo "    pg_dumpall: $(wc -c < "$BK/pg_dumpall.sql") bytes"
-fi
+  dc exec -T "$svc" pg_dumpall -U "$user" > "$BK/pg_dumpall-$svc.sql"
+  [[ -s "$BK/pg_dumpall-$svc.sql" ]] || { echo "pg_dumpall of $svc produced nothing; stopping before any change" >&2; exit 1; }
+  echo "    pg_dumpall $svc: $(wc -c < "$BK/pg_dumpall-$svc.sql") bytes"
+done
 
 rollback() {
   echo "!!! FAILED: putting $project back on Docker" >&2
@@ -81,7 +84,7 @@ echo "==> stopping under Docker"
 dc down --timeout 30
 
 # 4. volumes, then images
-for v in "${volumes[@]}"; do
+for v in ${volumes[@]+"${volumes[@]}"}; do
   podman volume exists "$v" && { echo "    podman volume $v already exists; refusing to overwrite" >&2; false; }
   podman volume create "$v" >/dev/null
   src="$(docker volume inspect "$v" --format '{{.Mountpoint}}')"
