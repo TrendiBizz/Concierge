@@ -2,10 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="robots" content="noindex, nofollow, noai, noimageai" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>portal</title>
+    <title>Concierge</title>
+    <meta name="description" content="Concierge — enquiries, quotations, calls and marketing for your business, on your phone." />
+    <meta name="robots" content="noindex, nofollow, noai, noimageai" />
+    <meta name="theme-color" content="#c8f560" />
+    <!-- Installability is not optional: without this link Chrome never offers "Install app", so a
+         QR could only ever open a web page. Measured live 2026-11-16: the manifest existed and was
+         served, but nothing referenced it. -->
+    <link rel="manifest" href="/studio/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg" />
+    <link rel="apple-touch-icon" href="/studio/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Concierge" />
   </head>
   <body>
     <div id="root"></div>

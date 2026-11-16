@@ -30,7 +30,9 @@ import './shell.css';
 import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import {StatusLine} from './StatusLine';
-import qrcode from 'qrcode-generator';
+import {QrCode, qrDownloadHref} from './QrCode';
+import {InstallApp} from './Install';
+import {installAvailable, installUrl, onInstallChange, promptInstall} from './installPrompt';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
 const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/copy/*.json');
@@ -392,46 +394,6 @@ function Capabilities({token, onChanged}: {token: string; onChanged?: () => void
   );
 }
 
-function qrSvg(value: string): string {
-  try {
-    const code = qrcode(0, 'M');
-    code.addData(value);
-    code.make();
-    return code.createSvgTag({cellSize: 8, margin: 4, scalable: false});
-  } catch {
-    return '';
-  }
-}
-
-
-/**
- * A QR code for a link we own, drawn in the browser.
- *
- * Hosted chat and team invitations are both links a customer usually opens on a phone, and
- * reading a URL off a laptop screen is exactly the "seamless" problem. Drawn locally from our
- * own URL: no external QR service, nothing about the customer leaves the page.
- */
-function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: number; label?: string}) {
-  const svg = useMemo(() => {
-    try {
-      const code = qrcode(0, 'M');
-      code.addData(value);
-      code.make();
-      return code.createSvgTag({cellSize: 4, margin: 4, scalable: true});
-    } catch {
-      return '';
-    }
-  }, [value]);
-  if (!svg) return null;
-  const scaled = svg.replace('<svg ', '<svg aria-hidden="true" focusable="false" style="width:100%;height:100%;display:block" ');
-  return (
-    <div style={{width: size, height: size, background: '#fff', padding: 6, borderRadius: 8, border: '1px solid var(--color-border)'}}
-         role="img" aria-label={label}
-         dangerouslySetInnerHTML={{__html: scaled}} />
-  );
-}
-
-
 /**
  * "Pause everything" — one switch the owner can always see.
  *
@@ -519,7 +481,7 @@ function Team({token}: {token: string}) {
             <div style={{flex: '0 1 200px'}}>
               <QrCode value={link} size={180} label="QR code for this invitation" />
               <p style={{fontSize: 13, margin: '8px 0 0'}}>Scan with a phone camera to open the invitation on the phone. After signing in, tap <strong>Install app</strong> to keep Concierge on the home screen.</p>
-              <a download="concierge-invitation-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(qrSvg(link))} style={{fontSize: 13}}>Download the QR to print</a>
+              <a download="concierge-invitation-qr.svg" href={qrDownloadHref(link)} style={{fontSize: 13}}>Download the QR to print</a>
             </div>
             <div style={{flex: '1 1 280px', minWidth: 220}}>
               <p role="status" style={{marginTop: 0}}><strong>Send them this:</strong> <a href={link}>{link}</a></p>
@@ -1002,23 +964,42 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             )}
           </div>
 
+          <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
+            <Heading level={3}>Put Concierge on your phone</Heading>
+            <p style={{fontSize: 14}}>
+              This is the app: the whole workspace — enquiries, quotes, calls and marketing — as an
+              icon on the home screen. Scan the code, then tap <strong>Install</strong> on Android, or
+              use Safari’s <strong>Share → Add to Home Screen</strong> on iPhone.
+            </p>
+            <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
+              <QrCode value={installUrl()} size={180} label="QR code for the Concierge install page" />
+              <div style={{fontSize: 14}}>
+                <p style={{marginTop: 0}}><a href={installUrl()}>{installUrl()}</a></p>
+                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  <Button label="Copy install link" variant="secondary" onClick={() => { void copyText(installUrl()).then((ok: boolean) => notify(ok ? 'Install link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
+                  <a download="concierge-install-qr.svg" href={qrDownloadHref(installUrl())}
+                     style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
+                </div>
+                <p style={{fontSize: 13, opacity: 0.8}}>
+                  The QR opens the install page; the phone does the install. No web page can add itself
+                  to the home screen without that one tap.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {hosted ? (
             <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
               <Heading level={3}>Or use a chat page we host — working right now</Heading>
               <p style={{fontSize: 14}}>
-                Works with no website at all. Share this link, put it in your Facebook and Google
-                listings, or print the QR code for your van, quotes and signage.
+                Works with no website at all. This is the <strong>chat page</strong> a customer opens to
+                message you — it is not the Concierge app. Share the link, or put it in your Facebook and
+                Google listings.
               </p>
-              <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
-                <QrCode value={hosted} label="QR code for your chat page" />
-                <div style={{fontSize: 14}}>
-                  <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
-                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                    <Button label="Copy link" variant="secondary" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
-                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(qrSvg(hosted))}
-                       style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
-                  </div>
-                </div>
+              <div style={{fontSize: 14}}>
+                <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
+                <Button label="Copy link" variant="secondary" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
+                <p style={{fontSize: 13, opacity: 0.8}}>For the app itself, use the install QR above — this link only opens the chat page.</p>
               </div>
             </div>
           ) : null}
@@ -1622,7 +1603,7 @@ function Shell() {
     setTab('setup');
   }, [token]);
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
-  const [installEvent, setInstallEvent] = useState<Event | null>(null);
+  const [canInstall, setCanInstall] = useState(installAvailable());
   const [locale, setLocaleState] = useState(initialLocale);
   const [catalog, setCatalog] = useState<Record<string, string>>(en);
   const [navStrings, setNavStrings] = useState<Record<string, string>>({});
@@ -1684,9 +1665,7 @@ function Shell() {
         .then((registration) => registration.update())
         .catch(() => undefined);
     }
-    const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return onInstallChange(setCanInstall);
   }, []);
 
   // A rejected session drops back to sign-in instead of leaving the page in an error state.
@@ -1709,6 +1688,16 @@ function Shell() {
   const [folded, setFolded] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('concierge:nav-folded') || '{}'); } catch { return {}; }
   });
+
+  if (location.pathname.replace(/\/+$/, '') === '/studio/install') {
+    return (
+      <Theme theme={theme}>
+        <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
+          <InstallApp />
+        </InternationalizationProvider>
+      </Theme>
+    );
+  }
 
   if (!token) {
     return (
@@ -1842,7 +1831,10 @@ function Shell() {
         </TabList> : null}
         <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
         <div className="c-topbar-spacer" />
-        {installEvent ? <Button label={tr('Install app')} variant="secondary" onClick={() => { (installEvent as unknown as {prompt: () => void}).prompt(); setInstallEvent(null); }} /> : null}
+        <Button label={tr('Install app')} variant="secondary" onClick={() => {
+          if (canInstall) void promptInstall();
+          else location.href = '/studio/install';
+        }} />
         <Button label={tr('Sign out')} variant="ghost" onClick={() => setToken('')} />
       </header>
 
