@@ -80,6 +80,7 @@ rollback() {
   podman network rm -f asterisk_phone trendi_default >/dev/null 2>&1 || true
   docker network inspect asterisk_phone >/dev/null 2>&1 || docker network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null 2>&1 || true
   tdc up -d --scale shell=0 >&2 || true
+  adc up -d pbx >&2 || true
   adc up -d >&2 || true
   tdc up -d >&2 || true
   echo "!!! rolled back to Docker. Docker data untouched. Backup: $BK" >&2
@@ -103,7 +104,7 @@ done
 docker network inspect asterisk_phone >/dev/null 2>&1 && docker network rm asterisk_phone >/dev/null
 podman network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null
 echo "==> starting trendi under Podman (shell held back so the PBX can have 172.30.91.2)"; ptdc up -d --scale shell=0
-echo "==> starting asterisk under Podman"; padc up -d
+echo "==> starting asterisk under Podman (PBX first)"; padc up -d pbx; padc up -d
 echo "==> starting the telephone shell"; ptdc up -d
 
 echo "==> waiting for health"

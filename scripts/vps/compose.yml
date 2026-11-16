@@ -251,7 +251,11 @@ services:
       # repo. The shell panics on an empty list, so it must be set there.
       ASTERISK_ROUTES: ${ASTERISK_ROUTES:-}
       CONCIERGE_INTERNAL_URL: http://api:8000
-    networks: [default, asterisk_phone]
+    # Fixed address on the phone network (the PBX owns .2, the bridge .4): see scripts/asterisk/compose.yml.
+    networks:
+      default: {}
+      asterisk_phone:
+        ipv4_address: 172.30.91.3
     mem_limit: 256m
     cpus: 1
 volumes:

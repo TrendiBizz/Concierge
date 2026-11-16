@@ -26,7 +26,13 @@ services:
       ASTERISK_ROUTES: ${ASTERISK_ROUTES:?Supply explicit provisioned business routes}
     volumes:
       - ../../api/app:/srv/app:ro
-    networks: [phone, concierge]
+    # Fixed addresses: the PBX owns .2 (pjsip.conf and ASTERISK_PEERS), and IPAM otherwise hands the lowest free address to
+    # whichever container starts first. On 2026-11-17 the bridge won .2 in a parallel start and the PBX died with
+    # "Address already in use". .2 PBX, .3 telephone shell (scripts/vps/compose.yml), .4 bridge.
+    networks:
+      phone:
+        ipv4_address: 172.30.91.4
+      concierge:
 networks:
   phone:
     internal: true
