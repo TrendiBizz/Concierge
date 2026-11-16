@@ -3,7 +3,9 @@
 **Goal (Jo, 2026-11-16):** "go and look at how we build a replacement for this package, i want it as
 close as possible." Target: [wavecrm.com.au](https://wavecrm.com.au) — a membership-management CRM
 sold at **AUD $412.85/mo + GST** to Australian chambers of commerce, industry bodies and
-associations. Feature inventory and citations: `docs/research/wave-crm-audit-2026-11-16.md`.
+associations. Feature inventory and citations: `docs/research/wave-crm-audit-2026-11-16.md` (225 cited URLs; the
+richest source turned out to be Wave's own YouTube walkthroughs, which describe the admin navigation
+and field names, not the marketing site).
 
 This document is the build plan: what we already own, what we must build, in what order, and what
 only Jo can decide.
@@ -75,9 +77,20 @@ membership_types   (id, tenant_id, name, code, price numeric, currency, period t
                     joining_fee numeric, pro_rata bool, xero_item_code text, active bool)
 members            (id, tenant_id, company_id, member_no text, type_id, status text,               -- applicant|active|lapsed|resigned|suspended
                     joined_on date, renews_on date, billing_contact_id,        -- FK leads
-                    stripe_customer_id text, xero_contact_id text,
-                    directory_optin bool, gst_exempt bool, notes, created_at, updated_at)
+                    stripe_customer_id text, xero_contact_id text, gst_exempt bool,
+                    force_renew bool, stop_next_renewal bool,                  -- Wave's two renewal switches
+                    notes, created_at, updated_at)
 member_people      (id, tenant_id, member_id, lead_id/contact_id, role text, is_primary bool)      -- directors, reps
+subscribers         (id, tenant_id, lead_id, email, mobile, tags text[], subscribed bool,
+                    unsubscribed_at, source)                                  -- communicable, NO membership
+directory_profiles  (id, tenant_id, member_id, display_name, category, blurb, logo_url,
+                    public_email, public_phone, public_website,                -- decoupled from the member record
+                    published bool, updated_at)                                -- Wave decoupled these Sept 2026
+member_field_defs   (id, tenant_id, scope text, field_key, label, kind, visible bool, editable bool,
+                    show_on_report bool, options jsonb)                        -- Wave: "Arbitrary Fields"
+member_field_values (id, tenant_id, member_id, field_def_id, value text)
+form_questions      (id, tenant_id, form_id, prompt, kind, options jsonb,
+                    maps_to_field text, position int)                          -- Wave: "bind to key field"
 membership_periods (id, member_id, starts_on, ends_on, type_id, price, status, invoice_id,
                     renewed_at, churn_reason)                                                   -- the renewal ledger
 cpd_programs       (id, tenant_id, name, year, required_points numeric, rules jsonb)
@@ -93,8 +106,6 @@ event_tickets      (id, tenant_id, event_id, name, price, member_only bool, allo
 event_registrations(id, tenant_id, event_id, ticket_id, member_id, name, email, qty, amount,
                     dietary, voucher_code, stripe_payment_intent, checked_in_at, created_at)
 event_addons?      (skip: dietary/voucher are columns above until proven otherwise)
-directory_listings (id, tenant_id, member_id, category, blurb, logo_url, website, phone,
-                    published bool, updated_at)                                                -- member self-edited
 resources          (id, tenant_id, title, body_md/html, file_url, visibility text,             -- public|members|type:gold
                     member_types text[], published_at)
 resource_views     (id, tenant_id, resource_id, member_id, viewed_at)                            -- "who reads what"
@@ -103,6 +114,21 @@ xero_connections   (id, tenant_id, tenant_xero_id, access_token_enc, refresh_tok
                     expires_at, scopes text[], last_sync_at, status)
 xero_object_map    (tenant_id, local_table, local_id, xero_type, xero_id, synced_at)             -- the two-way key
 ```
+
+Three decisions copied from watching Wave work, because a Wave buyer would notice them
+missing (sources in `docs/research/wave-crm-audit-2026-11-16.md`):
+
+1. **Membership status and communication status are deliberately independent.** An expired member
+   stays subscribed and keeps receiving EDMs until they unsubscribe. So `members.status` is *not*
+   the audience filter — `subscribers.subscribed` plus consent is. Our campaign engine already
+   requires marketing consent; it must not also require a live membership.
+2. **The directory listing is its own record**, not columns on the member. Chambers publish a
+   switched-on reception number while the member record keeps a director's mobile. Collapsing the
+   two leaks private numbers; the vendor fixed exactly this in Sept 2026.
+3. **Form answers map into member fields by explicit binding** ("bind to key field"), with an
+   "Additional Information" catch-all for unmapped answers and custom fields ("Arbitrary Fields")
+   scoped separately for members vs member *users*, each with visible/editable/reportable flags.
+   Hard-coding a chamber's form into the member table makes every variation a code change.
 
 Notes that will bite later if ignored:
 
@@ -126,6 +152,10 @@ Notes that will bite later if ignored:
 | M4 | EDM + sequences | campaign authoring UI over the existing engine, segments (type, status, region, tags), templates, per-send stats, membership-triggered sequences | A segment of "lapsed 30d, marketing consent" sends once, respects the preview freeze, and a consent-removed contact is excluded |
 | M5 | **Xero two-way** | OAuth connect/disconnect, token lifecycle, contact + item mapping, invoice push, payment reconciliation, credit note on cancellation, webhook receiver | Create a period invoice → appears in Xero with the right GST; mark it paid in Xero → local invoice reconciles with no duplicate; replaying the same webhook twice changes nothing |
 | M6 | Website per tenant *(optional, last)* | page builder over `web_sites`, shared SEO gate (`site_seo.py` contract), sitemap/IndexNow per tenant | A tenant site passes the same technical SEO check as trendibizz.com |
+
+**M1 must also prove the audit's sharpest finding:** a member whose membership has lapsed is still
+in the campaign audience (they stay subscribed until they unsubscribe) while their portal access and
+member-only resources are gone. Those two statuses are separate on purpose.
 
 **Out of scope by decision (Jo, 2026-11-16):** **CPD** and **events & ticketing** are not built —
 Xero is the only add-on beyond core membership that this product needs. Their schema sketch stays in
