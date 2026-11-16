@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
 done
 cd "$dir"
 COMPOSE_FILE_ARG=()
-for f in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do [[ -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
+for f in compose.yml compose.yaml compose.json docker-compose.yml docker-compose.yaml; do [[ -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
 [[ ${#COMPOSE_FILE_ARG[@]} -gt 0 ]] || { echo "no compose file in $dir" >&2; exit 1; }
 
 WAIT_TRIES="${WAIT_TRIES:-60}"   # x3s
