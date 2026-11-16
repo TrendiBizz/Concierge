@@ -26,7 +26,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
-from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site
+from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site, releases, owner_ask
 from . import suppressions
 from . import engagement
 from . import sms_inbox
@@ -3078,6 +3078,48 @@ async def admin_install_request_status(request_id: str, status: str = "done"):
         return await install_requests.set_status(request_id, status)
     except ValueError as error:
         raise HTTPException(400, str(error)) from None
+
+
+class AskBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=1, max_length=1000)
+
+
+@app.get("/version")
+async def public_version():
+    """Which release is live. Public on purpose: it names a number, nothing about any business."""
+    return {"version": releases.CURRENT_VERSION, "label": releases.label()}
+
+
+@app.get("/owner/release")
+async def owner_release(user: dict = Depends(owner_auth.current_user)):
+    seen = await db.pool().fetchval("SELECT last_seen_version FROM tenant_users WHERE id=$1", user["id"])
+    return releases.notice(int(seen or 0))
+
+
+@app.post("/owner/release/seen")
+async def owner_release_seen(user: dict = Depends(owner_auth.current_user)):
+    await releases.mark_seen(user["id"])
+    return {"seen": releases.CURRENT_VERSION}
+
+
+@app.post("/admin/releases/announce", dependencies=admin)
+async def admin_release_announce(version: int = releases.CURRENT_VERSION, send: bool = False):
+    """Email each business once about a release. Lists who would get it unless send=true."""
+    try:
+        return await releases.announce(version, dry_run=not send)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
+
+
+@app.post("/owner/ask")
+async def owner_ask_route(body: AskBody, user: dict = Depends(owner_auth.current_user)):
+    """Read-only questions about the owner's own business. No tools, nothing is sent or changed."""
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    try:
+        return {"answer": await owner_ask.ask(tenant, body.question)}
+    except llm.LLMNotConfigured:
+        raise HTTPException(503, "Ask is not available right now")
 
 
 @app.get("/owner/business")

@@ -50,6 +50,9 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 <section id="app-panel" hidden>
 <nav class="workspace-nav" aria-label="Your workspace"><a href="#crm-panel">CRM and enquiries</a><a href="#onboarding-panel">Business setup</a><a href="#knowledge-panel">Business information</a><a href="#media-panel">Marketing media</a><a href="#channel-authorizations-panel">Permissions</a><a href="#social-panel">Social accounts and drafts</a></nav>
 <div class="panel"><span id="identity"></span><button class="secondary" id="logout">Sign out</button></div>
+<section class="panel" id="release-panel" hidden aria-live="polite"><h2 id="release-title"></h2><p id="release-summary"></p><ul id="release-notes"></ul><button type="button" id="release-dismiss">Got it</button></section>
+<section class="panel" id="needs-panel"><h2>Needs you</h2><p id="needs-text" aria-live="polite">Checking...</p><a href="#drafts-panel" id="needs-link" hidden>Review now</a></section>
+<section class="panel" id="ask-panel"><h2>Ask Concierge</h2><p class="muted">Ask a question about your business. It answers only from the information you have added, and it cannot send or change anything.</p><form id="ask-form"><label for="ask-question">Your question</label><input id="ask-question" maxlength="1000" required placeholder="What are our opening hours?"><button type="submit" id="ask-go">Ask</button></form><p id="ask-answer" aria-live="polite"></p></section>
 <section class="panel" id="crm-panel"><h2>Your built-in CRM</h2><p>Enquiries from your connected calls, emails, texts and website chat, with their contact details and follow-up status.</p><button class="secondary" id="crm-refresh" type="button">Refresh enquiries</button><h3>Enquiries and pipeline</h3><div id="crm-leads"></div><h3>Appointments</h3><div id="crm-appointments"></div><h3>Follow-up tasks</h3><div id="crm-tasks"></div></section>
 <section class="panel" id="quotations-panel"><h2>Quotations</h2><p>Prepare a draft linked to an enquiry. Review prices and tax before marking it reviewed. Quotes are never sent automatically.</p>
 <form id="quote-form"><label for="quote-lead">Contact and enquiry</label><select id="quote-lead" required></select><label for="quote-title">Quotation title</label><input id="quote-title" required maxlength="160">
@@ -74,6 +77,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <input id="onboarding-timezone" maxlength="100" placeholder="Pacific/Auckland"></div>
 </div>
 <label><input type="checkbox" id="onboarding-voice"> Enable website voice receptionist</label><label><input type="checkbox" id="onboarding-booking"> Allow Concierge to book agreed appointments</label><label for="onboarding-slot">Appointment length (minutes)</label><input id="onboarding-slot" type="number" min="5" max="240" value="30"><fieldset><legend>Booking hours in your business timezone</legend><p>Enter times such as 09:00-17:00. Separate split hours with a comma. Leave closed days empty.</p><div id="onboarding-hours"></div></fieldset>
+<label><input type="checkbox" id="onboarding-daily"> Email me at 7am when something needs me (nothing is sent on a quiet day)</label>
 <label><input type="checkbox" id="onboarding-email-auto"> Allow Concierge to answer incoming email automatically using my business information</label><p class="muted">Requires a connected inbox and permission to read and send email. Leave off to review email replies before sending.</p>
 <button type="submit">Save business setup</button><button id="website-import" type="button" class="secondary">Import website knowledge</button><p id="website-import-status" aria-live="polite"></p>
 </form>
@@ -149,7 +153,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 </details>
 <section class="panel"><h2>Text messages</h2><div id="sms-phone" aria-live="polite"></div>
 <button id="sms-phone-refresh" type="button" class="secondary">Refresh text messages</button></section>
-<section class="panel">
+<section class="panel" id="drafts-panel">
 <h2>Email drafts awaiting review</h2>
 <p class="muted">Incoming emails are untrusted. Review all factual claims and replace any initial review placeholder before approval. Only the business owner can approve. Live messaging remains disabled unless the operator separately configures it.</p>
 <button type="button" id="refresh">Refresh</button>
@@ -203,7 +207,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 </section>
 </section>
 </main>
-<footer class="portal-footer"><p>Concierge is a Trendi service. <a href="https://trendibizz.com/contact">Contact Trendi</a> · <a href="https://trendibizz.com/privacy">Privacy</a> · <a href="https://trendibizz.com/terms">Terms</a></p></footer>
+<footer class="portal-footer"><p><span id="version-line"></span> Concierge is a Trendi service. <a href="https://trendibizz.com/contact">Contact Trendi</a> · <a href="https://trendibizz.com/privacy">Privacy</a> · <a href="https://trendibizz.com/terms">Terms</a></p></footer>
 <script src="/owner/qrcode.js?v=1"></script>
 <script>
 "use strict";
@@ -276,7 +280,7 @@ async function openSession(accessToken,readyNote){
  $("login-panel").hidden=true;$("app-panel").hidden=false;
  $("invite-panel").hidden=user.role!=="owner";$("team-panel").hidden=false;
  const generation=sessionGeneration;
- const sections=await Promise.allSettled([refreshTeam(),refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia()]);
+ const sections=await Promise.allSettled([refreshTeam(),refresh(),refreshCRM(),refreshOnboarding(),refreshKnowledge(),refreshChannelAuthorizations(),refreshSocial(),refreshQuotes(),refreshCalendar(),refreshEmailJobs(),refreshMedia(),refreshRelease()]);
  assertSession(generation);
  if(sections.some(section=>section.status==="rejected"))message("Signed in. Some sections are temporarily unavailable. Your other setup steps are still available.",true);
  else message(readyNote);
@@ -682,6 +686,7 @@ async function refreshOnboarding(){
   for(const id of ["onboarding-voice","onboarding-booking","onboarding-slot"])$(id).disabled=currentRole!=="owner";
   $("onboarding-email-auto").checked=!!data.business.email_auto_reply;
   $("onboarding-email-auto").disabled=currentRole!=="owner";
+  $("onboarding-daily").checked=!!data.business.daily_summary;$("onboarding-daily").disabled=currentRole!=="owner";
   $("website-import").disabled=currentRole!=="owner";
   $("onboarding-phone").value=data.business.notify_phone||"";
   $("onboarding-email").value=data.business.notify_email||"";
@@ -698,7 +703,7 @@ $("onboarding-form").addEventListener("submit",async event=>{
     await request("/owner/onboarding/profile","PATCH",{
       name:$("onboarding-name").value.trim(),site_url:$("onboarding-website").value.trim(),
       greeting:$("onboarding-greeting").value,
-      email_auto_reply:$("onboarding-email-auto").checked,
+      email_auto_reply:$("onboarding-email-auto").checked,daily_summary:$("onboarding-daily").checked,
       voice_enabled:$("onboarding-voice").checked,native_booking:$("onboarding-booking").checked,slot_minutes:Number($("onboarding-slot").value),
       business_hours:Object.fromEntries(bookingDays.map(day=>[day,$("hours-"+day).value.trim()?$("hours-"+day).value.split(",").map(window=>window.trim().split("-").map(time=>time.trim())):[]])),
       notify_phone:$("onboarding-phone").value.trim(),
@@ -959,6 +964,27 @@ async function refreshSocial(){
   }
 }
 
+function renderNeeds(drafts){
+ const text=$("needs-text"),link=$("needs-link");
+ if(!Array.isArray(drafts)){text.textContent="Replies waiting for you are unavailable right now.";link.hidden=true;return;}
+ const n=drafts.filter(d=>["draft","quarantined"].includes(d.status)).length;
+ text.textContent=n?n+(n===1?" reply is":" replies are")+" waiting for you to approve. Nothing is sent until you do.":"Nothing is waiting for you.";
+ link.hidden=!n;
+}
+async function refreshRelease(){
+ const info=await request("/owner/release");
+ $("version-line").textContent=info.label+" ·";
+ $("release-panel").hidden=!info.unseen;
+ if(!info.unseen)return;
+ $("release-title").textContent="What's new in "+info.label;$("release-summary").textContent=info.summary;
+ const list=$("release-notes");clear(list);for(const note of info.notes)list.appendChild(node("li",note));
+}
+$("release-dismiss").addEventListener("click",async()=>{try{await request("/owner/release/seen","POST");$("release-panel").hidden=true;}catch(error){message(error.message,true);}});
+$("ask-form").addEventListener("submit",async event=>{
+ event.preventDefault();const go=$("ask-go");go.disabled=true;$("ask-answer").textContent="Thinking...";
+ try{const out=await request("/owner/ask","POST",{question:$("ask-question").value.trim()});$("ask-answer").textContent=out.answer;}
+ catch(error){$("ask-answer").textContent="";message(error.message,true);}finally{go.disabled=false;}
+});
 async function refresh(){
  const generation=sessionGeneration;
  const [drafts,numbers,calls,phoneSms,senderRules]=await Promise.all([
@@ -994,6 +1020,7 @@ async function refresh(){
     view.addEventListener("click",async()=>{view.disabled=true;try{const lines=await request("/owner/phone-calls/"+encodeURIComponent(c.call_sid)+"/transcript");clear(transcript);if(!lines.length)transcript.appendChild(node("p","No transcript available for this call."));for(const line of lines)transcript.appendChild(node("p",(line.role==="user"?"Caller: ":"Concierge: ")+line.content));}catch(error){message(error.message,true);}finally{view.disabled=false;}});
     call.appendChild(view);call.appendChild(transcript);$("calls").appendChild(call);
  }if(!calls.length)$("calls").appendChild(node("p","No calls yet.","muted"));}
+ renderNeeds(drafts);
  if(!Array.isArray(drafts)){$("drafts").appendChild(node("p",drafts.error||"Email workflow unavailable.","muted"));return;}
  const pending=drafts.filter(d=>["draft","quarantined"].includes(d.status));
  if(!pending.length){$("drafts").appendChild(node("p","No drafts awaiting review.","muted"));return;}
@@ -1001,6 +1028,7 @@ async function refresh(){
    const item=node("article","","item");
    item.appendChild(node("h3","#"+draft.id+" — "+draft.subject));
    item.appendChild(node("p","From: "+draft.sender));
+   if(draft.origin==="hermes")item.appendChild(node("p","Prepared by Hermes, Trendi's assistant. Check it before you approve.","muted"));
    if(draft.risk&&draft.risk!=="low"){
      const flags=Array.isArray(draft.flags)?draft.flags.filter(Boolean):[];
      item.appendChild(node("p","Security: "+draft.risk+" risk"+(flags.length?" — "+flags.join(", "):""),"muted"));
@@ -1283,6 +1311,7 @@ document.addEventListener("DOMContentLoaded",()=>{
  window.refreshPush=refreshPush;
  refreshPush();
 })();
+fetch("/version").then(r=>r.json()).then(v=>{if(!$("version-line").textContent)$("version-line").textContent=v.label+" ·";}).catch(()=>{});
 </script>
 </body>
 </html>

@@ -21,6 +21,7 @@ from .config import get_settings
 class OwnerBusinessProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email_auto_reply: bool | None = None
+    daily_summary: bool | None = None
     voice_enabled: bool | None = None
     native_booking: bool | None = None
     slot_minutes: int | None = Field(default=None, ge=5, le=240)
@@ -184,6 +185,7 @@ async def overview(tenant_id) -> dict:
             "slot_minutes": tenant.get("slot_minutes",30),
             "business_hours": tenant.get("business_hours",{}),
             "email_auto_reply": bool(tenant.get("email_auto_reply")),
+            "daily_summary": bool(tenant.get("daily_summary")),
             "notify_phone": tenant.get("notify_phone") or "",
             "notify_email": tenant.get("notify_email") or "",
             "timezone": tenant.get("timezone") or "Pacific/Auckland",
@@ -262,6 +264,7 @@ async def update_profile(tenant_slug: str, profile: OwnerBusinessProfile) -> dic
         "site_url": saved.get("site_url") or "",
         "greeting": saved.get("greeting") or "",
         "email_auto_reply": bool(saved.get("email_auto_reply")),
+        "daily_summary": bool(saved.get("daily_summary")),
         "notify_phone": saved.get("notify_phone") or "",
         "notify_email": saved.get("notify_email") or "",
         "timezone": saved.get("timezone") or "Pacific/Auckland",

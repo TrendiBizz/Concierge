@@ -279,7 +279,7 @@ async def execute(lead_id: UUID, bundle: Bundle):
                     delivery_result = {**stored, "duplicate": True}
                 elif d.channel == "email":
                     row = await conn.fetchrow(
-                        "INSERT INTO email_drafts (tenant_id, source_id, sender, subject, inbound_body, reply_body) VALUES ($1,$2,$3,$4,$5,$6) "
+                        "INSERT INTO email_drafts (tenant_id, source_id, sender, subject, inbound_body, reply_body, origin) VALUES ($1,$2,$3,$4,$5,$6,'hermes') "
                         "ON CONFLICT (tenant_id, source_id) WHERE source_id IS NOT NULL DO UPDATE SET source_id = EXCLUDED.source_id RETURNING id",
                         tenant_id, d.dedupe_key[:500], d.recipient.strip(), " ".join(d.subject.split())[:250],
                         (lead.get("message") or "(no inbound text)")[:20000], d.body[:10000])

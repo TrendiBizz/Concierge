@@ -293,6 +293,7 @@ CREATE TABLE IF NOT EXISTS email_drafts (
     updated_at    timestamptz NOT NULL DEFAULT now(),
     approved_at   timestamptz
 );
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS origin text;  -- 'hermes' when Hermes prepared it
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS auth jsonb;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS risk text;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS flags jsonb;
@@ -1267,3 +1268,6 @@ CREATE TABLE IF NOT EXISTS site_enquiries (
     status      text NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','done','spam'))
 );
 CREATE INDEX IF NOT EXISTS site_enquiries_created ON site_enquiries(created_at DESC);
+
+-- Highest release notice this person has dismissed (releases.py). 0 = has not seen any.
+ALTER TABLE tenant_users ADD COLUMN IF NOT EXISTS last_seen_version integer NOT NULL DEFAULT 0;
