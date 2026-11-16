@@ -91,7 +91,7 @@ def test_the_changed_stylesheets_are_cache_busted():
     """A new rule behind an unchanged ?v= is a rule nobody sees for a week."""
     for page in footer_pages()[:5]:
         html = page.read_text(encoding="utf-8")
-        assert "refresh.css?v=20261116b" in html, f"{page.name} still asks for the old CSS"
+        assert "refresh.css?v=20261116c" in html, f"{page.name} still asks for the old CSS"
         assert "site-i18n.css?v=20261116a" in html, f"{page.name} still asks for the old CSS"
 
 
@@ -103,3 +103,5 @@ def test_the_closing_call_to_action_is_not_white_on_white():
     white_text = css.index(".btn:not(.ghost){color:#fff}")
     repair = css.index(".cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:#fff;color:#5b2fa8")
     assert repair > white_text, "the button colour repair is declared before the rule it must beat"
+    assert ".cta-band .eyebrow,.cta-card .eyebrow,.pricing.featured .eyebrow{color:#efe6ff}" in css, \
+        "the eyebrow is purple on purple above every closing CTA again"

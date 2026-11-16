@@ -22,3 +22,7 @@ body{background:var(--bg);color:var(--ink)}a{color:#6540aa}h1,h2,h3{letter-spaci
    on rgb(255,255,255)). These rules come last on purpose; the order is the fix. */
 .cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:#fff;color:#5b2fa8;border-color:#fff}
 .cta-band .btn:hover,.cta-band .btn.lime:hover,.cta-card .btn:hover{background:#f3ecff;color:#46248a}
+
+/* The eyebrow above a purple band was purple on purple (#8057b1 on #7142d6, about 1.5:1).
+   It is a label, so it has to be readable, not decorative. */
+.cta-band .eyebrow,.cta-card .eyebrow,.pricing.featured .eyebrow{color:#efe6ff}
