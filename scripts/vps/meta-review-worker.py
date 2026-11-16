@@ -10,7 +10,17 @@ import subprocess
 import time
 
 CUSTOMER = "trendi-meta-review"
-DATABASE = "/var/lib/docker/volumes/trendi_social/_data/social.db"
+
+
+def social_db_path() -> str:
+    """Host path of the live social.db, resolved through the docker CLI so it follows the
+    /run/docker.sock symlink to whichever engine owns the `trendi_social` volume. The old hardcoded
+    /var/lib/docker/volumes/... path went stale after the Docker -> Podman move (2026-11-17)."""
+    out = subprocess.check_output(
+        ["docker", "volume", "inspect", "trendi_social", "--format", "{{.Mountpoint}}"],
+        timeout=15,
+    )
+    return out.decode().strip() + "/social.db"
 
 
 def select_due(connection, now):
@@ -38,7 +48,7 @@ def select_due(connection, now):
 
 
 def main():
-    with sqlite3.connect("file:" + DATABASE + "?mode=ro", uri=True) as connection:
+    with sqlite3.connect("file:" + social_db_path() + "?mode=ro", uri=True) as connection:
         selected = select_due(connection, int(time.time()))
     for post_id in selected:
         result = subprocess.run([

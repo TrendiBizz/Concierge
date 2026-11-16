@@ -1,4 +1,4 @@
-# Docker -> Podman on the VPS: stage 1, 2026-11-17
+# Docker -> Podman on the VPS: complete, 2026-11-17
 
 ## Rollback point
 DigitalOcean snapshot `pre-podman-2026-11-17`, image id 254954106, 85.28 GB, taken live at 2026-11-16T21:16Z (10:16 NZDT),
@@ -53,11 +53,38 @@ Per-stack backups (pg_dumpall + compose files) are in `/root/podman-migration/<p
    error at `==> starting the telephone shell`, then `!!! FAILED`. Proof (passes with fix): re-run starts trendi+asterisk+shell
    under Podman in one pass and reaches `trendi and asterisk are running under Podman` (see the re-run log below).
 
-## Known risks still open for the production stacks (INFERENCE, unverified)
-- `network_mode: service:api` (social) and `network_mode: host` (hermes-gateway) under Podman's compose path.
-- `trendi-sip-firewall.service` hooks Docker's iptables chains; Asterisk needs UDP 5060 and 10000-10099 through Podman's netavark rules.
-- Digest-only images (internal Hermes, rollback candidates) must be moved with `docker save | podman load` (the script does this).
-- cap_drop/cap_add choices made for Hermes under Docker need a re-test on Podman.
-- Reboot behaviour: `podman-restart.service` is not enabled yet; `restart: unless-stopped` containers will not come back after a reboot
-  until it is.
-- Docker must stay installed (disabled, not purged) for at least a week after the last stack moves.
+## Production move complete (attempt 4, 2026-11-17)
+Attempt 3 failed on defect 7. With the fix (`4aa9975`) the re-run succeeded: each stack now starts in one `up`, and the run
+reached `trendi and asterisk are running under Podman` with all 13 containers (trendi + asterisk) healthy. Verified like a
+customer: `owner/version`, `/studio/` and `trendibizz.com` all 200; SIP probe `no answer (dropped)`; `pjsip show registrations`
+shows `concierge-reg ... Registered (exp. ~3562s)`; `iptables -L FORWARD -n` shows TRENDI-SIP ahead of NETAVARK_FORWARD;
+healthcheck 0 fail. Docker's data at `/var/lib/docker` was never modified.
+
+8. **Docker kept being re-pulled up by the host's timer services.** After the move, `docker` was stopped and `/run/docker.sock`
+   symlinked to `/run/podman/podman.sock`, but `docker.service` kept coming back `active`, recreating the socket and undoing the
+   symlink. Cause: the box's `/etc/systemd/system/trendi-{backup,meta-review,restore-test}.service` still carried
+   `Requires=docker.service` from the 2026-11-08 Docker setup; `trendi-meta-review.timer` fires every 20 s, so each fire re-pulled
+   Docker. The repo already had the fixed units (`Requires=podman.socket`) — they had just never been copied to
+   `/etc/systemd/system/`. Fix: deployed the repo units (commit `d47eeab`) and `systemctl daemon-reload`. Proof: after the fix,
+   `docker.service`/`docker.socket` stay `inactive` across multiple meta-review timer fires and the symlink stays intact.
+
+9. **`trendi-sip-firewall.service` ordered itself after Docker and wanted it.** `After=docker.service` + `Wants=docker.service`
+   would restart Docker at boot (undoing the symlink and its iptables chains) and ran before Podman's netavark created
+   NETAVARK_FORWARD, so the TRENDI-SIP jump could not be guaranteed ahead of it. Fix: `After=network-online.target
+   podman-restart.service podman.socket` and no `Wants=docker`, in `harden_host.sh` (the canonical source that writes the unit).
+   Proof: after `systemctl reboot` the service is `active`, `iptables -L FORWARD -n` shows TRENDI-SIP at line 1 ahead of
+   NETAVARK_FORWARD, and docker stays disabled.
+
+## Reboot test (the real proof)
+Rebooted the droplet after the move. After boot: the `/run/docker.sock` symlink persisted (tmpfiles.d `L+` rule), Docker stayed
+`inactive` + `disabled`, `podman-restart.service` brought all 13 production containers back (`restart: unless-stopped`), the SIP
+firewall came up with the jump ahead of NETAVARK_FORWARD, `concierge-reg` re-registered with the carrier (`Registered`,
+exp. ~3551 s), endpoints 200, healthcheck 0 fail. `docker` CLI + the compose plugin stay installed as the client for Podman's
+socket.
+
+## Still open
+- `network_mode: host` (hermes-gateway) under Podman's compose path, and the digest-only Hermes image, were not part of this move.
+- cap_drop/cap_add choices for the customer Hermes container need a re-test on Podman (already flagged in the Hermes record).
+- Docker must stay installed (disabled, not purged) for at least a week.
+- Operator items: delete the one-day `podman-snapshot` DigitalOcean token; approve or decline the Version 1 announcement email;
+  check tomorrow after 07:00 NZDT whether the first `trendi-support` morning email went out.
