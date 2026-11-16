@@ -215,12 +215,6 @@ def check_api_internal() -> list[dict]:
 
 
 def check_database() -> list[dict]:
-    if onboarding:
-        detail = "; ".join(f"{t.get('slug')}: {','.join(b.get('check','?') for b in t.get('blocked') or [])}"
-                           for t in onboarding)
-        results.append(_warn("inbound:onboarding",
-                             f"new tenant still onboarding (fails after the grace window): {detail}"[:400]))
-
     code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select 1"])
     if code != 0 or out.strip() != "1":
@@ -348,6 +342,12 @@ def check_inbound(api_env: dict) -> list[dict]:
     else:
         green = len(tenants) - len(broken)
         results.append(_ok("inbound:chain", f"{green} tenants green{note}"))
+
+    if onboarding:
+        detail = "; ".join(f"{t.get('slug')}: {','.join(b.get('check','?') for b in t.get('blocked') or [])}"
+                           for t in onboarding)
+        results.append(_warn("inbound:onboarding",
+                             f"new tenant still onboarding (fails after the grace window): {detail}"[:400]))
 
     code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select count(*) from inbound_audit where action='inbound_rejected' "

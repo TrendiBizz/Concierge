@@ -88,3 +88,11 @@ def test_a_new_tenant_is_split_into_onboarding_not_breakage():
     assert [t["slug"] for t in live] == ["real"]
     assert [t["slug"] for t in test] == ["fictitious"]
     assert [t["slug"] for t in onboarding] == ["new"]
+
+
+def test_the_database_check_does_not_reference_inbound_state(monkeypatch):
+    """A warning block landed in `check_database` and crashed the whole report with
+    `name 'onboarding' is not defined` — a NameError in a function nothing exercised. Call it."""
+    monkeypatch.setattr(healthcheck, "run", lambda *args, **kwargs: (0, "1"))
+    results = healthcheck.check_database()
+    assert [r["check"] for r in results] == ["postgres:query"]
