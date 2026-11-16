@@ -99,7 +99,7 @@ The first three streams are recorded in their own files. The last one is this se
 
 1. **DECIDED 2026-11-16 — prices are tax-inclusive (option A), and Stripe still adds 15%.** Jo:
    "we include the tax for nzd" → the USD figure on the page is the total every customer pays; prices
-   stay $250 / $2,700 / $1,500 / $1,000; no currency change, no GST wording. **Blocked on Jo** creating
+   stay $250 / $2,700 (SEO since changed to USD 500 / 500, below); no currency change, no GST wording. **Blocked on Jo** creating
    four tax-inclusive Stripe prices and repointing the four Payment Links (a price's tax behaviour is
    immutable — new prices are required; automatic tax stays on). **Then I finish:** update
    `products.js` + the buy links in `pricing.html`, turn the "Do prices include tax?" FAQ (currently
@@ -107,15 +107,12 @@ The first three streams are recorded in their own files. The last one is this se
    deploy and verify. The copy must not ship before Stripe is inclusive or the page lies. Full steps
    and the revenue consequence (~13% less per NZ sale) in
    `QA/verification/PRICING_TAX_INCLUSIVE_2026-11-16.md`.
-   **URGENT (measured 2026-11-16 15:03):** the two **SEO-account** links on `/pricing` —
-   `28E8wRbntdSjcsQg7RcEw03` ($1,500/month) and `28EcN7bnt6pRgJ6f3NcEw04` ($1,000 deposit) — now
-   render **"The link is no longer active."** On 2026-11-15 14:39 the first was live and charged
-   $1,725.00 with a visible "GST (15%) $225.00" line. The Concierge links (`dRm7sM…`, `6oU28s…`)
-   are still live at $250 / $2,700. Nothing in the repo changed, so this is a Stripe-side
-   deactivation with the website left pointing at the retired links — the $1,500 retainer CTA
-   dead-ends buyers right now. **Next:** get the two replacement SEO links (or reactivate the old
-   ones) and repoint `website/pricing.html`; until then the interim option is to point those two
-   buttons at `/contact`. See `QA/verification/DEAD_PAYMENT_LINKS_2026-11-16.md`.
+   **RESOLVED 2026-11-16, commit `912452f`:** Jo supplied the replacement tax-inclusive SEO links
+   (`00wcN70IP4hJdwU8FpcEw06` USD 500/month, `7sY7sNgHN6pR50obRBcEw05` USD 500 deposit); the dead
+   `28E8wR…`/`28EcN7…` links are gone from the repo and from live HTML, prices read USD 500 / USD 500,
+   the tax FAQ answers "Yes", and `site:prices` guards against both regressions. Deployed and
+   `verify-deploy.sh` is clean. Remaining: Cloudflare still caches an old `/products.js` (purge or wait).
+   See `QA/verification/DEAD_PAYMENT_LINKS_2026-11-16.md`.
 2. **CLOSED 2026-11-16 — yearly is not contradictory.** `products.js` carries a live yearly link
    (`6oU28s8OH7b76528aQ04804`, USD 2,700/year, price `price_1UbnwwJVm2iwIxUdMoJ9g2Ve`), `/pricing` and
    `/concierge` both advertise it, and all four buy links returned HTTP 200 on 2026-11-16. The old
@@ -233,17 +230,13 @@ for. Do not run `deploy-site.sh` expecting to fix drift — the drift was the un
 
 **Next, in this order:**
 
-1. **URGENT — the two SEO buy links are dead in production.** `/pricing` sends buyers of the $1,500
-   plan and the $1,000 deposit to retired Stripe links ("The link is no longer active"). Get the
-   replacement links (or reactivate the old ones) and repoint `website/pricing.html`; if that takes
-   more than a day, point both buttons at `/contact` in the meantime so nobody hits a dead end.
-   See item 1 and `QA/verification/DEAD_PAYMENT_LINKS_2026-11-16.md`.
+1. **DONE (912452f) — the two SEO buy links were dead; replaced with the new tax-inclusive links and
+   deployed.** Only follow-up: purge Cloudflare's cached `/products.js` if it still shows the old links.
 2. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
    just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
    `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
-3. Finish the tax-inclusive copy once the new links exist: FAQ answer, fine print, link updates and
-   the non-answer regression test (item 1). Do not ship "tax included" copy before Stripe is
-   inclusive.
+3. DONE (912452f): tax-inclusive copy, FAQ answer, fine print, link updates and the non-answer
+   regression test are shipped.
 4. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,

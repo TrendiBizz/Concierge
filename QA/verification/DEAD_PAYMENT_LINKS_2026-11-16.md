@@ -1,5 +1,22 @@
 # Live payment links deactivated; site still points at them — 2026-11-16
 
+> **RESOLVED 2026-11-16 in commit `912452f`.** Jo created two tax-inclusive USD links on
+> `acct_1UUZfy` and deactivated the old ones on purpose. `/pricing` and `/seo` now point at
+> `buy.stripe.com/00wcN70IP4hJdwU8FpcEw06` (USD 500/month) and `buy.stripe.com/7sY7sNgHN6pR50obRBcEw05`
+> (USD 500 deposit); every SEO price on the site is USD 500, tax included, no GST wording.
+> Deployed with `deploy-site.sh` + `sync-tooling.sh`; `verify-deploy.sh` exit 0. Live proof: both new
+> links appear twice on `https://trendibizz.com/pricing`; no `28E8wR`/`28EcN7` on any HTML page,
+> `llms.txt` or `sitemap.xml`; both Stripe links return HTTP 200 "Stripe Checkout", not "no longer
+> active". Cause of the original defect: Stripe-side deactivation while the site kept the old URLs.
+> Regression guard: `healthcheck.py` `site:prices` now fails on either retired link or a non-answer tax
+> FAQ (`api/tests/test_site_price_drift.py`, mutation-checked: emptying `RETIRED_PAYMENT_LINKS` turns
+> `test_a_retired_stripe_link_is_reported` red).
+> **Open at time of writing:** Cloudflare was still serving a cached `/products.js` (cf-cache-status HIT,
+> cached 02:02 GMT) containing the old links although the origin is correct; it ages out on its own or
+> needs a purge by someone with Cloudflare access.
+
+The text below is the original incident record, kept as written.
+
 ## What is live right now (measured 2026-11-16 15:03 NZDT)
 
 | CTA on the site | Link | Rendered result |
