@@ -160,3 +160,16 @@ def test_a_phone_without_an_install_prompt_is_not_told_to_scan_a_qr_with_itself(
     assert "Install app” or “Add to Home screen" in page
     assert "Install from the browser menu" in page
     assert "Add to Home screen" in page
+
+
+def test_an_iphone_browser_other_than_safari_is_told_why_it_cannot_install():
+    """Reported 2026-11-16: the QR in Chrome on an iPhone said "use Safari" and read as a broken
+    page. Apple only exposes Add to Home Screen in Safari; Chrome, Firefox and Edge on iOS cannot
+    install a web app at all, and no page can force the switch. Name the browser and hand over the
+    link instead of a bare instruction."""
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    for token in ("CriOS", "FxiOS", "EdgiOS", "OPiOS", "GSA"):
+        assert token in page, f"the page does not recognise {token} on iOS"
+    assert "Apple only allows Safari" in page
+    assert "copy-ios" in page, "the iPhone path has no way to move the link into Safari"
+    assert "safari-https://" not in page, "an untested URL scheme is being offered as a button"

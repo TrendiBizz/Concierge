@@ -92,13 +92,17 @@
   </section>
 
   <section class="card" id="ios" hidden>
-    <h2>On iPhone or iPad: three taps in Safari</h2>
+    <h2 id="ios-title">On iPhone or iPad: three taps in Safari</h2>
+    <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari to do it. No website can change that, and no web page can start the install by itself.</p>
     <ol>
-      <li>Open this page in <strong>Safari</strong> (not the Instagram or Facebook browser).</li>
+      <li>Open this page in <strong>Safari</strong>.</li>
       <li>Tap the <strong>Share</strong> button — the square with the arrow pointing up.</li>
       <li>Scroll and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
     </ol>
-    <p>Apple does not let a web page start the install itself. Those taps are the only way, and they give you the same full-screen app.</p>
+    <div class="row">
+      <button class="secondary" id="copy-ios" type="button">Copy the link for Safari</button>
+    </div>
+    <p class="fine" id="copy-ios-note" role="status"></p>
   </section>
 
   <section class="card" id="menu" hidden>
@@ -134,6 +138,17 @@
   var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
   var android = /Android/i.test(ua);
+  // Which browser this is, on iOS. Apple only exposes "Add to Home Screen" in Safari, so Chrome,
+  // Firefox, Edge and the in-app browsers on an iPhone cannot install a web app at all — saying
+  // "use Safari" without saying why reads like the site is broken.
+  var iosBrowser = /CriOS/.test(ua) ? 'Chrome'
+    : /FxiOS/.test(ua) ? 'Firefox'
+    : /EdgiOS/.test(ua) ? 'Edge'
+    : /OPiOS/.test(ua) ? 'Opera'
+    : /GSA/.test(ua) ? 'The Google app'
+    : /Instagram/.test(ua) ? 'Instagram'
+    : /FBAN|FBAV/.test(ua) ? 'Facebook'
+    : '';
   var deferred = null;
 
   function show(id) { var el = document.getElementById(id); if (el) el.hidden = false; }
@@ -149,8 +164,20 @@
       if (desktopInstall) desktopInstall.hidden = !deferred;
       show('desktop'); return;
     }
+    // iOS first: Apple never fires the install prompt, and should one ever appear on an iOS
+    // browser it would be a dead button. Safari's gesture is the only real route there.
+    if (ios) {
+      var note = document.getElementById('ios-browser-note');
+      var name = document.getElementById('ios-browser-name');
+      if (note && name && iosBrowser) {
+        name.textContent = iosBrowser;
+        note.hidden = false;
+      }
+      var title = document.getElementById('ios-title');
+      if (title && iosBrowser) title.textContent = 'On iPhone, install from Safari — not ' + iosBrowser;
+      show('ios'); return;
+    }
     if (deferred) { show('one-tap'); return; }
-    if (ios) { show('ios'); return; }
     var copy = document.getElementById('menu-copy');
     if (copy) {
       copy.textContent = android
@@ -191,20 +218,24 @@
     if (button) button.addEventListener('click', startInstall);
   });
 
-  var copy = document.getElementById('copy');
-  if (copy) {
-    copy.addEventListener('click', function () {
-      var url = 'https://concierge.trendibizz.com/studio/install';
-      var note = document.getElementById('copy-note');
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(function () {
-          if (note) note.textContent = 'Install link copied.';
-        }).catch(function () { if (note) note.textContent = 'Select the link above and copy it.'; });
-      } else if (note) {
-        note.textContent = 'Select the link above and copy it.';
-      }
-    });
+  var INSTALL_URL = 'https://concierge.trendibizz.com/studio/install';
+  function copyLink(noteId, done) {
+    var note = document.getElementById(noteId);
+    function say(text) { if (note) note.textContent = text; }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(INSTALL_URL).then(function () { say(done); })
+        .catch(function () { say('Select this page\'s address and copy it instead.'); });
+    } else {
+      say('Select this page\'s address and copy it instead.');
+    }
   }
+  ['copy', 'copy-ios'].forEach(function (id) {
+    var button = document.getElementById(id);
+    if (button) button.addEventListener('click', function () {
+      copyLink(id === 'copy' ? 'copy-note' : 'copy-ios-note',
+        id === 'copy' ? 'Install link copied.' : 'Copied. Now open Safari, paste it in the address bar, then Share → Add to Home Screen.');
+    });
+  });
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/studio/sw-v2.js', {updateViaCache: 'none'}).catch(function () {});

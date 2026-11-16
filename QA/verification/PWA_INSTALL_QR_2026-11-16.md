@@ -138,3 +138,53 @@ The install page is now its **own HTML document**, not a route in the app:
 No web page can install itself without a gesture. On Android the QR now lands directly on a page
 whose only action is **Install Concierge** (one tap). On iPhone, Apple requires Safari's
 Share → **Add to Home Screen** (three taps); no site can bypass that.
+
+---
+
+# Follow-up: iPhone Chrome cannot install, and now says why (same day)
+
+## The question
+
+"The QR doesn't work on an iPhone using Chrome — it asks you to use Safari."
+
+## The answer
+
+That is Apple's rule, not a defect in the page. On iOS, **"Add to Home Screen" exists only in
+Safari**. Chrome, Firefox, Edge and the in-app browsers (Instagram, Facebook) on iOS are WebKit
+shells that Apple does not give the install action to, and `beforeinstallprompt` is not fired on
+iOS at all — so there is no button a site can offer there. No web page can switch the browser
+either; only the person can. Apple documents the feature as a Safari feature
+([Apple Support](https://support.apple.com/fr-ne/guide/iphone/iphea86e5236/26/ios/26)); the Chrome
+support forum carries the same report
+([Chrome help thread](https://support.google.com/chrome/thread/272737774/add-a-website-to-home-screen-option-is-not-available-in-chrome?hl=en)).
+This deployment is in New Zealand, outside the EU changes to browser engines, so the Safari-only
+path is the one that applies.
+
+## What changed
+
+Saying "use Safari" without a reason reads like the site is broken, so the iPhone path now:
+
+- names the browser it detected — "On iPhone, install from Safari — not **Chrome**";
+- says plainly that Chrome on iPhone cannot add a web app to the Home Screen and that no site can
+  change that;
+- gives the three Safari taps;
+- offers **Copy the link for Safari**, because copying and pasting is the only reliable way across
+  from Chrome (no URL scheme is offered — an untested `x-safari-` link would be a button that does
+  nothing);
+- checks iOS **before** the install-prompt branch: Apple never fires that prompt, and if a browser
+  ever did on iOS the button would be dead.
+
+Detected: `CriOS` (Chrome), `FxiOS` (Firefox), `EdgiOS` (Edge), `OPiOS` (Opera), `GSA` (Google
+app), `Instagram`, `Facebook`.
+
+## Proof
+
+- Emulated iPhone (390×844, iOS 18.2 Chrome UA): one visible section, `ios`; heading "On iPhone,
+  install from Safari — not Chrome"; buttons "Copy the link for Safari". Screenshot:
+  `install-iphone-chrome-2026-11-16.png`.
+- Emulated Android: `one-tap`, "Install Concierge".
+- Emulated desktop: `desktop`, the QR.
+- `tests/test_pwa_install.py` (14) asserts the browser detection, the explanation, the copy button,
+  and that no untested URL scheme is offered.
+- Suite: 1444 passed, 19 skipped, 29 failed (the known local-Postgres outage). Deployed; Live page
+  confirmed.
