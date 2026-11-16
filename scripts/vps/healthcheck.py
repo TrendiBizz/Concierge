@@ -7,7 +7,9 @@ GitHub Actions check covers "is the box even reachable" from outside.
 
 Alerting sends email through the same Brevo SMTP account the product uses, to
 HEALTH_ALERT_TO. Alerts are de-duplicated by check name: one mail when a check goes
-bad, a reminder every six hours while it stays bad, and one "recovered" mail.
+bad, a reminder every two days while it stays bad, and one "recovered" mail for a failure. A
+warning that clears is not announced, and one that comes back inside the reminder window is not
+announced again: a flapping warning used to mail on every swing.
 
 Exit code 0 = everything healthy, 1 = at least one failure (so cron mail also fires).
 Reads secrets from /opt/trendi/shared/api.env and compose.env; never prints them.
@@ -34,7 +36,7 @@ COMPOSE_ENV = Path(os.environ.get("COMPOSE_ENV", "/opt/trendi/shared/compose.env
 STATE_FILE = Path(os.environ.get("HEALTH_STATE", "/opt/trendi/monitoring/state.json"))
 STATUS_FILE = Path(os.environ.get("HEALTH_STATUS", "/opt/trendi/monitoring/status.json"))
 ALERT_TO = os.environ.get("HEALTH_ALERT_TO", "kiwi18@gmail.com")
-REMIND_HOURS = float(os.environ.get("HEALTH_REMIND_HOURS", "6"))
+REMIND_HOURS = float(os.environ.get("HEALTH_REMIND_HOURS", "48"))
 UA = "trendi-healthcheck/1.0"
 
 # Containers that must be running. "healthy" means the container defines a healthcheck
@@ -1027,7 +1029,12 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
         first_seen = previous.get("first_seen")
         last_sent = previous.get("last_sent")
         key = item["status"]
-        if previous.get("key") != key:
+        if previous.get("status") == "cleared" and previous.get("key") == key and last_sent \
+                and now - datetime.fromisoformat(last_sent) <= timedelta(hours=remind):
+            # A warning that blinked off and on again: the operator already has this one.
+            state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
+                           "first_seen": first_seen or now.isoformat(), "last_sent": last_sent}
+        elif previous.get("key") != key or previous.get("status") == "cleared":
             new_alerts.append(item)
             state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
                            "first_seen": first_seen or now.isoformat(), "last_sent": now.isoformat()}
@@ -1039,10 +1046,18 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
             state[name]["detail"] = item["detail"]
 
     for name, previous in list(state.items()):
-        if name not in problems and previous.get("status") in ("fail", "warn"):
-            recoveries.append({"check": name, "was": previous.get("status"),
-                               "since": previous.get("first_seen")})
+        if name in problems:
+            continue
+        if previous.get("status") == "fail":
+            recoveries.append({"check": name, "was": "fail", "since": previous.get("first_seen")})
             state.pop(name, None)
+        elif previous.get("status") == "warn":
+            # Silent: a warning that clears needs no mail. Remember it, so a flap does not re-announce.
+            previous["status"] = "cleared"
+        elif previous.get("status") == "cleared":
+            last_sent = previous.get("last_sent")
+            if not last_sent or now - datetime.fromisoformat(last_sent) > timedelta(hours=remind):
+                state.pop(name, None)
     return new_alerts, reminders, recoveries
 
 

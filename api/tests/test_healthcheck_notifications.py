@@ -46,9 +46,36 @@ def test_a_wordier_detail_does_not_email_again():
 def test_a_still_broken_condition_reminds_once_the_window_passes():
     state = {}
     healthcheck.plan_notifications(a_problem(), state, NOW)
+    _, reminders, _ = healthcheck.plan_notifications(a_problem(), state, NOW + timedelta(hours=47))
+    assert reminders == [], "two days is the reminder interval, not six hours"
     alerts, reminders, _ = healthcheck.plan_notifications(
-        a_problem(), state, NOW + timedelta(hours=7))
+        a_problem(), state, NOW + timedelta(hours=49))
     assert alerts == [] and len(reminders) == 1
+
+
+def test_a_warning_that_clears_is_not_announced():
+    state = {}
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    alerts, reminders, recoveries = healthcheck.plan_notifications({}, state, NOW + timedelta(hours=1))
+    assert (alerts, reminders, recoveries) == ([], [], [])
+
+
+def test_a_flapping_warning_is_not_announced_again_inside_the_window():
+    state = {}
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    healthcheck.plan_notifications({}, state, NOW + timedelta(hours=1))
+    alerts, reminders, _ = healthcheck.plan_notifications(
+        a_problem(status="warn"), state, NOW + timedelta(hours=8))
+    assert alerts == [] and reminders == []
+
+
+def test_a_warning_back_after_the_window_is_announced_again():
+    state = {}
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    healthcheck.plan_notifications({}, state, NOW + timedelta(hours=1))
+    alerts, _, _ = healthcheck.plan_notifications(
+        a_problem(status="warn"), state, NOW + timedelta(hours=60))
+    assert len(alerts) == 1
 
 
 def test_going_from_fail_to_warn_is_a_new_alert():

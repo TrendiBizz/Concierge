@@ -10,7 +10,7 @@
 set -u
 ENV_FILE=${ENV_FILE:-/opt/trendi/shared/api.env}
 STAMP_FILE=${STAMP_FILE:-/opt/trendi/monitoring/.last_alert}
-QUIET_SECONDS=${QUIET_SECONDS:-3600}   # at most one alert an hour, so an outage is not a flood
+QUIET_SECONDS=${QUIET_SECONDS:-172800}   # at most one of these every two days; healthcheck.py mails the transitions
 
 now=$(date +%s)
 if [ -f "$STAMP_FILE" ]; then
