@@ -80,5 +80,9 @@ A web page cannot add itself to a home screen. The QR opens the install page; An
 one tap, iPhone needs Safari's Share → Add to Home Screen. Both the QR block and the install page
 say so rather than promising a silent install.
 
+Screenshots of the live page:
+`pwa-install-page-desktop-2026-11-16.png` (Chrome offering the one-tap install) and
+`pwa-install-qr-desktop-2026-11-16.png` (the QR that decodes to the install URL).
+
 **Not yet verified:** installation on a physical iPhone and Android handset. The browser accepted
 the app and offered the prompt in headless Chrome; a real phone is the remaining proof.
