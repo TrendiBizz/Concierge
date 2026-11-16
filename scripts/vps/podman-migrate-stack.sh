@@ -12,7 +12,8 @@
 #
 # Why volumes are copied with cp -a and not tar-in-a-container: the stack is stopped, root owns both stores, and
 # cp -a keeps ownership, modes and sparse files exactly. A running database must never be copied this way.
-set -euo pipefail
+# -E: without it the ERR trap does not fire for a failure inside a function (pdc/dc), and the rollback silently never ran.
+set -Eeuo pipefail
 
 dir="${1:?usage: podman-migrate-stack.sh COMPOSE_DIR [--pg SERVICE:USER] [--profile NAME]...}"; shift
 pg=""; profiles=()
@@ -28,10 +29,21 @@ COMPOSE_FILE_ARG=()
 for f in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do [[ -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
 [[ ${#COMPOSE_FILE_ARG[@]} -gt 0 ]] || { echo "no compose file in $dir" >&2; exit 1; }
 
+WAIT_TRIES="${WAIT_TRIES:-60}"   # x3s
 PODMAN_SOCK="unix:///run/podman/podman.sock"
 dc()  { docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
 pdc() { DOCKER_HOST="$PODMAN_SOCK" docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
 
+# Refuse before changing anything: Podman's compat API splits an exec-form healthcheck argument on spaces, so
+# `test: [CMD, python, -c, "import x; ..."]` runs `python -c import` and is unhealthy forever (found 2026-11-17).
+# Write such checks as [CMD-SHELL, "..."] first.
+dc config --format json | python3 -c '
+import sys, json
+bad = [n for n, s in json.load(sys.stdin)["services"].items()
+       for t in [(s.get("healthcheck") or {}).get("test") or []]
+       if t[:1] == ["CMD"] and any(" " in str(a) for a in t[1:])]
+if bad:
+    sys.exit("exec-form healthcheck with a space in an argument (Podman would split it): " + ", ".join(bad) + ". Use CMD-SHELL.")'
 project="$(dc config --format json | python3 -c 'import sys,json;print(json.load(sys.stdin)["name"])')"
 BK="/root/podman-migration/$project-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BK"; chmod 700 "$BK"
@@ -91,13 +103,13 @@ if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then
 fi
 echo "==> starting under Podman"
 pdc up -d
-for _ in $(seq 1 60); do
+for _ in $(seq 1 "$WAIT_TRIES"); do
   states="$(podman ps -a --filter "label=com.docker.compose.project=$project" --format '{{.Status}}')"
   if [[ -n "$states" ]] && ! grep -qiE 'starting|unhealthy|exited|created' <<<"$states"; then ok=1; break; fi
   sleep 3
 done
 podman ps -a --filter "label=com.docker.compose.project=$project" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-[[ "${ok:-0}" == 1 ]] || { echo "stack did not become healthy within 180s" >&2; false; }
+[[ "${ok:-0}" == 1 ]] || { echo "stack did not become healthy in time" >&2; false; }
 trap - ERR
 echo "==> $project is running under Podman. Docker copy of the volumes is untouched at /var/lib/docker."
 echo "    Roll back later with: (cd $dir && DOCKER_HOST=$PODMAN_SOCK docker compose down && docker compose up -d)"
