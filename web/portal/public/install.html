@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Concierge</title>
+<meta name="description" content="Install the Concierge workspace on this phone.">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<meta name="theme-color" content="#c8f560">
+<link rel="manifest" href="/studio/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
+<link rel="apple-touch-icon" href="/studio/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Concierge">
+<!--
+  A plain document, on purpose.
+
+  This used to be a route inside the Studio's single-page app. Scanning the QR could then land on
+  the app's sign-in screen (an existing session, a stale bundle, or the SPA's auth gate winning),
+  which asks for an email address — the opposite of "install this". A static page at the same URL
+  cannot fall through to login: there is no router and no auth here, only the install offer.
+-->
+<style>
+  :root { color-scheme: dark; --ink:#f5f3ff; --muted:#b9b2cd; --accent:#c8f560; --line:#332c47; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 28px 18px 40px;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(800px 420px at 12% -10%, #6b3fa055, transparent 60%),
+      radial-gradient(700px 420px at 100% 0%, #22d3ee33, transparent 55%),
+      #14111f;
+    display: flex; justify-content: center; align-items: flex-start;
+  }
+  main { width: 100%; max-width: 560px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .mark {
+    width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), #7c5cff 70%, #22d3ee);
+    color: #101014; font-weight: 800; font-size: 18px;
+  }
+  .brand strong { font-size: 17px; letter-spacing: -.01em; }
+  h1 { font-size: clamp(27px, 7vw, 34px); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 12px; }
+  p { margin: 0 0 14px; color: var(--muted); }
+  .card {
+    margin-top: 22px; padding: 22px; border-radius: 18px;
+    background: #ffffff0a; border: 1px solid var(--line);
+  }
+  h2 { font-size: 19px; margin: 0 0 10px; letter-spacing: -.01em; }
+  ol { margin: 6px 0 12px; padding-left: 22px; color: var(--muted); }
+  ol li { margin-bottom: 8px; }
+  .button, button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 52px; padding: 0 24px; border: 0; border-radius: 999px;
+    background: var(--accent); color: #101014; font: inherit; font-weight: 750; font-size: 16px;
+    cursor: pointer; text-decoration: none;
+  }
+  .button.secondary, button.secondary {
+    background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 650;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .qr { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .qr img { width: 168px; height: 168px; background: #fff; padding: 8px; border-radius: 12px; }
+  .url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); word-break: break-all; }
+  .fine { font-size: 12px; color: #8f87a6; margin-top: 26px; }
+  .hide { display: none !important; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><span class="mark" aria-hidden="true">C</span><strong>Concierge</strong></div>
+  <h1>Put Concierge on this phone</h1>
+  <p>The whole workspace — enquiries, quotations, calls, marketing — as an app icon that opens full screen. This is not the chat bubble that sits on your website.</p>
+
+  <section class="card" id="installed" hidden>
+    <h2>Concierge is already on this phone</h2>
+    <p>Open it from your home screen. If you cannot find the icon, use your browser menu and choose “Install app” or “Add to Home Screen”.</p>
+    <div class="row"><a class="button" href="/studio/">Open Concierge</a></div>
+  </section>
+
+  <section class="card" id="one-tap" hidden>
+    <h2>One tap to install</h2>
+    <p>Your browser can install Concierge straight from this page. No app store, no download.</p>
+    <div class="row">
+      <button id="install">Install Concierge</button>
+      <a class="button secondary" href="/studio/">Open without installing</a>
+    </div>
+    <p class="fine" id="install-note" role="status"></p>
+  </section>
+
+  <section class="card" id="ios" hidden>
+    <h2>On iPhone or iPad: three taps in Safari</h2>
+    <ol>
+      <li>Open this page in <strong>Safari</strong> (not the Instagram or Facebook browser).</li>
+      <li>Tap the <strong>Share</strong> button — the square with the arrow pointing up.</li>
+      <li>Scroll and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+    </ol>
+    <p>Apple does not let a web page start the install itself. Those taps are the only way, and they give you the same full-screen app.</p>
+  </section>
+
+  <section class="card" id="menu" hidden>
+    <h2>Install from the browser menu</h2>
+    <p id="menu-copy">This browser has not offered its own install button, but it can still install the app. Open the browser menu and choose “Install app” or “Add to Home screen”.</p>
+    <p>On Android, Chrome gives the best result. On iPhone the install must be done in Safari — other browsers cannot add to the home screen.</p>
+  </section>
+
+  <section class="card" id="desktop" hidden>
+    <h2>Scan this with the phone you want it on</h2>
+    <p>Point the phone camera at the code, then install it there. On Android the page shows an <strong>Install</strong> button; on iPhone use Safari’s Share → <strong>Add to Home Screen</strong>.</p>
+    <div class="qr">
+      <img src="/studio/install-qr.svg" width="168" height="168" alt="QR code for the Concierge install page">
+      <div>
+        <p class="url">https://concierge.trendibizz.com/studio/install</p>
+        <div class="row">
+          <button class="secondary" id="copy" type="button">Copy the install link</button>
+          <button class="secondary" id="install-desktop" type="button" hidden>Install on this computer</button>
+        </div>
+        <p class="fine" id="copy-note" role="status"></p>
+      </div>
+    </div>
+  </section>
+
+  <p class="fine">The QR opens this page; the phone does the install. A web page cannot put an icon on the home screen without that one tap from you.</p>
+</main>
+
+<script>
+(function () {
+  var standalone = window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+  var ua = navigator.userAgent || '';
+  var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+  var android = /Android/i.test(ua);
+  var deferred = null;
+
+  function show(id) { var el = document.getElementById(id); if (el) el.hidden = false; }
+  function hide(id) { var el = document.getElementById(id); if (el) el.hidden = true; }
+
+  function decide() {
+    ['installed', 'one-tap', 'ios', 'menu', 'desktop'].forEach(hide);
+    if (standalone) { show('installed'); return; }
+    // A computer is shown the code to scan even when its own browser offers an install: the point
+    // of this page is the phone in the person's hand, and a desktop install is a different thing.
+    if (!mobile) {
+      var desktopInstall = document.getElementById('install-desktop');
+      if (desktopInstall) desktopInstall.hidden = !deferred;
+      show('desktop'); return;
+    }
+    if (deferred) { show('one-tap'); return; }
+    if (ios) { show('ios'); return; }
+    var copy = document.getElementById('menu-copy');
+    if (copy) {
+      copy.textContent = android
+        ? 'This browser has not offered its own install button, but it can still install the app. Tap the ⋮ menu (top right) and choose “Install app” or “Add to Home screen”.'
+        : 'Open this page in Safari and use Share → “Add to Home Screen”. Other browsers cannot add to the home screen.';
+    }
+    show('menu');
+  }
+
+  // Capture the browser's offer before anything else can consume it.
+  window.addEventListener('beforeinstallprompt', function (event) {
+    event.preventDefault();
+    deferred = event;
+    decide();
+  });
+  window.addEventListener('appinstalled', function () {
+    deferred = null;
+    standalone = true;
+    decide();
+  });
+
+  function startInstall() {
+    if (!deferred) return;
+    var event = deferred;
+    deferred = null;
+    var note = document.getElementById('install-note');
+    event.prompt();
+    event.userChoice.then(function (choice) {
+      if (note) note.textContent = choice && choice.outcome === 'accepted'
+        ? 'Installing — the Concierge icon will appear on your home screen.'
+        : 'The install was dismissed. You can try again, or use the browser menu.';
+    }).catch(function () { /* the prompt was already spent */ });
+    decide();
+  }
+
+  ['install', 'install-desktop'].forEach(function (id) {
+    var button = document.getElementById(id);
+    if (button) button.addEventListener('click', startInstall);
+  });
+
+  var copy = document.getElementById('copy');
+  if (copy) {
+    copy.addEventListener('click', function () {
+      var url = 'https://concierge.trendibizz.com/studio/install';
+      var note = document.getElementById('copy-note');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(function () {
+          if (note) note.textContent = 'Install link copied.';
+        }).catch(function () { if (note) note.textContent = 'Select the link above and copy it.'; });
+      } else if (note) {
+        note.textContent = 'Select the link above and copy it.';
+      }
+    });
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/studio/sw-v2.js', {updateViaCache: 'none'}).catch(function () {});
+  }
+
+  decide();
+})();
+</script>
+</body>
+</html>

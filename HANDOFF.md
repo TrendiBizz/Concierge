@@ -131,7 +131,10 @@ The first three streams are recorded in their own files. The last one is this se
    chat page keeps its link but lost its QR and is labelled "not the app". Proof: 12 tests, two
    mutations, and the live page's QR decoded with OpenCV to
    `https://concierge.trendibizz.com/studio/install`; headless Chrome on the live page rendered the
-   one-tap Install button. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
+   one-tap Install button. **Follow-up the same day:** on a phone that URL opened the Studio's
+   sign-in screen instead, because it was a route inside the SPA. It is now a standalone document
+   served by `main.py` before the catch-all — no router, no auth, no email field — with the SPA
+   branch and `Install.tsx` deleted. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
 
 11. **Social marks, mobile controls and a stricter SEO gate — 2026-11-16 (this session).** The
    Studio's social connections were text buttons ("Connect linkedin organization"); they are now

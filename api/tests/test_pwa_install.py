@@ -153,7 +153,10 @@ def test_a_phone_without_an_install_prompt_is_not_told_to_scan_a_qr_with_itself(
     the phone you want it on" — on the phone it was already on. The menu route is the honest one."""
     page = (PUBLIC / "install.html").read_text(encoding="utf-8")
     assert "var mobile" in page
-    assert "if (mobile) {" in page, "the phone branch is gone; phones get the desktop QR again"
+    assert "if (!mobile) {" in page, "the desktop branch is gone"
+    assert page.index("if (!mobile) {") < page.index("if (deferred) {"), \
+        "a computer must be shown the QR even when its own browser offers an install"
+    assert "show('menu')" in page, "phones without an install offer lost the browser-menu route"
     assert "Install app” or “Add to Home screen" in page
     assert "Install from the browser menu" in page
     assert "Add to Home screen" in page

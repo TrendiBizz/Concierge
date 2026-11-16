@@ -86,3 +86,55 @@ Screenshots of the live page:
 
 **Not yet verified:** installation on a physical iPhone and Android handset. The browser accepted
 the app and offered the prompt in headless Chrome; a real phone is the remaining proof.
+
+---
+
+# Follow-up: the QR opened a sign-in screen, not an install (same day)
+
+## What the operator saw
+
+Scanning the install QR on a phone landed on the Studio's sign-in screen, which asks for an email
+address to send a link. "What is the point of the QR code if you have to do this?"
+
+## Cause
+
+`/studio/install` was a **route inside the Studio's single-page app**. The server answered the URL
+with the app shell, and the SPA decided what to render. Anything that put the SPA in its signed-out
+or stale state — a stored session, a cached bundle from before the route existed, or the auth gate
+winning the render — produced the sign-in screen instead of the install offer. The page could be
+correct in a headless browser and still wrong on a phone that had used the Studio before.
+
+## Fix
+
+The install page is now its **own HTML document**, not a route in the app:
+
+- `web/portal/public/install.html` — no React, no router, no auth, no email field. It links the
+  manifest, registers the worker, captures `beforeinstallprompt` itself, and shows exactly one of:
+  already installed / one-tap install (phone) / Safari Share → Add to Home Screen (iPhone) /
+  browser-menu route (other phones) / QR + "install on this computer" (desktop).
+- `main.py` serves it at `/studio/install` **before** the `/studio/{path}` catch-all, with
+  `no-store` and `noindex`. If the file is missing (a deploy in progress) it falls back to the
+  shell rather than 404.
+- `install-qr.svg` is a static asset on the same page, so a desktop still gets a scannable code.
+- The SPA branch and `Install.tsx` were deleted: one implementation, not two.
+- Desktop now always shows the QR even when the desktop browser offers an install — the point of
+  the page is the phone in the person's hand.
+
+## Proof
+
+- Live `/studio/install` returns `<!doctype html><title>Install Concierge</title>` with **zero**
+  app bundle references — it cannot render a login screen.
+- Emulated Pixel 8 at 390px: one visible section, `one-tap`, buttons "Install Concierge" and
+  "Open without installing".
+- Emulated desktop at 1440px: one visible section, `desktop`, with the QR and "Install on this
+  computer".
+- `tests/test_pwa_install.py` (13 tests) now asserts the document is standalone (no email field, no
+  `location.pathname`), that the static route is declared before the catch-all, and that the
+  desktop branch precedes the install-prompt branch.
+- `tsc` clean, portal built, Studio and API deployed, `verify-deploy` OK.
+
+## Honest limit, unchanged
+
+No web page can install itself without a gesture. On Android the QR now lands directly on a page
+whose only action is **Install Concierge** (one tap). On iPhone, Apple requires Safari's
+Share → **Add to Home Screen** (three taps); no site can bypass that.
