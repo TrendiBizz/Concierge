@@ -160,6 +160,39 @@ def invite_still_good(used_at, now, grace_minutes: int = GRACE_MINUTES) -> bool:
         return False
 
 
+CODE_MINUTES = 10
+
+
+async def make_code(tenant_id, email: str, role: str, avoid: set[str] | None = None) -> str:
+    """A six-digit sign-in code, delivered by email.
+
+    Needed because an installed web app has its own storage and the one-click link opens in the
+    browser, not in the app: a customer who installed Concierge could not get signed in without
+    pasting a URL. A code is typed where they already are.
+
+    Stored as a digest, single use, ten minutes. Reusing `tenant_invites` keeps one expiry, one
+    revocation path and one redemption (accept_invite) instead of a second parallel auth system.
+    """
+    avoid = avoid or set()
+    for _ in range(20):
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        if code not in avoid:
+            break
+    else:  # pragma: no cover - 20 collisions in a million is not a real path
+        raise ValueError("Could not allocate a sign-in code")
+    await db.pool().execute(
+        "INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) "
+        "VALUES($1,$2,$3,'code',$4,now()+make_interval(mins=>$5))",
+        tenant_id, clean_email(email), role, digest(code), CODE_MINUTES,
+    )
+    return code
+
+
+def code_already_used(purpose: str, used_at) -> bool:
+    """A code is single use, with no grace window. A link keeps its grace; a code does not."""
+    return purpose == "code" and used_at is not None
+
+
 async def accept_invite(token: str) -> dict:
     """Sign someone in from their one-click link; no password is created or asked for.
 
@@ -181,6 +214,11 @@ async def accept_invite(token: str) -> dict:
             expires_at = invitation["expires_at"] if "expires_at" in invitation.keys() else None
             if expires_at is not None and expires_at <= datetime.now(timezone.utc):
                 raise ValueError("This link has expired")
+            # The 30-minute grace exists so a double-fired browser exchange does not turn a
+            # successful link sign-in into an error. A six-digit code gets no grace: a replayed
+            # code is a code someone else may have seen.
+            if code_already_used(invitation["purpose"], invitation["used_at"]):
+                raise ValueError("That code has already been used. Ask for a new one.")
             if not invite_still_good(invitation["used_at"], datetime.now(timezone.utc)):
                 raise ValueError("This link has already been used")
             existing = await conn.fetchrow(

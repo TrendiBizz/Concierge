@@ -194,15 +194,16 @@ def test_the_iphone_page_shows_the_button_it_is_talking_about():
         "the Web Share sheet does not carry Safari's Add to Home Screen; offering it is a dead end"
 
 
-def test_an_installed_app_can_finish_signing_in_without_leaving_it():
-    """The emailed link opens in Safari, and a home-screen app has its own storage: signing in
-    there leaves the app signed out, with no route back. Reported 2026-11-16 as "this doesn't work
-    on my iphone". The login screen now accepts the pasted link and redeems it inside the app."""
+def test_an_installed_app_signs_in_with_a_code_not_a_pasted_link():
+    """The emailed link opens in Safari, and a home-screen app has its own storage, so the app
+    stayed signed out. Pasting a URL was the first attempt and was rightly rejected: the login
+    screen now asks for a six-digit code instead, and defaults to it when installed."""
     app = (SRC / "App.tsx").read_text(encoding="utf-8")
-    assert "tokenFromPastedLink" in app
-    assert "#invite=" in app, "a pasted link is not understood"
-    assert "Paste your sign-in link" in app
-    assert "isInstalled()" in app, "the paste route is offered outside an installed app too"
-    assert "/owner/auth/invite" in app
+    assert "/owner/auth/code" in app and "/owner/auth/code/verify" in app
+    assert "Six-digit code" in app
+    assert "Paste your sign-in link" not in app, "the paste-a-URL flow is back"
+    assert "tokenFromPastedLink" not in app
+    assert "isInstalled()" in app and "'code' : 'link'" in app, \
+        "the installed app does not start on the code path"
     page = (PUBLIC / "install.html").read_text(encoding="utf-8")
-    assert "Sign in first, then add it" in page, "the install page does not warn about the second sign-in"
+    assert "six-digit code" in page, "the install page does not say how the installed app signs in"

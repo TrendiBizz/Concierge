@@ -2125,6 +2125,67 @@ async def owner_accept_invite(body: OwnerLinkAccept):
         raise HTTPException(400, friendly.get(str(error), str(error) or "That link did not work.")) from None
 
 
+class OwnerCodeRequest(BaseModel):
+    email: str = Field(max_length=320)
+
+
+class OwnerCodeVerify(BaseModel):
+    email: str = Field(max_length=320)
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+@app.post("/owner/auth/code")
+async def owner_email_code(body: OwnerCodeRequest, request: Request):
+    """Email a six-digit sign-in code.
+
+    For a web app installed on a phone: the one-click link opens in Safari, not in the installed
+    app, and the app has its own storage — so a link cannot sign somebody in there. A code can be
+    typed where they already are. The answer never varies, so it cannot be used to discover which
+    addresses have accounts.
+    """
+    ip = request.client.host if request.client else "unknown"
+    try:
+        email = owner_auth.clean_email(body.email)
+    except ValueError:
+        return {"ok": True}
+    if not await owner_auth.allow_login_attempt(ip, "signin", email):
+        raise HTTPException(429, "Too many attempts. Please try again in a few minutes.")
+    issued: set[str] = set()
+    for account in await owner_auth.account_emails(email):
+        try:
+            code = await owner_auth.make_code(account["tenant_id"], email, account["role"], avoid=issued)
+            issued.add(code)
+            await mailer.send_email(
+                email,
+                f"Your Concierge sign-in code — {account.get('name') or 'your business'}",
+                "Hello,\n\nYour Concierge sign-in code is:\n\n"
+                f"    {code}\n\n"
+                f"It works once and expires in {owner_auth.CODE_MINUTES} minutes. "
+                "Type it into the Concierge app. If you did not ask for it, ignore this message "
+                "and nothing will change.\n\n— Trendi Concierge",
+                from_name="Trendi Concierge",
+            )
+        except Exception:  # noqa: BLE001 - never reveal delivery detail to a caller
+            log.exception("sign-in code could not be sent for %s", account.get("slug"))
+    return {"ok": True}
+
+
+@app.post("/owner/auth/code/verify")
+async def owner_verify_code(body: OwnerCodeVerify, request: Request):
+    """Redeem the six-digit code for a session. Rate-limited, single use, ten minutes."""
+    ip = request.client.host if request.client else "unknown"
+    if not await owner_auth.allow_login_attempt(ip, "code", body.email):
+        raise HTTPException(429, "Too many attempts. Please try again in a few minutes.")
+    try:
+        return await owner_auth.accept_invite(body.code)
+    except ValueError as error:
+        friendly = {
+            "Link not recognised": "That code is not right. Check the email and try again.",
+            "This link has expired": "That code has expired. Ask for a new one.",
+        }
+        raise HTTPException(400, friendly.get(str(error), str(error) or "That code did not work.")) from None
+
+
 @app.post("/owner/auth/link")
 async def owner_email_link(body: OwnerEmailLink, request: Request):
     """Email a one-click sign-in link.

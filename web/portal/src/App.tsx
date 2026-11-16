@@ -177,28 +177,20 @@ function greeting(): string {
   return 'good evening';
 }
 
-/** A pasted sign-in link, a bare token, or nothing. The email link is a URL; people paste both. */
-function tokenFromPastedLink(value: string): string {
-  const text = value.trim();
-  const hash = text.match(/#invite=([A-Za-z0-9_-]+)/);
-  if (hash) return hash[1];
-  const query = text.match(/[?&]invite=([A-Za-z0-9_-]+)/);
-  if (query) return query[1];
-  return /^[A-Za-z0-9_-]{20,}$/.test(text) ? text : '';
-}
-
 function RequestLink({title, intro, note, onToken}: {title: string; intro: string; note?: string; onToken?: (token: string) => void}) {
   const api = useApi('');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [pasted, setPasted] = useState('');
-  const [redeeming, setRedeeming] = useState(false);
-  // In an installed app the emailed link opens in the browser, not here, and this app has its own
-  // storage: signing in there does not sign in here. Pasting the link is the one route that
-  // finishes the sign-in inside the app.
+  // An installed app has its own storage and the emailed link opens in Safari, so a link cannot
+  // sign somebody in *here*. A six-digit code can be typed where they already are; that is the
+  // default when we can tell we are installed.
   const installed = isInstalled();
+  const [mode, setMode] = useState<'code' | 'link'>(installed ? 'code' : 'link');
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
 
   async function submit() {
     if (!email.trim()) { setError('Enter the email address your invite came to.'); return; }
@@ -212,17 +204,28 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
     setBusy(false);
   }
 
-  async function redeemPasted() {
-    const token = tokenFromPastedLink(pasted);
-    if (!token) { setError('That does not look like a sign-in link. Copy the whole link from the email.'); return; }
-    setRedeeming(true); setError('');
+  async function sendCode() {
+    if (!email.trim()) { setError('Enter the email address your invite came to.'); return; }
+    setCodeBusy(true); setError('');
     try {
-      const data = await api('/owner/auth/invite', 'POST', {token}) as {access_token: string};
+      await api('/owner/auth/code', 'POST', {email: email.trim()});
+      setCodeSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send the code');
+    }
+    setCodeBusy(false);
+  }
+
+  async function verifyCode() {
+    if (!/^\d{6}$/.test(code.trim())) { setError('Enter the six digits from the email.'); return; }
+    setCodeBusy(true); setError('');
+    try {
+      const data = await api('/owner/auth/code/verify', 'POST', {email: email.trim(), code: code.trim()}) as {access_token: string};
       onToken?.(data.access_token);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That link has expired. Ask for a fresh one.');
+      setError(e instanceof Error ? e.message : 'That code did not work.');
     }
-    setRedeeming(false);
+    setCodeBusy(false);
   }
 
   return (
@@ -230,33 +233,48 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
       <Heading level={1}>{title}</Heading>
       <p>{intro}</p>
       {note ? <p>{note}</p> : null}
-      {installed && onToken ? (
+
+      {mode === 'code' ? (
         <Card>
-          <Heading level={3}>Already have the link? Finish here</Heading>
-          <p>The emailed link opens in Safari. To sign in inside this app, copy the link from the email and paste it below.</p>
-          <TextArea label="Paste your sign-in link" value={pasted} onChange={setPasted} rows={3}
-                    placeholder="https://concierge.trendibizz.com/studio#invite=…" />
-          <div style={{marginTop: 12}}>
-            <Button label={redeeming ? 'Signing in…' : 'Sign me in'} variant="primary" isDisabled={redeeming} onClick={() => void redeemPasted()} />
-          </div>
+          <Heading level={2}>{codeSent ? 'Enter the six-digit code' : 'Sign in with a code'}</Heading>
+          {codeSent ? (
+            <>
+              <p>We emailed a six-digit code to <strong>{email.trim()}</strong>. It works once and expires in 10 minutes.</p>
+              <TextInput label="Six-digit code" value={code} onChange={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} />
+              <div style={{marginTop: 16}}>
+                <Button label={codeBusy ? 'Signing in…' : 'Sign in'} variant="primary" isDisabled={codeBusy} onClick={() => void verifyCode()} />
+                <Button label="Send a new code" variant="ghost" onClick={() => void sendCode()} />
+              </div>
+            </>
+          ) : (
+            <>
+              <p>A code is typed here, so it works in the installed app as well as in a browser.</p>
+              <TextInput label="Email" type="email" value={email} onChange={setEmail} />
+              <div style={{marginTop: 16}}>
+                <Button label={codeBusy ? 'Sending…' : 'Email me a code'} variant="primary" isDisabled={codeBusy} onClick={() => void sendCode()} />
+              </div>
+            </>
+          )}
+          <p style={{fontSize: 13, opacity: 0.75}}>
+            <Button label="Use a sign-in link instead" variant="ghost" onClick={() => { setMode('link'); setSent(false); }} />
+          </p>
         </Card>
-      ) : null}
-      {sent ? (
+      ) : sent ? (
         <Card>
           <Heading level={2}>Check your email</Heading>
           <p>If {email.trim()} has an account, a one-click link is on its way. It works once and expires in 24 hours.</p>
           <p>Nothing arrived? Check the spam folder, then try again.</p>
-          {installed ? <p>Opened the link and it went to Safari? Copy it and paste it above — that signs you in here.</p> : null}
           <Button label="Send it again" variant="secondary" onClick={() => { setSent(false); }} />
         </Card>
       ) : (
-        <>
+        <Card>
           <TextInput label="Email" type="email" value={email} onChange={setEmail} />
           <div style={{marginTop: 16}}>
             <Button label={busy ? 'Sending…' : 'Email me a sign-in link'} variant="primary" onClick={submit} />
+            <Button label="Use a six-digit code instead" variant="ghost" onClick={() => { setMode('code'); setCodeSent(false); }} />
           </div>
           <p style={{fontSize: 13, opacity: 0.75}}>No password to remember: the link signs you in.</p>
-        </>
+        </Card>
       )}
       {error ? <ErrorNote message={error} /> : null}
     </div>
