@@ -25,7 +25,10 @@ services:
     cpus: ${HERMES_CPUS:-1}
     pids_limit: 512
     # If the container will not start, suspect cap_drop first: an entrypoint that switches user needs SETUID/SETGID.
+    # Proven 2026-11-17: with ALL dropped the s6 entrypoint dies ("unable to set supplementary group list"), so the
+    # minimum it needs to chown /opt/data and drop to the hermes user is added back. no-new-privileges stays on.
     cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
     security_opt: ["no-new-privileges:true"]
     tmpfs: ["/tmp:size=256m"]
     # read_only: true   # enable once a first run proves Hermes writes only to /opt/data and /tmp
