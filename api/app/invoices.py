@@ -60,12 +60,13 @@ async def issue(quote: dict, tenant: dict, kind: str) -> dict:
     issued = date.today()
     token = secrets.token_urlsafe(24)
     row = await db.pool().fetchrow(
-        "INSERT INTO invoices(tenant_id,quotation_id,number,kind,subtotal_cents,tax_cents,"
+        "INSERT INTO invoices(tenant_id,quotation_id,number,kind,subtotal_cents,discount_cents,tax_cents,"
         "total_cents,due_cents,deposit_cents,balance_cents,currency,lines,notes,issued_on,due_on,"
-        "public_token,payment_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17) "
+        "public_token,payment_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18) "
         "RETURNING *",
         tenant["id"], quote["id"], number, totals["kind"], quote["subtotal_cents"],
-        quote["tax_cents"], quote["total_cents"], totals["due"], totals["deposit"],
+        int(quote.get("discount_cents") or 0), quote["tax_cents"], quote["total_cents"],
+        totals["due"], totals["deposit"],
         totals["balance"], quote.get("currency") or "NZD", _json(quote.get("lines") or []),
         (quote.get("notes") or ""), issued, issued + timedelta(days=terms), token,
         (tenant.get("payment_url") or "").strip())
@@ -173,6 +174,7 @@ th{{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5a6673}}
 <tbody>{lines}</tbody></table>
 <table class="totals">
 <tr><td>Subtotal</td><td class="num">{_cash(invoice['subtotal_cents'], currency)}</td></tr>
+{('<tr><td>Discount</td><td class="num">-' + _cash(invoice['discount_cents'], currency) + '</td></tr>') if int(invoice.get('discount_cents') or 0) else ''}
 <tr><td>GST</td><td class="num">{_cash(invoice['tax_cents'], currency)}</td></tr>
 <tr><td>Total</td><td class="num">{_cash(invoice['total_cents'], currency)}</td></tr>
 <tr class="grand"><td>Due now</td><td class="num">{_cash(invoice['due_cents'], currency)}</td></tr>

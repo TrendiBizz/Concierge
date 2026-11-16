@@ -39,12 +39,12 @@ def test_a_search_with_no_results_does_not_claim_the_business_has_no_data():
 def test_the_quotation_line_row_wraps_instead_of_clipping_the_unit_price():
     """Measured live: the row's scrollWidth was 665 inside a 358px card with overflow clipped, so
     the Unit price box sat outside the card and could not be reached or typed into."""
-    page = (ROOT / "CrmQuotes.tsx").read_text()
+    page = (ROOT / "Quotes.tsx").read_text()
     row = page[page.rindex("{lines.map((line, index)"):]
-    row = row[:1400]
+    row = row[:3000]
     assert "flexWrap: 'wrap'" in row, "the line row must wrap; a fixed 3-column grid clipped it"
-    assert "gridTemplateColumns: '2fr 0.7fr 1fr'" not in page, "the clipping grid is back"
-    assert 'aria-label="Unit price"' in row, "the unit price box disappeared entirely"
+    assert "flexWrap: 'nowrap'" not in row, "the line row cannot scroll sideways on a phone"
+    assert 'Unit price for line ' in row, "the unit price box disappeared entirely"
 
 
 def test_a_company_can_be_opened_and_edited_not_only_deleted():

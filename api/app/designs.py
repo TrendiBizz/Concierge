@@ -252,23 +252,28 @@ async def quote_from_design(design_id: UUID, body: QuoteFromDesign, user=Depends
         raise HTTPException(404, "Customer not found")
     lines = [{**measured["line"],
               "quantity": measured["line"]["quantity"],
-              "unit_price_cents": measured["line"]["unit_price_cents"]}]
+              "unit": str(profile.get("unit") or "each"),
+              "unit_price_cents": measured["line"]["unit_price_cents"],
+              "discount_basis_points": 0}]
     subtotal = measured["amount_cents"]
     tax = int((Decimal(subtotal) * int(profile["tax_basis_points"]) / 10000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     title = "%s — %s" % (design["filename"].rsplit(".", 1)[0][:120], profile["name"][:60])
     notes = " ".join(measured["notes"])[:4000]
     from . import billing
 
-    tenant_row = await pool.fetchrow("SELECT name,quote_valid_days FROM tenants WHERE id=$1", user["tenant_id"])
+    tenant_row = await pool.fetchrow(
+        "SELECT name,quote_valid_days,quote_terms FROM tenants WHERE id=$1", user["tenant_id"])
     reference = await billing.next_reference(user["tenant_id"])
     quotation = await pool.fetchrow(
         "INSERT INTO quotations(tenant_id,lead_id,title,currency,tax_basis_points,lines,subtotal_cents,"
-        "tax_cents,total_cents,notes,contact,reference,valid_until) "
-        "VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb,$12,$13) "
+        "tax_cents,total_cents,notes,contact,reference,quote_date,valid_until,terms) "
+        "VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11::jsonb,$12,current_date,$13,$14) "
         "RETURNING *",
         user["tenant_id"], body.lead_id, title.strip(), profile["currency"],
         int(profile["tax_basis_points"]), json.dumps(lines), subtotal, tax, subtotal + tax, notes,
-        json.dumps(dict(lead), default=str))
+        json.dumps(dict(lead), default=str),
+        billing.valid_until(dict(tenant_row) if tenant_row else {}),
+        str((tenant_row or {}).get("quote_terms") or "")[:8000])
     return {
         "quotation": {**dict(quotation), "lines": lines},
         "measured_area": measured["measured_area"],

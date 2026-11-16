@@ -389,8 +389,9 @@ def test_quote_maths_exact():
     draft = quotations.QuoteDraft(lead_id="11111111-1111-4111-8111-111111111111", title="Checkup",
                                   currency="NZD", tax_basis_points=1500,
                                   lines=[quotations.QuoteLine(description="Exam", quantity="3", unit_price_cents=3333)])
-    lines, subtotal, tax, total = quotations.calculate(draft)
-    assert (lines[0]["amount_cents"], subtotal, tax, total) == (9999, 9999, 1500, 11499)
+    totals = quotations.calculate(draft)
+    assert (totals.lines[0]["amount_cents"], totals.subtotal_cents, totals.tax_cents,
+            totals.total_cents) == (9999, 9999, 1500, 11499)
 
 
 @pytest.mark.parametrize("quantity", ["NaN", "Infinity", "-1", "0", "1.0001"])
@@ -412,8 +413,14 @@ def test_quote_refuses_another_businesss_enquiry(monkeypatch):
 
 
 def test_quote_status_transitions_are_restricted():
-    src = inspect.getsource(quotations.change_status)
-    assert "'accepted': ['reviewed']" in src and "'reviewed': ['draft']" in src
+    # A quote can only move forward. Behaviour, not the shape of the SQL that carries it out.
+    assert quotations.can_transition("draft", "reviewed")
+    assert quotations.can_transition("reviewed", "sent")
+    assert quotations.can_transition("sent", "accepted")
+    assert not quotations.can_transition("draft", "accepted")
+    assert not quotations.can_transition("accepted", "draft")
+    assert not quotations.can_transition("declined", "accepted")
+    assert quotations.can_transition("accepted", "void")
 
 
 def test_quotation_listing_scoped_to_caller(monkeypatch):

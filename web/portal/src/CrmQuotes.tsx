@@ -4,11 +4,9 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
-import {TextArea} from '@astryxdesign/core/TextArea';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Table, proportional} from '@astryxdesign/core/Table';
 import type {TableColumn} from '@astryxdesign/core/Table';
-import {Dialog} from '@astryxdesign/core/Dialog';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {VStack} from '@astryxdesign/core/VStack';
@@ -18,7 +16,6 @@ import {CheckboxInput} from '@astryxdesign/core/CheckboxInput';
 import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {StatusLine} from './StatusLine';
 
-type Brand = {name: string; accent: string; contact: string};
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string;
   created_at: string; message?: string; value_cents?: number; lost_reason?: string; next_action_at?: string};
 type Todo = {id: number; title: string; notes?: string; due_at?: string; status: string; kind?: string; lead_id?: string};
@@ -33,9 +30,6 @@ const STAGES: {value: string; label: string}[] = [
   {value: 'lost', label: 'Lost'},
 ];
 type Turn = {role: string; content: string};
-type QuoteLine = {description: string; quantity: number; unit_price_cents: number; amount_cents?: number};
-type Quote = {id: string; payment_status?: string; payment_reference?: string; id2?: string; title: string; currency: string; status: string; lines: QuoteLine[]; subtotal_cents: number; tax_cents: number; total_cents: number; notes?: string; created_at: string; lead_id: string; version: number; public_token?: string; sent_at?: string};
-type Product = {id: string; name: string; sku?: string; unit?: string; sale_price_cents: number};
 
 function useApi(token: string) {
   return async function api(path: string, method = 'GET', body?: unknown) {
@@ -217,283 +211,6 @@ export function Crm({token}: {token: string}) {
   );
 }
 
-
-export function Quotes({token, brand, onOpenDesigns}: {token: string; brand: Brand; onOpenDesigns?: () => void}) {
-  const api = useApi(token);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [role, setRole] = useState('');
-  const [leadId, setLeadId] = useState('');
-  const [title, setTitle] = useState('');
-  const [notes, setNotes] = useState('');
-  const [tax, setTax] = useState(15);
-  const [lines, setLines] = useState<Array<{description: string; quantity: string; price: string}>>([{description: '', quantity: '1', price: ''}]);
-  const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [pendingSignoff, setPendingSignoff] = useState<Quote | null>(null);
-  const [brief, setBrief] = useState('');
-  const [draftNote, setDraftNote] = useState('');
-  const [pay, setPay] = useState<{instructions?: string; url?: string; summary?: Record<string, number>}>({});
-  const [biz, setBiz] = useState<{name?: string; gst_number?: string; nzbn?: string; business_address?: string; business_phone?: string; quote_terms?: string; quote_valid_days?: number; allow_deposit?: boolean; deposit_percent?: number; invoice_payment_terms_days?: number}>({});
-
-  async function load() {
-    try {
-      const [q, c, p, me, payment, business] = await Promise.all([api('/owner/crm/quotations'), api('/owner/crm'), api('/owner/products'), api('/owner/me'), api('/owner/payment-settings'), api('/owner/business')]);
-      setBiz(business as typeof biz);
-      setQuotes(q as Quote[]);
-      setPay(payment as {instructions?: string; url?: string; summary?: Record<string, number>});
-      setLeads(((c as {leads?: Lead[]}).leads || []) as Lead[]);
-      setProducts(p as Product[]);
-      setRole((me as {role: string}).role);
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load quotations'); }
-  }
-  useEffect(() => { load(); }, [token]);
-
-  function addProduct(id: string) {
-    const product = products.find((item) => item.id === id);
-    if (!product) return;
-    setLines([...lines, {description: product.name, quantity: '1', price: (product.sale_price_cents / 100).toFixed(2)}]);
-  }
-
-  async function draftWithAi() {
-    setBusy(true); setStatus(''); setDraftNote('');
-    try {
-      const result = await api('/owner/crm/quotations/draft', 'POST', {
-        lead_id: leadId || null,
-        brief,
-        currency: 'NZD',
-        tax_basis_points: Math.round(tax * 100),
-      }) as {title: string; notes: string; lines: Array<{description: string; quantity: string | number; unit_price_cents: number}>; warnings?: string[]; source: string};
-      setTitle(result.title);
-      setNotes(result.notes || '');
-      setLines(result.lines.map((line) => ({
-        description: line.description,
-        quantity: String(line.quantity),
-        price: (line.unit_price_cents / 100).toFixed(2),
-      })));
-      const warning = (result.warnings || []).join(' ');
-      setDraftNote(warning || (result.source === 'model'
-        ? 'AI draft using your catalogue and enquiry. Check every line, price and quantity before saving.'
-        : 'Drafted from the measured takeoff. Check every line before saving.'));
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not draft the quotation'); }
-    setBusy(false);
-  }
-
-  async function save() {
-    setBusy(true); setStatus('');
-    try {
-      const body = {
-        lead_id: leadId, title, currency: 'NZD', tax_basis_points: Math.round(tax * 100),
-        lines: lines.filter((line) => line.description.trim()).map((line) => ({
-          description: line.description.trim(), quantity: line.quantity, unit_price_cents: Math.round(Number(line.price) * 100),
-        })),
-        notes,
-      };
-      await api('/owner/crm/quotations', 'POST', body);
-      setStatus('Quotation saved as a draft. The owner reviews and signs it off.');
-      setTitle(''); setNotes(''); setLines([{description: '', quantity: '1', price: ''}]);
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the quotation'); }
-    setBusy(false);
-  }
-
-  async function printQuote(id: string) {
-    const response = await fetch('/owner/crm/quotations/' + id + '/print', {headers: {Authorization: 'Bearer ' + token}});
-    if (!response.ok) { setStatus('Could not prepare the quotation.'); return; }
-    const url = URL.createObjectURL(await response.blob());
-    window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-
-  async function sendQuote(id: string) {
-    setBusy(true); setStatus('');
-    try {
-      const result = await api('/owner/crm/quotations/' + id + '/send', 'POST') as {link: string; sent_to: string};
-      setStatus('Sent to ' + result.sent_to + '. Customer link: ' + result.link);
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not send the quotation'); }
-    setBusy(false);
-  }
-
-  async function savePaymentSettings(instructions: string, url: string) {
-    try {
-      await api('/owner/payment-settings', 'PUT', {instructions, url});
-      setStatus('Payment details saved. Accepted quotations now show them to the customer.');
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save payment details'); }
-  }
-
-  async function saveBusiness() {
-    try {
-      await api('/owner/business', 'PUT', {
-        name: biz.name || '',
-        gst_number: biz.gst_number || '',
-        nzbn: biz.nzbn || '',
-        business_address: biz.business_address || '',
-        business_phone: biz.business_phone || '',
-        quote_terms: biz.quote_terms || '',
-        quote_valid_days: Number(biz.quote_valid_days) || 30,
-        allow_deposit: biz.allow_deposit !== false,
-        deposit_percent: Number(biz.deposit_percent) || 0,
-        invoice_payment_terms_days: Number(biz.invoice_payment_terms_days) || 7,
-      });
-      setStatus('Business details saved. Every quotation now prints them, with a reference and a valid-until date.');
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save business details'); }
-  }
-
-  async function confirmPayment(id: string, action: 'confirm' | 'waive') {
-    try {
-      await api('/owner/crm/quotations/' + id + '/payment', 'POST', {action});
-      setStatus(action === 'waive' ? 'Marked as no payment due.' : 'Payment confirmed.');
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not update that quotation'); }
-  }
-
-  async function signOff(id: string, version: number) {
-    setBusy(true); setStatus('');
-    try {
-      await api('/owner/crm/quotations/' + id + '/status', 'POST', {status: 'reviewed', version});
-      setStatus('Quotation reviewed and signed off.');
-      await load();
-    } catch (e) { setStatus(e instanceof Error ? e.message : 'Sign-off failed'); }
-    setBusy(false);
-  }
-
-  return (
-    <div>
-      <Card>
-        <Heading level={2}>Quote from a plan or 3D model</Heading>
-        <p>Send a customer an upload link, or upload their IFC yourself. We measure the wall area net of openings and price it at your rate per square metre — waste and minimum charge included.</p>
-        <Button label="Open Designs and CAD" variant="secondary" onClick={() => onOpenDesigns?.()} />
-      </Card>
-      <p>Build a quote from your enquiry and products. Prices are your sale prices. The business owner reviews and signs off before it is accepted.</p>
-      <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
-        <Card>
-          <Heading level={2}>New quotation</Heading>
-          <label style={{display: 'block', margin: '8px 0'}}>
-            Enquiry
-            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={{display: 'block', width: '100%', padding: 8}}>
-              <option value="">Choose an enquiry</option>
-              {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.name || lead.email || lead.phone || lead.id}</option>)}
-            </select>
-          </label>
-          <TextInput label="Title" value={title} onChange={setTitle} />
-          <TextInput label="Tax %" value={String(tax)} onChange={(v) => setTax(Number(v) || 0)} />
-          <TextArea label="What is the job? (for the AI draft)" value={brief} onChange={setBrief} rows={3} />
-          <Button label={busy ? 'Drafting…' : 'Draft with AI'} variant="secondary" onClick={draftWithAi} />
-          {draftNote ? <p role="note"><em>{draftNote}</em></p> : null}
-          <label style={{display: 'block', margin: '8px 0'}}>
-            Add from product catalogue
-            <select value="" onChange={(e) => addProduct(e.target.value)} style={{display: 'block', width: '100%', padding: 8}}>
-              <option value="">Choose a product</option>
-              {products.map((product) => <option key={product.id} value={product.id}>{product.name} — {money(product.sale_price_cents, 'NZD')}</option>)}
-            </select>
-          </label>
-          {lines.map((line, index) => (
-            <div key={index} style={{margin: '10px 0'}}>
-              {/* Three fields on one line need ~400px; the card is 360, so the unit price used to
-                  be clipped out of reach. They wrap instead, and each keeps its own label. */}
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
-                <input aria-label="Line description" placeholder="Description" value={line.description}
-                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, description: e.target.value} : item))}
-                       style={{padding: 8, flex: '3 1 160px', minWidth: 120}} />
-                <input aria-label="Quantity" placeholder="Qty" value={line.quantity}
-                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, quantity: e.target.value} : item))}
-                       style={{padding: 8, flex: '1 1 60px', minWidth: 56}} />
-                <input aria-label="Unit price" placeholder="Unit price" value={line.price}
-                       onChange={(e) => setLines(lines.map((item, i) => i === index ? {...item, price: e.target.value} : item))}
-                       style={{padding: 8, flex: '1 1 90px', minWidth: 84}} />
-              </div>
-            </div>
-          ))}
-          <Button label="Add line" variant="ghost" onClick={() => setLines([...lines, {description: '', quantity: '1', price: ''}])} />
-          <TextArea label="Notes" value={notes} onChange={setNotes} rows={3} />
-          <Button label={busy ? 'Saving…' : 'Save quotation'} variant="primary" onClick={save} />
-        </Card>
-        <Card>
-          <Heading level={2}>Your business details</Heading>
-          <p>These print on every quotation you send, along with a reference number and a valid-until date. A GST-registered business must show its GST number.</p>
-          <TextInput label="Trading name" value={biz.name || ''} onChange={(v) => setBiz({...biz, name: v})} />
-          <TextInput label="GST number" value={biz.gst_number || ''} onChange={(v) => setBiz({...biz, gst_number: v})} />
-          <TextInput label="NZBN (optional)" value={biz.nzbn || ''} onChange={(v) => setBiz({...biz, nzbn: v})} />
-          <TextInput label="Address" value={biz.business_address || ''} onChange={(v) => setBiz({...biz, business_address: v})} />
-          <TextInput label="Phone" value={biz.business_phone || ''} onChange={(v) => setBiz({...biz, business_phone: v})} />
-          <TextInput label="Quote valid for (days)" value={String(biz.quote_valid_days ?? 30)} onChange={(v) => setBiz({...biz, quote_valid_days: Number(v) || 30})} />
-          <TextInput label="Deposit % (when a customer pays a deposit)" value={String(biz.deposit_percent ?? 50)} onChange={(v) => setBiz({...biz, deposit_percent: Number(v) || 0})} />
-          <TextInput label="Invoice payment terms (days)" value={String(biz.invoice_payment_terms_days ?? 7)} onChange={(v) => setBiz({...biz, invoice_payment_terms_days: Number(v) || 7})} />
-          <Button label={biz.allow_deposit === false ? 'Deposits: off — turn on' : 'Deposits: on — turn off'} onClick={() => setBiz({...biz, allow_deposit: biz.allow_deposit === false})} />
-          <TextArea label="Terms and conditions (shown under every quote)" value={biz.quote_terms || ''} onChange={(v) => setBiz({...biz, quote_terms: v})} rows={4} />
-          <Button label="Save business details" variant="primary" onClick={saveBusiness} />
-        </Card>
-        <Card>
-          <Heading level={2}>Getting paid</Heading>
-          <p>An accepted quotation shows these details to the customer, with an "I have paid" button. You confirm it once the money lands — no card processor, no fees.</p>
-          <TextArea label="Payment instructions (bank details, how to pay)" value={pay.instructions || ''} onChange={(v) => setPay({...pay, instructions: v})} rows={3} />
-          <TextInput label="Payment link (optional, https://…)" value={pay.url || ''} onChange={(v) => setPay({...pay, url: v})} />
-          <Button label="Save payment details" variant="primary" onClick={() => savePaymentSettings(pay.instructions || '', pay.url || '')} />
-          {pay.summary ? (
-            <p>
-              <strong>{money(Number(pay.summary.paid_cents || 0), 'NZD')}</strong> confirmed ·
-              {' '}<strong>{money(Number(pay.summary.declared_cents || 0), 'NZD')}</strong> claimed, awaiting you ·
-              {' '}<strong>{money(Number(pay.summary.outstanding_cents || 0), 'NZD')}</strong> outstanding
-            </p>
-          ) : null}
-        </Card>
-        <Card>
-          <Heading level={2}>How sign-off works</Heading>
-          <p>Draft → reviewed (owner only) → accepted or declined.</p>
-          <p>Concierge never sends a price without the owner's approval. Your branding: <strong>{brand.name || 'your business'}</strong>.</p>
-        </Card>
-      </div>
-      <Heading level={2}>Your quotations</Heading>
-      <Table
-        data={quotes as unknown as Record<string, unknown>[]}
-        idKey="id"
-        density="compact"
-        columns={[
-          {key: 'title', header: 'Quotation', width: proportional(2, {minWidth: 180}), renderCell: (row) => <strong>{String(row.title || '')}</strong>},
-          {key: 'status', header: 'Status', width: proportional(2, {minWidth: 150}), renderCell: (row) => (
-            <VStack gap={1}>
-              <Badge label={String(row.status || '')} variant={row.status === 'accepted' ? 'success' : row.status === 'declined' ? 'error' : row.status === 'reviewed' ? 'info' : 'neutral'} />
-              <Badge label={String(row.payment_status || 'unpaid')} variant={row.payment_status === 'paid' ? 'success' : row.payment_status === 'declared' ? 'info' : 'neutral'} />
-              {role === 'owner' && row.status === 'accepted' && ['unpaid', 'declared'].includes(String(row.payment_status || 'unpaid'))
-                ? <Button label="Confirm paid" variant="secondary" onClick={() => confirmPayment(String(row.id), 'confirm')} /> : null}
-            </VStack>
-          )},
-          {key: 'total_cents', header: 'Total', width: proportional(1, {minWidth: 100}), renderCell: (row) => money(Number(row.total_cents), String(row.currency || 'NZD'))},
-          {key: 'id', header: '', width: proportional(1, {minWidth: 130}), renderCell: (row) => (
-            <HStack gap={2} vAlign="center">
-              {role === 'owner' && row.status === 'draft'
-                ? <Button label="Review" variant="primary" onClick={() => setPendingSignoff(row as unknown as Quote)} />
-                : role === 'owner' && row.status === 'reviewed'
-                ? <Button label="Send" variant="primary" onClick={() => sendQuote(String(row.id))} />
-                : <Button label="PDF" variant="secondary" onClick={() => printQuote(String(row.id))} />}
-              <MoreMenu label={'More actions for this quotation'} items={[
-                {label: 'Download the PDF', onClick: () => printQuote(String(row.id))},
-                {label: 'Open the customer page',
-                 onClick: () => { if (row.public_token) window.open('/quote/' + row.public_token, '_blank', 'noopener'); },
-                 isDisabled: !row.public_token},
-                {label: 'Send it to the customer', onClick: () => sendQuote(String(row.id)),
-                 isDisabled: !(role === 'owner' && row.status === 'reviewed')},
-              ]} />
-            </HStack>
-          )},
-        ] as TableColumn<Record<string, unknown>>[]}
-      />
-      {!quotes.length ? <div className="c-empty"><strong>No quotes yet</strong><p>Quote a job and it appears here as a draft. Send it, and you can see when the customer opens and accepts it.</p></div> : null}
-      <Dialog isOpen={Boolean(pendingSignoff)} onOpenChange={(open) => { if (!open) setPendingSignoff(null); }}>
-        <Heading level={2}>Sign off this quotation?</Heading>
-        <p>{pendingSignoff?.title}: {pendingSignoff ? money(pendingSignoff.total_cents, pendingSignoff.currency) : ''}</p>
-        <p>This marks it reviewed and ready to send. The owner is responsible for the prices and scope.</p>
-        <Button label="Sign off" variant="primary" onClick={async () => { if (pendingSignoff) { await signOff(pendingSignoff.id, pendingSignoff.version); setPendingSignoff(null); } }} />
-        <Button label="Cancel" variant="ghost" onClick={() => setPendingSignoff(null)} />
-      </Dialog>
-      {<StatusLine text={status} />}
-    </div>
-  );
-}
 
 type TimelineEvent = {channel: string; channel_label?: string; direction: string; body: string; occurred_at?: string | null};
 type Contact = {case_key: string; label: string; company?: string; primary_phone?: string; primary_email?: string;
@@ -758,3 +475,4 @@ export function Contacts({token}: {token: string}) {
   );
 }
 
+export {Quotes} from './Quotes';

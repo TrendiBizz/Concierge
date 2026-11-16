@@ -246,7 +246,7 @@ def test_no_table_is_allowed_to_grow_past_a_five_column_budget():
     """
     import re
     pages = pathlib.Path(ROOT / "web" / "portal" / "src")
-    limit = {"Products.tsx": 5, "CrmQuotes.tsx": 6, "Companies.tsx": 5, "App.tsx": 7}
+    limit = {"Products.tsx": 5, "CrmQuotes.tsx": 6, "Quotes.tsx": 6, "Companies.tsx": 5, "App.tsx": 7}
     problems = []
     for name, budget in limit.items():
         source = (pages / name).read_text()
