@@ -83,6 +83,12 @@ for img in "${images[@]}"; do
 done
 
 # 5. start under Podman through the Docker-compatible socket, then wait for health
+# Found 2026-11-17: Podman's DNS (aardvark-dns) listens on each bridge's gateway address, so a container's lookup is a packet INTO
+# the host, which ufw's default-deny drops ("Temporary failure in name resolution", the app restarts forever). Docker's DNS lives in
+# the daemon and never needed this. Allow only DNS, only on Podman's bridges.
+if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then
+  ufw status | grep -q 'on podman+' || ufw allow in on 'podman+' to any port 53 comment 'podman container DNS (aardvark-dns)' >/dev/null
+fi
 echo "==> starting under Podman"
 pdc up -d
 for _ in $(seq 1 60); do
