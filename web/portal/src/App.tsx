@@ -397,7 +397,7 @@ function qrSvg(value: string): string {
     const code = qrcode(0, 'M');
     code.addData(value);
     code.make();
-    return code.createSvgTag({cellSize: 8, margin: 2, scalable: false});
+    return code.createSvgTag({cellSize: 8, margin: 4, scalable: false});
   } catch {
     return '';
   }
@@ -417,13 +417,13 @@ function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: n
       const code = qrcode(0, 'M');
       code.addData(value);
       code.make();
-      return code.createSvgTag({cellSize: 4, margin: 1, scalable: true});
+      return code.createSvgTag({cellSize: 4, margin: 4, scalable: true});
     } catch {
       return '';
     }
   }, [value]);
   if (!svg) return null;
-  const scaled = svg.replace('<svg ', '<svg style="width:100%;height:100%;display:block" ');
+  const scaled = svg.replace('<svg ', '<svg aria-hidden="true" focusable="false" style="width:100%;height:100%;display:block" ');
   return (
     <div style={{width: size, height: size, background: '#fff', padding: 6, borderRadius: 8, border: '1px solid var(--color-border)'}}
          role="img" aria-label={label}

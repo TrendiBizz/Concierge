@@ -23,11 +23,17 @@ def test_the_invitation_result_draws_a_qr_code_for_the_same_link():
 
 
 def test_the_qr_encoder_is_served_under_the_proxied_prefix():
+    from fastapi.testclient import TestClient
+
     paths = {getattr(route, "path", "") for route in main.app.routes}
     assert "/owner/qrcode.js" in paths
     source = (STATIC / "qrcode.js").read_text()
     assert "QR Code Generator for JavaScript" in source
     assert "createSvgTag" in source
+    response = TestClient(main.app).get("/owner/qrcode.js")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/javascript")
+    assert "createSvgTag" in response.text
 
 
 def test_the_page_loads_the_encoder_before_the_inline_script_that_uses_it():

@@ -232,7 +232,7 @@ function inviteQrSvg(value,cellSize=4){
  try{
   if(typeof qrcode!=="function")return "";
   const code=qrcode(0,"M");code.addData(value);code.make();
-  return code.createSvgTag({cellSize:cellSize,margin:2,scalable:true});
+  return code.createSvgTag({cellSize:cellSize,margin:4,scalable:true});
  }catch(error){return "";}
 }
 function assertSession(generation,token=bearer){
@@ -1121,7 +1121,7 @@ $("invite-form").addEventListener("submit",async event=>{
   const svg=inviteQrSvg(result.invitation_url);
   if(svg){
    host.appendChild(node("p","Or scan this with a phone camera to open the invitation on the phone. After signing in, tap Install app to keep Concierge on the home screen."));
-   const frame=document.createElement("div");frame.className="invite-qr";frame.setAttribute("role","img");frame.setAttribute("aria-label","QR code for this invitation");frame.innerHTML=svg;host.appendChild(frame);
+   const frame=document.createElement("div");frame.className="invite-qr";frame.setAttribute("role","img");frame.setAttribute("aria-label","QR code for this invitation");frame.innerHTML=svg.replace("<svg ","<svg aria-hidden=\"true\" focusable=\"false\" ");host.appendChild(frame);
    const print=node("a","Download the QR to print");print.href="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(inviteQrSvg(result.invitation_url,8));print.download="concierge-invitation-qr.svg";host.appendChild(print);
   }
   await refreshTeam();message("Invitation created but not delivered.");
