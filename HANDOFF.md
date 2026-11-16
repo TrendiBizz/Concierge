@@ -287,8 +287,13 @@ The first three streams are recorded in their own files. The last one is this se
     all pages changed and re-pinged IndexNow for the whole site; the fingerprint now strips that
     script and hashes the content plus the page's own `dateModified`. Fixed, 3 tests
     (`api/tests/test_geo_daily.py`), mutation-proved, state re-seeded for all 43 URLs — see
-    `QA/verification/GEO_DAILY_2026-11-16.md`. **Next:** if IndexNow keeps firing for pages nobody
-    edited, suspect a new response-noise source before touching the threshold.
+    `QA/verification/GEO_DAILY_2026-11-16.md`. **Verified on the first real cron day after the
+    fix (2026-11-17):** the 07:00 run reported 43/43 changed because the state file still held
+    pre-fix fingerprints (one-time migration), and an immediate second run reported
+    `changed: 0` / `IndexNow: nothing changed` — so the fingerprint is stable and no new noise
+    source exists. See `QA/verification/GEO_DAILY_2026-11-17.md`. **Next:** if IndexNow fires for
+    pages nobody edited on a run that is *not* the first after a fingerprint change, suspect a new
+    response-noise source before touching the threshold.
 
 30. **CLOSED 2026-11-16 — the calculator "drift" was a missing merge, not box hand edits.** The box
     was never edited: its two calculator files hash-match `.deploy-manifest.json` and the repo at
