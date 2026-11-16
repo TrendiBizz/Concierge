@@ -104,3 +104,33 @@ After each deploy: `scripts/seo/site_seo.py check`, then `scripts/vps/verify-dep
 `an.py` (page checks), `br.py` (Playwright Chromium, 390×844 iPhone UA and 1440×900, console / failed
 requests / overflow / images / labels), `fn.py` (tool and form behaviour). Scripts are in `/tmp/audit`, not
 the repo; results above were produced on 2026-11-16 ~22:40 NZDT.
+
+---
+
+# Resolution (2026-11-17)
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | Health checks failing (`cloudflare:routing`, `inbound:readiness`) | **Already fixed** by `49baf20` (08:18 UTC). The alert fired 08:15 UTC while the box still ran the 4 KB body read; it recovered at 08:20 UTC (`health.log`). Box now: 13 enabled rules, `inbound:chain` green, 0 failures. |
+| 2 | `{CSP_NONCE}` placeholder | Removed from `website/_headers`; website container restarted (it reads `_headers` once at start). Live header is valid. `tests/test_site_headers.py` (mutation: placeholder restored → 2 red). |
+| 3 | Forms only opened a mail draft | `POST /api/enquiry` (`api/app/site_enquiry.py`, table `site_enquiries`, Caddy route on the apex). `/contact`, `/seo`, `/concierge-start` post to it; the email draft stays as the fallback. Stored first, emailed second; honeypot, 5/hour per address, 60/hour overall. `GET /admin/site-enquiries` lists them. 16 tests (mutation: honeypot disabled → red). Live: both forms returned "Thanks — we have it", rows stored, two operator alerts queued; test rows then marked `spam`. |
+| 4 | Two sign-in portals | All 87 site links, the `/concierge/sign-in` redirect and the bare `concierge.` host now go to `/studio/`. `/owner-ui` **still served**: the Studio has no Web Push registration yet, so redirecting it would cut owner alerts. |
+| 5 | 9 redirecting outbound links | 7 updated to their final addresses (all 200); CISA loads in a real browser (the 403 was bot-blocking); Binance serves a "confirm you are human" wall to bots — left as is. |
+| 6 | 12 MB intro video | Advice given, not changed (see below). |
+
+Suite: 1475 passed, 19 skipped, 29 failed (the known local-Postgres failures). SEO gate OK (45 pages).
+Deployed: API, tooling + gateway (Caddy restarted), website; `verify-deploy`: OK.
+
+## Still open
+- Cloudflare's injected inline script (JavaScript Detections) is still blocked by the CSP and logs one console
+  error per page. It is a Cloudflare zone setting (Security → Bots → JavaScript Detections), not a repo file.
+- Web Push alerts live only in `/owner-ui`; port them to the Studio, then redirect `/owner-ui`.
+- The website worker (`/website/deploy_known_good/_worker.js`) lives on the box, outside this repo.
+
+## Video (advice)
+`trendi-intro.mp4` is 11.6 MB, 110 s, 1280×720 H.264 at ~884 kbps — already a modest bitrate; a 20 s test at
+540p/CRF 30 came out at the same rate, so recompressing saves little without visibly worse video. The page uses
+`preload="metadata"`, so the 11.6 MB is only fetched when someone presses play. `trendi-pen-test.mp4` is
+byte-identical (same md5) and no page references it: 11.6 MB of dead weight. Recommended: delete the duplicate,
+and either host the film on the existing YouTube channel (embedding needs a CSP change) or cut it to the
+first ~45 s for the page.
