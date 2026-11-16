@@ -76,3 +76,15 @@ def test_a_truncated_rules_response_is_not_reported_as_zero_rules(monkeypatch):
     assert routing["status"] == "fail"
     assert "unparseable" in routing["detail"]
     assert "0 enabled rules" not in routing["detail"]
+
+
+def test_a_new_tenant_is_split_into_onboarding_not_breakage():
+    live, test, onboarding = healthcheck.chain_split([
+        {"slug": "real", "ok": False},
+        {"slug": "fictitious", "ok": False, "is_test": True},
+        {"slug": "new", "ok": False, "is_new": True},
+        {"slug": "green", "ok": True},
+    ])
+    assert [t["slug"] for t in live] == ["real"]
+    assert [t["slug"] for t in test] == ["fictitious"]
+    assert [t["slug"] for t in onboarding] == ["new"]

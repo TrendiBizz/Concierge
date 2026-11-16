@@ -22,6 +22,12 @@ from .config import get_settings
 
 log = logging.getLogger("concierge.inbound_readiness")
 
+# A tenant created minutes ago has no owner account and no consent yet. Counting that as a failed
+# inbound chain mailed a permanent hourly alert for every new customer from the moment they were
+# created — measured 2026-11-16 on a tenant set up to test the product. Onboarding is a state, not
+# a fault; after this window it is a fault.
+ONBOARDING_HOURS = 48
+
 # Every link that must hold before an inbound message can become a CRM draft.
 ORDER = (
     "api_enabled",
@@ -174,6 +180,14 @@ async def check(tenant_id) -> dict:
     verdict = evaluate(facts)
     verdict["slug"] = tenant["slug"]
     verdict["is_test"] = bool(tenant.get("is_test"))
+    created = tenant.get("created_at")
+    is_new = False
+    if isinstance(created, dt.datetime):
+        now = dt.datetime.now(dt.timezone.utc)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=dt.timezone.utc)
+        is_new = (now - created).total_seconds() < ONBOARDING_HOURS * 3600
+    verdict["is_new"] = is_new
     return verdict
 
 
@@ -185,13 +199,15 @@ def summarise(tenants: list[dict]) -> dict:
     real ones.
     """
     broken = [t for t in tenants if not t.get("ok")]
-    live_broken = [t for t in broken if not t.get("is_test")]
+    onboarding = [t for t in broken if t.get("is_new") and not t.get("is_test")]
+    live_broken = [t for t in broken if not t.get("is_test") and not t.get("is_new")]
     test_broken = [t for t in broken if t.get("is_test")]
     return {
         "ok": not live_broken,
         "green": len(tenants) - len(broken),
         "live_broken": live_broken,
         "test_broken": test_broken,
+        "onboarding": onboarding,
     }
 
 
@@ -213,6 +229,7 @@ async def check_all() -> dict:
     return {
         "ok": summary["ok"],
         "test_tenants_failing": [t["slug"] for t in summary["test_broken"]],
+        "onboarding": [t["slug"] for t in summary["onboarding"]],
         "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "tenants": results,
     }

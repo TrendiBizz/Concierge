@@ -93,4 +93,41 @@ def test_a_failing_real_tenant_still_fails_the_chain():
 
 def test_all_green_tenants_summarise_as_ok():
     summary = inbound_readiness.summarise([{"slug": "a", "ok": True}, {"slug": "b", "ok": True}])
-    assert summary == {"ok": True, "green": 2, "live_broken": [], "test_broken": []}
+    assert summary == {"ok": True, "green": 2, "live_broken": [], "test_broken": [],
+                       "onboarding": []}
+
+
+def test_a_brand_new_tenant_is_onboarding_not_a_broken_chain():
+    """Measured 2026-11-16: a tenant created to test the product had no owner account yet (the
+    invitation was still in the inbox) and no consent, so the hourly check mailed a failure from
+    the moment it existed. Onboarding is not a fault; the grace window is what makes it temporary."""
+    tenants = [
+        {"slug": "acme", "ok": True},
+        {"slug": "trendibizz", "ok": False, "is_new": True,
+         "blocked": [{"check": "owner_account"}, {"check": "consent"}]},
+    ]
+    summary = inbound_readiness.summarise(tenants)
+    assert summary["ok"] is True, "a new tenant's missing owner account is not an outage"
+    assert [t["slug"] for t in summary["onboarding"]] == ["trendibizz"]
+    assert summary["live_broken"] == []
+
+
+def test_the_grace_ends_and_the_same_tenant_becomes_a_real_failure():
+    tenants = [{"slug": "trendibizz", "ok": False, "is_new": False,
+                "blocked": [{"check": "owner_account"}]}]
+    summary = inbound_readiness.summarise(tenants)
+    assert summary["ok"] is False
+    assert [t["slug"] for t in summary["live_broken"]] == ["trendibizz"]
+
+
+def test_onboarding_never_masks_a_test_tenant_or_a_real_one():
+    tenants = [
+        {"slug": "real", "ok": False, "blocked": [{"check": "consent"}]},
+        {"slug": "fictitious", "ok": False, "is_test": True},
+        {"slug": "new", "ok": False, "is_new": True},
+    ]
+    summary = inbound_readiness.summarise(tenants)
+    assert summary["ok"] is False
+    assert [t["slug"] for t in summary["live_broken"]] == ["real"]
+    assert [t["slug"] for t in summary["test_broken"]] == ["fictitious"]
+    assert [t["slug"] for t in summary["onboarding"]] == ["new"]

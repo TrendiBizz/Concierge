@@ -215,6 +215,12 @@ def check_api_internal() -> list[dict]:
 
 
 def check_database() -> list[dict]:
+    if onboarding:
+        detail = "; ".join(f"{t.get('slug')}: {','.join(b.get('check','?') for b in t.get('blocked') or [])}"
+                           for t in onboarding)
+        results.append(_warn("inbound:onboarding",
+                             f"new tenant still onboarding (fails after the grace window): {detail}"[:400]))
+
     code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select 1"])
     if code != 0 or out.strip() != "1":
@@ -300,16 +306,22 @@ def check_cloudflare(api_env: dict) -> list[dict]:
     return results
 
 
-def chain_split(tenants: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Real breakage vs test-tenant noise. Pure, so the rule is testable.
+def chain_split(tenants: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """Real breakage, test-tenant noise, and a new tenant still being onboarded.
 
     A deliberately fictitious business has no real owner to authorise email read, so it can never
     complete the inbound chain. That is not an operational failure: on 2026-11-15 it mailed
     "trendi-fictitious: consent" every hour and buried the alerts that mattered.
+
+    A real tenant created minutes ago is in the same position for a different reason: no owner has
+    signed in yet, so there is no owner account and no consent. Counting that as a failure emailed
+    an alert for every new customer from the moment they were created (2026-11-16). Onboarding is
+    reported as a warning and becomes a failure when the grace window expires.
     """
     broken = [t for t in tenants if not t.get("ok")]
-    return ([t for t in broken if not t.get("is_test")],
-            [t for t in broken if t.get("is_test")])
+    return ([t for t in broken if not t.get("is_test") and not t.get("is_new")],
+            [t for t in broken if t.get("is_test")],
+            [t for t in broken if t.get("is_new") and not t.get("is_test")])
 
 
 def check_inbound(api_env: dict) -> list[dict]:
@@ -325,8 +337,8 @@ def check_inbound(api_env: dict) -> list[dict]:
     except ValueError:
         return [_fail("inbound:readiness", "unparseable response")]
     tenants = data.get("tenants") or []
-    live_broken, test_broken = chain_split(tenants)
-    broken = live_broken + test_broken
+    live_broken, test_broken, onboarding = chain_split(tenants)
+    broken = live_broken + test_broken + onboarding
     note = ("" if not test_broken
             else " (" + ", ".join(f"{t.get('slug')} is a test tenant" for t in test_broken) + ")")
     if live_broken:
