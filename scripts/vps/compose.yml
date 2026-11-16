@@ -90,7 +90,8 @@ services:
     mem_limit: 1200m
     cpus: 1
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3)"]
+      # CMD-SHELL, not exec form: Podman splits an exec-form argument on spaces, which turned this into `python -c import`.
+      test: [CMD-SHELL, "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3)\""]
       interval: 10s
       timeout: 5s
       retries: 30

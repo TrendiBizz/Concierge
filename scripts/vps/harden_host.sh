@@ -49,6 +49,12 @@ while iptables -C DOCKER-USER -p udp -m conntrack --ctstate DNAT --ctorigdstport
   iptables -D DOCKER-USER -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP
 done
 iptables -I DOCKER-USER 1 -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP
+# Podman (netavark) never consults DOCKER-USER: forwarded published-port traffic goes FORWARD -> NETAVARK_FORWARD. Put the same
+# jump first in FORWARD so it applies under either engine. (Containers are published by DNAT, so the original dport is 5060.)
+while iptables -C FORWARD -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP 2>/dev/null; do
+  iptables -D FORWARD -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP
+done
+iptables -I FORWARD 1 -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP
 # IPv6: Hero is IPv4-only, so drop signalling and media probes over v6.
 ip6tables -C INPUT -p udp --dport 5060 -j DROP 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 5060 -j DROP
 ip6tables -C INPUT -p udp --dport 10000:10099 -j DROP 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 10000:10099 -j DROP
@@ -58,7 +64,7 @@ chmod 755 /usr/local/sbin/trendi-sip-firewall.sh
 cat > /etc/systemd/system/trendi-sip-firewall.service <<'EOF'
 [Unit]
 Description=Restrict SIP signalling to the carrier (Docker bypasses ufw)
-After=docker.service network-online.target
+After=docker.service podman.socket network-online.target
 Wants=docker.service
 
 [Service]
@@ -72,7 +78,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now trendi-sip-firewall.service >/dev/null
 /usr/local/sbin/trendi-sip-firewall.sh
-echo "   DOCKER-USER now:"; iptables -S DOCKER-USER; iptables -S TRENDI-SIP
+echo "   DOCKER-USER now:"; iptables -S DOCKER-USER; echo "   FORWARD head:"; iptables -S FORWARD | head -3; iptables -S TRENDI-SIP
 
 echo "== 3. log rotation"
 cat > /etc/logrotate.d/docker-containers <<'EOF'

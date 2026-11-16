@@ -837,7 +837,14 @@ def check_sip_firewall() -> list[dict]:
     code, rules = run(["iptables", "-S", "TRENDI-SIP"], timeout=15)
     if code != 0 or "DROP" not in rules:
         return [_fail("sip:firewall", "the TRENDI-SIP chain is missing or has no DROP rule")]
-    return [_ok("sip:firewall", "service active; TRENDI-SIP ends in DROP")]
+    # The chain only matters if traffic is sent through it. Docker consults DOCKER-USER; Podman (netavark) does not, so the
+    # jump must also live in FORWARD. A chain that exists but is never jumped to is the same as no firewall.
+    for chain in ("FORWARD", "DOCKER-USER"):
+        code, jumps = run(["iptables", "-S", chain], timeout=15)
+        if code == 0 and "--ctorigdstport 5060" in jumps and "-j TRENDI-SIP" in jumps:
+            return [_ok("sip:firewall", f"service active; TRENDI-SIP ends in DROP and {chain} jumps to it")]
+    return [_fail("sip:firewall", "TRENDI-SIP exists but neither FORWARD nor DOCKER-USER sends UDP/5060 to it; "
+                                  "the SIP port is open to the internet")]
 
 
 def check_backups() -> list[dict]:

@@ -76,11 +76,27 @@ def test_a_missing_drop_rule_is_a_failure(monkeypatch):
     assert results[0]["status"] == "fail"
 
 
-def test_an_active_firewall_with_a_drop_is_ok(monkeypatch):
+JUMP = "-A {chain} -p udp -m conntrack --ctstate DNAT --ctorigdstport 5060 -j TRENDI-SIP\n"
+
+
+def _firewall(jump_in=()):
     def fake(args, **kwargs):
         if args[1] == "is-active":
             return 0, "active\n"
-        return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -j DROP\n"
-    monkeypatch.setattr(healthcheck, "run", fake)
-    results = healthcheck.check_sip_firewall()
-    assert results[0]["status"] == "ok"
+        if args[2] == "TRENDI-SIP":
+            return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -j DROP\n"
+        return 0, JUMP.format(chain=args[2]) if args[2] in jump_in else "-P FORWARD DROP\n"
+    return fake
+
+
+def test_an_active_firewall_with_a_drop_and_a_jump_is_ok(monkeypatch):
+    for chain in ("FORWARD", "DOCKER-USER"):
+        monkeypatch.setattr(healthcheck, "run", _firewall((chain,)))
+        assert healthcheck.check_sip_firewall()[0]["status"] == "ok", chain
+
+
+def test_a_drop_chain_nobody_jumps_to_is_a_failure(monkeypatch):
+    """Under Podman the DOCKER-USER chain is never consulted: TRENDI-SIP existed and the SIP port was still open."""
+    monkeypatch.setattr(healthcheck, "run", _firewall(()))
+    result = healthcheck.check_sip_firewall()[0]
+    assert result["status"] == "fail" and "open to the internet" in result["detail"]
