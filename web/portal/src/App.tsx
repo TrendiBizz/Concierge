@@ -31,7 +31,6 @@ import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import {StatusLine} from './StatusLine';
 import {QrCode, qrDownloadHref} from './QrCode';
-import {InstallApp} from './Install';
 import {installAvailable, installUrl, onInstallChange, promptInstall} from './installPrompt';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
@@ -1696,16 +1695,6 @@ function Shell() {
   const [folded, setFolded] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('concierge:nav-folded') || '{}'); } catch { return {}; }
   });
-
-  if (location.pathname.replace(/\/+$/, '') === '/studio/install') {
-    return (
-      <Theme theme={theme}>
-        <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-          <InstallApp />
-        </InternationalizationProvider>
-      </Theme>
-    );
-  }
 
   // An invitation in the URL outranks whatever session this browser already holds. A stored
   // token used to win: opening a client's invitation on a machine signed in as another business

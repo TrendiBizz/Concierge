@@ -2030,6 +2030,25 @@ def _studio_index(root):
         status_code=503, headers={"Retry-After": "5", "Cache-Control": "no-store"})
 
 
+@app.get("/studio/install", include_in_schema=False)
+@app.get("/studio/install/", include_in_schema=False)
+async def studio_install():
+    """The install page, served as its own document.
+
+    It used to be a route inside the SPA, which meant a scan could land on the sign-in screen
+    (a stored session, a stale bundle, or simply the auth gate) and ask for an email address —
+    reported 2026-11-16 from a phone. This document has no router and no auth: the only thing it
+    can be is the install offer.
+    """
+    target = (STUDIO_DIR / "install.html").resolve()
+    if _readable(target):
+        return FileResponse(target, media_type="text/html",
+                            headers={"Cache-Control": "no-store",
+                                     "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
+    # A deploy that has not copied install.html yet still serves something sensible.
+    return _studio_index(STUDIO_DIR.resolve())
+
+
 @app.get("/studio/{path:path}", include_in_schema=False)
 async def studio_file(path: str):
     root = STUDIO_DIR.resolve()

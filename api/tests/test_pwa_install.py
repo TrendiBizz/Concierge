@@ -70,20 +70,37 @@ def test_the_declared_icons_exist_at_the_size_they_claim():
 
 # ------------------------------------------------------------------ the install page is public
 
-def test_the_install_page_is_reachable_without_signing_in():
-    source = (SRC / "App.tsx").read_text()
-    branch = "location.pathname.replace(/\\/+$/, '') === '/studio/install'"
-    assert branch in source, "nothing routes /studio/install to the install page"
-    # The branch has to come before the shell's signed-out return, or the page asks for a login.
-    signed_out = source.index("if (!token) {\n    return (\n      <Theme theme={theme}>")
-    assert source.index(branch) < signed_out
-    assert "<InstallApp />" in source
+def test_the_install_page_is_its_own_document_not_a_route_inside_the_app():
+    """Reported from a phone 2026-11-16: scanning the install QR landed on the sign-in screen and
+    asked for an email address. The page was a route inside the SPA, so a stored session or a stale
+    bundle could win. A standalone document cannot fall through to login."""
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "<title>Install Concierge</title>" in page
+    assert "/studio/manifest.webmanifest" in page, "the install page must still advertise the app"
+    assert "beforeinstallprompt" in page, "the page cannot offer the install without listening"
+    assert "Add to Home Screen" in page
+    assert "install-qr.svg" in page
+    # No auth, no router: nothing in this document can ask for an email address.
+    assert "type=\"email\"" not in page and "Email" not in page
+    assert "location.pathname" not in page
+    # And the SPA route is gone, so there is only one implementation to keep right.
+    app = (SRC / "App.tsx").read_text()
+    assert "InstallApp" not in app, "the SPA install route is back"
+    assert "=== '/studio/install'" not in app, "the SPA is routing the install path again"
 
 
-def test_the_server_falls_back_to_the_shell_for_the_install_path(tmp_path, monkeypatch):
+def test_the_server_serves_the_install_document_before_the_spa_catch_all():
+    source = (pathlib.Path(main.__file__)).read_text(encoding="utf-8")
+    route = '@app.get("/studio/install", include_in_schema=False)'
+    assert route in source, "the static install route is missing"
+    assert source.index(route) < source.index('@app.get("/studio/{path:path}"'), \
+        "the catch-all is declared first and would answer /studio/install with the shell"
+
+
+def test_the_server_falls_back_to_the_shell_when_the_document_is_missing(tmp_path, monkeypatch):
     (tmp_path / "index.html").write_text("<!doctype html><title>Concierge</title>")
     monkeypatch.setattr(main, "STUDIO_DIR", tmp_path)
-    response = __import__("asyncio").run(main.studio_file("install"))
+    response = __import__("asyncio").run(main.studio_install())
     assert str(response.path).endswith("index.html")
 
 
@@ -95,12 +112,11 @@ def test_the_install_prompt_is_captured_before_react_mounts():
 
 
 def test_the_install_page_tells_the_truth_for_iphone_and_android():
-    page = (SRC / "Install.tsx").read_text()
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
     assert "Add to Home Screen" in page, "iPhone users need the real gesture"
     assert "Install Concierge" in page
     assert "cannot put an icon" in page.lower() or "cannot add itself" in page.lower(), \
         "the page must not claim a QR installs by itself"
-    assert "installUrl()" in page
 
 
 # ------------------------------------------------------------------ the QR points at the right place
@@ -135,8 +151,9 @@ def test_the_old_chat_qr_label_is_gone():
 def test_a_phone_without_an_install_prompt_is_not_told_to_scan_a_qr_with_itself():
     """Every phone without Chrome's install offer was shown the desktop block — "scan this with
     the phone you want it on" — on the phone it was already on. The menu route is the honest one."""
-    page = (SRC / "Install.tsx").read_text()
-    assert "isMobile" in page
-    assert ") : mobile ? (" in page, "the phone branch is gone; phones get the desktop QR again"
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "var mobile" in page
+    assert "if (mobile) {" in page, "the phone branch is gone; phones get the desktop QR again"
+    assert "Install app” or “Add to Home screen" in page
     assert "Install from the browser menu" in page
     assert "Add to Home screen" in page
