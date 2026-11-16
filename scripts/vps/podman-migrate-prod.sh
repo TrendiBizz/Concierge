@@ -64,7 +64,14 @@ mkdir -p "$BK/project-vps" "$BK/project-asterisk"; cp -a "$V/." "$BK/project-vps
 mapfile -t volumes < <( { docker ps -aq --filter label=com.docker.compose.project=trendi; docker ps -aq --filter label=com.docker.compose.project=asterisk; } \
   | xargs -r docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}}{{"\n"}}{{end}}{{end}}' | sort -u | grep -v '^$' || true)
 echo "    volumes: ${volumes[*]:-none}"
+# Refuse BEFORE anything is stopped: a copy left by an earlier attempt is stale (Docker kept writing) and must be removed by hand.
+for v in "${volumes[@]}"; do
+  podman volume exists "$v" && { echo "!!! podman volume $v already exists (stale copy?). Remove it with: podman volume rm $v" >&2; exit 1; }
+done
 
+# trendi-shell shares the phone network with the PBX, whose address (172.30.91.2) is fixed in pjsip.conf. IPAM hands out the lowest
+# free address, so if the shell starts first it takes .2 and the PBX dies with "Address already in use" (this broke the first attempt AND
+# its rollback on 2026-11-17). Start the PBX stack first and the shell last, under either engine.
 rollback() {
   trap - ERR
   echo "!!! FAILED: putting trendi and asterisk back on Docker" >&2
@@ -72,8 +79,9 @@ rollback() {
   ptdc down --timeout 20 >/dev/null 2>&1 || true
   podman network rm -f asterisk_phone trendi_default >/dev/null 2>&1 || true
   docker network inspect asterisk_phone >/dev/null 2>&1 || docker network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null 2>&1 || true
-  tdc up -d >&2 || true
+  tdc up -d --scale shell=0 >&2 || true
   adc up -d >&2 || true
+  tdc up -d >&2 || true
   echo "!!! rolled back to Docker. Docker data untouched. Backup: $BK" >&2
 }
 trap rollback ERR
@@ -94,8 +102,9 @@ done
 # ---- 5. network, then start trendi, then asterisk --------------------------------------------------------------------------------------
 docker network inspect asterisk_phone >/dev/null 2>&1 && docker network rm asterisk_phone >/dev/null
 podman network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null
-echo "==> starting trendi under Podman"; ptdc up -d
+echo "==> starting trendi under Podman (shell held back so the PBX can have 172.30.91.2)"; ptdc up -d --scale shell=0
 echo "==> starting asterisk under Podman"; padc up -d
+echo "==> starting the telephone shell"; ptdc up -d
 
 echo "==> waiting for health"
 for _ in $(seq 1 "$WAIT_TRIES"); do
