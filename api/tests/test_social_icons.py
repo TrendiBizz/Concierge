@@ -23,7 +23,7 @@ def footer_pages() -> list[pathlib.Path]:
 
 def test_every_page_carries_the_icon_footer():
     pages = footer_pages()
-    assert len(pages) == 40, f"{len(pages)} pages carry a footer social block"
+    assert len(pages) == 41, f"{len(pages)} pages carry a footer social block"
     for page in pages:
         html = page.read_text(encoding="utf-8")
         block = html[html.index('class="fine footer-social"'):]
