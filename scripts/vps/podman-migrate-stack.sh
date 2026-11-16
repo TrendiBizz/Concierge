@@ -15,19 +15,21 @@
 # -E: without it the ERR trap does not fire for a failure inside a function (pdc/dc), and the rollback silently never ran.
 set -Eeuo pipefail
 
-dir="${1:?usage: podman-migrate-stack.sh COMPOSE_DIR [--pg SERVICE:USER] [--profile NAME]...}"; shift
-pgs=(); profiles=(); envf=()
+dir="${1:?usage: podman-migrate-stack.sh COMPOSE_DIR [--file NAME] [--env-file PATH] [--pg SERVICE:USER] [--profile NAME]...}"; shift
+pgs=(); profiles=(); file=""; envf=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --pg) pgs+=("${2:?--pg needs SERVICE:USER}"); shift 2 ;;   # repeatable: one dump per database service
     --env-file) envf=(--env-file "${2:?--env-file needs a path}"); shift 2 ;;
+    --file) file="${2:?--file needs a name}"; shift 2 ;;   # needed when the directory holds several compose files
     --profile) profiles+=(--profile "${2:?--profile needs a name}"); shift 2 ;;
     *) echo "unknown option $1" >&2; exit 1 ;;
   esac
 done
 cd "$dir"
 COMPOSE_FILE_ARG=()
-for f in compose.yml compose.yaml compose.json docker-compose.yml docker-compose.yaml; do [[ -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
+[[ -n "$file" ]] && COMPOSE_FILE_ARG=(-f "$file")
+for f in compose.yml compose.yaml compose.json docker-compose.yml docker-compose.yaml; do [[ ${#COMPOSE_FILE_ARG[@]} -eq 0 && -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
 [[ ${#COMPOSE_FILE_ARG[@]} -gt 0 ]] || { echo "no compose file in $dir" >&2; exit 1; }
 
 WAIT_TRIES="${WAIT_TRIES:-60}"   # x3s
