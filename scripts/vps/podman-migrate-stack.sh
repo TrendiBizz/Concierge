@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Move ONE compose stack from Docker to Podman (rootful), with a backup first and an automatic rollback.
+# Run as root on the VPS, from the stack's compose directory's parent or with the directory given.
+#
+#   podman-migrate-stack.sh COMPOSE_DIR [--pg SERVICE:USER] [--profile NAME]...
+#
+# Steps: record state -> pg_dumpall (if --pg) -> copy compose files -> `docker compose down` (never -v) ->
+# copy each named volume into a Podman volume of the same name -> `docker save | podman load` each image ->
+# `docker compose up -d` through the Podman socket -> wait until nothing is starting/unhealthy.
+# If the stack does not come up, it is torn down under Podman and started again under Docker.
+# Docker's data (/var/lib/docker) is never modified, so Docker can always take the stack back.
+#
+# Why volumes are copied with cp -a and not tar-in-a-container: the stack is stopped, root owns both stores, and
+# cp -a keeps ownership, modes and sparse files exactly. A running database must never be copied this way.
+set -euo pipefail
+
+dir="${1:?usage: podman-migrate-stack.sh COMPOSE_DIR [--pg SERVICE:USER] [--profile NAME]...}"; shift
+pg=""; profiles=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --pg) pg="${2:?--pg needs SERVICE:USER}"; shift 2 ;;
+    --profile) profiles+=(--profile "${2:?--profile needs a name}"); shift 2 ;;
+    *) echo "unknown option $1" >&2; exit 1 ;;
+  esac
+done
+cd "$dir"
+COMPOSE_FILE_ARG=()
+for f in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do [[ -f $f ]] && { COMPOSE_FILE_ARG=(-f "$f"); break; }; done
+[[ ${#COMPOSE_FILE_ARG[@]} -gt 0 ]] || { echo "no compose file in $dir" >&2; exit 1; }
+
+PODMAN_SOCK="unix:///run/podman/podman.sock"
+dc()  { docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
+pdc() { DOCKER_HOST="$PODMAN_SOCK" docker compose "${COMPOSE_FILE_ARG[@]}" "${profiles[@]}" "$@"; }
+
+project="$(dc config --format json | python3 -c 'import sys,json;print(json.load(sys.stdin)["name"])')"
+BK="/root/podman-migration/$project-$(date +%Y%m%d%H%M%S)"
+mkdir -p "$BK"; chmod 700 "$BK"
+echo "==> $project: backup dir $BK"
+
+systemctl enable --now podman.socket >/dev/null
+podman info >/dev/null
+
+# 1. what is running now, and the files that define it (env files hold secrets: the dir is root-only)
+docker ps -a --filter "label=com.docker.compose.project=$project" \
+  --format '{{.Names}}\t{{.Image}}\t{{.Status}}' > "$BK/containers-before.txt"
+cp -a "$dir/." "$BK/project/"
+mapfile -t images < <(dc config --images | sort -u)
+mapfile -t volumes < <(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+echo "    images: ${images[*]}"; echo "    volumes: ${volumes[*]:-none}"
+
+# 2. a logical dump while the database still runs: the one backup that is consistent by construction
+if [[ -n "$pg" ]]; then
+  svc="${pg%%:*}"; user="${pg##*:}"
+  dc exec -T "$svc" pg_dumpall -U "$user" > "$BK/pg_dumpall.sql"
+  [[ -s "$BK/pg_dumpall.sql" ]] || { echo "pg_dumpall produced nothing; stopping before any change" >&2; exit 1; }
+  echo "    pg_dumpall: $(wc -c < "$BK/pg_dumpall.sql") bytes"
+fi
+
+rollback() {
+  echo "!!! FAILED: putting $project back on Docker" >&2
+  pdc down --timeout 20 >/dev/null 2>&1 || true
+  dc up -d >&2 || true
+  echo "!!! rolled back. Docker data untouched. Backup: $BK" >&2
+}
+trap rollback ERR
+
+# 3. stop under Docker (no -v: volumes stay)
+echo "==> stopping under Docker"
+dc down --timeout 30
+
+# 4. volumes, then images
+for v in "${volumes[@]}"; do
+  podman volume exists "$v" && { echo "    podman volume $v already exists; refusing to overwrite" >&2; false; }
+  podman volume create "$v" >/dev/null
+  src="$(docker volume inspect "$v" --format '{{.Mountpoint}}')"
+  dst="$(podman volume inspect "$v" --format '{{.Mountpoint}}')"
+  cp -a "$src/." "$dst/"
+  echo "    volume $v: $(du -sh "$src" | cut -f1) -> $(du -sh "$dst" | cut -f1)"
+done
+for img in "${images[@]}"; do
+  if docker image inspect "$img" >/dev/null 2>&1; then docker save "$img" | podman load >/dev/null && echo "    image $img loaded"
+  else echo "    image $img not in Docker; Podman will pull it"; fi
+done
+
+# 5. start under Podman through the Docker-compatible socket, then wait for health
+echo "==> starting under Podman"
+pdc up -d
+for _ in $(seq 1 60); do
+  states="$(podman ps -a --filter "label=com.docker.compose.project=$project" --format '{{.Status}}')"
+  if [[ -n "$states" ]] && ! grep -qiE 'starting|unhealthy|exited|created' <<<"$states"; then ok=1; break; fi
+  sleep 3
+done
+podman ps -a --filter "label=com.docker.compose.project=$project" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+[[ "${ok:-0}" == 1 ]] || { echo "stack did not become healthy within 180s" >&2; false; }
+trap - ERR
+echo "==> $project is running under Podman. Docker copy of the volumes is untouched at /var/lib/docker."
+echo "    Roll back later with: (cd $dir && DOCKER_HOST=$PODMAN_SOCK docker compose down && docker compose up -d)"
