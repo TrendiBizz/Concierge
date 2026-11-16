@@ -134,7 +134,11 @@ The first three streams are recorded in their own files. The last one is this se
    one-tap Install button. **Follow-up the same day:** on a phone that URL opened the Studio's
    sign-in screen instead, because it was a route inside the SPA. It is now a standalone document
    served by `main.py` before the catch-all — no router, no auth, no email field — with the SPA
-   branch and `Install.tsx` deleted. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
+   branch and `Install.tsx` deleted. Same day again: iPhone users could not find Safari's Share
+   button, so the page now draws the icon, names the in-app browsers, and gives the Edit Actions
+   recovery. **iOS has no one-tap install** — only Safari's Share → Add to Home Screen; a native
+   App Store app is the only simpler route and is an operator decision. Record:
+   `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
 
 11. **Social marks, mobile controls and a stricter SEO gate — 2026-11-16 (this session).** The
    Studio's social connections were text buttons ("Connect linkedin organization"); they are now

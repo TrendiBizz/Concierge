@@ -188,3 +188,55 @@ app), `Instagram`, `Facebook`.
   and that no untested URL scheme is offered.
 - Suite: 1444 passed, 19 skipped, 29 failed (the known local-Postgres outage). Deployed; Live page
   confirmed.
+
+---
+
+# Follow-up: "I don't get an up arrow" (same day)
+
+## What the operator saw
+
+In Safari, no Share button (the square with the arrow). The page said "tap Share" and gave them
+nothing to match it to.
+
+## Why it happens
+
+The Share button is Safari's, not the page's, and it is easy to lose:
+
+- **in-app browsers** (Instagram, Facebook, WhatsApp, LinkedIn, TikTok, a scanner's preview) have
+  their own `⋯` menu and no Add to Home Screen at all — the page cannot tell "Safari" apart from
+  "a webview that looks like Safari" by feature detection alone, only by the user-agent token;
+- in recent Safari the **bottom bar collapses as you scroll**, so the button is simply not on
+  screen until the page is swiped up;
+- the action can be **removed from the Share sheet** by the person (or an MDM profile); Apple's own
+  guidance is to restore it with **Edit Actions…** at the bottom of the sheet.
+
+## What changed
+
+- The share icon is now **drawn on the page** — a square with an arrow pointing up — labelled
+  "This is the button. It is called Share." Nothing to guess.
+- Step 2 names both places: bottom bar on iPhone, top right on iPad, and what to do when the bar is
+  hidden (swipe up once).
+- A "Can't see the arrow?" paragraph names the in-app browsers and the fix (⋯ → Open in Safari),
+  and Safari's collapsing bar.
+- A "Share sheet without Add to Home Screen?" paragraph gives the **Edit Actions…** recovery.
+- The iPhone path detects the app it is running inside (Instagram, Facebook, WhatsApp, LinkedIn,
+  TikTok, X), names it, and says plainly that it cannot install.
+- Step 1 no longer tells someone already in Safari to "copy the address and open Safari".
+
+## The honest ceiling
+
+There is **no one-tap install on iOS**. Apple permits Add to Home Screen only through the Safari
+Share sheet (or a third-party browser holding Apple's web-browser entitlement, in the EU/with the
+entitlement); no page can trigger it, skip it, or open Safari for the person. Android is one tap.
+The only genuinely one-tap install on an iPhone is a **native app from the App Store**, which is a
+different build and a different distribution decision — not something a QR code can change.
+
+## Proof
+
+- Emulated iPhone Safari: `ios` section, share icon rendered, no browser warning (it is Safari),
+  three steps.
+- Emulated iPhone Chrome: `ios` section, heading "not Chrome", copy button.
+- Emulated iPhone Instagram: `ios` section, heading "not Instagram".
+- `tests/test_pwa_install.py` (15) asserts the icon is drawn and described, the Edit Actions route,
+  the in-app browser tokens, and the collapsed-bar instruction.
+- Suite: 1445 passed, 19 skipped, 29 failed (the known local-Postgres outage). Deployed.

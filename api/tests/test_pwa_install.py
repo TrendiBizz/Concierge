@@ -173,3 +173,18 @@ def test_an_iphone_browser_other_than_safari_is_told_why_it_cannot_install():
     assert "Apple only allows Safari" in page
     assert "copy-ios" in page, "the iPhone path has no way to move the link into Safari"
     assert "safari-https://" not in page, "an untested URL scheme is being offered as a button"
+
+
+def test_the_iphone_page_shows_the_button_it_is_talking_about():
+    """Reported 2026-11-16 from an iPhone: "I do not get an up arrow". The instruction said
+    "Share" and the person had nothing to match it to — the icon is now drawn on the page, with
+    the places it hides (in-app browsers, a collapsed Safari bar, a hidden Edit Actions row)."""
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "aria-label=\"Safari Share button" in page, "the share icon is not drawn for the reader"
+    assert 'role="img"' in page[page.index('class="sharebar"'):][:400], \
+        "the diagram is decoration nobody can describe"
+    assert "Edit Actions" in page, "the hidden 'Add to Home Screen' action has no recovery route"
+    assert "Open in Safari" in page
+    for app in ("Instagram", "WhatsApp", "LinkedInApp", "TikTok"):
+        assert app in page, f"the page does not recognise the {app} in-app browser"
+    assert "swipe up" in page.lower(), "a collapsed Safari bar has no instruction"

@@ -65,6 +65,9 @@
   .qr img { width: 168px; height: 168px; background: #fff; padding: 8px; border-radius: 12px; }
   .url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); word-break: break-all; }
   .fine { font-size: 12px; color: #8f87a6; margin-top: 26px; }
+  .sharebar { display: flex; gap: 14px; align-items: center; margin: 4px 0 18px; padding: 14px; border-radius: 14px; background: #ffffff08; border: 1px dashed var(--line); }
+  .sharebar span { font-size: 14px; color: var(--muted); }
+  .sharebar strong { color: var(--ink); }
   .hide { display: none !important; }
   [hidden] { display: none !important; }
 </style>
@@ -94,11 +97,23 @@
   <section class="card" id="ios" hidden>
     <h2 id="ios-title">On iPhone or iPad: three taps in Safari</h2>
     <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari to do it. No website can change that, and no web page can start the install by itself.</p>
+
+    <div class="sharebar">
+      <svg viewBox="0 0 64 64" width="46" height="46" role="img" aria-label="Safari Share button: a square with an arrow pointing up">
+        <rect x="14" y="26" width="36" height="30" rx="6" fill="none" stroke="#f5f3ff" stroke-width="4"/>
+        <path d="M32 40V8" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round"/>
+        <path d="M20 20 L32 8 L44 20" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>This is the button. It is called <strong>Share</strong>.</span>
+    </div>
+
     <ol>
-      <li>Open this page in <strong>Safari</strong>.</li>
-      <li>Tap the <strong>Share</strong> button — the square with the arrow pointing up.</li>
-      <li>Scroll and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+      <li>Be in <strong>Safari</strong>. If you are reading this in another browser, the button below copies the link so you can paste it into Safari.</li>
+      <li>Tap the <strong>Share</strong> button — the square with an arrow pointing up. On an iPhone it sits in the bottom bar; on an iPad, top right. If the bar is hidden, swipe up on the page once.</li>
+      <li>Scroll the list and tap <strong>Add to Home Screen</strong>, leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
     </ol>
+    <p><strong>Can't see the arrow?</strong> You are probably in an app's built-in browser (Instagram, Facebook, WhatsApp, LinkedIn, TikTok, or a QR scanner's preview). Tap <strong>⋯</strong> in that browser and choose <strong>Open in Safari</strong>, or paste the link into Safari yourself. In Safari 26 the bottom bar hides as you scroll — swipe up to bring it back.</p>
+    <p><strong>Share sheet without “Add to Home Screen”?</strong> Scroll to the bottom of that sheet, tap <strong>Edit Actions…</strong> and switch <strong>Add to Home Screen</strong> on.</p>
     <div class="row">
       <button class="secondary" id="copy-ios" type="button">Copy the link for Safari</button>
     </div>
@@ -141,6 +156,13 @@
   // Which browser this is, on iOS. Apple only exposes "Add to Home Screen" in Safari, so Chrome,
   // Firefox, Edge and the in-app browsers on an iPhone cannot install a web app at all — saying
   // "use Safari" without saying why reads like the site is broken.
+  var inApp = /Instagram/.test(ua) ? 'Instagram'
+    : /FBAN|FBAV/.test(ua) ? 'Facebook'
+    : /WhatsApp/.test(ua) ? 'WhatsApp'
+    : /LinkedInApp/.test(ua) ? 'LinkedIn'
+    : /TikTok|BytedanceWebview/.test(ua) ? 'TikTok'
+    : /Twitter/.test(ua) ? 'X'
+    : '';
   var iosBrowser = /CriOS/.test(ua) ? 'Chrome'
     : /FxiOS/.test(ua) ? 'Firefox'
     : /EdgiOS/.test(ua) ? 'Edge'
@@ -169,8 +191,8 @@
     if (ios) {
       var note = document.getElementById('ios-browser-note');
       var name = document.getElementById('ios-browser-name');
-      if (note && name && iosBrowser) {
-        name.textContent = iosBrowser;
+      if (note && name && (iosBrowser || inApp)) {
+        name.textContent = inApp || iosBrowser;
         note.hidden = false;
       }
       var title = document.getElementById('ios-title');
