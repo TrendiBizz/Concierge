@@ -67,6 +67,17 @@ adding `"$HOST"` to the array. Re-running it then rebuilt, recreated api + socia
 healthy and social reachable, and ended with the checksum check. `sync-tooling.sh` refused while the
 fix was uncommitted, so the order is: commit the tooling, then publish it with `sync-tooling.sh`.
 
+## Deployed and checked live
+
+- `https://concierge.trendibizz.com/owner/qrcode.js` → **200**, `application/javascript`, 56,694 bytes.
+- `https://concierge.trendibizz.com/owner-ui` → **200**; the page contains `inviteQrSvg` and loads
+  the encoder. A headless Chrome run against the live page produced a decodable QR
+  (`QA/verification/invitation-qr-live-2026-11-16.png`), decoded to the exact sample token URL.
+- `https://concierge.trendibizz.com/studio/` serves `assets/index-DlA0LIRe.js`, which contains
+  `QR code for this invitation` and `concierge-invitation-qr.svg`.
+- `verify-deploy.sh` → `OK: repo and box agree` (api/app 107, api/static 7, scripts/vps 39,
+  website/site 61). Health: **46 ok / 1 warn (`sms:inbound`) / 0 fail**, unchanged.
+
 ## Known limit
 
 The invitation email body is still plain text with the sign-in link; the QR is shown where the token
