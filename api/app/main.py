@@ -845,6 +845,7 @@ class TenantUpdate(BaseModel):
     sla_min_score: int | None = Field(default=None, ge=0, le=100)
     campaigns_enabled: bool | None = None
     weekly_digest: bool | None = None                                  # Monday summary email to notify_email
+    daily_summary: bool | None = None                                  # 7am "what needs you today" email to notify_email
     scoring: dict[str, int] | None = None                              # {} resets to the defaults
 
     @field_validator("scoring")

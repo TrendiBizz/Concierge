@@ -180,12 +180,58 @@ async def check_digests(now: datetime | None = None) -> int:
     return queued
 
 
+def daily_is_due(local: datetime) -> bool:
+    """From 7am to 10am local, so the summary is the first thing read and never arrives overnight."""
+    return 7 <= local.hour < 10
+
+
+def daily_text(tenant: dict, s: dict) -> tuple[str, str] | None:
+    """The 7am note, or None when there is nothing to act on: an empty "all quiet" email every morning
+    trains people to stop reading, so a quiet day sends nothing."""
+    waiting = s["leads_waiting"] or 0
+    if not (s["new_leads"] or s["overdue_todos"] or waiting):
+        return None
+    subject = f"{tenant['name']}: {s['new_leads']} new in the last day" + (f", {waiting} waiting for a reply" if waiting else "")
+    lines = [f"Good morning. Here is what needs you at {tenant['name']}.", ""]
+    if waiting:
+        lines.append(f"Waiting for a reply: {waiting}")
+    if s["overdue_todos"]:
+        lines.append(f"To-dos overdue: {s['overdue_todos']}")
+    lines.append(f"New leads in the last day: {s['new_leads']}")
+    lines += ["", "Open Studio to reply: https://concierge.trendibizz.com/studio/",
+              "Nothing is sent to your customers until you approve it."]
+    return subject, "\n".join(lines) + "\n"
+
+
+async def check_daily_summaries(now: datetime | None = None) -> int:
+    """Queue today's 7am note for every business that switched it on. One per business per local day."""
+    now = now or datetime.now(timezone.utc)
+    queued = 0
+    for row in await db.pool().fetch(
+            "SELECT * FROM tenants WHERE daily_summary = true AND notify_email IS NOT NULL AND notify_email <> ''"):
+        tenant = dict(row)
+        if not is_email(tenant["notify_email"]):
+            continue
+        local = now.astimezone(ZoneInfo(tenant["timezone"]))
+        if not daily_is_due(local):
+            continue
+        key = f"daily:{tenant['id']}:{local.date().isoformat()}"
+        if await db.pool().fetchval("SELECT 1 FROM outbox WHERE dedupe_key = $1", key):
+            continue
+        note = daily_text(tenant, await summary(tenant, 1))
+        if note and await outbox.enqueue(tenant["id"], "owner_alert", "email", tenant["notify_email"], note[1],
+                                         subject=note[0], dedupe_key=key):
+            queued += 1
+    return queued
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     """Check for due weekly summaries every few minutes. Cheap: it exits early when nothing is due."""
     interval = max(get_settings().digest_poll_seconds, 30)
     while not stop.is_set():
         try:
             await check_digests()
+            await check_daily_summaries()
         except Exception:
             log.exception("digest loop error")
         try:

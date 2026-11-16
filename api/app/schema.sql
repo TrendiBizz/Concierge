@@ -275,6 +275,7 @@ CREATE INDEX IF NOT EXISTS lead_events_tenant_idx ON lead_events (tenant_id, cre
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS calendar_token text;
 CREATE UNIQUE INDEX IF NOT EXISTS tenants_calendar_token_idx ON tenants (calendar_token);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS weekly_digest boolean NOT NULL DEFAULT false;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS daily_summary boolean NOT NULL DEFAULT false;
 
 
 -- Human-reviewed email replies: no message is sent until explicit approval.

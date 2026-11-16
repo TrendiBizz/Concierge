@@ -42,6 +42,7 @@ UPDATABLE_FIELDS = {
     "campaigns_enabled": bool,
     "scoring": dict,
     "weekly_digest": bool,
+    "daily_summary": bool,
     "owner_text_only": bool,
 }
 JSONB_FIELDS = {"business_hours", "scoring"}
