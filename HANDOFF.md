@@ -121,6 +121,18 @@ The first three streams are recorded in their own files. The last one is this se
    mutation proofs), 1402 passed with the 29 known DB-outage failures, `tsc` clean, portal built,
    deployed and verified live. Full record: `QA/verification/QUOTATION_SYSTEM_2026-11-16.md`.
 
+10. **Install QR fixed — 2026-11-16 (this session).** The QR in Studio → Setup was drawn from the
+   hosted chat page (`chat.trendibizz.com/demo/<slug>`), and the app was not installable anyway:
+   the shell never linked `manifest.webmanifest`, so Chrome never fired `beforeinstallprompt` and
+   the header's Install button never appeared. Fixed: manifest + apple-touch-icon + theme meta are
+   linked, the manifest carries `id`/`display_override`/shortcuts, the install offer is captured at
+   startup (`src/installPrompt.ts`), a public `/studio/install` page explains the one tap (Android)
+   or Share → Add to Home Screen (iPhone), and Setup now shows a downloadable **install** QR. The
+   chat page keeps its link but lost its QR and is labelled "not the app". Proof: 12 tests, two
+   mutations, and the live page's QR decoded with OpenCV to
+   `https://concierge.trendibizz.com/studio/install`; headless Chrome on the live page rendered the
+   one-tap Install button. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
+
 ## 3. Outstanding — the real worklist
 
 ### Operator only (cannot be fixed from this repo)
@@ -221,6 +233,11 @@ The first three streams are recorded in their own files. The last one is this se
    customer is enough), approve it, send it to an address you control, open the link, accept with
    a typed name, then confirm the invoice appears. If anything breaks, it is a bug to fix in that
    session, not a note.
+34c. **The install path is proven in Chrome, not on a phone.** The live page's QR decodes to the
+   install URL and headless Chrome offered the install, but no physical Android or iPhone has
+   installed it. **Next:** scan the Setup QR with one of each, install, open from the home screen
+   and sign in; note the iOS "Add to Home Screen" route separately, because Apple gives no prompt.
+
 34b. **No browser test for the builder.** The checks are `tsc`, the build, lint and source-shape
    tests; a click-through regression (e.g. the send dialog after an edit) would not be caught.
    **Next:** if the flow is touched again, add a Playwright pass against the Studio with a mocked

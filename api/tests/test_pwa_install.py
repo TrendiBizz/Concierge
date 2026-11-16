@@ -130,3 +130,13 @@ def test_the_old_chat_qr_label_is_gone():
     assert 'label="QR code for your chat page"' not in source
     assert "print the QR code for your van" not in source, \
         "the copy that made a chat QR look like an app QR is back"
+
+
+def test_a_phone_without_an_install_prompt_is_not_told_to_scan_a_qr_with_itself():
+    """Every phone without Chrome's install offer was shown the desktop block — "scan this with
+    the phone you want it on" — on the phone it was already on. The menu route is the honest one."""
+    page = (SRC / "Install.tsx").read_text()
+    assert "isMobile" in page
+    assert ") : mobile ? (" in page, "the phone branch is gone; phones get the desktop QR again"
+    assert "Install from the browser menu" in page
+    assert "Add to Home screen" in page
