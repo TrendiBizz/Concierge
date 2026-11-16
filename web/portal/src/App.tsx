@@ -758,6 +758,48 @@ const TIMEZONES: Array<[string, string]> = [
   ['UTC', 'UTC'],
 ];
 
+// The install QR for someone who is signed in. It carries a one-hour sign-in ticket, so the app that
+// lands on the phone opens already signed in — a QR that ends at a sign-in box is no QR at all.
+// The ticket is renewed before it lapses; the public install page has no ticket and is the fallback.
+function PhoneInstall({token}: {token: string}) {
+  const api = useApi(token);
+  const notify = useNotify();
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    let live = true;
+    const mint = () => api('/owner/auth/install-ticket', 'POST', {})
+      .then((data) => { if (live && data?.url) setUrl(String(data.url)); })
+      .catch(() => { if (live) setUrl(''); });
+    void mint();
+    const timer = window.setInterval(() => { void mint(); }, 50 * 60 * 1000);
+    return () => { live = false; window.clearInterval(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+  const link = url || installUrl();
+  return (
+    <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
+      <Heading level={3}>Put Concierge on your phone</Heading>
+      <p style={{fontSize: 14}}>
+        Scan with your phone. Android: tap <strong>Install</strong>. iPhone: in Safari,
+        <strong> Share → Add to Home Screen</strong>. Open the new icon and you are already signed in.
+      </p>
+      <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
+        <QrCode value={link} size={180} label="QR code to install Concierge and sign in" />
+        <div style={{fontSize: 14, maxWidth: 360}}>
+          <p style={{marginTop: 0, fontSize: 13, opacity: 0.8}}>
+            {url
+              ? 'This code signs in whoever scans it, for one hour. Do not post or print it — it renews itself while this page is open.'
+              : 'Could not make a sign-in code just now, so this code opens the install page only; you will sign in once on the phone.'}
+          </p>
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <Button label="Send me the link" variant="secondary" onClick={() => { void copyText(link).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; setBrand: (b: Brand) => void; onDone: () => void}) {
   const api = useApi(token);
   const notify = useNotify();
@@ -1031,29 +1073,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
             )}
           </div>
 
-          <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
-            <Heading level={3}>Put Concierge on your phone</Heading>
-            <p style={{fontSize: 14}}>
-              This is the app: the whole workspace — enquiries, quotes, calls and marketing — as an
-              icon on the home screen. Scan the code, then tap <strong>Install</strong> on Android, or
-              use Safari’s <strong>Share → Add to Home Screen</strong> on iPhone.
-            </p>
-            <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
-              <QrCode value={installUrl()} size={180} label="QR code for the Concierge install page" />
-              <div style={{fontSize: 14}}>
-                <p style={{marginTop: 0}}><a href={installUrl()}>{installUrl()}</a></p>
-                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                  <Button label="Copy install link" variant="secondary" onClick={() => { void copyText(installUrl()).then((ok: boolean) => notify(ok ? 'Install link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
-                  <a download="concierge-install-qr.svg" href={qrDownloadHref(installUrl())}
-                     style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
-                </div>
-                <p style={{fontSize: 13, opacity: 0.8}}>
-                  The QR opens the install page; the phone does the install. No web page can add itself
-                  to the home screen without that one tap.
-                </p>
-              </div>
-            </div>
-          </div>
+          <PhoneInstall token={token} />
 
           {hosted ? (
             <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>

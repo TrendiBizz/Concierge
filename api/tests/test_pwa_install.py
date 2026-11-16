@@ -128,11 +128,10 @@ def test_the_install_url_is_the_install_page():
 
 def test_the_setup_qr_encodes_the_install_page_not_the_chat_widget():
     source = (SRC / "App.tsx").read_text()
-    assert "QrCode value={installUrl()}" in source
+    assert "const link = url || installUrl();" in source and "QrCode value={link}" in source
     assert "QrCode value={hosted}" not in source, \
         "the chat-page QR is back, and scanning it installs nothing"
     assert "chat-qr.svg" not in source
-    assert "concierge-install-qr.svg" in source
 
 
 def test_the_chat_page_is_still_offered_as_a_link_but_not_as_an_app():
@@ -207,3 +206,53 @@ def test_an_installed_app_signs_in_with_a_code_not_a_pasted_link():
         "the installed app does not start on the code path"
     page = (PUBLIC / "install.html").read_text(encoding="utf-8")
     assert "six-digit code" in page, "the install page does not say how the installed app signs in"
+
+
+# ------------------------------------------------- scan, install, open: already signed in
+
+def test_the_icon_is_visible_on_a_dark_home_screen():
+    """The icon was a near-black tile with a lime C: on a dark wallpaper (and under iOS's dark
+    icon treatment) it read as a black blob (reported 2026-11-16). The tile is now lime."""
+    for name in ("apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"):
+        data = (PUBLIC / name).read_bytes()
+        # corner pixel of an RGB PNG, via PIL: the tile colour must be bright, not near-black
+        from PIL import Image
+        import io
+        corner = Image.open(io.BytesIO(data)).convert("RGB").getpixel((2, 2))
+        assert sum(corner) / 3 > 140, f"{name} corner {corner} is dark — invisible on a dark screen"
+
+
+def test_the_manifest_route_carries_a_ticket_into_the_installed_apps_start_url(tmp_path, monkeypatch):
+    import asyncio
+    (tmp_path / "manifest.webmanifest").write_text((PUBLIC / "manifest.webmanifest").read_text())
+    monkeypatch.setattr(main, "STUDIO_DIR", tmp_path)
+    ticket = "A" * 43
+    with_ticket = asyncio.run(main.studio_manifest(k=ticket))
+    assert json.loads(with_ticket.body)["start_url"] == f"/studio/#invite={ticket}"
+    assert json.loads(with_ticket.body)["id"] == "/studio/", "the app identity must not change"
+    assert with_ticket.headers["cache-control"] == "no-store"
+    for bad in ("", "short", "x" * 30 + "<script>", "../../etc/passwd" + "a" * 20):
+        plain = asyncio.run(main.studio_manifest(k=bad))
+        assert json.loads(plain.body)["start_url"] == "/studio/", f"{bad!r} must not reach start_url"
+
+
+def test_the_install_page_hands_the_ticket_to_the_manifest_and_the_launched_app():
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "#k=" in page or "hash.match(/^#k=" in page
+    assert "manifest.webmanifest?k=" in page
+    assert "location.replace('/studio/'" in page and "'#invite=' + ticket" in page, \
+        "an installed app landing here must go into the workspace with its ticket"
+    assert page.index("location.replace('/studio/'") < page.index("function decide"), \
+        "the standalone redirect must run before the page decides what to show"
+
+
+def test_the_studio_qr_is_minted_per_signed_in_user_and_renewed():
+    app = (SRC / "App.tsx").read_text(encoding="utf-8")
+    assert "/owner/auth/install-ticket" in app and "<PhoneInstall token={token} />" in app
+    assert "50 * 60 * 1000" in app, "the ticket lasts an hour and must be renewed before it lapses"
+    assert "installUrl()" in app.split("function PhoneInstall")[1].split("function Setup")[0], \
+        "if minting fails the QR must still open the install page"
+    src = (pathlib.Path(main.__file__)).read_text(encoding="utf-8")
+    assert '@app.post("/owner/auth/install-ticket")' in src
+    assert src.index('"/studio/manifest.webmanifest"') < src.index('"/studio/{path:path}"'), \
+        "the manifest route must precede the static catch-all or it is never reached"

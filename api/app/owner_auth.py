@@ -188,6 +188,27 @@ async def make_code(tenant_id, email: str, role: str, avoid: set[str] | None = N
     return code
 
 
+INSTALL_MINUTES = 60
+
+
+async def make_install_ticket(tenant_id, email: str, role: str) -> str:
+    """A one-hour sign-in ticket for the install QR.
+
+    A phone app installed to the home screen has its own storage, so nothing the browser holds
+    reaches it. The ticket rides inside the installed app's start URL instead: the QR is shown to
+    someone who is already signed in, the phone installs from it, and the app signs itself in on
+    first launch — nothing to paste. Same table and redemption as a link (accept_invite), but an
+    hour instead of a day, because a ticket sits on a screen.
+    """
+    token = secrets.token_urlsafe(32)
+    await db.pool().execute(
+        "INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) "
+        "VALUES($1,$2,$3,'recovery',$4,now()+make_interval(mins=>$5))",
+        tenant_id, clean_email(email), role, digest(token), INSTALL_MINUTES,
+    )
+    return token
+
+
 def code_already_used(purpose: str, used_at) -> bool:
     """A code is single use, with no grace window. A link keeps its grace; a code does not."""
     return purpose == "code" and used_at is not None

@@ -2049,6 +2049,37 @@ async def studio_install():
     return _studio_index(STUDIO_DIR.resolve())
 
 
+_TICKET = re.compile(r"^[A-Za-z0-9_-]{20,100}$")
+
+
+@app.get("/studio/manifest.webmanifest", include_in_schema=False)
+async def studio_manifest(k: str = ""):
+    """The app manifest, with the sign-in ticket carried into the installed app's start URL.
+
+    iPhone gives a home-screen app its own empty storage, and the app launches at `start_url`.
+    Putting the install-QR ticket in that URL's fragment lets the first launch sign itself in
+    (the SPA already redeems `#invite=`), so there is no sign-in step to paste into. The ticket is
+    one hour and the fragment never reaches a server log.
+    """
+    target = (STUDIO_DIR / "manifest.webmanifest").resolve()
+    if not _readable(target):
+        raise HTTPException(404, "Not found")
+    manifest = json.loads(target.read_text(encoding="utf-8"))
+    if _TICKET.fullmatch(k or ""):
+        manifest["start_url"] = f"/studio/#invite={k}"
+    return Response(json.dumps(manifest), media_type="application/manifest+json",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.post("/owner/auth/install-ticket")
+async def owner_install_ticket(user: dict = Depends(owner_auth.current_user)):
+    """The install QR for someone who is already signed in: scan, install, open, signed in."""
+    token = await owner_auth.make_install_ticket(user["tenant_id"], user["email"], user["role"])
+    site = urlsplit(owner_auth.get_settings().onboarding_url)
+    return {"url": f"{site.scheme}://{site.netloc}/studio/install#k={token}",
+            "expires_in": owner_auth.INSTALL_MINUTES * 60}
+
+
 @app.get("/studio/{path:path}", include_in_schema=False)
 async def studio_file(path: str):
     root = STUDIO_DIR.resolve()

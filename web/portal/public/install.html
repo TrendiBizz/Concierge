@@ -151,6 +151,17 @@
 (function () {
   var standalone = window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true;
+  // The install QR shown inside a signed-in Studio carries a one-hour sign-in ticket in the
+  // fragment. The manifest is re-pointed at it so the installed app's start URL carries the ticket
+  // and the first launch signs itself in: an iPhone home-screen app has empty storage of its own,
+  // and nothing the browser holds can reach it.
+  var ticket = (location.hash.match(/^#k=([A-Za-z0-9_-]{20,100})$/) || [])[1] || '';
+  if (ticket) {
+    var manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink) manifestLink.href = '/studio/manifest.webmanifest?k=' + ticket;
+  }
+  // An installed app that lands here goes straight into the workspace, carrying its ticket.
+  if (standalone) { location.replace('/studio/' + (ticket ? '#invite=' + ticket : '')); return; }
   var ua = navigator.userAgent || '';
   var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
@@ -256,7 +267,7 @@
     var note = document.getElementById(noteId);
     function say(text) { if (note) note.textContent = text; }
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(INSTALL_URL).then(function () { say(done); })
+      navigator.clipboard.writeText(ticket ? location.href : INSTALL_URL).then(function () { say(done); })
         .catch(function () { say('Select this page\'s address and copy it instead.'); });
     } else {
       say('Select this page\'s address and copy it instead.');
