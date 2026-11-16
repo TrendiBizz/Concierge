@@ -69,7 +69,7 @@
       var price = el("div", { "class": "price" }, money(p.price));
       price.appendChild(el("small", null, p.per));
       panel.appendChild(price);
-      panel.appendChild(el("p", { "class": "terms" }, p.terms + " " + biz.gstNote));
+      panel.appendChild(el("p", { "class": "terms" }, p.terms + " " + biz.taxNote));
 
       var list = el("ul", { "class": "ticks" });
       T.includes.forEach(function (item) { list.appendChild(el("li", null, item)); });

@@ -18,7 +18,7 @@ window.TRENDI = {
     domain: "trendibizz.com",
     email: "admin@trendibizz.com",
     currency: "USD",
-    gstNote: "All prices are quoted in USD."
+    taxNote: "Prices in USD, tax included."
   },
 
   // Real proof only. Leave enabled: false until you have genuine numbers and permission to show them.

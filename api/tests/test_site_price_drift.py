@@ -42,3 +42,17 @@ def test_any_gst_wording_comes_back_as_a_problem():
 
 def test_a_page_without_cards_does_not_invent_problems():
     assert healthcheck.site_price_drift("<p>no prices here</p>", PLANS) == []
+
+
+def test_a_retired_stripe_link_is_reported():
+    problems = healthcheck.site_price_drift(
+        CARDS, PLANS, {"/pricing": '<a href="https://buy.stripe.com/28E8wRbntdSjcsQg7RcEw03">Buy</a>'})
+    assert problems == ["/pricing links to retired Stripe link 28E8wRbntdSjcsQg7RcEw03"]
+
+
+def test_a_non_answer_tax_faq_is_reported_and_a_real_answer_is_not():
+    faq = "<summary>Do prices include tax?</summary><p>Prices are in USD. </p>"
+    assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": faq}) == [
+        "/pricing tax FAQ is a non-answer; it must say prices include tax"]
+    good = faq.replace("Prices are in USD. ", "Yes. Prices are in USD and include tax.")
+    assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": good}) == []

@@ -399,6 +399,10 @@ def check_sms_inbound() -> list[dict]:
     return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
 
 
+# Deactivated in Stripe on purpose on 2026-11-16; any page still pointing at one dead-ends buyers.
+RETIRED_PAYMENT_LINKS = ("28E8wRbntdSjcsQg7RcEw03", "28EcN7bnt6pRgJ6f3NcEw04")
+
+
 def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) -> list[str]:
     """Problems where the published price disagrees with the plan data, or GST is added again.
 
@@ -429,6 +433,12 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
     for name, html in (pages or {}).items():
         if "GST" in html:
             problems.append(f"{name} mentions GST; the site must not discuss it")
+        for dead in RETIRED_PAYMENT_LINKS:
+            if dead in html:
+                problems.append(f"{name} links to retired Stripe link {dead}")
+        question = "Do prices include tax?"
+        if name == "/pricing" and question in html and "include tax" not in html.split(question, 1)[1][:600]:
+            problems.append("/pricing tax FAQ is a non-answer; it must say prices include tax")
     return problems
 
 
