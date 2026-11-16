@@ -185,7 +185,12 @@
       ".btn.mic.on{background:#dc2626}" +
       ".btn[disabled]{opacity:.5;cursor:default}" +
       ".foot{padding:6px 12px 10px;font-size:11px;color:#666;text-align:center;background:#fff}" +
-      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0}}";
+      "@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0}}"
+      // On a phone the long call-to-action made a half-screen-wide bar that covered the page
+      // content it was selling. The mark alone is the launcher there; the label stays for
+      // screen readers through the button's aria-label.
+      + "@media (max-width:600px){.launcher{width:56px;height:56px;padding:0;border-radius:50%;justify-content:center;font-size:22px}"
+      + ".launcher span:last-child{display:none}}";
 
     var launcher = el("button", { class: "launcher", type: "button", "aria-label": "Open AI guide" }, [
       el("span", { text: "\u{1F4AC}" }),

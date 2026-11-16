@@ -17,6 +17,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Timestamp} from '@astryxdesign/core/Timestamp';
 import {StatusLine} from './StatusLine';
+import {SocialIcon, SOCIAL_NETWORKS, networkLabel} from './SocialIcon';
 import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {Skeleton} from '@astryxdesign/core/Skeleton';
 import {useNotify} from './Notify';
@@ -457,14 +458,31 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     <div>
       <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
       <Card>
-        <Heading level={2}>Connect an account</Heading>
-        <p>Choose a network and authorize it on the provider's site. You authorize only the account for this business.</p>
-        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-          {Object.entries(providers).filter(([, enabled]) => enabled).map(([provider]) => (
-            <Button key={provider} label={'Connect ' + provider.replaceAll('_', ' ')} variant="secondary" onClick={() => connect(provider)} />
-          ))}
+        <Heading level={2}>Social accounts</Heading>
+        <p>Authorize one account at a time on the provider's own site. A full-colour mark means the network is available for this business; a faded one means setup has not been enabled yet.</p>
+        <div className="social-connect">
+          {SOCIAL_NETWORKS.map((network) => {
+            const linked = accounts.filter((account) => account.network === network.id);
+            const enabled = Boolean(providers[network.id]);
+            return (
+              <div key={network.id} className={'social-connect-card' + (enabled ? '' : ' is-off')}>
+                <SocialIcon network={network.id} size={30} />
+                <div className="social-connect-copy">
+                  <strong>{network.label}</strong>
+                  <span>{linked.length
+                    ? linked.map((account) => account.display_name || 'Connected').join(' · ')
+                    : enabled ? network.note : 'Not enabled for this business yet'}</span>
+                </div>
+                {enabled
+                  ? <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
+                            isDisabled={busy} onClick={() => void connect(network.id)} />
+                  : <Badge label="setup" variant="neutral" />}
+              </div>
+            );
+          })}
         </div>
         {!Object.values(providers).some(Boolean) ? <p>Account connections are awaiting Trendi setup for this business.</p> : null}
+        {role !== 'owner' ? <p>Only the business owner can connect an account.</p> : null}
       </Card>
       {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Choose a network above; it appears here once connected.</p></Card> : null}
       {accounts.length ? (
@@ -493,11 +511,14 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <div style={{margin: '12px 0'}}>
             <strong>Accounts</strong>
             {connectable.map((account) => (
-              <CheckboxInput label={account.display_name || account.network}
-                                 value={selected.includes(account.id)}
-                                 onChange={(checked) => setSelected(checked
-                                   ? [...selected, account.id]
-                                   : selected.filter((id) => id !== account.id))} />
+              <div key={account.id} style={{display: 'flex', alignItems: 'center', gap: 10, padding: '2px 0'}}>
+                <SocialIcon network={account.network} size={20} />
+                <CheckboxInput label={account.display_name || networkLabel(account.network)}
+                               value={selected.includes(account.id)}
+                               onChange={(checked) => setSelected(checked
+                                 ? [...selected, account.id]
+                                 : selected.filter((id) => id !== account.id))} />
+              </div>
             ))}
           </div>
           <Button label={busy ? 'Preparing…' : 'Prepare previews'} variant="primary" onClick={prepare} />

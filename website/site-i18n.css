@@ -15,4 +15,4 @@ body{top:0!important}
    z-index 2147483000 and later in the DOM - so it sat exactly on top of this pill and ate
    every tap (measured 2026-11-14 at 390px). Lift the pill clear of the launcher and above
    it in the stack; the launcher keeps its own fully interactive area. */
-@media (max-width:600px){#trendi-lang{bottom:88px;z-index:2147483002}#trendi-lang>button{min-height:44px;min-width:44px;position:relative;z-index:2147483003}}
+@media (max-width:600px){#trendi-lang{bottom:84px;left:12px;z-index:2147483002}#trendi-lang>button{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;font-size:18px;line-height:1;display:grid;place-items:center;position:relative;z-index:2147483003}#trendi-lang>button span{display:none}#trendi-lang-panel{max-width:calc(100vw - 32px)}}

@@ -34,9 +34,10 @@ healthcheck = load("concierge_healthcheck_seo", REPO / "scripts" / "vps" / "heal
 KEY = "0123456789abcdef0123456789abcdef"
 
 
-def page(url: str, *, title: str = "Page title", description: str = "A short description.",
+def page(url: str, *, title: str = "Page title", description: str | None = None,
          canonical: str | None = None, robots: str = "index, follow", date: str = "2026-11-01",
          h1: str = "<h1>Heading</h1>", body: str = "", ld: bool = True) -> str:
+    description = description or f"Description for {url}."
     canonical_link = (f'<link href="{canonical or site_seo.SITE + url}" rel="canonical"/>'
                       if canonical is not False else "")
     data = ""
@@ -46,6 +47,7 @@ def page(url: str, *, title: str = "Page title", description: str = "A short des
     return (f'<html><head><title>{title}</title>'
             f'<meta content="{robots}" name="robots"/>'
             f'<meta content="{description}" name="description"/>'
+            f'<meta content="https://trendibizz.com/brand/og-image.png" property="og:image"/>'
             f'{canonical_link}{data}</head><body><main>{h1}{body}</main></body></html>')
 
 
@@ -525,3 +527,53 @@ def test_host_tooling_has_a_supported_way_to_reach_the_box():
     assert "REFUSING" in body, "tooling must refuse to publish an uncommitted tree"
     agreement = (REPO / "AGENTS.md").read_text()
     assert "sync-tooling.sh" in agreement, "AGENTS.md must tell agents how to publish host tooling"
+
+
+# ------------------------------------------------ the 2026-11-16 additions to the contract
+
+def test_a_heading_that_skips_a_level_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "about.html", page("/about", title="About", h1="<h1>About</h1><h3>Skipped a level</h3>"))
+    assert any("about.html: heading jumps from h1 to h3" in p for p in site_seo.audit(root))
+
+
+def test_an_image_without_an_alt_attribute_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "about.html", page("/about", title="About", body='<img src="/brand/logo-refresh.svg">'))
+    assert any("about.html: image without an alt attribute" in p for p in site_seo.audit(root))
+
+
+def test_an_empty_alt_is_a_decision_and_is_allowed(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "about.html", page("/about", title="About", body='<img alt="" src="/brand/logo-refresh.svg">'))
+    assert site_seo.audit(root) == []
+
+
+def test_broken_structured_data_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    broken = page("/about", title="About").replace(
+        '</head>', '<script type="application/ld+json">{"@type": oops}</script></head>')
+    rewrite(root, "about.html", broken)
+    assert any("about.html: structured data is not valid JSON" in p for p in site_seo.audit(root))
+
+
+def test_a_page_with_no_structured_data_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "about.html", page("/about", title="About", ld=False))
+    assert any("about.html: no JSON-LD structured data" in p for p in site_seo.audit(root))
+
+
+def test_a_duplicate_description_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "index.html", page("/", title="Home", description="The same sentence twice."))
+    rewrite(root, "about.html", page("/about", title="About", description="The same sentence twice."))
+    problems = site_seo.audit(root)
+    assert any("description duplicates" in p and ("about.html" in p or "index.html" in p) for p in problems), problems
+
+
+def test_a_missing_absolute_og_image_is_reported(tmp_path):
+    root = make_site(tmp_path)
+    rewrite(root, "about.html", page("/about", title="About").replace(
+        '<meta content="https://trendibizz.com/brand/og-image.png" property="og:image"/>',
+        '<meta content="/brand/og-image.png" property="og:image"/>'))
+    assert any("about.html: og:image must be an absolute https URL" in p for p in site_seo.audit(root))

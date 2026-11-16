@@ -163,6 +163,7 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
         return [f"no pages under {root}"]
 
     seen_titles: dict[str, str] = {}
+    seen_descriptions: dict[str, str] = {}
     indexable: dict[str, str] = {}  # url -> page rel
 
     for path in pages:
@@ -211,6 +212,11 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
             problems.append(f"{rel}: no meta description")
         elif len(description) > DESCRIPTION_LIMIT:
             problems.append(f"{rel}: description {len(description)} chars (limit {DESCRIPTION_LIMIT})")
+        elif not noindex and description in seen_descriptions:
+            # A duplicated snippet makes two pages compete for one result.
+            problems.append(f"{rel}: description duplicates {seen_descriptions[description]}")
+        else:
+            seen_descriptions[description] = rel
 
         # 4. lastmod honesty: the page must publish a date the sitemap can copy.
         modified = date_modified(html)
@@ -237,6 +243,36 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
         visible = re.search(r'data-updated="(\d{4}-\d{2}-\d{2})"', html)
         if visible and modified and visible.group(1) != modified:
             problems.append(f"{rel}: visible date {visible.group(1)} but dateModified {modified}")
+
+        # 5c. Structured data has to be real JSON. A broken @graph silently removes every rich
+        #     result the page was eligible for, and nothing else notices.
+        blocks = ld_json_blocks(html)
+        if any(isinstance(block, dict) and block.get("_invalid") for block in blocks):
+            problems.append(f"{rel}: structured data is not valid JSON")
+        elif not noindex and not blocks:
+            problems.append(f"{rel}: no JSON-LD structured data")
+
+        # 5d. Every image declares alt — empty is a deliberate choice, absent is an omission.
+        for tag in re.findall(r"<img\b[^>]*>", html):
+            if " alt=" not in tag:
+                problems.append(f"{rel}: image without an alt attribute: {tag[:70]}")
+
+        # 5e. Headings are an outline; a jump from h1 to h3 tells a crawler a level is missing.
+        previous = None
+        for level in (int(found) for found in re.findall(r"<h([1-6])[ >]", html)):
+            if previous is not None and level > previous + 1:
+                problems.append(f"{rel}: heading jumps from h{previous} to h{level}")
+                break
+            previous = level
+
+        # 5f. Sharing needs an absolute image; a relative one is dropped by most crawlers.
+        og_image = None
+        for tag in re.findall(r"<meta\b[^>]*>", html):
+            if 'property="og:image"' in tag:
+                found = re.search(r'content="([^"]+)"', tag)
+                og_image = found.group(1) if found else None
+        if not noindex and (not og_image or not og_image.startswith("https://")):
+            problems.append(f"{rel}: og:image must be an absolute https URL")
 
         if not noindex:
             indexable[url] = rel

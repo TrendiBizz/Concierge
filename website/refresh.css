@@ -6,3 +6,12 @@ body{background:var(--bg);color:var(--ink)}a{color:#6540aa}h1,h2,h3{letter-spaci
 .hero .btn:not(.ghost),.hero--navy .btn.lime,nav.main .btn.nav-start{color:#fff!important}.refresh-home .lead,.hero--navy .lead{color:#71657e!important}.hero--navy .fine,.refresh-home .fine{color:#71657e!important}.hero--navy a:not(.btn){color:#6540aa}.hero--navy .demo strong{color:#453263}#svc-concierge{background:#f0e8ff}#svc-seo{background:#fff0e4}#svc-pen{background:#e4f4ee}
 .hero .flip{color:#9151c8}.hero .demo-tag{color:#80718f}.hero mark{background:#eee3ff;color:#593497}.hero--navy .demo .demo-a strong{background:#eee3ff;color:#593497}
 :root{--tint:#f2edfc;--ok:#247451;--warn:#895a17;--danger:#b83f50;--on-navy:#fff;--on-navy-muted:#eee3ff}.answer{background:#f2edfc;color:#30243e}.hero--navy .answer{background:transparent}.btn:not(.ghost){color:#fff}.demo-tag{color:#80718f}
+
+/* Footer social links: the colour marks are the recognisable thing. The name stays in the
+   markup as visually hidden text, so the link still has an accessible name and a crawlable
+   label — an icon-only link with no text is a link nobody can describe. */
+.footer-social{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+.footer-social a{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;border-radius:999px;background:#fff;text-decoration:none;box-shadow:inset 0 0 0 1px #e0d2ef;transition:transform .15s ease,box-shadow .15s ease}
+.footer-social a:hover{transform:translateY(-2px);box-shadow:0 8px 18px #0000001a,inset 0 0 0 1px #d8c8eb}
+.footer-social a:focus-visible{outline:3px solid #a574ea;outline-offset:3px}
+.footer-social img{width:20px;height:20px;display:block}

@@ -242,3 +242,27 @@
   .c-nav-label, .c-nav-item { white-space: nowrap; }
   .c-content { padding: 18px 14px 40px; min-width: 0; }
 }
+
+/* Social connections: the marks carry the recognition, the name carries the meaning.
+   Text-only "Connect linkedin organization" buttons read like a form and were the
+   least scannable part of the Social page. */
+.social-connect {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.social-connect-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+}
+.social-connect-card.is-off { opacity: 0.62; }
+.social-connect-card img { filter: none; }
+.social-connect-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.social-connect-copy strong { color: var(--c-ink); font-size: 14px; line-height: 1.25; }
+.social-connect-copy span { color: var(--c-muted); font-size: 12px; line-height: 1.35; }
