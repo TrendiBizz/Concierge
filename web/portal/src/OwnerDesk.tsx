@@ -15,7 +15,7 @@ type Release = {label: string; summary: string; notes: string[]; unseen: boolean
 export function VersionLabel() {
   const [label, setLabel] = useState('');
   useEffect(() => {
-    fetch('/version').then((r) => r.json()).then((v) => setLabel(String(v.label || ''))).catch(() => {});
+    fetch('/owner/version').then((r) => r.json()).then((v) => setLabel(String(v.label || ''))).catch(() => {});
   }, []);
   return label ? <>{label} · </> : null;
 }

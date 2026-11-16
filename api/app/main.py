@@ -3086,6 +3086,7 @@ class AskBody(BaseModel):
 
 
 @app.get("/version")
+@app.get("/owner/version")  # the public edge only forwards /owner/*, so the Studio footer reads this one
 async def public_version():
     """Which release is live. Public on purpose: it names a number, nothing about any business."""
     return {"version": releases.CURRENT_VERSION, "label": releases.label()}

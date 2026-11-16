@@ -73,6 +73,7 @@ def test_notice_shows_until_dismissed_then_stays_dismissed():
                 assert (await c.get("/owner/release")).json()["unseen"] is False
                 public = (await c.get("/version")).json()
                 assert public == {"version": 1, "label": "Version 1"}
+                assert (await c.get("/owner/version")).json() == public  # the path the public edge actually forwards
         finally:
             _reset(); await pool.close()
     asyncio.run(run())
