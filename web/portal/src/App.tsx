@@ -39,6 +39,7 @@ const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/
 const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./locales/*.json');
 
 
+import {VersionLabel} from './OwnerDesk';
 const Home = lazy(() => import('./Home'));
 const Texts = lazy(() => import('./Texts'));
 const Designs = lazy(() => import('./Designs'));
@@ -1893,7 +1894,7 @@ function Shell() {
         <div>
           <div className="c-brand-name">{brand.name || 'Concierge'}</div>
           <div className="c-brand-sub">
-            Powered by <strong>Trendi</strong> · <a href="/privacy">Privacy</a>
+            Powered by <strong>Trendi</strong> · <VersionLabel /><a href="/privacy">Privacy</a>
           </div>
         </div>
       </div>

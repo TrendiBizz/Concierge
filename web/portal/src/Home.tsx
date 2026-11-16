@@ -3,6 +3,7 @@ import {describeFailure} from './api';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {StatusLine} from './StatusLine';
+import OwnerDesk from './OwnerDesk';
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid} from 'recharts';
 
 type Brand = {name: string; accent: string};
@@ -49,6 +50,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
 
   return (
     <div>
+      <OwnerDesk token={token} />
       <div className="c-kpis">
         {[['Enquiries', leads.length], ['Quoted value', money(quoted, 'NZD')], ['Posts', posts.length], ['Media', assets.length]].map(([label, value]) => (
           <div className="c-kpi" key={String(label)}><strong>{value}</strong><span>{label}</span></div>
