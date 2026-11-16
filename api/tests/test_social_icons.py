@@ -91,5 +91,15 @@ def test_the_changed_stylesheets_are_cache_busted():
     """A new rule behind an unchanged ?v= is a rule nobody sees for a week."""
     for page in footer_pages()[:5]:
         html = page.read_text(encoding="utf-8")
-        assert "refresh.css?v=20261116a" in html, f"{page.name} still asks for the old CSS"
+        assert "refresh.css?v=20261116b" in html, f"{page.name} still asks for the old CSS"
         assert "site-i18n.css?v=20261116a" in html, f"{page.name} still asks for the old CSS"
+
+
+def test_the_closing_call_to_action_is_not_white_on_white():
+    """Measured live 2026-11-16: `.btn:not(.ghost){color:#fff}` was declared after
+    `.cta-band .btn{color:#6540aa}` at the same specificity, so the label on every closing CTA
+    disappeared into its own white pill. The repair has to come after the rule that beat it."""
+    css = (SITE / "refresh.css").read_text(encoding="utf-8")
+    white_text = css.index(".btn:not(.ghost){color:#fff}")
+    repair = css.index(".cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:#fff;color:#5b2fa8")
+    assert repair > white_text, "the button colour repair is declared before the rule it must beat"

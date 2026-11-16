@@ -15,3 +15,10 @@ body{background:var(--bg);color:var(--ink)}a{color:#6540aa}h1,h2,h3{letter-spaci
 .footer-social a:hover{transform:translateY(-2px);box-shadow:0 8px 18px #0000001a,inset 0 0 0 1px #d8c8eb}
 .footer-social a:focus-visible{outline:3px solid #a574ea;outline-offset:3px}
 .footer-social img{width:20px;height:20px;display:block}
+
+/* The closing call-to-action button was white on white. `.btn:not(.ghost){color:#fff}` is declared
+   after `.cta-band .btn{color:#6540aa}` with the same specificity, so it won the cascade and the
+   label vanished inside a white pill — measured live 2026-11-16 (computed color rgb(255,255,255)
+   on rgb(255,255,255)). These rules come last on purpose; the order is the fix. */
+.cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:#fff;color:#5b2fa8;border-color:#fff}
+.cta-band .btn:hover,.cta-band .btn.lime:hover,.cta-card .btn:hover{background:#f3ecff;color:#46248a}
