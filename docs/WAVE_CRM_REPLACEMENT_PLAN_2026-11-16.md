@@ -85,6 +85,8 @@ cpd_activities     (id, tenant_id, program_id, name, points, category, evidence_
 cpd_records        (id, tenant_id, program_id, member_id, activity_id, points, completed_on,
                     evidence_url, status text, approved_by, approved_at)                        -- pending|approved|rejected
 cpd_cycles         (id, tenant_id, member_id, program_id, year, target, awarded, status, due_on)    -- compliance roll-up
+-- DEFERRED 2026-11-16 (Jo): CPD and events/ticketing are deliberately NOT built. Schema kept
+-- so the design is not lost; no milestone or estimate covers it.
 events             (id, tenant_id, slug, name, starts_at, ends_at, venue, capacity,
                     member_price numeric, non_member_price numeric, status, page_html, xero_item_code)
 event_tickets      (id, tenant_id, event_id, name, price, member_only bool, allocation int)
@@ -121,11 +123,18 @@ Notes that will bite later if ignored:
 | M1 | Membership core | `membership_types`, `members`, `member_people`, `membership_periods`; admin CRUD; CSV/legacy import with dry-run diff; renewal date maths incl. pro-rata; status transitions with audit | Import a 300-row legacy spreadsheet twice → second run is a no-op, first is a diff summary; a lapse and a renewal both produce exactly one period row |
 | M2 | Billing wired | invoice generation per period (reuse `invoices`), Stripe subscription/charge for renewals, reminders (email + SMS via `outbox`), dunning ladder | A member renews end-to-end in staging; invoice matches period; reminder respects quiet hours and STOP |
 | M3 | Member portal | login (invite via existing `tenant_invites` pattern), profile self-edit, invoice history + pay, directory control, resources | Member edits their profile and an unrelated tenant cannot read it; a directory opt-out disappears from the public list within one request |
-| M4 | EDM + sequences | campaign authoring UI over the existing engine, segments (type, status, region, CPD status, tags), templates, per-send stats, membership-triggered sequences | A segment of "lapsed 30d, marketing consent" sends once, respects the preview freeze, and a consent-removed contact is excluded |
-| M5 | Events & ticketing | `events`, `event_tickets`, `event_registrations`; public event pages, member/non-member pricing, vouchers, dietary, QR check-in, add-to-calendar | Member price applies only with a live membership; a sold-out event refuses one more seat; check-in is idempotent |
-| M6 | CPD | programs, activities, records with evidence upload, approval, cycle compliance report | A member's points roll up correctly and a cycle with missing evidence shows non-compliant |
-| M7 | Xero two-way | OAuth connect, contact/item mapping, invoice + payment sync both ways, reconciliation view | Create in Wave → appears in Xero; mark paid in Xero → Wave reconciles without a duplicate; replay is idempotent |
-| M8 | Website per tenant | page builder over `web_sites`, shared SEO gate (`site_seo.py` contract), sitemap/IndexNow per tenant | A tenant site passes the same technical SEO check as trendibizz.com |
+| M4 | EDM + sequences | campaign authoring UI over the existing engine, segments (type, status, region, tags), templates, per-send stats, membership-triggered sequences | A segment of "lapsed 30d, marketing consent" sends once, respects the preview freeze, and a consent-removed contact is excluded |
+| M5 | **Xero two-way** | OAuth connect/disconnect, token lifecycle, contact + item mapping, invoice push, payment reconciliation, credit note on cancellation, webhook receiver | Create a period invoice → appears in Xero with the right GST; mark it paid in Xero → local invoice reconciles with no duplicate; replaying the same webhook twice changes nothing |
+| M6 | Website per tenant *(optional, last)* | page builder over `web_sites`, shared SEO gate (`site_seo.py` contract), sitemap/IndexNow per tenant | A tenant site passes the same technical SEO check as trendibizz.com |
+
+**Out of scope by decision (Jo, 2026-11-16):** **CPD** and **events & ticketing** are not built —
+Xero is the only add-on beyond core membership that this product needs. Their schema sketch stays in
+§3 marked *(deferred)* so a future session can pick it up without re-deriving it, but no milestone,
+estimate or acceptance test covers them. Consequences worth knowing: a chamber whose renewal cycle
+runs through CPD points, or whose membership revenue includes event tickets, will not be a fit until
+those exist; and the four-tier event logic (`member_price` vs `non_member_price`) was the only place
+membership status gated pricing, so membership status now gates *resources and directory listing*
+instead.
 
 M1–M3 is the "a chamber could move" line. M4–M5 is what makes them stay. M7 is what unblocks the
 sale to any Australian association, and is also the riskiest (Xero OAuth, token storage, mapping).
@@ -157,21 +166,31 @@ sale to any Australian association, and is also the riskiest (Xero OAuth, token 
    scripts, health checks, manifest). A second product inside it will make every deploy gate carry
    both. *Recommend: new repo, sharing the `api/app` patterns and the SEO contract by copy, with
    this plan copied across.*
-3. **Xero first or last?** It is the parity feature least likely to be bought twice and the most
-   expensive to fake. *Recommend: build M7 after M3 has a real pilot chamber.*
-4. **Ticketing: build or wire SafeTicket?** Wave owns SafeTicket. We do not. Building ticketing is
-   M5; wiring an existing provider is faster but not "as close as possible".
+3. **Xero scope: one org at a time, or a firm's client list?** Custom/client-credentials
+   connections cover a single Xero organisation with no app review — right for a pilot. Selling to
+   many organisations needs a public app with several connections per tenant and Xero's review.
+   *Recommend: custom connection for the pilot, public app once two chambers have signed.*
+4. **Who owns the Xero admin consent?** The chamber's Xero admin must authorise the connection once;
+   if they refuse, invoicing stays in our system and Xero becomes a CSV export. Worth knowing
+   before M5 starts.
 5. **Pricing and term:** Wave is $412.85/mo + GST with a minimum term and "unlimited members".
    Pick the comparable number, including whether migration is included.
 
 ## 7. Effort shape (rough, one senior dev + one AI pair)
 
-- M1 2 weeks · M2 2 weeks · M3 2.5 weeks · M4 2 weeks · M5 3 weeks · M6 1.5 weeks · M7 4 weeks ·
-  M8 3 weeks → **~20 weeks to parity at a pace that also tests**, of which Xero and ticketing are
-  half the risk. A pilot chamber could be migrated after M3 (~6.5 weeks).
+- M1 2 weeks · M2 2 weeks · M3 2.5 weeks · M4 2 weeks · M5 (Xero) 4 weeks · M6 (website, optional)
+  3 weeks → **~13 weeks to the committed product** at a pace that also tests; **Xero alone is 4 of
+  them and most of the risk**, because everything else reuses machinery that already exists here.
+  A pilot chamber could be migrated after M3 (~6.5 weeks), with Xero following the first signed
+  customer rather than blocking them.
+- Dropping CPD and events/ticketing removed ~4.5 weeks and, more importantly, two whole schema
+  areas and their UI surfaces from the first release.
 
 ## 8. Non-goals (deliberately)
 
 - No general-purpose CRM (that is `crm/`), no marketing automation beyond membership triggers, no
   LMS (CPD is evidencing, not teaching), no website migration service, no Phone/SMS AI receptionist
   (that is Concierge — it can be *sold alongside*, not fused).
+- **CPD management and events/ticketing are not built** (Jo, 2026-11-16). Xero is the only add-on
+  beyond core membership this product needs. Both are designed in §3 and can be picked up later
+  without re-deriving them.

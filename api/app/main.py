@@ -1963,6 +1963,18 @@ async def owner_ui():
     )
 
 
+@app.get("/owner/qrcode.js", include_in_schema=False)
+async def owner_qr_library():
+    """The QR encoder the owner page uses to turn an invitation link into a scannable code.
+
+    Served under /owner/ because that is the only prefix the public proxy forwards, and cached
+    like a static asset: the file is part of the build, not customer data.
+    """
+    return FileResponse(STATIC_DIR / "qrcode.js", media_type="application/javascript",
+                        headers={"Cache-Control": "public, max-age=86400",
+                                 "X-Content-Type-Options": "nosniff"})
+
+
 STUDIO_DIR = Path("/srv/studio")
 
 

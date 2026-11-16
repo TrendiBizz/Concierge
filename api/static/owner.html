@@ -23,6 +23,7 @@ a{color:var(--navy)}button:focus-visible,a:focus-visible,input:focus-visible,tex
 .portal-header{background:#fff;border-bottom:1px solid #e0e6f1}.portal-header .portal-wrap{max-width:1060px;margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.portal-brand{display:flex;align-items:center;gap:18px;text-decoration:none;font-weight:700}.portal-brand svg{display:block;width:125px;height:32px}.portal-header nav{display:flex;gap:20px;flex-wrap:wrap;font-size:.9rem}.portal-header nav a{text-decoration:none}.workspace-nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.workspace-nav a{padding:10px 14px;border:1px solid #c9d2e3;border-radius:8px;text-decoration:none;background:#fff}.workspace-nav a:hover{background:var(--lime)}section[id]{scroll-margin-top:20px}.portal-footer{max-width:1060px;margin:32px auto;padding:18px;border-top:1px solid #d9e2ed;font-size:.9rem}
 [hidden]{display:none!important}
 .social-destination{display:flex;gap:10px;align-items:center;margin:8px 0}.social-destination input{width:auto}#social-previews textarea{min-height:140px}
+.invite-qr{width:200px;max-width:100%;margin:10px 0;padding:8px;background:#fff;border:1px solid #d9e2ed;border-radius:8px}.invite-qr svg{display:block;width:100%;height:auto}
 </style>
 </head>
 <body>
@@ -203,6 +204,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 </section>
 </main>
 <footer class="portal-footer"><p>Concierge is a Trendi service. <a href="https://trendibizz.com/contact">Contact Trendi</a> · <a href="https://trendibizz.com/privacy">Privacy</a> · <a href="https://trendibizz.com/terms">Terms</a></p></footer>
+<script src="/owner/qrcode.js?v=1"></script>
 <script>
 "use strict";
 let bearer = "";
@@ -224,6 +226,15 @@ function clearOAuthChannel(){
 const $ = id => document.getElementById(id);
 function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
 function node(tag,text,cls){const el=document.createElement(tag);el.textContent=String(text??"");if(cls)el.className=cls;return el;}
+// The invitation link is long and usually opened on a phone. Draw the QR locally from our own
+// link: no third-party QR service, so the one-time token never leaves the page.
+function inviteQrSvg(value,cellSize=4){
+ try{
+  if(typeof qrcode!=="function")return "";
+  const code=qrcode(0,"M");code.addData(value);code.make();
+  return code.createSvgTag({cellSize:cellSize,margin:2,scalable:true});
+ }catch(error){return "";}
+}
 function assertSession(generation,token=bearer){
  if(generation!==sessionGeneration || token!==bearer){const error=new Error("Previous session request ignored");error.name="SessionChangedError";throw error;}
 }
@@ -1107,6 +1118,12 @@ $("invite-form").addEventListener("submit",async event=>{
   const host=$("invite-result");clear(host);
   host.appendChild(node("p","Share this invitation link privately with the person you invited. It expires in 24 hours."));
   const field=node("textarea",result.invitation_url);field.value=result.invitation_url;field.readOnly=true;field.setAttribute("aria-label","Private invitation link");host.appendChild(field);
+  const svg=inviteQrSvg(result.invitation_url);
+  if(svg){
+   host.appendChild(node("p","Or scan this with a phone camera to open the invitation on the phone. After signing in, tap Install app to keep Concierge on the home screen."));
+   const frame=document.createElement("div");frame.className="invite-qr";frame.setAttribute("role","img");frame.setAttribute("aria-label","QR code for this invitation");frame.innerHTML=svg;host.appendChild(frame);
+   const print=node("a","Download the QR to print");print.href="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(inviteQrSvg(result.invitation_url,8));print.download="concierge-invitation-qr.svg";host.appendChild(print);
+  }
   await refreshTeam();message("Invitation created but not delivered.");
  }catch(error){message(error.message,true);}
 });

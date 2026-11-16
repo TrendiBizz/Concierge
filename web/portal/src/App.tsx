@@ -392,7 +392,7 @@ function Capabilities({token, onChanged}: {token: string; onChanged?: () => void
   );
 }
 
-function hostedQrSvg(value: string): string {
+function qrSvg(value: string): string {
   try {
     const code = qrcode(0, 'M');
     code.addData(value);
@@ -407,9 +407,9 @@ function hostedQrSvg(value: string): string {
 /**
  * A QR code for a link we own, drawn in the browser.
  *
- * Hosted chat is the fallback for a customer who cannot edit their site, and they usually try
- * it on a phone — reading a URL off a laptop screen is exactly the "seamless" problem. Drawn
- * locally from our own URL: no external QR service, nothing about the customer leaves the page.
+ * Hosted chat and team invitations are both links a customer usually opens on a phone, and
+ * reading a URL off a laptop screen is exactly the "seamless" problem. Drawn locally from our
+ * own URL: no external QR service, nothing about the customer leaves the page.
  */
 function QrCode({value, size = 160, label = 'QR code'}: {value: string; size?: number; label?: string}) {
   const svg = useMemo(() => {
@@ -514,7 +514,19 @@ function Team({token}: {token: string}) {
           </select>
         </label>
         <Button label="Create invitation" variant="primary" onClick={invite} />
-        {link ? <p role="status" style={{marginTop: 8}}><strong>Send them this:</strong> <a href={link}>{link}</a></p> : null}
+        {link ? (
+          <div style={{display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 12}}>
+            <div style={{flex: '0 1 200px'}}>
+              <QrCode value={link} size={180} label="QR code for this invitation" />
+              <p style={{fontSize: 13, margin: '8px 0 0'}}>Scan with a phone camera to open the invitation on the phone. After signing in, tap <strong>Install app</strong> to keep Concierge on the home screen.</p>
+              <a download="concierge-invitation-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(qrSvg(link))} style={{fontSize: 13}}>Download the QR to print</a>
+            </div>
+            <div style={{flex: '1 1 280px', minWidth: 220}}>
+              <p role="status" style={{marginTop: 0}}><strong>Send them this:</strong> <a href={link}>{link}</a></p>
+              <p style={{fontSize: 13, opacity: 0.75}}>The link works once, for 24 hours, and needs no password.</p>
+            </div>
+          </div>
+        ) : null}
         {data?.invitations.length ? (
           <>
             <Heading level={2}>Invited, not arrived</Heading>
@@ -1003,7 +1015,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
                   <p style={{marginTop: 0}}><a href={hosted}>{hosted}</a></p>
                   <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                     <Button label="Copy link" variant="secondary" onClick={() => { void copyText(hosted).then((ok: boolean) => notify(ok ? 'Link copied.' : 'This browser blocked the clipboard — select the link and copy it.')); }} />
-                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(hostedQrSvg(hosted))}
+                    <a download="chat-qr.svg" href={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(qrSvg(hosted))}
                        style={{fontSize: 13, alignSelf: 'center'}}>Download the QR to print</a>
                   </div>
                 </div>
