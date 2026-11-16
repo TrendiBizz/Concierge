@@ -13,9 +13,9 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `82c2af6` — a merge of `origin/main` (`08cbdda`, the deployed commit) into local `main`.
-  Local `main` and `origin/main` had diverged at `7f6e223`; they now agree again. Working tree
-  clean at handoff time.
+  HEAD `5631c0d`, pushed to `origin/main`. It includes the invitation QR, the API static-asset
+  deploy path and the accompanying QA record. Working tree clean apart from ignored outputs.
+
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -92,6 +92,22 @@ The first three streams are recorded in their own files. The last one is this se
    the harness subprocess env scrub that broke every git command
    (`QA/verification/HARNESS_GIT_ENV_2026-11-16.md`), the documented test command that could not run
    (`QA/verification/TEST_ENV_2026-11-16.md`), and `Pillow` missing from `requirements-dev.txt`.
+
+8. **Invitation QR — 2026-11-16 (this session).** The token page no longer shows only a raw link:
+   both Studio (`/studio`, Team → Create invitation) and the legacy owner page (`/owner-ui`) draw a
+   QR for the same `#invite=` URL, with a print download. The encoder is vendored under
+   `api/static/qrcode.js`, served at `/owner/qrcode.js`; the inner SVG is hidden from assistive tech
+   so the labelled wrapper is announced once. Verified by 3 Python tests, a clean portal build, and
+   decoding real Chrome screenshots of both pages with OpenCV. Deployed and checked live:
+   `/owner/qrcode.js` 200, the live `/owner-ui` produces a decodable QR, `/studio/` serves the new
+   bundle. Full record: `QA/verification/INVITATION_QR_2026-11-16.md`.
+
+   The same deploy uncovered and fixed a real tooling gap: `verify-deploy.sh` never compared
+   `api/static`, and the documented API deploy copied only `api/app`, so `owner.html`, `widget.js`
+   and `qrcode.js` could be committed but never reach the box. Added `scripts/vps/deploy-api.sh`
+   (copies both, rebuilds, restarts, verifies), extended `verify-deploy.sh`, and updated `AGENTS.md`.
+   A first version of the script omitted the host from the SSH argv and failed with
+   `hostname contains invalid characters`; fixed and re-tested.
 
 ## 3. Outstanding — the real worklist
 
@@ -221,6 +237,12 @@ The first three streams are recorded in their own files. The last one is this se
     now `Pillow` are all required to run the suite; a new machine or session will hit 101 collection
     errors. **Next:** one checked-in script (`scripts/dev/test-suite.sh`) that asserts the interpreter,
     exports the shims path and runs the suite — then the AGENTS.md command becomes one line again.
+
+34. **Local test Postgres was not running during the invitation-QR session.** The suite reported
+    **1377 passed, 19 skipped, 29 failed**; every failure was
+    `ConnectionRefusedError ('127.0.0.1', 55433)`, not an assertion. Start the test database
+    (the command in §1 assumes it) and re-run the DB-backed subset before treating the suite as
+    green. The QR change itself is covered by pure tests that passed.
 
 ## 4. Next action
 
