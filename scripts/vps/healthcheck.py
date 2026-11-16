@@ -98,8 +98,16 @@ def run(cmd: list[str], timeout: int = 15) -> tuple[int, str]:
         return 1, str(exc)
 
 
+# A 4 KB read limit silently truncated JSON bodies. The inbound-readiness payload crossed it on
+# 2026-11-16 when one tenant was added (4,757 bytes), and the Cloudflare email-routing rules
+# response is bigger than 4 KB whenever it carries real descriptions: both checks reported
+# "unparseable"/"0 rules" while the APIs were answering perfectly. Read enough for a JSON
+# document; still bounded, because one check must never pull a whole page into memory.
+READ_LIMIT = 2_000_000
+
+
 def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: str = "GET",
-         read_limit: int = 4096):
+         read_limit: int = READ_LIMIT):
     request = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})}, method=method)
     started = time.monotonic()
     try:
@@ -269,14 +277,21 @@ def check_cloudflare(api_env: dict) -> list[dict]:
     status, body, _ = http(f"https://api.cloudflare.com/client/v4/zones/{zone}/email/routing/rules?per_page=50",
                            headers=auth)
     enabled = 0
+    parse_error = ""
     if status == 200:
         try:
             rules = json.loads(body.decode()).get("result") or []
             enabled = sum(1 for rule in rules if rule.get("enabled"))
         except ValueError:
-            pass
-    results.append(_ok("cloudflare:routing", f"{enabled} enabled rules") if enabled >= 5
-                   else _fail("cloudflare:routing", f"HTTP {status}, {enabled} enabled rules (expected >=5)"))
+            # Never report "0 enabled rules" for a body we could not read: that sends the operator
+            # to Cloudflare looking for deleted rules when the fault is here.
+            parse_error = f"unparseable response ({len(body)} bytes)"
+    if parse_error:
+        results.append(_fail("cloudflare:routing", parse_error))
+    elif enabled >= 5:
+        results.append(_ok("cloudflare:routing", f"{enabled} enabled rules"))
+    else:
+        results.append(_fail("cloudflare:routing", f"HTTP {status}, {enabled} enabled rules (expected >=5)"))
 
     status, body, _ = http(f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/scripts/{worker}",
                            headers=auth)
