@@ -1219,3 +1219,31 @@ CREATE TABLE IF NOT EXISTS email_engagement (
 CREATE UNIQUE INDEX IF NOT EXISTS email_engagement_provider_uniq
     ON email_engagement (message_id, kind) WHERE token IS NULL AND message_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS email_engagement_tenant_idx ON email_engagement (tenant_id, created_at DESC);
+
+-- Professional quotations (2026-11-16). A quote used to be a title, some lines and a tax rate:
+-- no discount, no per-line unit, no frozen terms, and the customer's details had to belong to an
+-- enquiry. These are the columns a real document needs. Every one is additive and defaulted, so
+-- existing rows and the design-takeoff insert keep working.
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_basis_points integer NOT NULL DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_cents bigint NOT NULL DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS terms text NOT NULL DEFAULT '';
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS quote_date date;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS viewed_at timestamptz;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS accepted_by_name text NOT NULL DEFAULT '';
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS accepted_note text NOT NULL DEFAULT '';
+UPDATE quotations SET quote_date = created_at::date WHERE quote_date IS NULL;
+ALTER TABLE quotations ALTER COLUMN quote_date SET DEFAULT current_date;
+-- The terms printed on a quote are frozen when it is written. Editing the business-wide terms
+-- later must not silently rewrite a quotation the customer already holds.
+-- A quote may be written for someone who never raised an enquiry (a walk-in, a phone call).
+ALTER TABLE quotations ALTER COLUMN lead_id DROP NOT NULL;
+
+-- `sent` is a real stage: approved is not the same as delivered, and "when did they get it"
+-- decides whether a follow-up is due.
+ALTER TABLE quotations DROP CONSTRAINT IF EXISTS quotations_status_check;
+ALTER TABLE quotations ADD CONSTRAINT quotations_status_check
+    CHECK(status IN ('draft','reviewed','sent','accepted','declined','void'));
+CREATE INDEX IF NOT EXISTS quotations_status_idx ON quotations(tenant_id, status, created_at DESC);
+
+-- Invoices inherit the discount, or the customer's bill would not add up to the quote they accepted.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_cents bigint NOT NULL DEFAULT 0;
