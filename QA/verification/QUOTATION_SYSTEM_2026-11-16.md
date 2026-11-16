@@ -81,7 +81,26 @@ invoice-on-acceptance were already right and were kept.
 - Schema is applied idempotently at API start (`db.init()` executes `schema.sql`), so the
   migration runs on restart; every statement is `IF NOT EXISTS` / defaulted.
 
-## Deploy
+## Deploy — verified live
 
-Deployed with `scripts/vps/deploy-api.sh` and `scripts/vps/deploy-studio.sh`; live evidence in the
-section below.
+- `KEY=./Concierge ./scripts/vps/deploy-api.sh` — image rebuilt, `api` + `social` recreated, healthy;
+  `verify-deploy.sh` → `OK: repo and box agree` (api/app 107 · api/static 7 · scripts/vps 39 ·
+  website/site 61).
+- `KEY=./Concierge ./scripts/vps/deploy-studio.sh` — build `B9chhb7Z`, staged and swapped,
+  `/studio` served 200 on three checks.
+- Live `openapi.json` exposes `/owner/crm/quotations/{quote_id}` and `.../duplicate`.
+- Production schema carries `discount_cents`, `terms`, `quote_date`, `viewed_at`,
+  `accepted_by_name`, `accepted_note` (information_schema), so the startup migration ran.
+- The deployed module renders a document inside the running container: 5,244 bytes, contains the
+  `Discount (5.00%)` row and `GST 15%`; `calculate()` on 10 × $185 with a 5% job discount returns
+  subtotal 185000, discount 9250, tax 26363, total 202113.
+- The served bundle is the new builder (`CrmQuotes-BzlO_hDm.js` 200, contains `Job discount`).
+- Live health: **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
+
+## Still open (recorded in HANDOFF)
+
+- The production database has **no `quotations` rows**, so the end-to-end flow has not been walked
+  with real data. The first real quote in the Studio is the remaining proof.
+- The DB-backed suite could not run locally (no Postgres/Docker on this machine, HANDOFF item 34).
+- No browser automation covers the builder; its checks are `tsc`, the production build, lint and
+  the source-shape tests.

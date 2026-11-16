@@ -13,8 +13,8 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `5631c0d`, pushed to `origin/main`. It includes the invitation QR, the API static-asset
-  deploy path and the accompanying QA record. Working tree clean apart from ignored outputs.
+  HEAD includes the quotation rebuild (commit "quotations: a real quote document, builder and
+  lifecycle"), pushed to `origin/main`. Working tree clean apart from ignored outputs.
 
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
@@ -109,6 +109,18 @@ The first three streams are recorded in their own files. The last one is this se
    A first version of the script omitted the host from the SSH argv and failed with
    `hostname contains invalid characters`; fixed and re-tested.
 
+9. **Quotation system rebuilt — 2026-11-16 (this session).** The quote was a title, lines and a
+   tax percent. It is now a document and a lifecycle: per-line units and discounts, a job discount
+   with tax on the discounted amount, a quote date and valid-until, frozen per-quote terms, a
+   customer who need not be an existing enquiry, `viewed_at`, and a typed acceptance name.
+   Lifecycle is draft → reviewed → sent → accepted/declined (+ void), with edit (optimistic
+   locking), duplicate, explicit resend, and manual acceptance that issues the invoice. One
+   renderer now produces both the printable document and the customer page (the two HTML strings
+   had drifted). The Studio page was rebuilt as a builder with live totals; its old block was
+   moved out of `CrmQuotes.tsx`. Proof: `api/tests/test_quotations_system.py` (25 tests, two
+   mutation proofs), 1402 passed with the 29 known DB-outage failures, `tsc` clean, portal built,
+   deployed and verified live. Full record: `QA/verification/QUOTATION_SYSTEM_2026-11-16.md`.
+
 ## 3. Outstanding — the real worklist
 
 ### Operator only (cannot be fixed from this repo)
@@ -201,6 +213,19 @@ The first three streams are recorded in their own files. The last one is this se
 27. **Link earning** — pitch the crawler study to NZ business press; get the two tools listed in NZ
     small-business and agency directories.
 
+### Quotations (from the 2026-11-16 rebuild)
+
+34a. **Walk the quote flow once with real data.** Production has **no `quotations` rows**, so
+   draft → approve → send → customer opens → accepts → invoice → confirm payment has never run
+   end to end outside tests. **Next:** in Studio → Quotes, write one real quote (a walk-in
+   customer is enough), approve it, send it to an address you control, open the link, accept with
+   a typed name, then confirm the invoice appears. If anything breaks, it is a bug to fix in that
+   session, not a note.
+34b. **No browser test for the builder.** The checks are `tsc`, the build, lint and source-shape
+   tests; a click-through regression (e.g. the send dialog after an edit) would not be caught.
+   **Next:** if the flow is touched again, add a Playwright pass against the Studio with a mocked
+   API, or at minimum assert the state machine in a component test.
+
 ### Repository hygiene
 
 28. **Delete `/Users/jo/work-staging/trendibizz-live/site.legacy-20261115`** once another deploy cycle
@@ -251,6 +276,10 @@ The first three streams are recorded in their own files. The last one is this se
 for. Do not run `deploy-site.sh` expecting to fix drift — the drift was the unmerged `origin/main`.
 
 **Next, in this order:**
+
+0. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
+   system has never carried real data. Everything it does is covered by tests, but tests are not
+   a customer.
 
 1. **DONE (912452f) — the two SEO buy links were dead; replaced with the new tax-inclusive links and
    deployed.** Only follow-up: purge Cloudflare's cached `/products.js` if it still shows the old links.
