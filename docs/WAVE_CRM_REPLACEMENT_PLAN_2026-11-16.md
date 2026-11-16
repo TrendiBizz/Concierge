@@ -150,7 +150,7 @@ Notes that will bite later if ignored:
 | M2 | Billing wired | invoice generation per period (reuse `invoices`), Stripe subscription/charge for renewals, reminders (email + SMS via `outbox`), dunning ladder | A member renews end-to-end in staging; invoice matches period; reminder respects quiet hours and STOP |
 | M3 | Member portal | login (invite via existing `tenant_invites` pattern), profile self-edit, invoice history + pay, directory control, resources | Member edits their profile and an unrelated tenant cannot read it; a directory opt-out disappears from the public list within one request |
 | M4 | EDM + sequences | campaign authoring UI over the existing engine, segments (type, status, region, tags), templates, per-send stats, membership-triggered sequences | A segment of "lapsed 30d, marketing consent" sends once, respects the preview freeze, and a consent-removed contact is excluded |
-| M5 | **Xero two-way** | OAuth connect/disconnect, token lifecycle, contact + item mapping, invoice push, payment reconciliation, credit note on cancellation, webhook receiver | Create a period invoice → appears in Xero with the right GST; mark it paid in Xero → local invoice reconciles with no duplicate; replaying the same webhook twice changes nothing |
+| M5 | **Xero two-way** | OAuth connect/disconnect, serialised token rotation, contact + tax-rate/item mapping, invoice push (`AUTHORISED`, never the default `DRAFT`), payment reconciliation (`PUT`, since `POST` only voids), credit note + second-call allocation, webhook receiver answering inside 5s | A period invoice arrives `AUTHORISED` with the org's own GST type read from `/TaxRates`; marking it paid in Xero reconciles locally with no duplicate; replays change nothing; **two renewals firing at once do not race the rotating refresh token** (the failure that permanently disconnects an account) |
 | M6 | Website per tenant *(optional, last)* | page builder over `web_sites`, shared SEO gate (`site_seo.py` contract), sitemap/IndexNow per tenant | A tenant site passes the same technical SEO check as trendibizz.com |
 
 **M1 must also prove the audit's sharpest finding:** a member whose membership has lapsed is still
@@ -196,8 +196,11 @@ sale to any Australian association, and is also the riskiest (Xero OAuth, token 
    scripts, health checks, manifest). A second product inside it will make every deploy gate carry
    both. *Recommend: new repo, sharing the `api/app` patterns and the SEO contract by copy, with
    this plan copied across.*
-3. **Xero scope: one org at a time, or a firm's client list?** Custom/client-credentials
-   connections cover a single Xero organisation with no app review — right for a pilot. Selling to
+3. **Xero scope: one org at a time, or many chambers?** A **Custom Connection** covers a single Xero
+   organisation with no review at `$10/month` AUD and does not consume the five-uncertified-app cap
+   — right for the pilot. Selling to many chambers is capped hard: a free Starter app holds **5
+   connections**, and each org may hold **5 uncertified apps in total**; past that it is Core (50) or
+   certification with a security assessment. The sixth chamber cannot connect without it. Selling to
    many organisations needs a public app with several connections per tenant and Xero's review.
    *Recommend: custom connection for the pilot, public app once two chambers have signed.*
 4. **Who owns the Xero admin consent?** The chamber's Xero admin must authorise the connection once;
