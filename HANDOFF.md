@@ -97,14 +97,16 @@ The first three streams are recorded in their own files. The last one is this se
 
 ### Operator only (cannot be fixed from this repo)
 
-1. **Stripe charges tax on top of advertised prices, and the page's tax FAQ is a non-answer.**
-   Measured 2026-11-15: Concierge monthly advertises USD $250, checkout totals **$287.50**; yearly
-   $2,700 → $3,105; SEO monthly $1,500 → $1,725; deposit $1,000 → $1,150. Both pricing cards and the
-   `/pricing` FAQ say "Prices in USD", and the FAQ titled "Do prices include tax?" answers only
-   "Prices are in USD. " Decide one of two ways (`QA/verification/OPERATOR_FACTS_2026-11-16.md`):
-   **(A)** set Stripe prices tax-inclusive so the customer pays the advertised number, or **(B)** keep
-   tax exclusive and make the FAQ say tax is added at checkout. `site:prices` fails if the literal
-   word "GST" appears on `/pricing` or `/terms`, so neither option may use it.
+1. **DECIDED 2026-11-16 — prices are tax-inclusive (option A), and Stripe still adds 15%.** Jo:
+   "we include the tax for nzd" → the USD figure on the page is the total every customer pays; prices
+   stay $250 / $2,700 / $1,500 / $1,000; no currency change, no GST wording. **Blocked on Jo** creating
+   four tax-inclusive Stripe prices and repointing the four Payment Links (a price's tax behaviour is
+   immutable — new prices are required; automatic tax stays on). **Then I finish:** update
+   `products.js` + the buy links in `pricing.html`, turn the "Do prices include tax?" FAQ (currently
+   the non-answer `Prices are in USD. `) into a real answer, add a test that fails on a non-answer,
+   deploy and verify. The copy must not ship before Stripe is inclusive or the page lies. Full steps
+   and the revenue consequence (~13% less per NZ sale) in
+   `QA/verification/PRICING_TAX_INCLUSIVE_2026-11-16.md`.
 2. **CLOSED 2026-11-16 — yearly is not contradictory.** `products.js` carries a live yearly link
    (`6oU28s8OH7b76528aQ04804`, USD 2,700/year, price `price_1UbnwwJVm2iwIxUdMoJ9g2Ve`), `/pricing` and
    `/concierge` both advertise it, and all four buy links returned HTTP 200 on 2026-11-16. The old
