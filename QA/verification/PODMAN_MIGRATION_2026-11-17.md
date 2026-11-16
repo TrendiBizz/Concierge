@@ -75,6 +75,19 @@ healthcheck 0 fail. Docker's data at `/var/lib/docker` was never modified.
    Proof: after `systemctl reboot` the service is `active`, `iptables -L FORWARD -n` shows TRENDI-SIP at line 1 ahead of
    NETAVARK_FORWARD, and docker stays disabled.
 
+10. **`meta-review-worker.py` hardcoded Docker's volume path.** It opened
+    `/var/lib/docker/volumes/trendi_social/_data/social.db`, which is gone after the move. Fix: resolve the mountpoint at run time
+    with `docker volume inspect trendi_social --format '{{.Mountpoint}}'` — the `docker` CLI follows the `/run/docker.sock` symlink
+    to whichever engine owns the volume. Proof: the command now returns `/var/lib/containers/storage/volumes/trendi_social/_data`,
+    and `social.db` is present there.
+
+11. **Stock `podman-restart.service` only restarts `restart-policy=always`; every compose service uses `restart: unless-stopped`.**
+    `podman ps -a --filter restart-policy=always -q` matched 0 containers and `...=unless-stopped` matched 25, so the stock unit's
+    `podman start --all --filter restart-policy=always` would start nothing after a reboot. Fix: drop-in
+    `scripts/vps/podman-restart.service.d/unless-stopped.conf` (installed to `/etc/systemd/system/podman-restart.service.d/`)
+    overrides ExecStart/ExecStop to filter `unless-stopped`. Proof: with the override the reboot test below brought back all
+    containers; without it the filter matched 0.
+
 ## Reboot test (the real proof)
 Rebooted the droplet after the move. After boot: the `/run/docker.sock` symlink persisted (tmpfiles.d `L+` rule), Docker stayed
 `inactive` + `disabled`, `podman-restart.service` brought all 13 production containers back (`restart: unless-stopped`), the SIP

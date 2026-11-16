@@ -15,8 +15,11 @@ ports 8000 and 8080; PostgreSQL, Redis and the social vault have no public ports
 Two existing Cloudflare Tunnel identities terminate traffic on this VPS. Do not
 run their old Mac connectors concurrently against independent database copies.
 
-The machine has 8 GB RAM, 2 vCPUs and 160 GB disk, plus 2 GB swap. Docker is enabled
-at boot and every production container has `restart: unless-stopped`.
+The machine has 8 GB RAM, 2 vCPUs and 160 GB disk, plus 2 GB swap. As of the 2026-11-17
+Docker -> Podman move, production runs on Podman; the Docker engine is disabled (kept installed, not
+purged) and the `docker` CLI talks to Podman via `/run/docker.sock -> /run/podman/podman.sock`.
+Every production container has `restart: unless-stopped` and comes back after a reboot via
+`podman-restart.service` (override `scripts/vps/podman-restart.service.d/unless-stopped.conf`).
 
 ## Operate
 
