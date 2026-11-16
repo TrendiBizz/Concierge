@@ -107,6 +107,15 @@ The first three streams are recorded in their own files. The last one is this se
    deploy and verify. The copy must not ship before Stripe is inclusive or the page lies. Full steps
    and the revenue consequence (~13% less per NZ sale) in
    `QA/verification/PRICING_TAX_INCLUSIVE_2026-11-16.md`.
+   **URGENT (measured 2026-11-16 15:03):** the two **SEO-account** links on `/pricing` —
+   `28E8wRbntdSjcsQg7RcEw03` ($1,500/month) and `28EcN7bnt6pRgJ6f3NcEw04` ($1,000 deposit) — now
+   render **"The link is no longer active."** On 2026-11-15 14:39 the first was live and charged
+   $1,725.00 with a visible "GST (15%) $225.00" line. The Concierge links (`dRm7sM…`, `6oU28s…`)
+   are still live at $250 / $2,700. Nothing in the repo changed, so this is a Stripe-side
+   deactivation with the website left pointing at the retired links — the $1,500 retainer CTA
+   dead-ends buyers right now. **Next:** get the two replacement SEO links (or reactivate the old
+   ones) and repoint `website/pricing.html`; until then the interim option is to point those two
+   buttons at `/contact`. See `QA/verification/DEAD_PAYMENT_LINKS_2026-11-16.md`.
 2. **CLOSED 2026-11-16 — yearly is not contradictory.** `products.js` carries a live yearly link
    (`6oU28s8OH7b76528aQ04804`, USD 2,700/year, price `price_1UbnwwJVm2iwIxUdMoJ9g2Ve`), `/pricing` and
    `/concierge` both advertise it, and all four buy links returned HTTP 200 on 2026-11-16. The old
@@ -224,15 +233,18 @@ for. Do not run `deploy-site.sh` expecting to fix drift — the drift was the un
 
 **Next, in this order:**
 
-1. Verify `trendibizz.com` in Google Search Console and Bing Webmaster, submit
-   `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search, and without Search
-   Console there is no data on which page answers which query — the one thing the content work
-   cannot measure itself.
-2. Fix the Stripe price/tax mismatch (item 1): checkout charges GST on top of advertised prices
-   ($250 → $287.50, $2,700 → $3,105, $1,500 → $1,725, $1,000 → $1,150). Decide tax-inclusive prices
-   or change the advertised numbers, and resolve the yearly-price contradiction (item 2) in the same
-   sitting.
-3. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
+1. **URGENT — the two SEO buy links are dead in production.** `/pricing` sends buyers of the $1,500
+   plan and the $1,000 deposit to retired Stripe links ("The link is no longer active"). Get the
+   replacement links (or reactivate the old ones) and repoint `website/pricing.html`; if that takes
+   more than a day, point both buttons at `/contact` in the meantime so nobody hits a dead end.
+   See item 1 and `QA/verification/DEAD_PAYMENT_LINKS_2026-11-16.md`.
+2. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
+   just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
+   `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
+3. Finish the tax-inclusive copy once the new links exist: FAQ answer, fine print, link updates and
+   the non-answer regression test (item 1). Do not ship "tax included" copy before Stripe is
+   inclusive.
+4. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
 16–18), the security/hygiene list (10–15), and the SEO content list (21–27) all still stand.
