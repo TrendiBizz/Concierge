@@ -245,6 +245,10 @@ function Login({locale, setLocale, tr}: {locale: string; setLocale: (v: string) 
 // A token is redeemed once per page load, whatever React does with effects.
 const redeemInFlight = new Set<string>()
 
+function hasStoredSession(): boolean {
+  try { return Boolean(localStorage.getItem('concierge.token')); } catch { return false; }
+}
+
 function Invite({onToken}: {onToken: (token: string) => void}) {
   const token = location.hash.startsWith('#invite=') ? location.hash.slice(8) : '';
   const api = useApi('');
@@ -292,6 +296,10 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
       {problem ? <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}><ErrorNote message={problem} /></div> : null}
       <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}>
         <Button label="Try this link again" variant="ghost" onClick={() => { setFailed(false); setProblem(''); setAttempt(attempt + 1); }} />
+        {hasStoredSession() ? (
+          <Button label="Go back to the account signed in on this browser" variant="ghost"
+                  onClick={() => { history.replaceState(null, '', '/studio/'); location.reload(); }} />
+        ) : null}
       </div>
     </div>
   );
@@ -1699,11 +1707,25 @@ function Shell() {
     );
   }
 
+  // An invitation in the URL outranks whatever session this browser already holds. A stored
+  // token used to win: opening a client's invitation on a machine signed in as another business
+  // landed in the other business, and the invitation was never redeemed (reported 2026-11-16 —
+  // a Trendibizz invite opened ACME). The link is explicit intent; switch to it.
+  if (location.hash.startsWith('#invite=')) {
+    return (
+      <Theme theme={theme}>
+        <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
+          <Invite onToken={setToken} />
+        </InternationalizationProvider>
+      </Theme>
+    );
+  }
+
   if (!token) {
     return (
       <Theme theme={theme}>
         <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-          {location.hash.startsWith('#invite=') ? <Invite onToken={setToken} /> : <Login locale={locale} setLocale={setLocale} tr={tr} />}
+          <Login locale={locale} setLocale={setLocale} tr={tr} />
         </InternationalizationProvider>
       </Theme>
     );
