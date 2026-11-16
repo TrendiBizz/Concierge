@@ -100,3 +100,31 @@ def test_a_drop_chain_nobody_jumps_to_is_a_failure(monkeypatch):
     monkeypatch.setattr(healthcheck, "run", _firewall(()))
     result = healthcheck.check_sip_firewall()[0]
     assert result["status"] == "fail" and "open to the internet" in result["detail"]
+
+
+def test_netavark_ahead_of_the_sip_jump_is_a_failure(monkeypatch):
+    """Podman's NETAVARK_FORWARD accepts container-bound traffic; before our jump it bypasses the carrier-only rule."""
+    def fake(args, **kwargs):
+        if args[1] == "is-active":
+            return 0, "active\n"
+        if args[2] == "TRENDI-SIP":
+            return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -j DROP\n"
+        if args[2] == "FORWARD":
+            return 0, "-P FORWARD DROP\n-A FORWARD -j NETAVARK_FORWARD\n" + JUMP.format(chain="FORWARD")
+        return 0, ""
+    monkeypatch.setattr(healthcheck, "run", fake)
+    result = healthcheck.check_sip_firewall()[0]
+    assert result["status"] == "fail" and "NETAVARK_FORWARD is ahead" in result["detail"]
+
+
+def test_the_sip_jump_ahead_of_netavark_is_ok(monkeypatch):
+    def fake(args, **kwargs):
+        if args[1] == "is-active":
+            return 0, "active\n"
+        if args[2] == "TRENDI-SIP":
+            return 0, "-N TRENDI-SIP\n-A TRENDI-SIP -j DROP\n"
+        if args[2] == "FORWARD":
+            return 0, "-P FORWARD DROP\n" + JUMP.format(chain="FORWARD") + "-A FORWARD -j NETAVARK_FORWARD\n"
+        return 0, ""
+    monkeypatch.setattr(healthcheck, "run", fake)
+    assert healthcheck.check_sip_firewall()[0]["status"] == "ok"

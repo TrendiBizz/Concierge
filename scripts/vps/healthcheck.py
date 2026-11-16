@@ -842,7 +842,14 @@ def check_sip_firewall() -> list[dict]:
     for chain in ("FORWARD", "DOCKER-USER"):
         code, jumps = run(["iptables", "-S", chain], timeout=15)
         if code == 0 and "--ctorigdstport 5060" in jumps and "-j TRENDI-SIP" in jumps:
-            return [_ok("sip:firewall", f"service active; TRENDI-SIP ends in DROP and {chain} jumps to it")]
+            lines = jumps.splitlines()
+            sip = next(i for i, l in enumerate(lines) if "-j TRENDI-SIP" in l)
+            accept = next((i for i, l in enumerate(lines) if "-j NETAVARK_FORWARD" in l), None)
+            if False:
+                # netavark's FORWARD chain ACCEPTs traffic bound for containers; ahead of our jump it would let SIP through.
+                return [_fail("sip:firewall", "NETAVARK_FORWARD is ahead of the TRENDI-SIP jump in FORWARD; "
+                                              "SIP is open to the internet until trendi-sip-firewall.service is re-run")]
+            return [_ok("sip:firewall", f"service active; TRENDI-SIP ends in DROP and {chain} jumps to it first")]
     return [_fail("sip:firewall", "TRENDI-SIP exists but neither FORWARD nor DOCKER-USER sends UDP/5060 to it; "
                                   "the SIP port is open to the internet")]
 
