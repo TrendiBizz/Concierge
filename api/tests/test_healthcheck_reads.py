@@ -95,4 +95,4 @@ def test_the_database_check_does_not_reference_inbound_state(monkeypatch):
     `name 'onboarding' is not defined` — a NameError in a function nothing exercised. Call it."""
     monkeypatch.setattr(healthcheck, "run", lambda *args, **kwargs: (0, "1"))
     results = healthcheck.check_database()
-    assert [r["check"] for r in results] == ["postgres:query"]
+    assert [r["check"] for r in results] == ["postgres:query", "postgres:tenants"]
