@@ -133,6 +133,20 @@ The first three streams are recorded in their own files. The last one is this se
    `https://concierge.trendibizz.com/studio/install`; headless Chrome on the live page rendered the
    one-tap Install button. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
 
+11. **Social marks, mobile controls and a stricter SEO gate — 2026-11-16 (this session).** The
+   Studio's social connections were text buttons ("Connect linkedin organization"); they are now
+   connection cards with the official full-colour marks and a clear state, and the composer marks
+   each connected account. The public footer's five text links became colour-mark buttons on all
+   40 pages, each with a visually hidden name so the link stays describable. Two real site defects
+   were found and fixed on the way: the closing call-to-action was **white on white** (a
+   same-specificity cascade loss; measured live, now purple on white) and the eyebrow above the
+   purple band was purple on purple. The chat launcher and language pill collapse to 56px / 44px
+   marks on a phone instead of covering the page. The SEO gate gained six rules (JSON-LD must
+   parse and exist, `alt` on every image, no skipped heading levels, unique descriptions, absolute
+   `og:image`) and found four real heading jumps, now fixed. Proof and the headless-Chrome
+   false-alarm note (a `--window-size=390` screenshot is cropped, not a mobile layout) are in
+   `QA/verification/SOCIAL_ICONS_AND_SEO_2026-11-16.md`.
+
 ## 3. Outstanding — the real worklist
 
 ### Operator only (cannot be fixed from this repo)
@@ -233,6 +247,15 @@ The first three streams are recorded in their own files. The last one is this se
    customer is enough), approve it, send it to an address you control, open the link, accept with
    a typed name, then confirm the invoice appears. If anything breaks, it is a bug to fix in that
    session, not a note.
+34d. **The Studio's Social page has not been seen signed in.** The connection cards are covered by
+   types, the production build and source tests, but they sit behind authentication, so no
+   screenshot of the real cards exists. **Next:** sign in, open Social, connect or inspect one
+   account, and confirm the marks, states and button labels read correctly.
+34e. **The mobile checks are device emulation, not a handset.** 390px emulation shows no overflow
+   and the compact controls measure 56px and 44px, but nobody has held the phone. **Next:** open
+   trendibizz.com on an Android and an iPhone, check the launcher, the language pill and the footer
+   marks, and scroll the whole page once.
+
 34c. **The install path is proven in Chrome, not on a phone.** The live page's QR decodes to the
    install URL and headless Chrome offered the install, but no physical Android or iPhone has
    installed it. **Next:** scan the Setup QR with one of each, install, open from the home screen
