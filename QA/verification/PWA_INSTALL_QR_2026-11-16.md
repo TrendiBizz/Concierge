@@ -279,3 +279,50 @@ copy it from the email, paste it, and it redeems inside the app.
 - `tests/test_pwa_install.py` (16) asserts the copy button is hidden in Safari, that no
   `navigator.share` button is shipped, and the no-toolbar guidance.
 - Suite: 1446 passed, 19 skipped, 29 failed (known local-Postgres outage).
+
+---
+
+# Follow-up: the installed app asked for a sign-in, and its icon was a black blob (same day)
+
+## What the operator saw
+
+Installed on an iPhone; opening the icon asked for a pasted sign-in link ("why would we offer a QR
+if they still have to paste in the sign-in link"). The home-screen icon was invisible on a dark
+wallpaper.
+
+## Cause
+
+- **Sign-in:** an iPhone home-screen app has its own empty storage, so nothing Safari held reached
+  it, and the QR on offer (public, no identity) could not carry a session. The installed app
+  launched at the manifest `start_url` (`/studio/`) — FACT from the report: it showed the app's
+  sign-in, not the install page — with no way to know who had scanned.
+- **Icon:** a near-black tile (#0f0f12) with a lime C. On a dark wallpaper, and under iOS's dark
+  icon treatment, the tile vanished and the C went dim.
+
+## Fix
+
+- All four icons are now a **lime tile (#c8f560) with a dark C** (maskable: C scaled to the safe zone).
+- The QR in Studio → Setup is minted **per signed-in user**: `POST /owner/auth/install-ticket`
+  returns `…/studio/install#k=<ticket>` — a one-hour, single-use ticket (same table and redemption
+  as a link, `accept_invite`), renewed every 50 minutes while the page is open.
+- `install.html` re-points the manifest at `/studio/manifest.webmanifest?k=<ticket>`; the server
+  route returns the manifest with `start_url = /studio/#invite=<ticket>` (token shape-checked,
+  `no-store`, `id` unchanged). The installed app launches there and the SPA's existing
+  `#invite=` redemption signs it in. A launch that lands on the install page goes into the
+  workspace carrying the ticket.
+- If a ticket cannot be minted, the QR falls back to the public install page and the app signs in
+  once with the six-digit code, as before.
+
+## Proof
+
+- `tests/test_pwa_install.py` (20): icon corners are bright; manifest route injects a valid ticket
+  and rejects malformed ones; install page wires the ticket; Studio QR is minted and renewed; route
+  precedes the catch-all. Mutation: removing the `start_url` injection turns the manifest test red;
+  restored.
+- Suite: 1454 passed, 19 skipped, 29 failed (the known local-Postgres connection failures).
+
+## NOT verified
+
+Not tested on a physical iPhone. INFERENCE (unverified): iOS reads the manifest `start_url`
+(consistent with the launch landing on `/studio/`) and preserves its `#invite=` fragment on launch.
+If it drops the fragment, the app falls back to the code sign-in.
