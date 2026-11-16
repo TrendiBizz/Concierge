@@ -26,6 +26,33 @@ Per-stack backups (pg_dumpall + compose files) are in `/root/podman-migration/<p
    space; proof: throwaway stack kept running, refusal message printed.
 4. A piped `| tail` hid the script's exit code and its progress for 10 minutes; run it without a pipe or write to a log file.
 
+## Defects found during the production move (attempt 3, 2026-11-17)
+
+5. **Two `--filter label=...project=` flags are ANDed, not ORed.** `docker ps -aq --filter
+   label=com.docker.compose.project=trendi --filter label=com.docker.compose.project=asterisk` matches containers carrying
+   BOTH labels (none), so the volume list came back empty and nothing would have been copied. Cause: Docker's `--filter` on one
+   command is a conjunction. Fix: query each project separately and merge
+   (`{ docker ps -aq --filter label=...=trendi; docker ps -aq --filter label=...=asterisk; }`), already in `podman-migrate-prod.sh`.
+   Proof: attempt 3's volume loop enumerated and copied the 7 `trendi_*` volumes (log: `volume trendi_database copied (86M)`, etc.).
+
+6. **IPAM race for the PBX's fixed address.** The PBX owns `172.30.91.2` (pjsip.conf, ASTERISK_PEERS), but IPAM hands the lowest
+   free address to whichever container starts first, so the unpinned bridge/shell took `.2` and the PBX died with "Address already
+   in use" (attempts 1 and 2, and their rollbacks). Fix: pin bridge `.4` (`scripts/asterisk/compose.yml`) and telephone shell `.3`
+   (`scripts/vps/compose.yml`); PBX stays `.2`. Proof: with all three pinned, no container can take another's address (see defect 7
+   for why the ordering dance was then removed).
+
+7. **Podman's compose refuses to recreate `trendi-api-1` while `trendi-social-1` depends on it via `network_mode: service:api`.**
+   Attempt 3 held the shell back with `ptdc up -d --scale shell=0`, started asterisk, then added the shell back with a plain
+   `ptdc up -d`. Re-adding a scaled-to-0 service makes Podman's docker-compose path recreate the whole project, and the recreate
+   of `trendi-api-1` is refused: `Error response from daemon: container <id> has dependent containers which must be removed`
+   (the dependent is `trendi-social-1`, which shares the api's network namespace). Docker's daemon handles this by removing and
+   recreating the dependent too; Podman's compat API does not. The script's rollback used the same two-step and its `tdc up -d`
+   (shell) DID succeed under Docker, confirming the failure is Podman-specific. Fix: drop the `--scale shell=0` two-step entirely
+   — all three phone-network addresses are now fixed (defect 6), so the race it guarded against cannot recur, and the whole trendi
+   stack (shell included) is started in one `ptdc up -d`, then asterisk. Proof (fails without fix): attempt 3 log shows the daemon
+   error at `==> starting the telephone shell`, then `!!! FAILED`. Proof (passes with fix): re-run starts trendi+asterisk+shell
+   under Podman in one pass and reaches `trendi and asterisk are running under Podman` (see the re-run log below).
+
 ## Known risks still open for the production stacks (INFERENCE, unverified)
 - `network_mode: service:api` (social) and `network_mode: host` (hermes-gateway) under Podman's compose path.
 - `trendi-sip-firewall.service` hooks Docker's iptables chains; Asterisk needs UDP 5060 and 10000-10099 through Podman's netavark rules.

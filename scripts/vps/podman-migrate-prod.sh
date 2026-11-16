@@ -9,7 +9,7 @@
 #
 # Order: protect SIP -> preload images while everything still runs -> pg_dumpall -> stop trendi, then asterisk (Docker) ->
 # copy every mounted named volume -> recreate asterisk_phone in Podman WITH compose's labels (compose refuses an unlabelled
-# network) -> start trendi, then asterisk, through the Podman socket -> wait until healthy.
+# network) -> start trendi (shell included), then asterisk, through the Podman socket -> wait until healthy.
 # Any failure: tear Podman down, recreate the network in Docker with the same labels, start trendi then asterisk in Docker.
 # Docker's data (/var/lib/docker) is never modified, so Docker can always take everything back.
 set -Eeuo pipefail
@@ -69,9 +69,11 @@ for v in "${volumes[@]}"; do
   podman volume exists "$v" && { echo "!!! podman volume $v already exists (stale copy?). Remove it with: podman volume rm $v" >&2; exit 1; }
 done
 
-# trendi-shell shares the phone network with the PBX, whose address (172.30.91.2) is fixed in pjsip.conf. IPAM hands out the lowest
-# free address, so if the shell starts first it takes .2 and the PBX dies with "Address already in use" (this broke the first attempt AND
-# its rollback on 2026-11-17). Start the PBX stack first and the shell last, under either engine.
+# The phone network's addresses are all FIXED now (PBX .2 in pjsip.conf, shell .3 in scripts/vps/compose.yml, bridge .4 in
+# scripts/asterisk/compose.yml), so IPAM can no longer hand .2 to whichever container starts first. There is no need to hold the
+# shell back: starting the whole trendi stack (shell included) and then asterisk cannot reproduce the 2026-11-17 "Address already
+# in use" race. (The old --scale shell=0 dance was removed: re-adding a scaled-to-0 service makes Podman's compose recreate
+# trendi-api-1, which the daemon refuses because social uses network_mode: service:api.)
 rollback() {
   trap - ERR
   echo "!!! FAILED: putting trendi and asterisk back on Docker" >&2
@@ -79,10 +81,8 @@ rollback() {
   ptdc down --timeout 20 >/dev/null 2>&1 || true
   podman network rm -f asterisk_phone trendi_default >/dev/null 2>&1 || true
   docker network inspect asterisk_phone >/dev/null 2>&1 || docker network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null 2>&1 || true
-  tdc up -d --scale shell=0 >&2 || true
-  adc up -d pbx >&2 || true
-  adc up -d >&2 || true
   tdc up -d >&2 || true
+  adc up -d >&2 || true
   echo "!!! rolled back to Docker. Docker data untouched. Backup: $BK" >&2
 }
 trap rollback ERR
@@ -103,9 +103,8 @@ done
 # ---- 5. network, then start trendi, then asterisk --------------------------------------------------------------------------------------
 docker network inspect asterisk_phone >/dev/null 2>&1 && docker network rm asterisk_phone >/dev/null
 podman network create "${NETLABELS[@]}" --subnet "$PHONE_SUBNET" asterisk_phone >/dev/null
-echo "==> starting trendi under Podman (shell held back so the PBX can have 172.30.91.2)"; ptdc up -d --scale shell=0
-echo "==> starting asterisk under Podman (PBX first)"; padc up -d pbx; padc up -d
-echo "==> starting the telephone shell"; ptdc up -d
+echo "==> starting trendi under Podman (shell included; .2/.3/.4 are fixed)"; ptdc up -d
+echo "==> starting asterisk under Podman (PBX .2, bridge .4)"; padc up -d
 
 echo "==> waiting for health"
 for _ in $(seq 1 "$WAIT_TRIES"); do
