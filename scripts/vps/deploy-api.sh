@@ -15,7 +15,7 @@ RELEASE="${VPS_RELEASE:-/opt/trendi/releases/20261108-vps}"
 KEY="${KEY:-$REPO_ROOT/Concierge}"
 PRODUCT="$RELEASE/product"
 
-SSH=(ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY")
+SSH=(ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY" "$HOST")
 RSSH=(rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates
       -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY")
 

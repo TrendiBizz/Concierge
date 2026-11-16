@@ -58,6 +58,15 @@ and "verified" while the box kept serving the old page. Added:
 - `verify-deploy.sh` now compares `api/static` too.
 - `AGENTS.md` uses `deploy-api.sh` for API changes.
 
+### Deploy-script defect found while using it
+
+The first `deploy-api.sh` built the SSH argv without the host (`ssh … -i "$KEY"` and then the command
+string). `ssh` therefore treated `REL='/opt/…' bash …` as a hostname and exited 255 with
+`hostname contains invalid characters` — after the rsync had already copied the files. Fixed by
+adding `"$HOST"` to the array. Re-running it then rebuilt, recreated api + social, reported the API
+healthy and social reachable, and ended with the checksum check. `sync-tooling.sh` refused while the
+fix was uncommitted, so the order is: commit the tooling, then publish it with `sync-tooling.sh`.
+
 ## Known limit
 
 The invitation email body is still plain text with the sign-in link; the QR is shown where the token
