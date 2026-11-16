@@ -1247,3 +1247,22 @@ CREATE INDEX IF NOT EXISTS quotations_status_idx ON quotations(tenant_id, status
 
 -- Invoices inherit the discount, or the customer's bill would not add up to the quote they accepted.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_cents bigint NOT NULL DEFAULT 0;
+
+-- Enquiries from the public website's forms (/contact, /concierge-start). Stored first, emailed
+-- second: a visitor whose mail app is missing must never be the reason a lead is lost.
+CREATE TABLE IF NOT EXISTS site_enquiries (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    kind        text NOT NULL CHECK (kind IN ('seo','concierge')),
+    name        text NOT NULL DEFAULT '',
+    email       text NOT NULL,
+    website     text NOT NULL DEFAULT '',
+    message     text NOT NULL DEFAULT '',
+    plan        text NOT NULL DEFAULT '',
+    channels    text NOT NULL DEFAULT '',
+    referral    text NOT NULL DEFAULT '',
+    ip          text NOT NULL DEFAULT '',
+    user_agent  text NOT NULL DEFAULT '',
+    status      text NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','done','spam'))
+);
+CREATE INDEX IF NOT EXISTS site_enquiries_created ON site_enquiries(created_at DESC);

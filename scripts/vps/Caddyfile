@@ -5,6 +5,19 @@
 :8080 {
     header X-Trendi-Release "20261108-vps"
     encode gzip
+    # The website's enquiry forms post to the API; everything else on the apex is the static site.
+    @enquiry {
+        host trendibizz.com
+        path /api/enquiry
+    }
+    handle @enquiry {
+        reverse_proxy api:8000 {
+            lb_try_duration 10s
+            lb_try_interval 250ms
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
     @website host trendibizz.com
     handle @website {
         @static path /brand/* /fonts/* /assets/* /images/*

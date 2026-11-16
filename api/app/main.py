@@ -32,6 +32,7 @@ from . import engagement
 from . import sms_inbox
 from . import owner_invites
 from . import install_requests
+from . import site_enquiry
 from . import privacy
 from . import platform_billing
 from . import invoices
@@ -1935,12 +1936,12 @@ async def admin_owner_invite(slug: str, body: OwnerRecovery):
 
 @app.get("/", include_in_schema=False)
 async def owner_root():
-    """Types of the bare host: the owner app lives at /owner-ui, so send people there.
+    """Types of the bare host: send people to the Studio, the customer sign-in.
 
     Before this, https://concierge.trendibizz.com/ answered 404 and a visitor had no way
     forward except guessing the path. Found by the 2026-11-14 site audit.
     """
-    return RedirectResponse("/owner-ui", status_code=307)
+    return RedirectResponse("/studio/", status_code=307)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -2995,6 +2996,36 @@ class QuotePaymentAction(BaseModel):
 async def owner_revenue(days: int = 30, user: dict = Depends(owner_auth.current_user)):
     """What the AI brought in, in money, with the previous period beside it."""
     return await revenue.report(user["tenant_id"], days)
+
+
+class SiteEnquiry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["seo", "concierge"]
+    email: str = Field(max_length=320)
+    name: str = Field(default="", max_length=120)
+    website: str = Field(default="", max_length=300)
+    message: str = Field(default="", max_length=4000)
+    plan: str = Field(default="", max_length=20)
+    channels: list[str] = Field(default_factory=list, max_length=12)
+    referral: str = Field(default="", max_length=64)
+    trap: str = Field(default="", max_length=200)
+
+
+@app.post("/api/enquiry", include_in_schema=False)
+async def website_enquiry(body: SiteEnquiry, request: Request):
+    """The public website's enquiry forms. No account; stored first, emailed second."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "")
+    try:
+        return await site_enquiry.submit(
+            **body.model_dump(), ip=ip, user_agent=request.headers.get("user-agent", ""))
+    except site_enquiry.Refused as error:
+        raise HTTPException(error.status, str(error)) from None
+
+
+@app.get("/admin/site-enquiries", dependencies=admin)
+async def admin_site_enquiries(status: str = ""):
+    return await site_enquiry.list_all(status)
 
 
 class BusinessDetails(BaseModel):

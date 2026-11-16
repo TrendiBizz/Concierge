@@ -41,9 +41,36 @@
       "Business details and questions:\n" + values.get("details").trim();
     draft.textContent = text;
     email.href = "mailto:admin@trendibizz.com?subject=" + encodeURIComponent("Concierge setup request") + "&body=" + encodeURIComponent(text);
-    result.hidden = false;
-    status.textContent = "Your request is ready to review. Nothing has been sent.";
-    result.focus();
+    var button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    status.textContent = "Sending…";
+    function showDraft(message) {
+      if (button) button.disabled = false;
+      result.hidden = false;
+      status.textContent = message;
+      result.focus();
+    }
+    fetch("/api/enquiry", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        kind: "concierge", email: values.get("email").trim(), name: values.get("business").trim(),
+        website: url.href, message: values.get("details").trim(), plan: String(values.get("plan") || ""),
+        channels: channels, trap: String(values.get("trap") || "")
+      })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) { return {ok: r.ok, data: data}; });
+    }).then(function (res) {
+      if (res.ok) {
+        if (button) button.disabled = false;
+        status.textContent = "Thanks — we have your request. We will reply to " + values.get("email").trim() + " within one business day.";
+        form.reset();
+        return;
+      }
+      showDraft((res.data && res.data.detail) || "We could not send that from here. Your request is ready to email instead.");
+    }).catch(function () {
+      showDraft("We could not send that from here. Your request is ready to email instead.");
+    });
   });
   form.elements.website.addEventListener("input", function () { this.setCustomValidity(""); });
   document.getElementById("setup-copy").addEventListener("click", function () {

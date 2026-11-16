@@ -20,13 +20,13 @@ def _client():
 
 
 def test_the_bare_owner_host_sends_you_to_the_app():
-    """Typing the hostname gave a 404 with no way forward. It must land on /owner-ui."""
+    """Typing the hostname gave a 404 with no way forward. It must land on the Studio."""
 
     async def run():
         async with _client() as client:
             response = await client.get("/", follow_redirects=False)
         assert response.status_code in (307, 308), f"root answered {response.status_code}"
-        assert response.headers["location"] == "/owner-ui"
+        assert response.headers["location"] == "/studio/"
 
     asyncio.run(run())
 

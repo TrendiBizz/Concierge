@@ -190,13 +190,41 @@
       if (copyBtn) { copyBtn.textContent = "copy it"; }
     }
 
+    var statusEl = document.getElementById("start-status");
+    function say(text) { if (statusEl) { statusEl.textContent = text; } }
+
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var draft = buildDraft();
-      wireFallbacks(draft);
-      window.location.href = "mailto:" + draft.to +
-        "?subject=" + encodeURIComponent(draft.subject) +
-        "&body=" + encodeURIComponent(draft.body);
+      var button = form.querySelector('button[type="submit"]');
+      if (button) { button.disabled = true; }
+      say("Sending…");
+      var field = function (n) { return (form.elements[n] && form.elements[n].value || "").trim(); };
+      fetch("/api/enquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "seo", email: field("email"), name: field("name"), website: field("site"),
+          message: draft.body, referral: cleanRef(field("ref")), trap: field("trap")
+        })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
+      }).then(function (res) {
+        if (button) { button.disabled = false; }
+        if (res.ok) {
+          say("Thanks — we have it. We will reply to " + field("email") + " within one business day.");
+          form.reset();
+          if (fallbacks) { fallbacks.hidden = true; }
+          return;
+        }
+        // A refusal the visitor can fix (bad address, too many tries) is shown as it is.
+        say((res.data && res.data.detail) || "We could not send that from here.");
+        if (!res.data || res.data.detail === undefined) { wireFallbacks(draft); }
+      }).catch(function () {
+        if (button) { button.disabled = false; }
+        say("We could not send that from here. Use your email app below instead.");
+        wireFallbacks(draft);
+      });
     });
 
     if (copyBtn) {
