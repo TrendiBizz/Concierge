@@ -37,7 +37,8 @@ cp -a /etc/docker "$BK/docker" 2>/dev/null || true
 echo "== 1. SIP firewall script + systemd unit"
 cat > /usr/local/sbin/trendi-sip-firewall.sh <<EOF
 #!/usr/bin/env bash
-# Applied after docker.service so DOCKER-USER exists. Idempotent.
+# Applied after podman-restart.service so NETAVARK_FORWARD exists (the jump must land ahead of it in FORWARD).
+# DOCKER-USER is still written so the same script holds if the engine is ever switched back. Idempotent.
 set -e
 iptables -N TRENDI-SIP 2>/dev/null || true
 iptables -F TRENDI-SIP
@@ -63,9 +64,8 @@ chmod 755 /usr/local/sbin/trendi-sip-firewall.sh
 
 cat > /etc/systemd/system/trendi-sip-firewall.service <<'EOF'
 [Unit]
-Description=Restrict SIP signalling to the carrier (Docker bypasses ufw)
-After=docker.service podman.socket network-online.target
-Wants=docker.service
+Description=Restrict SIP signalling to the carrier (container engines bypass ufw)
+After=network-online.target podman-restart.service podman.socket
 
 [Service]
 Type=oneshot

@@ -1,7 +1,7 @@
 [Unit]
 Description=Verify Trendi encrypted backup can be restored
-After=docker.service network-online.target
-Requires=docker.service
+After=podman.socket network-online.target
+Requires=podman.socket
 [Service]
 Type=oneshot
 ExecStart=/opt/trendi/releases/20261108-vps/product/scripts/vps/restore-test.sh

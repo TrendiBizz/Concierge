@@ -1,7 +1,7 @@
 [Unit]
 Description=Deliver approved posts only for the isolated Meta review workspace
-After=docker.service
-Requires=docker.service
+After=podman.socket
+Requires=podman.socket
 
 [Service]
 Type=oneshot
