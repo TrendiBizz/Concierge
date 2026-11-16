@@ -40,6 +40,7 @@ compare() { # local_dir remote_dir label
 
 echo "verify-deploy against $HOST"
 compare "$REPO_ROOT/api/app"            "$RELEASE/product/api/app"              "api/app"
+compare "$REPO_ROOT/api/static"         "$RELEASE/product/api/static"           "api/static"
 compare "$REPO_ROOT/scripts/vps"        "$RELEASE/product/scripts/vps"           "scripts/vps"
 compare "$SITE_MIRROR"                  "$RELEASE/website/site"                  "website/site"
 if [ "$drift" -eq 0 ]; then echo "OK: repo and box agree"; else echo "FAIL: drift above"; fi

@@ -27,7 +27,7 @@ different questions.
 | What | Path | Rules |
 |---|---|---|
 | The website source | `website/` | **The only site source.** Deploy with `scripts/vps/deploy-site.sh`. |
-| The API | `api/app/` | Deploy with `rsync api/app/` + `scripts/vps/redeploy-api.sh`. |
+| The API | `api/app/` and `api/static/` | Deploy with `scripts/vps/deploy-api.sh` (copies both, rebuilds, restarts, verifies). |
 | Host tooling | `scripts/vps/` | Deployed with `scripts/vps/sync-tooling.sh`; used by cron and systemd on the box. |
 | QA records | `QA/verification/` | One dated file per piece of work: cause, fix, proof. |
 
