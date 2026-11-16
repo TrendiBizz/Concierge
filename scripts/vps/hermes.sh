@@ -5,6 +5,8 @@
 #   hermes.sh stop   [--tenant SLUG]            (the data volume is kept)
 #   hermes.sh status [--tenant SLUG]
 #   hermes.sh ask    [--tenant SLUG] "question"
+#   hermes.sh toolsets-install [--tenant SLUG]   install hermes.customer.toolsets.yaml after proving, on a scratch volume,
+#                                                that no dangerous tool is left enabled
 #   hermes.sh gateway-start   [--tenant SLUG]   build and start the Hermes gateway (loopback :4420)
 #   hermes.sh gateway-stop | gateway-status
 #   hermes.sh gateway-connect --yes             append the Concierge-side switch to api.env (does NOT restart anything)
@@ -111,6 +113,23 @@ case "$cmd" in
     BODY="$(PROMPT="$question" python3 -c 'import json,os;print(json.dumps({"model":"hermes-agent","messages":[{"role":"user","content":os.environ["PROMPT"]}]}))')"
     curl -sS -m 120 "http://127.0.0.1:$PORT/v1/chat/completions" -H "Authorization: Bearer $(read_key)" -H "Content-Type: application/json" -d "$BODY" \
       | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["choices"][0]["message"]["content"])' ;;
+  toolsets-install)
+    SRC="$HERE/hermes.customer.toolsets.yaml"
+    [[ -s "$SRC" ]] || { echo "Missing $SRC" >&2; exit 1; }
+    docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
+    IMAGE="${HERMES_IMAGE:-nousresearch/hermes-agent:stable}"
+    SCRATCH="hermes_toolset_check_$$"
+    docker volume create "$SCRATCH" >/dev/null
+    trap 'docker volume rm "$SCRATCH" >/dev/null 2>&1 || true' EXIT
+    { printf 'model:\n  default: %s\n  provider: xai\n' "$MODEL"; cat "$SRC"; } \
+      | docker run --rm -i -v "$SCRATCH":/opt/data --entrypoint /bin/sh "$IMAGE" -c 'cat > /opt/data/config.yaml'
+    enabled="$(docker run --rm -v "$SCRATCH":/opt/data --entrypoint /opt/hermes/bin/hermes "$IMAGE" tools list --platform api_server 2>&1 | grep 'enabled' | grep -v 'disabled' || true)"
+    bad="$(printf '%s\n' "$enabled" | grep -E ' (terminal|file|browser|code_execution|delegation|cronjob|web|computer_use|connections|image_gen|x_search) ' || true)"
+    if [[ -n "$bad" ]]; then echo "Refusing: these tools are still enabled:" >&2; echo "$bad" >&2; exit 2; fi
+    install -d -m 700 "$SHARED" "$KEYDIR"
+    install -m 600 "$SRC" "$KEYDIR/$tenant.toolsets.yaml"
+    echo "Verified on a scratch volume; enabled tools:"; printf '%s\n' "$enabled"
+    echo "Installed $KEYDIR/$tenant.toolsets.yaml. Restart with: hermes.sh start --tenant $tenant --mode customer" ;;
   gateway-start)
     docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
     [[ -s "$KEYFILE" ]] || { echo "Start Hermes first: hermes.sh start --tenant $tenant" >&2; exit 1; }
