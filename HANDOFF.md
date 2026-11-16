@@ -136,9 +136,13 @@ The first three streams are recorded in their own files. The last one is this se
    served by `main.py` before the catch-all — no router, no auth, no email field — with the SPA
    branch and `Install.tsx` deleted. Same day again: iPhone users could not find Safari's Share
    button, so the page now draws the icon, names the in-app browsers, and gives the Edit Actions
-   recovery. **iOS has no one-tap install** — only Safari's Share → Add to Home Screen; a native
-   App Store app is the only simpler route and is an operator decision. Record:
-   `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
+   recovery. Then the copy button was shown *in Safari* (the only control people noticed), so
+   Safari now gets the three steps alone and other browsers get the copy card; a `navigator.share`
+   button was built and removed because the Web Share sheet does not carry Add to Home Screen. The
+   installed app can now finish sign-in by pasting the emailed link, because a home-screen app has
+   its own storage and the link opens in Safari. **iOS has no one-tap install** — only Safari's
+   Share → Add to Home Screen; a native App Store app is the only simpler route and is an operator
+   decision. Record: `QA/verification/PWA_INSTALL_QR_2026-11-16.md`.
 
 11. **Social marks, mobile controls and a stricter SEO gate — 2026-11-16 (this session).** The
    Studio's social connections were text buttons ("Connect linkedin organization"); they are now

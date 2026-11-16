@@ -31,7 +31,7 @@ import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import {StatusLine} from './StatusLine';
 import {QrCode, qrDownloadHref} from './QrCode';
-import {installAvailable, installUrl, onInstallChange, promptInstall} from './installPrompt';
+import {installAvailable, installUrl, isInstalled, onInstallChange, promptInstall} from './installPrompt';
 import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
 const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/copy/*.json');
@@ -177,12 +177,28 @@ function greeting(): string {
   return 'good evening';
 }
 
-function RequestLink({title, intro, note}: {title: string; intro: string; note?: string}) {
+/** A pasted sign-in link, a bare token, or nothing. The email link is a URL; people paste both. */
+function tokenFromPastedLink(value: string): string {
+  const text = value.trim();
+  const hash = text.match(/#invite=([A-Za-z0-9_-]+)/);
+  if (hash) return hash[1];
+  const query = text.match(/[?&]invite=([A-Za-z0-9_-]+)/);
+  if (query) return query[1];
+  return /^[A-Za-z0-9_-]{20,}$/.test(text) ? text : '';
+}
+
+function RequestLink({title, intro, note, onToken}: {title: string; intro: string; note?: string; onToken?: (token: string) => void}) {
   const api = useApi('');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [pasted, setPasted] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  // In an installed app the emailed link opens in the browser, not here, and this app has its own
+  // storage: signing in there does not sign in here. Pasting the link is the one route that
+  // finishes the sign-in inside the app.
+  const installed = isInstalled();
 
   async function submit() {
     if (!email.trim()) { setError('Enter the email address your invite came to.'); return; }
@@ -196,16 +212,41 @@ function RequestLink({title, intro, note}: {title: string; intro: string; note?:
     setBusy(false);
   }
 
+  async function redeemPasted() {
+    const token = tokenFromPastedLink(pasted);
+    if (!token) { setError('That does not look like a sign-in link. Copy the whole link from the email.'); return; }
+    setRedeeming(true); setError('');
+    try {
+      const data = await api('/owner/auth/invite', 'POST', {token}) as {access_token: string};
+      onToken?.(data.access_token);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That link has expired. Ask for a fresh one.');
+    }
+    setRedeeming(false);
+  }
+
   return (
     <div style={{maxWidth: 460, margin: '10vh auto', padding: 24}}>
       <Heading level={1}>{title}</Heading>
       <p>{intro}</p>
       {note ? <p>{note}</p> : null}
+      {installed && onToken ? (
+        <Card>
+          <Heading level={3}>Already have the link? Finish here</Heading>
+          <p>The emailed link opens in Safari. To sign in inside this app, copy the link from the email and paste it below.</p>
+          <TextArea label="Paste your sign-in link" value={pasted} onChange={setPasted} rows={3}
+                    placeholder="https://concierge.trendibizz.com/studio#invite=…" />
+          <div style={{marginTop: 12}}>
+            <Button label={redeeming ? 'Signing in…' : 'Sign me in'} variant="primary" isDisabled={redeeming} onClick={() => void redeemPasted()} />
+          </div>
+        </Card>
+      ) : null}
       {sent ? (
         <Card>
           <Heading level={2}>Check your email</Heading>
           <p>If {email.trim()} has an account, a one-click link is on its way. It works once and expires in 24 hours.</p>
           <p>Nothing arrived? Check the spam folder, then try again.</p>
+          {installed ? <p>Opened the link and it went to Safari? Copy it and paste it above — that signs you in here.</p> : null}
           <Button label="Send it again" variant="secondary" onClick={() => { setSent(false); }} />
         </Card>
       ) : (
@@ -222,7 +263,7 @@ function RequestLink({title, intro, note}: {title: string; intro: string; note?:
   );
 }
 
-function Login({locale, setLocale, tr}: {locale: string; setLocale: (v: string) => void; tr: (key: string) => string}) {
+function Login({locale, setLocale, tr, onToken}: {locale: string; setLocale: (v: string) => void; tr: (key: string) => string; onToken: (token: string) => void}) {
   return (
     <div>
       <div style={{display: 'flex', justifyContent: 'flex-end', padding: '16px 24px 0'}}>
@@ -233,6 +274,7 @@ function Login({locale, setLocale, tr}: {locale: string; setLocale: (v: string) 
       <RequestLink
         title="Concierge"
         intro="Sign in to set up your business, generate marketing media and manage enquiries."
+        onToken={onToken}
       />
       <div style={{maxWidth: 460, margin: '-6vh auto 0', padding: '0 24px 48px'}}>
         <TranslationNote locale={locale} />
@@ -1714,7 +1756,7 @@ function Shell() {
     return (
       <Theme theme={theme}>
         <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
-          <Login locale={locale} setLocale={setLocale} tr={tr} />
+          <Login locale={locale} setLocale={setLocale} tr={tr} onToken={setToken} />
         </InternationalizationProvider>
       </Theme>
     );

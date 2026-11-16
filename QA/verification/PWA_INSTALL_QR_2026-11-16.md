@@ -240,3 +240,42 @@ different build and a different distribution decision — not something a QR cod
 - `tests/test_pwa_install.py` (15) asserts the icon is drawn and described, the Edit Actions route,
   the in-app browser tokens, and the collapsed-bar instruction.
 - Suite: 1445 passed, 19 skipped, 29 failed (the known local-Postgres outage). Deployed.
+
+---
+
+# Follow-up: "it keeps saying copy the link for Safari when I am in Safari" (same day)
+
+## Cause
+
+The iPhone section rendered its **Copy the link for Safari** button for every iOS browser,
+including Safari. On Safari the page therefore offered a copy action that did nothing useful, and
+it was the only control on screen — the three taps were above it, but the button was what people
+noticed. A second mistake was attempted and removed before shipping: a button that called
+`navigator.share` to open the share sheet. Safari's own **Add to Home Screen** activity is not part
+of the Web Share sheet, so that button would have led to a sheet without the action.
+
+## What changed
+
+- **Safari sees only the instructions**: heading "On iPhone or iPad: install from Safari", the
+  drawn Share icon, three steps, and the Edit Actions recovery. No copy button, no
+  "not in Safari" paragraph.
+- **Every other iOS browser** sees the copy card and the named reason.
+- A "No Share button anywhere on screen?" line covers the case that started this: a Safari-looking
+  page inside an app's link preview, with no toolbar at all — it says to use `⋯` → Open in Safari,
+  or to paste `concierge.trendibizz.com/studio/install` into Safari.
+
+## Also fixed: signing in *inside* the installed app
+
+A home-screen app has its own storage, so the emailed link (which opens in Safari) left the
+installed app signed out with no route back. The login screen now accepts the **pasted link** —
+copy it from the email, paste it, and it redeems inside the app.
+
+## Proof
+
+- iPhone Safari UA: one visible section, `copyVisible: false`, `helpVisible: false`, heading
+  "install from Safari".
+- iPhone Chrome UA: `copyVisible: true`, heading "not Chrome".
+- Screenshot: `install-iphone-safari-steps-2026-11-16.png`.
+- `tests/test_pwa_install.py` (16) asserts the copy button is hidden in Safari, that no
+  `navigator.share` button is shipped, and the no-toolbar guidance.
+- Suite: 1446 passed, 19 skipped, 29 failed (known local-Postgres outage).

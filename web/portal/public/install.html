@@ -77,6 +77,7 @@
   <div class="brand"><span class="mark" aria-hidden="true">C</span><strong>Concierge</strong></div>
   <h1>Put Concierge on this phone</h1>
   <p>The whole workspace — enquiries, quotations, calls, marketing — as an app icon that opens full screen. This is not the chat bubble that sits on your website.</p>
+  <p class="fine">Already have an account? Sign in first, then add it — an installed app keeps its own sign-in and will ask once more otherwise.</p>
 
   <section class="card" id="installed" hidden>
     <h2>Concierge is already on this phone</h2>
@@ -95,7 +96,7 @@
   </section>
 
   <section class="card" id="ios" hidden>
-    <h2 id="ios-title">On iPhone or iPad: three taps in Safari</h2>
+    <h2 id="ios-title">On iPhone or iPad: install from Safari</h2>
     <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari to do it. No website can change that, and no web page can start the install by itself.</p>
 
     <div class="sharebar">
@@ -104,20 +105,21 @@
         <path d="M32 40V8" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round"/>
         <path d="M20 20 L32 8 L44 20" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>This is the button. It is called <strong>Share</strong>.</span>
+      <span>This is the <strong>Share</strong> button — in Safari's bottom bar (top right on iPad).</span>
     </div>
 
     <ol>
-      <li>Be in <strong>Safari</strong>. If you are reading this in another browser, the button below copies the link so you can paste it into Safari.</li>
-      <li>Tap the <strong>Share</strong> button — the square with an arrow pointing up. On an iPhone it sits in the bottom bar; on an iPad, top right. If the bar is hidden, swipe up on the page once.</li>
-      <li>Scroll the list and tap <strong>Add to Home Screen</strong>, leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
+      <li>Tap the <strong>Share</strong> button — the square with the arrow, in the bottom bar on iPhone (top right on iPad). If you cannot see the bar, swipe up on the page once.</li>
+      <li>Scroll the list and tap <strong>Add to Home Screen</strong>.</li>
+      <li>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
     </ol>
-    <p><strong>Can't see the arrow?</strong> You are probably in an app's built-in browser (Instagram, Facebook, WhatsApp, LinkedIn, TikTok, or a QR scanner's preview). Tap <strong>⋯</strong> in that browser and choose <strong>Open in Safari</strong>, or paste the link into Safari yourself. In Safari 26 the bottom bar hides as you scroll — swipe up to bring it back.</p>
-    <p><strong>Share sheet without “Add to Home Screen”?</strong> Scroll to the bottom of that sheet, tap <strong>Edit Actions…</strong> and switch <strong>Add to Home Screen</strong> on.</p>
     <div class="row">
-      <button class="secondary" id="copy-ios" type="button">Copy the link for Safari</button>
+      <button class="secondary" id="copy-ios" type="button" hidden>Copy the link for Safari</button>
     </div>
     <p class="fine" id="copy-ios-note" role="status"></p>
+    <p id="other-browser-help"><strong>Not in Safari?</strong> If you see “<span id="other-browser-name">another browser</span>” around the address bar, or you opened this from Instagram, Facebook, WhatsApp, LinkedIn or TikTok, tap <strong>⋯</strong> there and choose <strong>Open in Safari</strong>, or tap “Copy the link for Safari” and paste it into Safari yourself.</p>
+    <p><strong>No Share button anywhere on screen?</strong> If the address bar has no toolbar at all, you are in a link preview inside another app. Tap <strong>⋯</strong> and choose <strong>Open in Safari</strong>, or open Safari and paste this address: <span class="url">concierge.trendibizz.com/studio/install</span></p>
+    <p><strong>Share sheet without “Add to Home Screen”?</strong> Scroll to the bottom of that sheet, tap <strong>Edit Actions…</strong> and switch <strong>Add to Home Screen</strong> on.</p>
   </section>
 
   <section class="card" id="menu" hidden>
@@ -189,14 +191,23 @@
     // iOS first: Apple never fires the install prompt, and should one ever appear on an iOS
     // browser it would be a dead button. Safari's gesture is the only real route there.
     if (ios) {
+      var safari = !iosBrowser && !inApp;
       var note = document.getElementById('ios-browser-note');
       var name = document.getElementById('ios-browser-name');
-      if (note && name && (iosBrowser || inApp)) {
-        name.textContent = inApp || iosBrowser;
-        note.hidden = false;
-      }
+      var copyBtn = document.getElementById('copy-ios');
+      var help = document.getElementById('other-browser-help');
       var title = document.getElementById('ios-title');
-      if (title && iosBrowser) title.textContent = 'On iPhone, install from Safari — not ' + iosBrowser;
+      if (safari) {
+        // In Safari the copy button is noise, and it was the only thing some people noticed.
+        if (copyBtn) copyBtn.hidden = true;
+        if (help) help.hidden = true;
+      } else {
+        if (note && name) { name.textContent = inApp || iosBrowser; note.hidden = false; }
+        if (title) title.textContent = 'On iPhone, install from Safari — not ' + (inApp || iosBrowser);
+        if (copyBtn) copyBtn.hidden = false;
+        var other = document.getElementById('other-browser-name');
+        if (other) other.textContent = inApp || iosBrowser;
+      }
       show('ios'); return;
     }
     if (deferred) { show('one-tap'); return; }
