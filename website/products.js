@@ -37,20 +37,20 @@ window.TRENDI = {
     {
       id: "monthly",
       tab: "Monthly",
-      price: 1500,
+      price: 500,
       per: "per month",
       terms: "3-month minimum, then month to month.",
       cta: "Start monthly",
-      stripeLink: "https://buy.stripe.com/28E8wRbntdSjcsQg7RcEw03"
+      stripeLink: "https://buy.stripe.com/00wcN70IP4hJdwU8FpcEw06"
     },
     {
       id: "deposit",
       tab: "Deposit",
-      price: 1000,
+      price: 500,
       per: "deposit",
       terms: "Secures your start date. The balance is invoiced before work begins.",
       cta: "Pay deposit",
-      stripeLink: "https://buy.stripe.com/28EcN7bnt6pRgJ6f3NcEw04"
+      stripeLink: "https://buy.stripe.com/7sY7sNgHN6pR50obRBcEw05"
     }
   ],
 

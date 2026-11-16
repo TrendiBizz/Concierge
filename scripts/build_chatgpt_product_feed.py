@@ -84,10 +84,10 @@ PRODUCTS = [
             "Prices are in USD."
         ),
         "url": f"{BASE}/seo",
-        "price": "1500.00 USD",
+        "price": "500.00 USD",
         "headline": "SEO + AI visibility",
         "sub": "Done for you - monthly",
-        "price_label": "USD $1,500 / month",
+        "price_label": "USD $500 / month",
     },
 ]
 
