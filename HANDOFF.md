@@ -160,6 +160,13 @@ The first three streams are recorded in their own files. The last one is this se
 
 ## 3. Outstanding — the real worklist
 
+**2026-11-17 — the Docker → Podman migration on the VPS is DONE** (production `trendi` + `asterisk` run on
+Podman; the Docker engine is disabled but kept installed, `/var/lib/docker` untouched; a real reboot was
+survived). Remaining migration open items live in `QA/verification/PODMAN_MIGRATION_2026-11-17.md` "Still open":
+the Twenty CRM (`crm` profile) was not migrated, the Hermes `network_mode: host`/`cap_drop` re-test, keep Docker
+installed for a week, identify the 23:10 reboot trigger, and operator items (delete the one-day DO token;
+approve or decline the Version 1 announcement email — do NOT send it without Jo).
+
 ### Operator only (cannot be fixed from this repo)
 
 1. **DECIDED 2026-11-16 — prices are tax-inclusive (option A), and Stripe still adds 15%.** Jo:
@@ -209,8 +216,8 @@ The first three streams are recorded in their own files. The last one is this se
 11. containerd holds ~65 GB of old images (disk 47%). Keep 2–3 `before-*` tags, prune the rest.
 12. `/opt/trendi/releases` is world-readable and its test fixtures embed ~32 DSNs and a `whsec_`;
     containers still run as root without `no-new-privileges`.
-13. `/var/run/reboot-required` is set. Reboot in a window, then confirm
-    `systemctl is-active trendi-sip-firewall.service` is `active` and health is 0 fail.
+13. **RESOLVED 2026-11-17** — `/var/run/reboot-required` is clear after the Podman-migration reboot;
+    `trendi-sip-firewall.service` is `active` and health is 0 fail.
 14. **Commit-time teeth are not installed** — the enforcement catches drift after the fact. A
     `pre-push` hook running the suite plus branch protection on `origin` still needs a decision.
 15. **Secrets stay off-repo by design.** `/opt/trendi/shared/api.env` is the source of truth; never

@@ -1,5 +1,11 @@
 # Handoff: Docker -> Podman on the VPS (written 2026-11-17 ~11:40 NZDT, mid-migration)
 
+> **COMPLETED 2026-11-17 ~12:20 NZDT.** Production (`trendi` + `asterisk`, incl. the telephone shell) now runs
+> entirely on Podman; the Docker engine is stopped and disabled (CLI + `/var/lib/docker` kept, not purged). The move
+> survived a real reboot (containers came back via `podman-restart.service`, the `/run/docker.sock` symlink persisted,
+> SIP still dropped). Full cause/fix/proof for every defect is in `QA/verification/PODMAN_MIGRATION_2026-11-17.md`;
+> the remaining open items are its "Still open" section. Commits `4aa9975`, `d47eeab`, `b8a8641` (+ checkpoint saves).
+
 Read `QA/verification/PODMAN_MIGRATION_2026-11-17.md` too. This file is what to DO next and what NOT to do.
 Box: `root@152.42.239.240` (DigitalOcean droplet 617093658, Ubuntu 24.04). From the repo root: `ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ./Concierge root@152.42.239.240`.
 Repo rules (AGENTS.md) still apply: commit before deploy, `scripts/vps/sync-tooling.sh` for host tooling, `verify-deploy.sh` before saying "done".
