@@ -48,7 +48,7 @@ window.TRENDI = {
       tab: "Deposit",
       price: 500,
       per: "deposit",
-      terms: "Secures your start date. The balance is invoiced before work begins.",
+      terms: "Secures your start date. Credited against your first invoice.",
       cta: "Pay deposit",
       stripeLink: "https://buy.stripe.com/7sY7sNgHN6pR50obRBcEw05"
     }
