@@ -32,7 +32,6 @@ def _world(tmp_path, *, postgres_running=True):
             if [ "$2" = "--format" ]; then
               case "$4" in
                 trendi-postgres-1) echo {'true' if postgres_running else 'false'} ;;
-                trendi-crm-*) echo false ;;
                 *) echo true ;;
               esac
             fi ;;
