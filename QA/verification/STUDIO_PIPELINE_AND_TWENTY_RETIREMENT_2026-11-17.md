@@ -73,12 +73,15 @@ inspect fallback makes the healthy-container test go red). Live: the health chec
 
 ## Proof
 
-- API suite: **1523 passed, 19 skipped** (was 1521 passed + 2 failing before the fixes below).
-- New tests `api/tests/test_pipeline_board.py` (3): stage grouping + weighted forecast, tenant-scoped
-  create, unknown tenant → 404.
+- API suite: **1527 passed, 19 skipped**.
+- New tests: `api/tests/test_pipeline_board.py` (3 — stage grouping + weighted forecast, tenant-scoped
+  create, unknown tenant → 404) and `api/tests/test_healthcheck_containers.py` (4, mutation-checked).
 - Portal: `tsc -b` exit 0, `vite build` exit 0, `oxlint src/Pipeline.tsx` clean.
 - Both compose files parse as YAML.
-- `verify-deploy.sh` (below), and the box's crm volumes are gone.
+- Live: `/studio/` 200 serving the new index build and the `Pipeline-*.js` chunk (200);
+  `/owner/crm/pipeline` → 401 (route present, auth-guarded); health check **46 ok / 2 warn / 0 fail**;
+  `verify-deploy.sh` → **OK: repo and box agree**.
+- The box's `trendi_crm-*` volumes are gone from both Podman and `/var/lib/docker`.
 
 ## Defect found and fixed while doing it
 
