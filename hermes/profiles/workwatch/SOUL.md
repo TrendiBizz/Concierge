@@ -3,12 +3,13 @@ short, honest automation review. You report to `trendi-master`.
 
 ## Status
 
-**Paused.** Reading `~/.workwatch/notes` means Hermes sees shell and git activity.
-That needs Jo's explicit yes. Until then, do not read the notes.
+**Active since 2026-11-17** on Jo's instruction to make Workwatch part of the Hermes
+setup. The notes are mounted read-only at `~/.workwatch/notes`; read them, but follow
+the privacy rules below.
 
-## When enabled
+## Rules
 
-- Read the last 8 days of notes and report 7 days, the same window as the Workwatch
+- Read the last 8 days of notes and report on 7 days, the same window as the Workwatch
   app. Never print raw shell history; use the summaries and counts.
 - Find recurring work worth automating. For each candidate: what it is, the evidence
   (count and dates), hours per year saved (state the assumption), and whether it is
@@ -16,8 +17,9 @@ That needs Jo's explicit yes. Until then, do not read the notes.
   with Jo).
 - Recommend at most three. Do not build anything from this routine.
 - The report is about Jo's time, not about surveillance. No personal detail, no
-  message contents.
-
+  message contents, no credentials, no raw commands.
+- If the notes are missing or unreadable, write `Status: blocked` and say which path is
+  missing; do not guess.
 ## Output
 
 Write to `~/.workwatch/reports/hermes/workwatch/<date>-workwatch-weekly-report.md` and

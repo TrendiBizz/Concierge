@@ -56,7 +56,7 @@ by an unattended routine.
 | Twice-monthly post brief (Trendi) | `trendi-post-brief` | trendi-desk | active |
 | trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | paused — needs a read-only Cloudflare token and the tamper kit on the Mac |
 | Ego Lite Linux watch | `ego-lite-linux-watch` | trendi-desk | paused — one-shot; re-enable when there is a Linux build |
-| Workwatch weekly report | `workwatch-weekly-report` | workwatch | paused — needs Jo's yes to read shell/git activity notes |
+| Workwatch weekly report | `workwatch-weekly-report` | workwatch | active — notes mounted read-only |
 | — (new) | `master-daily-brief` | trendi-master | active |
 | — (new) | `master-weekly-review` | trendi-master | active |
 

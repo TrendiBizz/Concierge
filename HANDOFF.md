@@ -21,6 +21,9 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   is recorded in `QA/verification/HERMES_ROLLOUT_2026-11-17.md` (local-only — git-ignored because this
   repo is public) and §2 item 13 / §3 "Hermes on the VPS". The Hermes master migration is §2 item
   14 / §3 "Hermes master on the Mac" and `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`.
+  **Hermes UI:** `http://127.0.0.1:9120` (user `jo`; password in
+  `concierge-stack/hermes/hermes.env`, mode 600; loopback only). The dashboard's Cron page
+  shows the jobs, including Workwatch, and the Chat page can select any profile.
   Working tree clean apart from ignored `outputs/`.
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
@@ -196,11 +199,14 @@ The first three streams are recorded in their own files. The last one is this se
 14. **Hermes master + subagents — 2026-11-17 (now owns the Trendi routines).** The Mac
     `hermes-concierge` runs the Grok Bot schedules as six Hermes profiles (`trendi-master`
     plus `seo-engine`, `trendi-desk`, `pen-test`, `site-watch`, `workwatch`) and 14 cron
-    jobs: 11 active, 3 paused. The package is `hermes/` at `0720715` (declarative
-    manifest, idempotent installer, 23 tests, Mac runtime). The VPS customer Hermes is
-    unchanged and still has no trigger. Live proof, the nine defects found while
-    installing, and the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`;
-    the worklist is §3 "Hermes master on the Mac" M1–M10.
+    jobs: **12 active, 2 paused** (tamper watch, Ego Lite). The package is `hermes/`
+    (manifest, idempotent installer, 24 tests, Mac runtime). The **dashboard** is at
+    `http://127.0.0.1:9120` (loopback only, password in
+    `concierge-stack/hermes/hermes.env`). **Workwatch is active** (Mon 08:00, notes mounted
+    read-only; first report `Status: quiet` for 2026-11-10..16). The VPS customer Hermes is
+    unchanged and still has no trigger. Live proof, the defects found while installing, and
+    the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`; the worklist is
+    §3 "Hermes master on the Mac" M1–M10.
 
 ## 3. Outstanding — the real worklist
 
@@ -219,10 +225,10 @@ decline the Version 1 announcement email — do NOT send it without Jo). **The T
 The Grok Bot schedules and procedures for Trendi/Concierge now run in Hermes as a
 master plus five persistent subagents on the Mac: `hermes-concierge` (loopback only),
 profiles `trendi-master`, `seo-engine`, `trendi-desk`, `pen-test`, `site-watch` and
-`workwatch`. **14 cron jobs: 11 active, 3 paused** (tamper watch, Ego Lite, Workwatch
-weekly). The 12 Grok Trendi automations are mapped in `hermes/JOBS.md`; the Omega bots
-are a separate project and are not in scope. The package is `hermes/` (commit
-`0720715`); the live proof and the nine defects found while installing are in
+`workwatch`. **14 cron jobs: 12 active, 2 paused** (tamper watch, Ego Lite). The 12
+Grok Trendi automations are mapped in `hermes/JOBS.md`; the Omega bots
+are a separate project and are not in scope. The package is `hermes/`; the live proof,
+the dashboard and the defects found while installing are in
 `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`.
 
 M1. **Pause the Grok cloud copies.** The six Workwatch launchd labels are disabled, but
@@ -237,7 +243,11 @@ M3. **The first manual monitor run flagged** `/sitemap.xml` and `/llms.txt` chan
     current report is quiet. Verify the change was planned before trusting the next run.
 M4. **Tamper watch is paused** — it needs a read-only Cloudflare token on the Mac and the
     tamper kit in `trendi-site/scripts/security/` (`JOBS.md` T1).
-M5. **Workwatch weekly is paused** — reading `~/.workwatch/notes` needs Jo's yes (T2).
+M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
+    `b8c9000b442b`), `~/.workwatch/notes` mounted read-only, first report
+    `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the
+    master brief and is visible in the dashboard's Cron page. The routine still refuses
+    raw shell history, credentials and personal detail.
 M6. **Pen Test has no scheduled routine.** The profile exists; the Grok Pen Test scope is
     still TODO(Jo). The biweekly news and social drafts cover the lane.
 M7. **The image is `:stable`.** Pin `HERMES_IMAGE` to the digest printed by
@@ -475,10 +485,12 @@ drift — check `verify-deploy.sh` first.
 1. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
    system has never carried real data. Everything it does is covered by tests, but tests are not
    a customer.
-2. **Hermes master, first scheduled morning** (M1–M3): on 2026-11-18 check the 07:00 social
-   drafts, 07:30 deep dive, 07:40 monitor and 08:00 master brief in
-   `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so they cannot double-run;
-   and confirm the `sitemap.xml`/`llms.txt` change the first manual monitor flagged (M3).
+2. **Hermes master, first scheduled morning** (M1–M3): open `http://127.0.0.1:9120`
+   (user `jo`, password in `concierge-stack/hermes/hermes.env`) and check the Cron page;
+   on 2026-11-18 check the 07:00 social drafts, 07:30 deep dive, 07:40 monitor and 08:00
+   master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
+   they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
+   manual monitor flagged (M3).
 3. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
    hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
    the plan before letting anything execute. Pin the customer image first (H2), and extend source

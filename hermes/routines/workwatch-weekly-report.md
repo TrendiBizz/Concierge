@@ -4,19 +4,15 @@
 - Schedule: `0 8 * * 1` Pacific/Auckland
 - Source: `~/OpenBot/Shared/workwatch/README.md` (Workwatch v2; the Grok Workwatch
   Mon 08:00 weekly report)
-- Status: **paused** — reading `~/.workwatch/notes` exposes shell/git activity; needs
-  Jo's explicit yes
+- Status: **active** since 2026-11-17 (Jo asked for Workwatch to be part of the Hermes
+  setup and UI)
 - Approval: report only; never builds anything
-
-## Prerequisite
-
-Jo says yes to Hermes reading `~/.workwatch/notes`. Until then, do not read them.
 
 ## Procedure
 
 1. Read the last 8 days of notes (`~/.workwatch/notes/YYYY-MM-DD.jsonl`) and report
-   on 7 days — the same window as the Workwatch app. Use the summaries and counts,
-   never raw shell history.
+  on 7 days — the same window as the Workwatch app. Use the summaries and counts,
+  never raw shell history, credentials or message contents.
 2. Apply Workwatch's four questions: are the inputs clear, the outputs predictable,
    the rules simple, and the frequency sufficient?
    - **Pile 1** — Hermes just does it.
@@ -25,6 +21,7 @@ Jo says yes to Hermes reading `~/.workwatch/notes`. Until then, do not read them
 3. For each candidate: what it is, the evidence (count and dates), hours per year
    saved (state the assumption), and the pile. Recommend at most three.
 4. Do not build anything from this routine.
+5. If the notes are missing or unreadable, write `Status: blocked` and the missing path.
 
 ## Output
 

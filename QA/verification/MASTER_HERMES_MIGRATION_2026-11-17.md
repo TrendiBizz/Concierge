@@ -14,13 +14,18 @@ have a master and the subagents as we do with Grokbot." Sequential, with proper 
 - **Six Hermes profiles on the Mac** (`hermes-concierge`, loopback only):
   `trendi-master` (master), `seo-engine`, `trendi-desk`, `pen-test`, `site-watch`,
   `workwatch` (subagents).
-- **Fourteen cron jobs**: eleven active, three paused with a recorded reason
-  (`trendi-tamper-watch`, `ego-lite-linux-watch`, `workwatch-weekly-report`).
+- **Fourteen cron jobs**: twelve active, two paused with a recorded reason
+  (`trendi-tamper-watch`, `ego-lite-linux-watch`).
 - **Twelve Grok Trendi automations mapped** in `hermes/JOBS.md` and
   `schedules.yaml#grok_automations`. The Omega bots are a different project and are not
   part of this move.
 - **The old Workwatch launchd routines disabled** (six labels), so Hermes is the only
   local scheduler.
+- **Hermes dashboard enabled** at `http://127.0.0.1:9120` (loopback only, password
+  login, s6-supervised) with Chat, Sessions, Cron and Config pages; `trendi-master` is
+  the default profile.
+- **Workwatch weekly is active** (Mon 08:00): the notes are mounted read-only and the
+  first report is `Status: quiet` for 2026-11-10..16.
 - **The VPS customer Hermes is unchanged.** `hermes-trendi-support` stays restricted to
   todo, memory and session_search. The Mac master is the operator agent, not the
   customer planner.
@@ -37,6 +42,27 @@ have a master and the subagents as we do with Grokbot." Sequential, with proper 
 | SEO job | `seo-daily-monitor` wrote `seo-engine/2026-11-17-seo-daily-monitor.md` (377 bytes) quoting the verdict |
 | Master job | `master-daily-brief` wrote `trendi-master/2026-11-17-master-daily-brief.md` (729 bytes), `Status: attention`, naming the lanes that have no report |
 | No fabrication | after the fix, the other lanes still have **no** `latest.md`; the master did not create them |
+| Dashboard | `http://127.0.0.1:9120` returns the sign-in page; password login 200; `/api/auth/me` = `jo`; s6-supervised |
+| Workwatch run | `workwatch-weekly-report` ran 15:10, wrote a 481-byte `Status: quiet` report for 2026-11-10..16 |
+
+## Workwatch and the dashboard (added after the first install)
+
+- **Workwatch is active.** `~/.workwatch/notes` is mounted read-only into the container
+  at `/opt/data/.workwatch/notes`; `workwatch-weekly-report` is enabled (Mon 08:00, job
+  `b8c9000b442b`). A live run read the 8-day window, reported 7 days, and wrote
+  `~/.workwatch/reports/hermes/workwatch/latest.md` (481 bytes, `Status: quiet`). The
+  master's lane table now expects a workwatch report like any other active lane.
+- **The dashboard is the chat UI.** `http://127.0.0.1:9120` serves the Hermes web
+  dashboard (Chat, Sessions, Cron, Config, Analytics, Channels) behind a password. The
+  username is `jo`; the password is generated once into
+  `concierge-stack/hermes/hermes.env` (mode 600), with
+  `HERMES_DASHBOARD_BASIC_AUTH_SECRET` for stable sessions. It is published on the Mac
+  loopback only (`127.0.0.1:9120`), not the LAN or internet, and is supervised by s6 so
+  it survives a container restart.
+- **Security note:** while probing the login endpoint, a 422 validation response echoed
+  the generated password. The password was rotated immediately, the container restarted,
+  and the new login was re-verified (200 + `/api/auth/me` = `jo`). A password probe must
+  send the response to `/dev/null` and print only the status; never print the body.
 
 ## Defects found and fixed (cause, fix, proof)
 
@@ -115,7 +141,11 @@ The scheduler proof is the live job above; the reporter proof is the two live re
    the next quiet run.
 4. **Tamper watch is paused**: needs a read-only Cloudflare token and the tamper kit in
    `trendi-site/scripts/security/`.
-5. **Workwatch weekly is paused**: reading `~/.workwatch/notes` needs Jo's yes.
+5. **Workwatch weekly is DONE** (2026-11-17): `~/.workwatch/notes` is mounted read-only
+   at `/opt/data/.workwatch/notes`, the job is active (Mon 08:00, id
+   `b8c9000b442b`), and the first report is `Status: quiet` for 2026-11-10..16. The
+   report is at `~/.workwatch/reports/hermes/workwatch/latest.md`; the job is visible in
+   the dashboard's Cron page and the `workwatch` profile is selectable in Chat.
 6. **Ego Lite is paused**: one-shot; no Linux build.
 7. **Pen Test has no scheduled routine.** The profile exists and the lane is covered by
    the biweekly news and social drafts, but the Grok Pen Test scope is still TODO(Jo).

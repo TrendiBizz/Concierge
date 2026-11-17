@@ -181,12 +181,11 @@ routines:
     name: "Workwatch weekly report"
     schedule: "0 8 * * 1"
     procedure: routines/workwatch-weekly-report.md
-    enabled: false
-    paused_reason: "Reading ~/.workwatch/notes means Hermes sees shell/git activity; needs Jo's explicit yes."
+    enabled: true
     catch_up: true
     continuity: true
     source: "Grok Workwatch weekly report (Mon 08:00) -> Workwatch README"
-    status: paused
+    status: active
 
 # The Trendi automations that were live in Grok Bot, mapped to their Hermes job.
 # `id` is the Grok automation id where the local cache recorded one; `name` is always

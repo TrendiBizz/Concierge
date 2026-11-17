@@ -59,6 +59,7 @@ XAI_KEY="$(grep '^XAI_API_KEY=' "$STACK/.env" | head -1 | cut -d= -f2-)"
 [[ -d "$HOME/.config/trendi" ]] || die "Missing ~/.config/trendi (the mode-600 key copies)"
 [[ -d "$PKG_MOUNT" ]] || die "Missing $PKG_MOUNT"
 [[ -d "$HOME/.workwatch/reports" ]] || die "Missing ~/.workwatch/reports"
+[[ -d "$HOME/.workwatch/notes" ]] || die "Missing ~/.workwatch/notes"
 
 if [[ ! -f "$SECRETS" ]]; then
   ( umask 077; printf 'HERMES_API_KEY=%s\n' "$(openssl rand -hex 32)" > "$SECRETS" )
@@ -119,6 +120,7 @@ docker run -d --name "$NAME" --restart unless-stopped \
   -v "$HOME/OpenBot/Shared/workwatch:/opt/data/OpenBot/Shared/workwatch:ro" \
   -v "$HOME/jo-brain:/opt/data/jo-brain:ro" \
   -v "$HOME/.workwatch/reports:/opt/data/.workwatch/reports" \
+  -v "$HOME/.workwatch/notes:/opt/data/.workwatch/notes:ro" \
   -v "$HOME/.config/trendi:/opt/data/.config/trendi:ro" \
   -v "$HOME/.config/trendi-seo:/opt/data/.config/trendi-seo:ro" \
   -v "$PKG_MOUNT:/opt/data/work/hermes:ro" \

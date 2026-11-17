@@ -250,6 +250,11 @@ class PlanTests(unittest.TestCase):
             self.assertTrue(scripts[0]["source"].is_file())
             self.assertEqual(scripts[0]["target"].name, "lane_status.py")
 
+    def test_workwatch_is_active(self):
+        self.assertTrue(ROUTINES["workwatch-weekly-report"]["enabled"])
+        self.assertEqual(ROUTINES["workwatch-weekly-report"]["status"], "active")
+        self.assertIn("- Profile: `workwatch`", (ROOT / "routines/workwatch-weekly-report.md").read_text(encoding="utf-8"))
+
     def test_only_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "hermes-home"
@@ -302,6 +307,7 @@ class LaneStatusTests(unittest.TestCase):
                     ROUTINES[rid]["enabled"],
                     f"{profile} is listed PAUSED but {rid} is enabled",
                 )
+        self.assertNotIn("workwatch", module.PAUSED, "Workwatch is active in Hermes")
 
     def _run(self, reports: Path):
         import subprocess

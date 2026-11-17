@@ -20,6 +20,7 @@ project and keep their own owner.
 | Trendi daily SEO / pen-test social drafts | `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` | `trendi-social-drafts` | trendi-desk | 07:00 daily |
 | Trendi SEO forums daily deep dive | `HANDOVER.md` section 15b | `trendi-deep-dive` | trendi-desk | 07:30 daily |
 | Twice-monthly post brief (Trendi) (`twice-monthly-post-brief-trendi`) | Recorded creation + content rules (see the procedure; the verbatim Grok prompt was not in the local cache) | `trendi-post-brief` | trendi-desk | 3rd & 17th 09:00 |
+| Workwatch weekly report | Workwatch README (8 days collected, 7 reported) | `workwatch-weekly-report` | workwatch | Mon 08:00 |
 | — (new) | Master layer over the subagents | `master-daily-brief` | trendi-master | 08:00 daily |
 | — (new) | Master layer over the subagents | `master-weekly-review` | trendi-master | Mon 10:00 |
 
@@ -29,7 +30,6 @@ project and keep their own owner.
 |---|---|---|---|
 | trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | No read-only Cloudflare token on the Mac; the tamper kit is not in `trendi-site` | T1 below |
 | Ego Lite Linux watch (`ego-lite-linux-watch`) | `ego-lite-linux-watch` | One-shot; no Linux build exists | Re-enable when a Linux build ships, or delete the job |
-| Workwatch weekly report | `workwatch-weekly-report` | Reading `~/.workwatch/notes` exposes shell/git activity | T2 below |
 
 ## Prerequisites
 
@@ -45,8 +45,10 @@ docker exec hermes-concierge hermes -p site-watch cron resume <id>
 and run it once by hand. Review every flag against the change ledger before accepting
 any baseline. Never accept the mail DNS or DMARC items.
 
-**T2 — Workwatch notes.** Jo says yes to Hermes reading `~/.workwatch/notes`. Mount
-`~/.workwatch/notes` into the container and resume the job.
+**T2 — Workwatch notes. DONE 2026-11-17.** Jo asked for Workwatch to be part of the
+Hermes setup and UI. `~/.workwatch/notes` is mounted read-only at
+`/opt/data/.workwatch/notes`, and `workwatch-weekly-report` is active (Mon 08:00). The
+routine still refuses to print raw shell history, credentials or personal detail.
 
 ## Pause the remaining Trendi automations in Grok Bot
 
