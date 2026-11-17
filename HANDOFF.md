@@ -13,7 +13,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  Measured at `be9a647`; the last code commit is `edc5dd1` (Hermes master, dashboard, Workwatch and the pen-test umbrella lane) and
+  Measured at `be9a647`; the last code commit is `edc5dd1` (Hermes master, dashboard, Workwatch and the security review umbrella lane) and
   the handoff commits after it are docs-only. `main` is pushed to `origin/main`. This
   session drove the Docker→Podman cutover (see §3 and
   `QA/verification/PODMAN_MIGRATION_2026-11-17.md`) and retired Twenty, adding the Studio pipeline
@@ -28,7 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `5ab93e28`; Rust
+- **security review umbrella:** `Trendiisales/pentest-research-engine` at `5ab93e28`; Rust
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
@@ -214,7 +214,7 @@ The first three streams are recorded in their own files. The last one is this se
     the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`; the worklist is
     §3 "Hermes master on the Mac" M1–M10.
 
-15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
+15. **Authorized security review umbrella — 2026-11-17.** The Rust workspace at
     `5ab93e28` (`Trendiisales/pentest-research-engine`) has the authorization/scope
     gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
     `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
@@ -283,7 +283,7 @@ M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the
     master brief and is visible in the dashboard's Cron page. The routine still refuses
     raw shell history, credentials and personal detail.
-M6. **Pen Test profile + umbrella — updated 2026-11-17.** The profile now points at the
+M6. **security review profile + umbrella — updated 2026-11-17.** The profile now points at the
     umbrella (`:9130`) and the authorized-testing rules; there is still no scheduled
     routine. The biweekly news and social drafts cover the defensive content lane; the
     engagement work is P1–P8 below.
@@ -305,7 +305,7 @@ M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py`
      SEO quiet. Proof: `QA/verification/MORNING_REPORT_2026-11-17.md`. It is not yet
      posted into Chat; the dashboard Files page reads the reports tree.
 
-### Authorized pen-testing umbrella — live 2026-11-17
+### Authorized security review umbrella — live 2026-11-17
 
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
@@ -596,7 +596,7 @@ drift — check `verify-deploy.sh` first.
    master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
    they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
    manual monitor flagged (M3).
-3. **Pen-test full scan and offensive tab** (P1–P3, P9–P10): open
+3. **security review full scan and offensive tab** (P1–P3, P9–P10): open
    `http://127.0.0.1:9130`, choose **Trendi (self-owned)**, tick the authorization and
    run the full arsenal. Then use **Offensive** for validated exploitation: WAFW00F /
    Arjun / Commix / Dalfox / Gobuster / Naabu / ffuf / Katana / Subfinder are user-owned
@@ -627,7 +627,7 @@ Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy
 `OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
 prefix until the harness restarts (item 32).
 
-## 2026-11-17 Pentest umbrella (PRE) session: handoff
+## 2026-11-17 security review umbrella (PRE) session: handoff
 
 Everything below is in the separate repo `outputs/pentest-research-engine`
 (`git@github.com:Trendiisales/pentest-research-engine.git`, branch `main`), which
