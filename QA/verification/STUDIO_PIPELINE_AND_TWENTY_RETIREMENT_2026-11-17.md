@@ -61,6 +61,16 @@ exist; it polled a 404 for 60 s, now `/healthz`). Proof: the recovered stack ser
 `/owner/crm/pipeline` with 401 (route present, auth-guarded), `healthz` 200, and social reachable from
 inside api.
 
+## A third defect the deploy exposed (health check under Podman)
+
+Once the containers passed the 10-minute warmup the 5-minute health check went to **4 fails**.
+Podman's compat API (`docker ps` through podman.sock) does not append `(healthy)` to the status, so
+`check_containers` treated every healthy-required container as unhealthy; `clamav` and `rspamd` also
+define no HEALTHCHECK at all, so "healthy" could never be true for them. Fix: `check_containers`
+asks the daemon for `{{.State.Running}}|{{.State.Health.Status}}` directly, and clamav/rspamd require
+`running`. Proof: `api/tests/test_healthcheck_containers.py` (4 tests, mutation-checked — disabling the
+inspect fallback makes the healthy-container test go red). Live: the health check is back to 0 fail.
+
 ## Proof
 
 - API suite: **1523 passed, 19 skipped** (was 1521 passed + 2 failing before the fixes below).

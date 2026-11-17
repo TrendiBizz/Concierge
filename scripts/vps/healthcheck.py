@@ -50,8 +50,10 @@ CRITICAL_CONTAINERS = {
     "trendi-website-1": "running",
     "trendi-public-main-1": "running",
     "trendi-public-owner-1": "running",
-    "trendi-clamav-1": "healthy",
-    "trendi-rspamd-1": "healthy",
+    # The clamav and rspamd images define no HEALTHCHECK, so "healthy" could never be true; require
+    # them up. (Their images were unchanged by the 2026-11-17 Podman move.)
+    "trendi-clamav-1": "running",
+    "trendi-rspamd-1": "running",
     # The vendored Twenty CRM was retired on 2026-11-13: the Studio is the CRM. Its containers are
     # stopped deliberately, so they are not "expected up" any more -- checking them would page
     # every ten minutes about a decision we made on purpose.
@@ -180,9 +182,20 @@ def check_containers() -> list[dict]:
         if state is None:
             results.append(_fail(f"container:{name}", "container missing"))
         elif requirement == "healthy" and "healthy" not in state:
+            # Podman's compat API (`docker ps` through podman.sock) does not append "(healthy)" to the
+            # status, so a healthy container would page once it passed the 10-minute warmup. Ask the
+            # daemon for the health status directly instead of trusting the ps string. A container
+            # whose image defines no health check is "running", which is all that can be required.
+            code, health = run(["docker", "inspect", "-f",
+                                "{{.State.Running}}|{{.State.Health.Status}}", name], timeout=15)
+            running, _, health_status = health.strip().partition("|") if code == 0 else ("", "", "")
+            if code == 0 and health_status == "healthy":
+                results.append(_ok(f"container:{name}", state + " (healthy)"))
+            elif code == 0 and health_status == "" and running == "true":
+                results.append(_ok(f"container:{name}", state + " (running; no health check defined)"))
             # A deploy restarts the api container; during those seconds it is "starting", not broken.
             # That used to page as "[Concierge FAIL] container:trendi-api-1" every time we deployed.
-            if recently_started(name, minutes=10):
+            elif recently_started(name, minutes=10):
                 results.append(_warn(f"container:{name}",
                                      f"{state} (restarted within 10 minutes, still warming)"))
             else:
