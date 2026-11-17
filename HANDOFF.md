@@ -28,7 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `650daa8`; Rust
+- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `048d5f4`; Rust
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
@@ -215,7 +215,7 @@ The first three streams are recorded in their own files. The last one is this se
     §3 "Hermes master on the Mac" M1–M10.
 
 15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
-    `650daa8` (`Trendiisales/pentest-research-engine`) has the authorization/scope
+    `048d5f4` (`Trendiisales/pentest-research-engine`) has the authorization/scope
     gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
     `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
     T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
@@ -281,7 +281,7 @@ M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memo
 
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
-at `650daa8`, docs `docs/UMBRELLA.md`; proof
+at `048d5f4`, docs `docs/UMBRELLA.md`; proof
 `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
 the host scanners; the Rust engine enforces the signed authorization and scope before
 any active step.
