@@ -48,6 +48,19 @@ view over that engine, not a second pipeline:
   open/weighted/won summary, search, a "New opportunity" form). Cards also carry a stage menu, so it
   works on touch where HTML5 drag-and-drop does not. Registered in Studio → Sales → Pipeline.
 
+## Deploying it found a second defect (API recreate)
+
+`deploy-api.sh` calls `redeploy-api.sh`, which did `docker compose up -d --no-deps --force-recreate api
+social`. Under Podman that fails — the daemon refuses to remove `api` while `social` still exists (the
+same `network_mode: service:api` limitation as migration defect 7) — and the failed pass left
+`trendi-api-1` removed with `social` stranded, taking the API down for about a minute.
+
+Fix: remove `social` first, recreate `api`, rename Podman's temporary `<oldid>_trendi-api-1` back to
+`trendi-api-1`, then recreate `social` in its namespace. Also fixed the health poll (`/health` does not
+exist; it polled a 404 for 60 s, now `/healthz`). Proof: the recovered stack served
+`/owner/crm/pipeline` with 401 (route present, auth-guarded), `healthz` 200, and social reachable from
+inside api.
+
 ## Proof
 
 - API suite: **1523 passed, 19 skipped** (was 1521 passed + 2 failing before the fixes below).

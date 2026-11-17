@@ -5,6 +5,11 @@
 # Recreating api on its own strands the old social process on a dead namespace: the api then
 # answers "Social service unavailable" for every provider while `docker ps` still shows social up.
 # That happened on 2026-11-14 and looked like a Social bug from the browser.
+#
+# Under Podman (2026-11-17) one `up --force-recreate api social` fails: the daemon refuses to
+# remove api while social still exists, and the failed pass left api down. Remove social first,
+# recreate api, then recreate social. Podman's compose path can also name the recreated container
+# "<oldid>_trendi-api-1"; normalise that, because every other script looks it up as trendi-api-1.
 set -euo pipefail
 
 REL="${REL:-/opt/trendi/releases/20261108-vps/product}"
@@ -14,12 +19,21 @@ COMPOSE=(docker compose -f compose.yml --env-file /opt/trendi/shared/compose.env
 echo "==> building api"
 "${COMPOSE[@]}" build api
 
-echo "==> recreating api AND social (social shares api's network namespace)"
-"${COMPOSE[@]}" up -d --no-deps --force-recreate api social
+echo "==> removing social (shares api's namespace), then recreating api"
+"${COMPOSE[@]}" rm -sf social
+"${COMPOSE[@]}" up -d --no-deps api
+TEMP_API="$(docker ps --format '{{.Names}}' | grep -E '^[0-9a-f]+_trendi-api-1$' | head -1 || true)"
+if [ -n "$TEMP_API" ]; then
+  echo "    normalising container name $TEMP_API -> trendi-api-1"
+  docker rename "$TEMP_API" trendi-api-1
+fi
+
+echo "==> recreating social in api's namespace"
+"${COMPOSE[@]}" up -d --no-deps social
 
 echo "==> waiting for the api"
 for _ in $(seq 1 30); do
-  curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && break
+  curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break
   sleep 2
 done
 
