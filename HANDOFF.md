@@ -28,6 +28,12 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
+- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `fcb4c61`; Rust
+  workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
+  `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
+  signed-authorization/scope gate. Live proof and open items:
+  `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`.
+
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -208,6 +214,16 @@ The first three streams are recorded in their own files. The last one is this se
     the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`; the worklist is
     §3 "Hermes master on the Mac" M1–M10.
 
+15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
+    `fcb4c61` (`Trendiisales/pentest-research-engine`) has the authorization/scope
+    gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
+    `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
+    T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
+    scanners. The offer, methodology, tool matrix and runbook are in the repo's
+    `docs/`. Live proof: 33 Rust tests, clippy clean, 26 tools, T3MP3ST 70 tools /
+    12 findings, a dry-run gate and an out-of-scope refusal. Open items P1–P8 in §3
+    and `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`.
+
 ## 3. Outstanding — the real worklist
 
 **2026-11-17 — the Docker → Podman migration on the VPS is DONE** (production `trendi` + `asterisk` run on
@@ -248,8 +264,10 @@ M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the
     master brief and is visible in the dashboard's Cron page. The routine still refuses
     raw shell history, credentials and personal detail.
-M6. **Pen Test has no scheduled routine.** The profile exists; the Grok Pen Test scope is
-    still TODO(Jo). The biweekly news and social drafts cover the lane.
+M6. **Pen Test profile + umbrella — updated 2026-11-17.** The profile now points at the
+    umbrella (`:9130`) and the authorized-testing rules; there is still no scheduled
+    routine. The biweekly news and social drafts cover the defensive content lane; the
+    engagement work is P1–P8 below.
 M7. **The image is `:stable`.** Pin `HERMES_IMAGE` to the digest printed by
     `hermes/runtime/start-master.sh` so a restart cannot change the agent.
 M8. **The reports tree is `0777`** on the Mac mount so the container user can write. It
@@ -258,6 +276,37 @@ M9. **The Mac must be awake.** `--catch-up on` runs a missed job once on wake. T
     not involved in these schedules.
 M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memory and
     session_search. The Mac master is the operator agent, not the customer planner.
+
+### Authorized pen-testing umbrella — live 2026-11-17
+
+The Rust umbrella is the single console for authorized testing:
+`http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
+at `fcb4c61`, docs `docs/UMBRELLA.md`; proof
+`QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
+the host scanners; the Rust engine enforces the signed authorization and scope before
+any active step.
+
+P1. **No customer engagement yet.** The running demo is a placeholder. Create a real
+    engagement with `pentest init` / `authorize` (`docs/UMBRELLA.md` §5), then run a
+    lab (Juice Shop/DVWA) end to end before a customer.
+P2. **T3MP3ST missions launch in the War Room**, not the umbrella. The umbrella reads
+    health/arsenal/findings and links to `:3333/ui/`; T3MP3ST's agent session,
+    approvals and receipts stay native. A unified mission launcher needs its API and
+    approval model mapped deliberately.
+P3. **Ghidra is detected but no real binary has been analyzed.** Run one lab binary,
+    keep the project under `<root>/ghidra/`, and record the output.
+P4. **PRE active is armed only for `trendibizz.com`.** A customer target needs its own
+    `pre.yaml` scope; the umbrella gate runs first.
+P5. **Missing host tools:** feroxbuster, dalfox, rustscan, naabu, semgrep, trivy,
+    grype, osv-scanner, gitleaks, radare2, jadx, apktool, binwalk. The Tools tab has
+    the install commands; T3MP3ST's bundled arsenal covers several.
+P6. **The Rust runner is not a root boundary.** Keep the root-owned
+    `~/.config/pentest-router/pentest-exec` until the Rust executor is installed; do
+    not run a customer test on a shared Mac without it.
+P7. **The authorization/contract/insurance package has not been legally reviewed.**
+    `docs/PENETRATION_TESTING_SERVICE.md` §3 has the minimum contents; counsel and
+    insurance are needed before the first paid test.
+P8. **Pricing is not set.** `hermes/BUSINESS.md` §7 is a shape, not a quote.
 
 ### Hermes on the VPS (customer planner) — deployed, still not triggered
 
@@ -491,16 +540,20 @@ drift — check `verify-deploy.sh` first.
    master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
    they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
    manual monitor flagged (M3).
-3. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
+3. **Pen-test umbrella** (P1–P3): open `http://127.0.0.1:9130`, create a real
+   engagement with a signed authorization, run the lab end to end, then one customer
+   Surface Check. Keep T3MP3ST missions in its War Room. Set the authorization
+   template, legal review, insurance and prices (P7–P8) before selling.
+4. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
    hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
    the plan before letting anything execute. Pin the customer image first (H2), and extend source
    parity before the next gateway rebuild (H3).
-4. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
+5. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
    file if it still serves the old links (the only remaining follow-up from that item).
-5. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
+6. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
    just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
    `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
-6. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
+7. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
 16–18), the security/hygiene list (10–15), and the SEO content list (21–27) all still stand.
