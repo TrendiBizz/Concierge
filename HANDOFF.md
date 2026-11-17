@@ -28,12 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **security review umbrella:** `Trendiisales/pentest-research-engine` at `5ab93e28`; Rust
-  workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
-  `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
-  signed-authorization/scope gate. Live proof and open items:
-  `QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`.
-
+- **TrendiPen review console:** private operator record; not repeated in this public handoff.
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
 - **VPS:** `root@152.42.239.240`, key = repo file `./Concierge`
@@ -214,15 +209,7 @@ The first three streams are recorded in their own files. The last one is this se
     the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`; the worklist is
     §3 "Hermes master on the Mac" M1–M10.
 
-15. **Authorized security review umbrella — 2026-11-17.** The Rust workspace at
-    `5ab93e28` (`Trendiisales/pentest-research-engine`) has the authorization/scope
-    gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
-    `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
-    T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
-    scanners. The offer, methodology, tool matrix and runbook are in the repo's
-    `docs/`. Live proof: 33 Rust tests, clippy clean, 26 tools, T3MP3ST 70 tools /
-    12 findings, a dry-run gate and an out-of-scope refusal. Open items P1–P8 in §3
-    and `QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`.
+15. **TrendiPen review lane — 2026-11-17.** Tracked in the private operator notes; its open items are not repeated here.
 
 ## 3. Outstanding — the real worklist
 
@@ -286,7 +273,7 @@ M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
 M6. **security review profile + umbrella — updated 2026-11-17.** The profile now points at the
     umbrella (`:9130`) and the authorized-testing rules; there is still no scheduled
     routine. The biweekly news and social drafts cover the defensive content lane; the
-    engagement work is P1–P8 below.
+    engagement work is in the private operator notes.
 M7. **The image is `:stable`.** Pin `HERMES_IMAGE` to the digest printed by
     `hermes/runtime/start-master.sh` so a restart cannot change the agent.
 M8. **The reports tree is `0777`** on the Mac mount so the container user can write. It
@@ -305,55 +292,10 @@ M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py`
      SEO quiet. Proof: `QA/verification/MORNING_REPORT_2026-11-17.md`. It is not yet
      posted into Chat; the dashboard Files page reads the reports tree.
 
-### Authorized security review umbrella — live 2026-11-17
+### TrendiPen review lane — tracked privately
 
-The Rust umbrella is the single console for authorized testing:
-`http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
-at `5ab93e28`, docs `docs/UMBRELLA.md`; proof
-`QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
-the host scanners; the Rust engine enforces the signed authorization and scope before
-any active step.
-
-P1. **Full scan works; some scanners are blocked by the old lockdown.** The landing
-    tab defaults to the valid `Trendi (self-owned)` engagement with `trendibizz.com`.
-    The URL→nmap/PRE bug is fixed, but the old `pentest-router` shims block Nmap,
-    Nuclei, Nikto, sslscan and Homebrew ffuf/katana/subfinder with exit 97. Those zeros
-    are invalid; the scan now marks non-zero exits as errors and shows stderr. Use the
-    user-owned Go tools (ffuf, katana, subfinder, naabu, gobuster, dalfox) and wire the
-    root executor (P9) for Nmap/Nikto/sslscan. Attach Pukeko's signed permission
-    (including exploitation) and run it only after that.
-
-P2. **T3MP3ST missions launch in the War Room**, not the umbrella. The umbrella reads
-    health/arsenal/findings and links to `:3333/ui/`; T3MP3ST's agent session,
-    approvals and receipts stay native. A unified mission launcher needs its API and
-    approval model mapped deliberately.
-P3. **Ghidra is detected but no real binary has been analyzed.** Run one lab binary,
-    keep the project under `<root>/ghidra/`, and record the output.
-P4. **PRE active is armed only for `trendibizz.com`.** A customer target needs its own
-    `pre.yaml` scope; the umbrella gate runs first.
-P5. **Missing host tools:** feroxbuster, dalfox, rustscan, naabu, semgrep, trivy,
-    grype, osv-scanner, gitleaks, radare2, jadx, apktool, binwalk. The Tools tab has
-    the install commands; T3MP3ST's bundled arsenal covers several.
-P6. **The Rust runner is not a root boundary.** Keep the root-owned
-    `~/.config/pentest-router/pentest-exec` until the Rust executor is installed; do
-    not run a customer test on a shared Mac without it.
-P7. **The authorization/contract/insurance package has not been legally reviewed.**
-    `docs/PENETRATION_TESTING_SERVICE.md` §3 has the minimum contents; counsel and
-    insurance are needed before the first paid test.
-P8. **Pricing is not set.** `hermes/BUSINESS.md` §7 is a shape, not a quote.
-
-P9. **Offensive tab is live; the root executor is the blocker.** `/api/offensive/run`
-    has 41 tools, an exploitation gate, finding capture and timestamped reports.
-    WAFW00F ran; sslscan was blocked and correctly reported failed with exit 97. The real
-    Homebrew binaries are root-only and the sandboxed server cannot sudo. Next: run the
-    server from a Terminal and wire
-    `sudo -n /usr/local/libexec/pentest-exec --target <scope> -- <tool>` for the old
-    allowlist, or install user-owned equivalents. Do not bypass the old executor.
-P10. **Tool installs are partial.** User-owned: WAFW00F, Arjun, Commix, NetExec,
-    Impacket, Dalfox, Gobuster, Naabu, ffuf, Katana, Subfinder. Brew is blocked by
-    `/opt/homebrew` ownership; Gitleaks failed its module-path build; user-owned Nuclei
-    and Nikto/sslscan equivalents are still missing. T3MP3ST's 70-tool War Room is the
-    fallback for the deep chain.
+The review console and its open items are kept in the private operator notes, not in
+this public handoff. Nothing in this section is required to run the Concierge or SEO work.
 
 ### Hermes on the VPS (customer planner) — deployed, still not triggered
 
@@ -596,14 +538,11 @@ drift — check `verify-deploy.sh` first.
    master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
    they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
    manual monitor flagged (M3).
-3. **security review full scan and offensive tab** (P1–P3, P9–P10): open
-   `http://127.0.0.1:9130`, choose **Trendi (self-owned)**, tick the authorization and
-   run the full arsenal. Then use **Offensive** for validated exploitation: WAFW00F /
-   Arjun / Commix / Dalfox / Gobuster / Naabu / ffuf / Katana / Subfinder are user-owned
-   and work; Nmap/Nikto/sslscan need the root executor. Capture findings and refresh
-   the timestamped report. Then attach Pukeko's signed permission (with exploitation)
-   and run it there. Keep T3MP3ST missions in its War Room. Set the authorization
-   template, legal review, insurance and prices (P7–P8) before selling.
+3. **Security review console:** open `http://127.0.0.1:9130`, choose
+   **Trendi (self-owned)**, tick the authorization and run the full review. Capture the
+   findings and refresh the timestamped report. Keep other tool missions in their native
+   console. Set the authorization template, legal review, insurance and prices before
+   selling. The detailed open list is in the private operator notes.
 4. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
    hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
    the plan before letting anything execute. Pin the customer image first (H2), and extend source
@@ -626,48 +565,3 @@ with no page behind it (item 25 covers the rest of the content list).
 Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy.sh`. If it is not
 `OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
 prefix until the harness restarts (item 32).
-
-## 2026-11-17 security review umbrella (PRE) session: handoff
-
-Everything below is in the separate repo `outputs/pentest-research-engine`
-(`git@github.com:Trendiisales/pentest-research-engine.git`, branch `main`), which
-this repo ignores. It is pushed at `da9fa2ec` (keychain fix `d6d4be43`). Tests: 41 pass.
-
-### Done this session (verified)
-- **Keychain dialog fixed.** `internal/keychain/keychain.go` probed the macOS keychain
-  (`__pre_probe__`) under the workspace tool HOME, which has no login keychain, so macOS
-  raised a blocking "Keychain Not Found" dialog. It now uses the file fallback when
-  `PRE_KEYCHAIN=file` or `$HOME` has no `Library/Keychains/login.keychain-db`.
-- **Engagements and scope from the GUI.** Engagements tab, "New engagement" form:
-  customer + scope (domains/URLs/IPs/CIDRs, any separator) + dates + signed PDF, or
-  "I own this" for self-owned sites. Endpoint `POST /api/engagements`
-  (`rust/crates/pentest-api/src/new_engagement.rs`); writes the same artefacts as
-  `pentest init` + `pentest authorize` (hashed document under `auth/`, audit entry).
-  The gate is unchanged. Mutation-checked (broke the URL-to-host step, 2 tests went red).
-- **Toolchain.** `scripts/toolchain-check.sh` passes all required tools (user-owned
-  binaries under `rust/.tools/bin`, plus `~/go/bin`). A dry-run scan lists all 9 stages.
-
-### Run it
-```bash
-cd outputs/pentest-research-engine/rust
-HOME="$PWD/.tools/home" PRE_KEYCHAIN=file ./target/debug/pentest-umbrella --root ../engagements --port 9130
-```
-Then http://127.0.0.1:9130 (hard-reload with Cmd+Shift+R). **`--root ../engagements` matters**:
-pointing it at `../demo/engagements` (only "ACME Demo", scope acme.com) caused the
-"outside the authorized scope" error for trendibizz.com. Do not change HOME before
-building: it hides rustup's toolchain; build with the normal HOME, run with the tool HOME.
-
-### Not done / open (updated end of session)
-1. **Live scan now proven:** `7d071e4c-...` on trendibizz.com via `trendi-self`: 11/11 stages done with
-   user-owned tools (see `QA/verification/TRENDIPEN_TOOLCHAIN_2026-11-17.md`).
-2. **The new engagement form has not been clicked in the browser**; PDF upload is only unit-tested.
-3. `~/Pentest/pre` keychain fix is committed locally (`6aeb54a`), not pushed. The real PRE CLI lives
-   there, NOT in this repo's Go server; do not build the repo's `main.go` over `~/go/bin/pre`.
-4. Scope is exact on hostnames: `www.x.com` does not cover `x.com`; list both.
-5. Umbrella does not auto-start; after a reboot rerun the command above.
-6. `pukeko` has no authorization: use the form's customer path when the signed permission arrives.
-7. Scan notes: testssl runs `--fast --ip one`; nuclei runs `-as` (tech-matched templates only).
-
-### Decisions
-- Scope stays per-engagement; no global "scan anything" mode and no document-free customer path.
-- A third-party demo target (acme.com) is never scanned live.
