@@ -19,6 +19,8 @@ NAME="${HERMES_NAME:-hermes-concierge}"
 VOLUME="${HERMES_VOLUME:-hermes_concierge_data}"
 SECRETS="$STACK/hermes/hermes.env"
 PORT="${HERMES_PORT:-8642}"
+DASH_PORT="${HERMES_DASHBOARD_PORT:-9120}"
+DASH_USER="${HERMES_DASHBOARD_USER:-jo}"
 MODEL="${HERMES_MODEL:-grok-4.20-0309-non-reasoning}"
 PKG_MOUNT="$REPO/hermes"
 
@@ -65,6 +67,23 @@ chmod 600 "$SECRETS"
 HERMES_KEY="$(grep '^HERMES_API_KEY=' "$SECRETS" | head -1 | cut -d= -f2-)"
 [[ -n "${HERMES_KEY// }" ]] || die "No HERMES_API_KEY in $SECRETS"
 
+# Dashboard login. Generated once, kept in the mode-600 secrets file. Change it there
+# and re-run this script to rotate.
+if ! grep -q '^DASHBOARD_USER=' "$SECRETS"; then
+  printf 'DASHBOARD_USER=%s\n' "$DASH_USER" >> "$SECRETS"
+fi
+if ! grep -q '^DASHBOARD_PASSWORD=' "$SECRETS"; then
+  printf 'DASHBOARD_PASSWORD=%s\n' "$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)" >> "$SECRETS"
+fi
+if ! grep -q '^DASHBOARD_SECRET=' "$SECRETS"; then
+  printf 'DASHBOARD_SECRET=%s\n' "$(openssl rand -base64 32)" >> "$SECRETS"
+fi
+chmod 600 "$SECRETS"
+DASH_USER="$(grep '^DASHBOARD_USER=' "$SECRETS" | head -1 | cut -d= -f2-)"
+DASH_PASS="$(grep '^DASHBOARD_PASSWORD=' "$SECRETS" | head -1 | cut -d= -f2-)"
+DASH_SECRET="$(grep '^DASHBOARD_SECRET=' "$SECRETS" | head -1 | cut -d= -f2-)"
+[[ -n "${DASH_USER// }" && -n "${DASH_PASS// }" && -n "${DASH_SECRET// }" ]] || die "Dashboard credentials are empty in $SECRETS"
+
 docker volume create "$VOLUME" >/dev/null
 
 # Write the xAI key and API-server key into the volume through stdin (never argv).
@@ -86,7 +105,14 @@ docker run -d --name "$NAME" --restart unless-stopped \
   --memory 4g --cpus 2 --pids-limit 512 \
   --security-opt no-new-privileges:true \
   -e HOME=/opt/data -e TZ=Pacific/Auckland \
+  -e HERMES_DASHBOARD=1 \
+  -e HERMES_DASHBOARD_HOST=0.0.0.0 \
+  -e HERMES_DASHBOARD_PORT=9120 \
+  -e HERMES_DASHBOARD_BASIC_AUTH_USERNAME="$DASH_USER" \
+  -e HERMES_DASHBOARD_BASIC_AUTH_PASSWORD="$DASH_PASS" \
+  -e HERMES_DASHBOARD_BASIC_AUTH_SECRET="$DASH_SECRET" \
   -p "127.0.0.1:$PORT:8642" \
+  -p "127.0.0.1:$DASH_PORT:9120" \
   -v "$VOLUME":/opt/data \
   -v "$HOME/OpenBot/Shared/trendi-seo:/opt/data/OpenBot/Shared/trendi-seo" \
   -v "$HOME/OpenBot/Shared/trendi-site:/opt/data/OpenBot/Shared/trendi-site" \
@@ -111,6 +137,20 @@ if [[ "${code:-}" != "200" ]]; then
   docker logs --tail 30 "$NAME" 2>&1 | sed 's/\(KEY\|key\|TOKEN\|token\)=[^ ]*/\1=<hidden>/g' >&2
   die "Hermes did not answer in 120 seconds."
 fi
+
+say "Waiting for the Hermes dashboard on 127.0.0.1:$DASH_PORT ..."
+dash_code=""
+for _ in $(seq 1 30); do
+  dash_code="$(curl -s -L -m 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$DASH_PORT/" || true)"
+  [[ "$dash_code" == "200" ]] && break
+  sleep 2
+done
+if [[ "$dash_code" != "200" ]]; then
+  docker logs --tail 30 "$NAME" 2>&1 | sed 's/\(KEY\|key\|TOKEN\|token\|PASSWORD\|password\)=[^ ]*/\1=<hidden>/g' >&2
+  die "Dashboard did not answer on 127.0.0.1:$DASH_PORT."
+fi
+say "Hermes dashboard: http://127.0.0.1:$DASH_PORT  (user: $DASH_USER)"
+say "Dashboard password: $SECRETS (mode 600; change DASHBOARD_PASSWORD there and re-run)"
 
 # One Linux venv for the trendi-seo scripts. The macOS .venv cannot run in Linux.
 say "Checking the trendi-seo Python environment ..."
