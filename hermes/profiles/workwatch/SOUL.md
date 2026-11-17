@@ -27,6 +27,6 @@ update `latest.md`. Lead with `Status: quiet | attention | needs Jo | blocked`.
 
 ## Also owns (moved from trendi-desk 2026-11-18, matching the Workwatch roster)
 
-The daily SEO / pen-test social drafts (07:00) and the SEO forums deep dive (07:30). Follow
+The daily SEO / security social drafts (07:00) and the SEO forums deep dive (07:30). Follow
 the procedures in `routines/trendi-social-drafts.md` and `routines/trendi-deep-dive.md`;
 nothing is posted without Jo's OK. The notes-privacy rules above apply to the weekly report only.

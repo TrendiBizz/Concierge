@@ -1,4 +1,4 @@
-# Routine: Trendi biweekly SEO + pen-test news
+# Routine: Trendi biweekly SEO + security news
 
 - Profile: `trendi-desk`
 - Schedule: `0 9 1,15 * *` Pacific/Auckland
@@ -20,13 +20,13 @@ Each run:
    Prefer primary sources over roundups. Verify each item with 2+ sources where
    possible.
 2. Produce 4–6 short snippets total, mixing both lanes (at least 2 SEO/AI-search and
-   at least 2 pen-test/appsec). Each snippet: one punchy line + 1–2 sentences of why
+   at least 2 appsec/appsec). Each snippet: one punchy line + 1–2 sentences of why
    it matters for Trendi clients or dogfooding trendibizz.com + a source link.
 3. Honesty rules: no rank or mention promises; no invented metrics; report mentions
    vs links separately if AI search comes up; soften `llms.txt` (crawl readiness
    only); never invent numbers.
 4. **Never name competitors** (no Ahrefs, Semrush, SE Ranking, BrightEdge, Surfer,
-   other SEO agencies, other pen-test shops or rival brands). Describe the
+   other SEO agencies, other security shops or rival brands). Describe the
    development in category terms.
 5. No company-size / headcount / team-size language.
 6. Worldwide framing (any business); TRENDI LIMITED is the NZ company of record only,

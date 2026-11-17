@@ -12,7 +12,7 @@ draft; Jo's yes is still the gate for anything external.
 ```
                  trendi-master            (owns the worklist and the morning brief)
                  /     |      \    \
-        seo-engine  trendi-desk  pen-test  site-watch  workwatch
+        seo-engine  trendi-desk  appsec  site-watch  workwatch
         (SEO/AEO)   (copy/social) (appsec)  (integrity) (automation review)
 ```
 
@@ -50,14 +50,14 @@ by an unattended routine.
 | Monthly SEO audit (Trendi) | `seo-monthly-audit` | seo-engine | active |
 | Innovation scout (Trendi) | `seo-innovation-scout` | seo-engine | active |
 | Trendi LinkedIn weekly draft | `trendi-linkedin-weekly` | trendi-desk | active |
-| Trendi biweekly SEO + pen-test news | `trendi-biweekly-news` | trendi-desk | active |
-| Trendi daily SEO / pen-test social drafts | `trendi-social-drafts` | workwatch | active |
+| Trendi biweekly SEO + security news | `trendi-biweekly-news` | trendi-desk | active |
+| Trendi daily SEO / security social drafts | `trendi-social-drafts` | workwatch | active |
 | Trendi SEO forums daily deep dive | `trendi-deep-dive` | workwatch | active |
 | Twice-monthly post brief (Trendi) | `trendi-post-brief` | trendi-desk | active |
 | trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | active — kit in `scripts/security/tamper/`, first run quiet 2026-11-17 |
 | Ego Lite Linux watch | `ego-lite-linux-watch` | trendi-desk | paused — one-shot; re-enable when there is a Linux build |
 | Workwatch weekly report | `workwatch-weekly-report` | workwatch | active — notes mounted read-only |
-| Weekly defensive security advisories | `pen-test-weekly-advisories` | pen-test | active — Wed 09:00 NZ |
+| Weekly defensive security advisories | `appsec-weekly-advisories` | appsec | active — Wed 09:00 NZ |
 | — (new) | `master-daily-brief` | trendi-master | active |
 | — (new) | `master-weekly-review` | trendi-master | active |
 

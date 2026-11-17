@@ -32,8 +32,8 @@ GROK_TRENDI = {
     "Monthly SEO audit (Trendi)",
     "Innovation scout (Trendi)",
     "Trendi LinkedIn weekly draft",
-    "Trendi biweekly SEO + pen-test news",
-    "Trendi daily SEO / pen-test social drafts",
+    "Trendi biweekly SEO + security news",
+    "Trendi daily SEO / security social drafts",
     "Trendi SEO forums daily deep dive",
     "Twice-monthly post brief (Trendi)",
     "trendibizz.com daily tamper watch",
@@ -132,7 +132,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertIn(rid, ROUTINES, f"{name}: unknown routine {rid}")
         covered = set(mapped.values())
         for rid, routine in ROUTINES.items():
-            if not rid.startswith("master-") and rid != "pen-test-weekly-advisories":
+            if not rid.startswith("master-") and rid != "appsec-weekly-advisories":
                 self.assertIn(rid, covered, f"{rid}: not mapped to a Grok automation")
 
     def test_master_routines(self):
@@ -174,11 +174,11 @@ class ManifestTests(unittest.TestCase):
             "seo-weekly-cycle": "0 8 * * 1",
             "trendi-linkedin-weekly": "0 9 * * 1",
             "trendi-biweekly-news": "0 9 1,15 * *",
-            "pen-test-weekly-advisories": "0 9 * * 3",
+            "appsec-weekly-advisories": "0 9 * * 3",
         }
         for rid, schedule in expected.items():
             self.assertEqual(ROUTINES[rid]["schedule"], schedule)
-        self.assertEqual(ROUTINES["pen-test-weekly-advisories"]["profile"], "pen-test")
+        self.assertEqual(ROUTINES["appsec-weekly-advisories"]["profile"], "appsec")
 
     def test_report_completion_contract(self):
         for rid, routine in ROUTINES.items():
@@ -356,7 +356,7 @@ class LaneStatusTests(unittest.TestCase):
             (lane / "latest.md").write_text("# trendi-desk — 2026-11-17\nStatus: quiet\n", encoding="utf-8")
             out = self._run(reports)
             self.assertIn("trendi-desk | NO REPORT", out)
-            self.assertIn("pen-test | NO REPORT", out)
+            self.assertIn("appsec | NO REPORT", out)
             self.assertIn("placeholder latest.md ignored", out)
             self.assertIn("ANSWERED: 0/5", out)
 

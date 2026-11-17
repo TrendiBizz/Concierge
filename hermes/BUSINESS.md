@@ -1,7 +1,7 @@
 # The business: SEO and authorized security testing in one Hermes
 
 This is how the two Trendi revenue lines fit together and where Hermes sits. The
-technical detail is in the pen-test repo: `PENETRATION_TESTING_SERVICE.md`,
+technical detail is in the appsec repo: `PENETRATION_TESTING_SERVICE.md`,
 `METHODOLOGY_AND_TEST_REGIMEN.md`, `TOOLING_AND_AUTOMATION.md`, `UMBRELLA.md`.
 
 ## 1. The two offers
@@ -9,7 +9,7 @@ technical detail is in the pen-test repo: `PENETRATION_TESTING_SERVICE.md`,
 | Line | What the customer buys | Who delivers | Recurring? |
 |---|---|---|---|
 | **SEO / AI visibility** | Indexed → Found → Mentioned: the site, content, GSC/Bing, AI-search presence | `seo-engine` + `trendi-desk` | Monthly/quarterly |
-| **Authorized security testing** | Surface Check, Web App, API, Cloud, Code, Retest: evidence and fixes | `pen-test` + the umbrella | Annual + retest, or a retainer |
+| **Authorized security testing** | Surface Check, Web App, API, Cloud, Code, Retest: evidence and fixes | `appsec` + the umbrella | Annual + retest, or a retainer |
 
 They share a buyer (an SME that needs to be found *and* trusted), a proof standard
 (measured, cited, no invented numbers) and a delivery habit (report → fix → verify).
@@ -49,14 +49,14 @@ add their own scopes and approvals.
 
 | Profile | Business job |
 |---|---|
-| `trendi-master` | Owns the morning brief and the weekly business review; reads the pen-test lane, the SEO lane and the worklist |
+| `trendi-master` | Owns the morning brief and the weekly business review; reads the appsec lane, the SEO lane and the worklist |
 | `seo-engine` | The SEO/AI-visibility delivery and measurement |
 | `trendi-desk` | The content, social and post-brief lane; the trust surface |
-| `pen-test` | The authorized-testing lane: engagement status, authorization expiry, report QA, retest, defensive content |
+| `appsec` | The authorized-testing lane: engagement status, authorization expiry, report QA, retest, defensive content |
 | `site-watch` | Site integrity and tamper alerts |
 | `workwatch` | The weekly automation review |
 
-The **umbrella** at <http://127.0.0.1:9130> is the pen-test console: engagements,
+The **umbrella** at <http://127.0.0.1:9130> is the appsec console: engagements,
 authorization, scope, PRE, T3MP3ST, Ghidra, findings, tools. The Hermes Dashboard at
 <http://127.0.0.1:9120> is the agent console. They are deliberately separate: Hermes
 talks and reports; the umbrella executes a gated test.
@@ -119,6 +119,6 @@ matrix, the Rust gate, the umbrella GUI, PRE and T3MP3ST integration, Ghidra hea
    produce a report; fix anything that breaks.
 3. Run one **real** Surface Check on a customer-owned domain with a signed
    authorization; deliver, then retest.
-4. Add the report-QA and retest steps to the pen-test routine.
+4. Add the report-QA and retest steps to the appsec routine.
 5. Connect the Studio/website to the offer (a services page and a booking path) once
    the first case study exists.

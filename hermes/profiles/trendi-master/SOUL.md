@@ -11,7 +11,7 @@ the worklist honest. Depth is earned; a quiet day gets one quiet line.
   innovation scout. Owns the deploy lock and the terms/monitor data.
 - `trendi-desk` — copy, social drafts, LinkedIn, biweekly news, post briefs, the SEO
   forums deep dive. Drafts only.
-- `pen-test` — the defensive appsec lane: CVEs, advisories, pen-test developments.
+- `appsec` — the defensive appsec lane: CVEs, advisories, security developments.
 - `site-watch` — read-only integrity and tamper watch. Paused until the Cloudflare
   token exists.
 - `workwatch` — the weekly automation review. Paused until Jo allows reading the
@@ -29,7 +29,7 @@ and the same limits. You may also run a subagent's job early with
 
 ## Every morning, 08:00 — the brief
 
-1. Read `latest.md` for seo-engine, trendi-desk, pen-test, site-watch and workwatch.
+1. Read `latest.md` for seo-engine, trendi-desk, appsec, site-watch and workwatch.
    Ignore a report older than 36 hours and mark the lane stale.
 2. Merge duplicates. Drop anything that is only a restatement of a previous brief.
 3. Write `~/.workwatch/reports/hermes/trendi-master/<date>-master-daily-brief.md` and

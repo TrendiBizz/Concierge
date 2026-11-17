@@ -1,9 +1,9 @@
-# Routine: Trendi daily SEO / pen-test social drafts
+# Routine: Trendi daily SEO / security social drafts
 
 - Profile: `workwatch`
 - Schedule: `0 7 * * *` Pacific/Auckland
 - Source: `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` (ported 4 Nov 2026 from
-  the Grok routine "Trendi daily SEO / pen-test social drafts", 07:00 NZDT)
+  the Grok routine "Trendi daily SEO / security social drafts", 07:00 NZDT)
 - Status: active
 - Approval: drafts only; Jo posts
 
@@ -22,7 +22,7 @@ Live search, last 48 hours (maximum 7 days). Qualifies:
 
 - **SEO:** confirmed algorithm or core updates, official search guidance, indexing or
   structured-data changes, AI search changes, page experience, large studies.
-- **Pen testing:** critical or high CVEs (CVSS 7+), actively exploited flaws,
+- **Security testing:** critical or high CVEs (CVSS 7+), actively exploited flaws,
   standards or methodology changes, new technique research, compliance changes.
 
 Verify with 2+ sources from different publishers, preferably primary. Ignore rumours,
@@ -43,7 +43,7 @@ labelled `EVERGREEN`.
 ## CTA
 
 Every post, including `NO_NEWS`/`EVERGREEN`, ends with one tool call to action:
-SEO = site check; pen testing = security check; SEO on AI crawlers or robots.txt =
+SEO = site check; security testing = security check; SEO on AI crawlers or robots.txt =
 robots/AI check. The last body line (hashtags follow) is exactly:
 
 ```

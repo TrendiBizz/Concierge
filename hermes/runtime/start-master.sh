@@ -39,7 +39,7 @@ case "${1:-}" in
     curl -s -m 3 -o /dev/null -w 'api health: %{http_code}\n' "http://127.0.0.1:$PORT/health" || true
     docker exec "$NAME" hermes profile list 2>&1 | tail -12 || true
     say ""
-    docker exec "$NAME" sh -lc 'for p in trendi-master seo-engine trendi-desk pen-test site-watch workwatch; do echo "== $p =="; hermes -p $p cron list --all 2>/dev/null | grep -E "^  [0-9a-f]{6,}|Name:|Schedule:|Next run:" | head -8; done' 2>&1 || true
+    docker exec "$NAME" sh -lc 'for p in trendi-master seo-engine trendi-desk appsec site-watch workwatch; do echo "== $p =="; hermes -p $p cron list --all 2>/dev/null | grep -E "^  [0-9a-f]{6,}|Name:|Schedule:|Next run:" | head -8; done' 2>&1 || true
     exit 0
     ;;
 esac

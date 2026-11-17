@@ -19,9 +19,9 @@ profiles:
   trendi-desk:
     description: "Trendi copy, social drafts, news, LinkedIn, post briefs and the deep dive."
     soul: profiles/trendi-desk/SOUL.md
-  pen-test:
-    description: "Defensive appsec lane for Trendi content: CVEs, advisories and pen-test developments. No scanning or exploitation."
-    soul: profiles/pen-test/SOUL.md
+  appsec:
+    description: "Defensive appsec lane for Trendi content: CVEs, advisories and security developments. No scanning or exploitation."
+    soul: profiles/appsec/SOUL.md
   site-watch:
     description: "Read-only integrity and tamper watch for trendibizz.com. Alerts only; never accepts or reverts."
     soul: profiles/site-watch/SOUL.md
@@ -110,7 +110,7 @@ routines:
 
   - id: trendi-biweekly-news
     profile: trendi-desk
-    name: "Trendi biweekly SEO + pen-test news"
+    name: "Trendi biweekly SEO + security news"
     schedule: "0 9 1,15 * *"
     procedure: routines/trendi-biweekly-news.md
     enabled: true
@@ -121,7 +121,7 @@ routines:
 
   - id: trendi-social-drafts
     profile: workwatch
-    name: "Trendi daily SEO / pen-test social drafts"
+    name: "Trendi daily SEO / security social drafts"
     schedule: "0 7 * * *"
     procedure: routines/trendi-social-drafts.md
     enabled: true
@@ -152,11 +152,11 @@ routines:
     source: "Grok Trendi Desk automation twice-monthly-post-brief-trendi (3rd/17th 09:00, created 2026-11-15)"
     status: active
 
-  - id: pen-test-weekly-advisories
-    profile: pen-test
+  - id: appsec-weekly-advisories
+    profile: appsec
     name: "Weekly defensive security advisories"
     schedule: "0 9 * * 3"
-    procedure: routines/pen-test-weekly-advisories.md
+    procedure: routines/appsec-weekly-advisories.md
     enabled: true
     catch_up: true
     continuity: true
@@ -217,10 +217,10 @@ grok_automations:
   - name: "Trendi LinkedIn weekly draft"
     id: trendi-linkedin-weekly-draft
     routine: trendi-linkedin-weekly
-  - name: "Trendi biweekly SEO + pen-test news"
-    id: trendi-biweekly-seo-pen-test-news
+  - name: "Trendi biweekly SEO + security news"
+    id: trendi-biweekly-seo-security-news
     routine: trendi-biweekly-news
-  - name: "Trendi daily SEO / pen-test social drafts"
+  - name: "Trendi daily SEO / security social drafts"
     id: null
     routine: trendi-social-drafts
   - name: "Trendi SEO forums daily deep dive"

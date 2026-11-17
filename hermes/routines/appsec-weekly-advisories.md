@@ -1,6 +1,6 @@
 # Routine: Weekly defensive security advisories
 
-- Profile: `pen-test`
+- Profile: `appsec`
 - Schedule: `0 9 * * 3` Pacific/Auckland (Wednesday 09:00 NZ)
 - Source: Jo approved Hermes parity brief 2026-11-18
 - Status: active
@@ -8,7 +8,7 @@
 
 ## Procedure
 
-1. Read `profiles/pen-test/SOUL.md`. Review the previous report to avoid repeats.
+1. Read `profiles/appsec/SOUL.md`. Review the previous report to avoid repeats.
 2. Collect CVEs and advisories published or materially updated in the past seven
    days, ending at the current Pacific/Auckland run time, for Trendi's stack:
    Cloudflare, nginx/Caddy, Python/FastAPI, Node, Docker and Postgres.
@@ -38,13 +38,13 @@ Use the current **Pacific/Auckland** calendar date (`YYYY-MM-DD`), including on
 catch-up runs; note the scheduled date separately if different. UTC topic selection
 in a routine does not change the report date.
 
-1. Create `/opt/data/.workwatch/reports/hermes/pen-test/` if missing.
+1. Create `/opt/data/.workwatch/reports/hermes/appsec/` if missing.
 2. Use `write_file` or a terminal file write to save the actual findings to
-   `/opt/data/.workwatch/reports/hermes/pen-test/<YYYY-MM-DD>-pen-test-weekly-advisories.md`.
+   `/opt/data/.workwatch/reports/hermes/appsec/<YYYY-MM-DD>-appsec-weekly-advisories.md`.
    This is the canonical routine report; supplementary drafts do not replace it.
-3. Begin with `# pen-test-weekly-advisories — <YYYY-MM-DD>` and a plain, unbolded
+3. Begin with `# appsec-weekly-advisories — <YYYY-MM-DD>` and a plain, unbolded
    `Status: quiet | attention | needs Jo | blocked` line (choose one).
-4. Copy the same content to `/opt/data/.workwatch/reports/hermes/pen-test/latest.md`.
+4. Copy the same content to `/opt/data/.workwatch/reports/hermes/appsec/latest.md`.
 5. Use a file tool to **read back** both files and confirm their content matches.
    Complete these writes even for quiet, blocked or no-news runs, before returning
    a final response or `[SILENT]`. Returning text does not save a report.

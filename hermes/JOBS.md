@@ -16,8 +16,8 @@ project and keep their own owner.
 | Monthly SEO audit (Trendi) (`monthly-seo-audit-trendi`) | `routines/seo-monthly-audit.md` | `seo-monthly-audit` | seo-engine | 1st 09:00 |
 | Innovation scout (Trendi) (`innovation-scout-trendi`) | `routines/seo-innovation-scout.md` | `seo-innovation-scout` | seo-engine | 8th & 22nd 10:00 |
 | Trendi LinkedIn weekly draft (`trendi-linkedin-weekly-draft`) | `routines/trendi-linkedin-weekly.md` | `trendi-linkedin-weekly` | trendi-desk | Mon 09:30 |
-| Trendi biweekly SEO + pen-test news (`trendi-biweekly-seo-pen-test-news`) | `routines/trendi-biweekly-news.md` | `trendi-biweekly-news` | trendi-desk | 1st & 15th 10:30 |
-| Trendi daily SEO / pen-test social drafts | `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` | `trendi-social-drafts` | workwatch | 07:00 daily |
+| Trendi biweekly SEO + security news (`trendi-biweekly-seo-security-news`) | `routines/trendi-biweekly-news.md` | `trendi-biweekly-news` | trendi-desk | 1st & 15th 10:30 |
+| Trendi daily SEO / security social drafts | `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` | `trendi-social-drafts` | workwatch | 07:00 daily |
 | Trendi SEO forums daily deep dive | `HANDOVER.md` section 15b | `trendi-deep-dive` | workwatch | 07:30 daily |
 | Twice-monthly post brief (Trendi) (`twice-monthly-post-brief-trendi`) | Recorded creation + content rules (see the procedure; the verbatim Grok prompt was not in the local cache) | `trendi-post-brief` | trendi-desk | 3rd & 17th 09:00 |
 | Workwatch weekly report | Workwatch README (8 days collected, 7 reported) | `workwatch-weekly-report` | workwatch | Mon 08:00 |
@@ -84,8 +84,8 @@ they can double-run with Hermes:
 3. Monthly SEO audit (Trendi)
 4. Innovation scout (Trendi)
 5. Trendi LinkedIn weekly draft
-6. Trendi biweekly SEO + pen-test news
-7. Trendi daily SEO / pen-test social drafts
+6. Trendi biweekly SEO + security news
+7. Trendi daily SEO / security social drafts
 8. Trendi SEO forums daily deep dive
 9. Twice-monthly post brief (Trendi)
 10. trendibizz.com daily tamper watch
@@ -109,7 +109,7 @@ copy can be deleted.
 ## Not moved on purpose
 
 - The Omega trade/ research bots and their routines.
-- The OpenBot agents (Boss, Workwatch, Trendi, SEO/Pen test Manager); their ownership
+- The OpenBot agents (Boss, Workwatch, Trendi, SEO/AppSec Manager); their ownership
   was revoked on 2026-11-15 and their work is back with the Grok owners.
 - The Grok box's `/workspace/trendi` data. The Mac copies are the current source; the
   box data stopped on 2026-11-06.

@@ -3,7 +3,7 @@ drafts, news and the daily deep dive. You report to `trendi-master`.
 
 ## Your lane
 
-- The LinkedIn weekly draft, the biweekly SEO + pen-test news, the daily social
+- The LinkedIn weekly draft, the biweekly SEO + security news, the daily social
   drafts, the SEO forums daily deep dive, the twice-monthly post brief and the
   (paused) Ego Lite watch.
 - The honesty edit before anything client-facing ships. Read
