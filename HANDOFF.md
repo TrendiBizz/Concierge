@@ -13,10 +13,13 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `8a16ca1`, pushed to `origin/main`. This session drove the Docker→Podman cutover (see §3 and
+  HEAD `be9a647`, pushed to `origin/main`. This session drove the Docker→Podman cutover (see §3 and
   `QA/verification/PODMAN_MIGRATION_2026-11-17.md`) and retired Twenty, adding the Studio pipeline
-  board (`QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`). Working tree clean
-  apart from ignored `outputs/`.
+  board (`QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`). The Hermes rollout
+  is recorded in `QA/verification/HERMES_ROLLOUT_2026-11-17.md` (local-only — git-ignored because this
+  repo is public) and §2 item 13 / §3 "Hermes". Working tree clean apart from ignored `outputs/`.
+  The status pass and both handoff corrections are in
+  `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
@@ -34,8 +37,8 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
     single `up --force-recreate api social` is refused by Podman and once left the API down.
   - Portal: `KEY=./Concierge ./scripts/vps/deploy-studio.sh`.
 - **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
-  → must print `OK: repo and box agree` (currently api/app 110 · scripts/vps 42 · website/site 62 —
-  green at `8a16ca1`).
+  → must print `OK: repo and box agree` (currently api/app 110 · api/static 7 · scripts/vps 42 ·
+  website/site 62 — green at `be9a647`).
 - **Tests:** `cd api && PYTHONPATH="$(cd .. && pwd)/QA/verification/shims" \
   TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
   /Users/jo/work-staging/venv-concierge/bin/python -m pytest -q` → **1527 passed, 19 skipped**. The interpreter,
@@ -171,15 +174,68 @@ The first three streams are recorded in their own files. The last one is this se
     1523 API tests, portal `tsc`/build, `verify-deploy.sh`.
     Record: `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
 
+13. **Hermes rollout — 2026-11-17 (deployed, idle by design).** The customer-facing Hermes layer is
+    live on the box: `hermes-gateway` on `127.0.0.1:4420` (host network, read-only, all caps
+    dropped) authenticates to the API through `HERMES_GATEWAY_*`; the per-tenant
+    `hermes-trendi-support` container is healthy with only `todo`, `memory` and `session_search`
+    enabled; Studio → Home gained **Needs you** (approve/edit/discard a prepared reply) and the
+    read-only **Ask** box, and Setup has the 7am-note switch (`35f3efd`). The 7am note is on for
+    `trendi-support` only. **Nothing calls `POST /v1/runs` yet**, so no case has ever been planned:
+    `hermes_actions`, `hermes_case_state` and `hermes_tenant_settings` are all empty and the
+    gateway's default is `shadow` / 0.8. Full account and the defects found on the way:
+    `QA/verification/HERMES_ROLLOUT_2026-11-17.md` — **local-only, git-ignored** because this repo is
+    public, so a fresh clone will not have it; this handoff carries the state that matters. The
+    "Still to do" lettered list in that record is partly stale — (b), (c) and (d) are done as of
+    `35f3efd`.
+
 ## 3. Outstanding — the real worklist
 
 **2026-11-17 — the Docker → Podman migration on the VPS is DONE** (production `trendi` + `asterisk` run on
 Podman; the Docker engine is disabled but kept installed, `/var/lib/docker` untouched; a real reboot was
 survived; the 23:10 "unidentified" reboot was that reboot test). Remaining migration open items live in
 `QA/verification/PODMAN_MIGRATION_2026-11-17.md` "Still open": the Hermes `network_mode: host`/`cap_drop`
-re-test, keep Docker installed for a week, and operator items (delete the one-day DO token; approve or
+re-test (both containers **are** running under Podman — gateway `healthz` 200 on host networking, customer
+container healthy with its `cap_add` set — but the boundary re-test itself has not been written up), keep
+Docker installed for a week, and operator items (delete the one-day DO token; approve or
 decline the Version 1 announcement email — do NOT send it without Jo). **The Twenty CRM was retired on
 2026-11-17** — see `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
+
+### Hermes (the AI layer) — deployed, not yet driving anything
+
+H1. **Nothing triggers a run.** `POST /v1/runs` exists and the gateway can reach Concierge, but no
+    inbound-message hook, scheduler or Studio button calls it. `hermes_actions` is empty, so no plan
+    has ever been validated or executed. **Next:** pick the first trigger (the inbound-email hook is
+    the natural one, because drafts already land in `email_drafts`), keep the tenant in `shadow`,
+    and run one case that has a real lead. `trendi-support` has no leads at all; use a tenant that
+    does. Do not enable a non-shadow autonomy level until one shadow plan has been read end to end.
+H2. **The customer image floats.** `hermes-trendi-support` runs `nousresearch/hermes-agent:stable`
+    (now v0.23.1); only the internal auxiliary is pinned by digest (v0.23.0). **Next:** pin
+    `HERMES_IMAGE` to a digest in `hermes.sh`/the compose env before the first real run, so a
+    restart cannot change the planner underneath a live tenant.
+H3. **Source parity does not cover Hermes.** `verify-deploy.sh` compares `api/app`, `api/static`,
+    `scripts/vps` and `website/site`; the gateway is built on the box from
+    `concierge-stack/{hermes-gateway,core-rs}`, and `scripts/asterisk` is not compared either. A
+    change to those sources alone can drift silently. **Next:** extend the parity check (or add a
+    dedicated `sync-hermes.sh`) and run it before any gateway rebuild.
+H4. **Minor, clear before the first run:** `hermes tools list` on the customer container prints
+    `install out of sync (pnpm: not installed or outdated)`. The tool *set* is provably correct
+    (todo, memory, session_search); the warning is a self-check, not a reason to widen the toolset.
+    Rebuild the docker-managed artifact once and confirm it goes quiet. The gateway's `network_mode:
+    host` is deliberate (it must reach API/Hermes on loopback) and it holds no DB or provider
+    credentials — keep it that way.
+H5. **The 7am note has still never delivered — and that is correct so far.** `trendi-support` has
+    `daily_summary = true` but measured 0 new leads, 0 overdue tasks and 0 waiting leads, and
+    `daily_text` deliberately sends nothing on a quiet day. There is no `daily:*` outbox row and no
+    log line that distinguishes "ran and was quiet" from "never ran". **Next:** prove it on a
+    morning with one real or seeded lead, and add a heartbeat/log line so a silent loop is visible.
+    The operator's "check after 07:00" item is therefore answered: no email was due.
+H6. **Committed code cites a record that is not in the repo.** `hermes-gateway/README.md`,
+    `tests/acceptance.rs` and two older QA records cite `HERMES_CONCIERGE_FRAMEWORK_2026-11-09.md`,
+    which `.gitignore` excludes along with every `QA/verification/HERMES_*` (the repo is public;
+    the Hermes design notes have never been committed). A fresh clone therefore has dangling
+    references and no Hermes design history. **Next:** decide the home for Hermes design records —
+    a private docs repo, or a redacted framework summary committed here — then repoint the
+    citations. Do not simply remove the ignore: that would publish the full design notes.
 
 ### Operator only (cannot be fixed from this repo)
 
@@ -350,7 +406,7 @@ decline the Version 1 announcement email — do NOT send it without Jo). **The T
 
 ## 4. Next action
 
-**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at `8a16ca1`.
+**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at `be9a647`.
 The Docker→Podman move is done and reboot-tested; Twenty is retired; the Studio pipeline board is
 live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deploy.sh` first.
 
@@ -362,12 +418,16 @@ live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deplo
 1. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
    system has never carried real data. Everything it does is covered by tests, but tests are not
    a customer.
-2. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
+2. **Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email hook, keep the
+   tenant in `shadow`, send one real enquiry to a tenant that has a case, and read the plan before
+   letting anything execute. Pin the customer image first (H2), and extend source parity before the
+   next gateway rebuild (H3).
+3. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
    file if it still serves the old links (the only remaining follow-up from that item).
-3. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
+4. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
    just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
    `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
-4. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
+5. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
 16–18), the security/hygiene list (10–15), and the SEO content list (21–27) all still stand.
