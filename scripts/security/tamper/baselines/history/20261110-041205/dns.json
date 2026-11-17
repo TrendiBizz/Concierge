@@ -1,0 +1,183 @@
+[
+  {
+    "content": "162.0.215.84",
+    "data": null,
+    "name": "mail.trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "A"
+  },
+  {
+    "content": "0 iodef \"mailto:admin@trendibizz.com\"",
+    "data": {
+      "flags": 0,
+      "tag": "iodef",
+      "value": "mailto:admin@trendibizz.com"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issue \"letsencrypt.org\"",
+    "data": {
+      "flags": 0,
+      "tag": "issue",
+      "value": "letsencrypt.org"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issue \"pki.goog\"",
+    "data": {
+      "flags": 0,
+      "tag": "issue",
+      "value": "pki.goog"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issue \"ssl.com\"",
+    "data": {
+      "flags": 0,
+      "tag": "issue",
+      "value": "ssl.com"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issuewild \"letsencrypt.org\"",
+    "data": {
+      "flags": 0,
+      "tag": "issuewild",
+      "value": "letsencrypt.org"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issuewild \"pki.goog\"",
+    "data": {
+      "flags": 0,
+      "tag": "issuewild",
+      "value": "pki.goog"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "0 issuewild \"ssl.com\"",
+    "data": {
+      "flags": 0,
+      "tag": "issuewild",
+      "value": "ssl.com"
+    },
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "CAA"
+  },
+  {
+    "content": "trendi-ezj.pages.dev",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": true,
+    "ttl": 1,
+    "type": "CNAME"
+  },
+  {
+    "content": "trendi-ezj.pages.dev",
+    "data": null,
+    "name": "www.trendibizz.com",
+    "priority": null,
+    "proxied": true,
+    "ttl": 1,
+    "type": "CNAME"
+  },
+  {
+    "content": "mx1-hosting.jellyfish.systems",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": 5,
+    "proxied": false,
+    "ttl": 1,
+    "type": "MX"
+  },
+  {
+    "content": "mx2-hosting.jellyfish.systems",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": 10,
+    "proxied": false,
+    "ttl": 1,
+    "type": "MX"
+  },
+  {
+    "content": "mx3-hosting.jellyfish.systems",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": 20,
+    "proxied": false,
+    "ttl": 1,
+    "type": "MX"
+  },
+  {
+    "content": "v=DMARC1; p=none;",
+    "data": null,
+    "name": "_dmarc.trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "TXT"
+  },
+  {
+    "content": "\"google-site-verification=avVhzA1EiofmOxiN_MaeFFNEsykt1q8QAfbrLBSStMA\"",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "TXT"
+  },
+  {
+    "content": "ahrefs-site-verification_b9087efe6668726b172e362f5fa6302cfcb6e432e2d2a895f873bc7253a47c97",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 300,
+    "type": "TXT"
+  },
+  {
+    "content": "v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com ~all",
+    "data": null,
+    "name": "trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "TXT"
+  }
+]

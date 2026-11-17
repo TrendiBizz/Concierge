@@ -1,0 +1,297 @@
+trendibizz.com daily watch, 2026-11-17 20:27 NZDT: CHANGE OR PROBLEM FOUND (exit 1)
+
+Needs a look:
+  - Cloudflare DNS records: DNS RECORDS CHANGED (Cloudflare has no DNS-change alert; this diff is the only DNS alarm): added: MX trendibizz.com -> route1.mx.cloudflare.net; added: MX trendibizz.com -> route2.mx.cloudflare.net; added: MX trendibizz.com -> route3.mx.cloudflare.net; added: TXT _dmarc.trendibizz.com -> "v=DMARC1; 
+  - Zone settings (SSL mode, min TLS, HSTS, ...): differs from baseline (+1/-2 lines)
+  - WAF / rulesets: differs from baseline (+13/-50 lines)
+  - Account Worker scripts: differs from baseline (+1/-6 lines)
+  - Account 2FA settings: differs from baseline (+1/-2 lines)
+  - Cloudflare notification policies: differs from baseline (+30/-0 lines)
+  - Client-side security (Page Shield): differs from baseline (+1/-1 lines)
+  - Public DNS + TLS view (DoH, openssl): differs from baseline (+5/-5 lines)
+If this was an approved change (e.g. Omega Boss's DNSSEC/CAA/DNS/notification work), re-baseline with:
+  bash scripts/security/daily-watch.sh accept --reason 'who: what' dns zone_settings rulesets worker_scripts account notifications page_shield public_dns
+If it was NOT approved: treat as possible tampering (see README 'On a FAIL').
+Could not check:
+  - Live site vs deployed files: skipped (--skip-live)
+  - Pages deployments vs changes.csv: no deployments in snapshot (Pages token scope missing?)
+
+Runtime 4.6 s. Cloudflare snapshot: 2026-11-17T07:22:32.613Z (4.7 min old)
+========================================================================
+[UNCHECKED] Live site vs deployed files
+            skipped (--skip-live)
+[CHANGED  ] Cloudflare DNS records
+            DNS RECORDS CHANGED (Cloudflare has no DNS-change alert; this diff is the only DNS alarm): added: MX trendibizz.com -> route1.mx.cloudflare.net; added: MX trendibizz.com -> route2.mx.cloudflare.net; added: MX trendibizz.com -> route3.mx.cloudflare.net; added: TXT _dmarc.trendibizz.com -> "v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com"; added: TXT cf2024-1._domainkey.trendibizz.com -> "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k" "m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r
+            differs from baseline (+32/-14 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -192,6 +192,6 @@
+                 {
+              -    "content": "mx1-hosting.jellyfish.systems",
+              -    "data": null,
+              -    "name": "trendibizz.com",
+              -    "priority": 5,
+              +    "content": "route1.mx.cloudflare.net",
+              +    "data": null,
+              +    "name": "trendibizz.com",
+              +    "priority": 59,
+                   "proxied": false,
+              @@ -201,6 +201,6 @@
+                 {
+              -    "content": "mx2-hosting.jellyfish.systems",
+              -    "data": null,
+              -    "name": "trendibizz.com",
+              -    "priority": 10,
+              +    "content": "route2.mx.cloudflare.net",
+              +    "data": null,
+              +    "name": "trendibizz.com",
+              +    "priority": 48,
+                   "proxied": false,
+              @@ -210,6 +210,6 @@
+                 {
+              -    "content": "mx3-hosting.jellyfish.systems",
+              -    "data": null,
+              -    "name": "trendibizz.com",
+              -    "priority": 20,
+              +    "content": "route3.mx.cloudflare.net",
+              +    "data": null,
+              +    "name": "trendibizz.com",
+              +    "priority": 81,
+                   "proxied": false,
+              @@ -219,3 +219,3 @@
+                 {
+              -    "content": "\"v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com\"",
+              +    "content": "\"v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com\"",
+                   "data": null,
+              @@ -228,2 +228,20 @@
+                 {
+              +    "content": "\"v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k\" \"m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB\"",
+              +    "data": null,
+              +    "name": "cf2024-1._domainkey.trendibizz.com",
+              +    "priority": null,
+              +    "proxied": false,
+              +    "ttl": 1,
+              +    "type": "TXT"
+              +  },
+              +  {
+              +    "content": "\"openai-business-profile=FpzT2Ruon5H5M3iyt-1eTYmDITZkSvs4V7OCkfiI4AE\"",
+              +    "data": null,
+              +    "name": "openai-business-profile.trendibizz.com",
+              +    "priority": null,
+              +    "proxied": false,
+              +    "ttl": 1,
+              +    "type": "TXT"
+              +  },
+              +  {
+                   "content": "\"brevo-code:4644711b311ed0326a5b6fec0839cefa\"",
+              @@ -264,3 +282,3 @@
+                 {
+              -    "content": "v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com ~all",
+              +    "content": "v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com include:_spf.mx.cloudflare.net ~all",
+                   "data": null,
+[OK       ] DNSSEC
+            DNSSEC active
+[OK       ] Zone (nameservers/plan/status)
+[CHANGED  ] Zone settings (SSL mode, min TLS, HSTS, ...)
+            differs from baseline (+1/-2 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -13,3 +13,3 @@
+                 "ip_geolocation": "on",
+              -  "min_tls_version": "1.0",
+              +  "min_tls_version": "1.2",
+                 "minify": {
+              @@ -36,3 +36,2 @@
+                 "tls_1_3": "on",
+              -  "universal_ssl_enabled": true,
+                 "websockets": "on"
+[CHANGED  ] WAF / rulesets
+            differs from baseline (+13/-50 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -16,3 +16,3 @@
+                       "enabled": true,
+              -        "expression": "starts_with(http.request.uri.path, \"/api/\")",
+              +        "expression": "starts_with(http.request.uri.path, \"/api/\")\nand not starts_with(http.request.uri.path, \"/api/v1/translate\")\nand not starts_with(http.request.uri.path, \"/api/v1/widget-\")\nand not starts_with(http.request.uri.path, \"/api/v1/chat\")\nand not starts_with(http.request.uri.path, \"/api/v1/voice\")",
+                       "id": "a0395bfaac794ca585bb44c247a7d9f8",
+              @@ -25,3 +25,3 @@
+                         "period": 10,
+              -          "requests_per_period": 5
+              +          "requests_per_period": 60
+                       }
+              @@ -33,53 +33,16 @@
+                   "name": "default",
+              -    "phase": "http_request_dynamic_redirect",
+              +    "phase": "http_request_dynamic_redirect"
+              +  },
+              +  {
+              +    "kind": "zone",
+              +    "name": "Block AI training crawlers",
+              +    "phase": "http_request_firewall_custom",
+                   "rules": [
+                     {
+              -        "action": "redirect",
+              -        "action_parameters": {
+              -          "from_value": {
+              -            "preserve_query_string": true,
+              -            "status_code": 301,
+              -            "target_url": {
+              -              "expression": "concat(\"https://trendibizz.com\", http.request.uri)"
+              -            }
+              -          }
+              -        },
+              -        "description": "www to apex HTTPS",
+              +        "action": "block",
+              +        "action_parameters": null,
+              +        "description": "Block AI training crawlers",
+                       "enabled": true,
+              -        "expression": "(http.host eq \"www.trendibizz.com\")",
+              -        "id": "2832a632bfa547178f1dfd7e45572b5d",
+              -        "ratelimit": null
+              -      },
+              -      {
+              -        "action": "redirect",
+              -        "action_parameters": {
+              -          "from_value": {
+              -            "preserve_query_string": true,
+              -            "status_code": 301,
+              -            "target_url": {
+              -              "expression": "concat(\"https://\", http.host, http.request.uri)"
+              -            }
+              -          }
+              -        },
+              -        "description": "Force HTTPS",
+              -        "enabled": true,
+              -        "expression": "(not ssl)",
+              -        "id": "ad5e802f308c4cf98d6e4ad85fbc8f88",
+              -        "ratelimit": null
+              -      },
+              -      {
+              -        "action": "redirect",
+              -        "action_parameters": {
+              -          "from_value": {
+              -            "preserve_query_string": true,
+              -            "status_code": 301,
+              -            "target_url": {
+              -              "value": "https://trendibizz.com/security-check"
+              -            }
+              -          }
+              -        },
+              -        "description": "Merge /tools/security-check into /security-check",
+              -        "enabled": true,
+              -        "expression": "(http.host eq \"trendibizz.com\" and (http.request.uri.path eq \"/tools/security-check\" or http.request.uri.path eq \"/tools/security-check/\"))",
+              -        "id": "dfaeede6a7574a22a287c63d24c94772",
+              +        "expression": "((http.user_agent contains \"GPTBot\") or (http.user_agent contains \"CCBot\") or (http.user_agent contains \"Bytespider\") or (http.user_agent contains \"ClaudeBot\") or (http.user_agent contains \"Google-Extended\") or (http.user_agent contains \"Applebot-Extended\") or (http.user_agent contains \"Amazonbot\") or (http.user_agent contains \"FacebookBot\")) and http.request.uri.path ne \"/robots.txt\"",
+              +        "id": "ebb1863a2e9344d1a3ba93b583f9ff92",
+                       "ratelimit": null
+[CHANGED  ] Account Worker scripts
+            differs from baseline (+1/-6 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -1,6 +1 @@
+              -[
+              -  {
+              -    "id": "trendi-force-https",
+              -    "modified_on": "2026-10-28T08:41:51.936938Z"
+              -  }
+              -]
+              +[]
+[INFO     ] trendi-force-https Worker source hash
+            not checked (token cannot read: worker_content: HTTP 403 No access to the specified resource.)
+[OK       ] Worker routes
+[OK       ] Account members and roles
+[CHANGED  ] Account 2FA settings
+            differs from baseline (+1/-2 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -2,4 +2,3 @@
+                 "enforce_twofactor": false,
+              -  "name": "Kiwi18@gmail.com's Account",
+              -  "user_two_factor": true
+              +  "name": "Kiwi18@gmail.com's Account"
+               }
+[CHANGED  ] Cloudflare notification policies
+            differs from baseline (+30/-0 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -11,2 +11,32 @@
+                   "name": "Abuse reports against account"
+              +  },
+              +  {
+              +    "alert_type": "billing_budget_alert",
+              +    "enabled": true,
+              +    "filters": {
+              +      "total_spend_dollars": [
+              +        "10"
+              +      ]
+              +    },
+              +    "mechanisms": {
+              +      "email": [
+              +        "kiwi18@gmail.com"
+              +      ]
+              +    },
+              +    "name": "Billing Budget Alert"
+              +  },
+              +  {
+              +    "alert_type": "billing_budget_alert",
+              +    "enabled": true,
+              +    "filters": {
+              +      "total_spend_dollars": [
+              +        "10"
+              +      ]
+              +    },
+              +    "mechanisms": {
+              +      "email": [
+              +        "kiwi18@gmail.com"
+              +      ]
+              +    },
+              +    "name": "Default budget alert (auto-created)"
+                 },
+[CHANGED  ] Client-side security (Page Shield)
+            differs from baseline (+1/-1 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -1,3 +1,3 @@
+               {
+              -  "enabled": false
+              +  "enabled": true
+               }
+[INFO     ] Pages project config
+            not checked (token cannot read: pages_project: HTTP 403 Authentication error)
+[UNCHECKED] Pages deployments vs changes.csv
+            no deployments in snapshot (Pages token scope missing?)
+[CHANGED  ] Public DNS + TLS view (DoH, openssl)
+            differs from baseline (+5/-5 lines)
+            diff:
+              --- baseline
+              +++ now
+              @@ -2,3 +2,3 @@
+                 "_dmarc.trendibizz.com TXT": [
+              -    "\"v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com\""
+              +    "\"v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com\""
+                 ],
+              @@ -44,5 +44,5 @@
+                 "trendibizz.com MX": [
+              -    "10 mx2-hosting.jellyfish.systems.",
+              -    "20 mx3-hosting.jellyfish.systems.",
+              -    "5 mx1-hosting.jellyfish.systems."
+              +    "48 route2.mx.cloudflare.net.",
+              +    "59 route1.mx.cloudflare.net.",
+              +    "81 route3.mx.cloudflare.net."
+                 ],
+              @@ -57,3 +57,3 @@
+                   "\"tiktok-developers-site-verification=OJ0IBlgZ2nLqaNSxaCvZvmtcK1KKdfen\"",
+              -    "\"v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com ~all\""
+              +    "\"v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com include:_spf.mx.cloudflare.net ~all\""
+                 ],
+[OK       ] Registrar lock / expiry (RDAP)
+            transfer lock on; expires 2027-05-12 (175 days); registrar NameCheap, Inc.
+[OK       ] Certificate Transparency (new certificates)
+            12 certificates in CT via crt.sh + certspotter; 0 new since last run

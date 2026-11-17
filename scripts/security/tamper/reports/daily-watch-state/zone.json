@@ -1,0 +1,11 @@
+{
+  "name": "trendibizz.com",
+  "name_servers": [
+    "gigi.ns.cloudflare.com",
+    "vern.ns.cloudflare.com"
+  ],
+  "paused": false,
+  "plan": "Free Website",
+  "status": "active",
+  "type": "full"
+}

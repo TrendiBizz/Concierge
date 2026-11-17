@@ -1,0 +1,48 @@
+{
+  "build_config": {
+    "web_analytics_tag": null,
+    "web_analytics_token": null
+  },
+  "custom_domains": [
+    {
+      "name": "trendibizz.com",
+      "status": "active"
+    },
+    {
+      "name": "www.trendibizz.com",
+      "status": "active"
+    }
+  ],
+  "domains": [
+    "trendi-ezj.pages.dev",
+    "trendibizz.com",
+    "www.trendibizz.com"
+  ],
+  "name": "trendi",
+  "preview": {
+    "bindings": [],
+    "compatibility_date": "2026-10-24",
+    "compatibility_flags": [
+      "nodejs_compat"
+    ],
+    "env_vars": {
+      "PAGESPEED_API_KEY": "secret_text"
+    },
+    "fail_open": true,
+    "usage_model": "standard"
+  },
+  "production": {
+    "bindings": [],
+    "compatibility_date": "2026-10-24",
+    "compatibility_flags": [
+      "nodejs_compat"
+    ],
+    "env_vars": {
+      "PAGESPEED_API_KEY": "secret_text"
+    },
+    "fail_open": true,
+    "usage_model": "standard"
+  },
+  "production_branch": "main",
+  "source": null
+}

@@ -1,0 +1,13 @@
+{
+  "expiration": "2027-05-12T02:05:00Z",
+  "last_changed": "2026-10-24T05:08:45Z",
+  "nameservers": [
+    "gigi.ns.cloudflare.com",
+    "vern.ns.cloudflare.com"
+  ],
+  "registrar": "NameCheap, Inc.",
+  "secure_dns_delegation_signed": false,
+  "status": [
+    "client transfer prohibited"
+  ]
+}

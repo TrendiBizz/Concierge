@@ -1,0 +1,13 @@
+# CAs allowed to issue for trendibizz.com = the CAs public CAA allows (checked 2026-11-02 16:02 NZDT).
+# Matched as a substring of the certificate issuer's O= field (case-insensitive).
+# A new certificate from any other CA makes daily-watch exit 1. New certs from these CAs are
+# reported and recorded automatically (Cloudflare Universal SSL renews about every 90 days).
+# approved-by: Omega Boss 2026-11-02 (CAA records letsencrypt.org, pki.goog, ssl.com)
+let's encrypt
+google trust services
+ssl.com
+# approved-by: Cloudflare-managed CAA 2026-11-02 (Cloudflare adds comodoca.com and digicert.com
+# automatically for Universal SSL backup certificates; visible in public CAA, not in the zone's records)
+sectigo
+comodo
+digicert

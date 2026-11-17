@@ -1,0 +1,5 @@
+2026-11-02 16:03 NZDT	dns,dnssec,zone,zone_settings,rulesets,worker_scripts,worker,worker_routes,members,account,notifications,page_shield,pages_project,public_dns,rdap,certs,deployments	run 2026-11-02T03:03:02.837646+00:00	Trendi Desk 2026-11-02 16:05 NZDT: initial baseline, taken after Omega Boss's approved changes (7 notification policies, DNSSEC pending, CAA, 5 cPanel A records deleted; log security/cf-changes-20261102.md)
+2026-11-03 07:40 NZDT	dnssec,public_dns,rdap	run 2026-11-02T18:40:01.300831+00:00	Omega Boss: DS added at Namecheap
+2026-11-03 07:40 NZDT	members,account	run 2026-11-02T18:40:01.300831+00:00	Jo: turned on Cloudflare two-factor 2026-11-02
+2026-11-03 13:52 NZDT	dns,public_dns	run 2026-11-03T00:43:16.170737+00:00	Omega Boss: GSC verification TXT (record 03f1aa21aeccc97322e4d74e20c8f907) 2026-11-03
+2026-11-10 04:12 NZDT	dns,pages_project,deployments,public_dns	run 2026-11-09T15:11:09.496480+00:00	Jo yes 10 Nov 00:52 NZDT via Omega Boss HANDOVER s42: Concierge cutover (VPS 20261108-vps, Pages 6bcc4248, crm/chat/concierge + Brevo DNS accepted as baseline state)

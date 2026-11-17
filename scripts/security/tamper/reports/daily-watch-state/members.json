@@ -1,0 +1,10 @@
+[
+  {
+    "email": "kiwi18@gmail.com",
+    "roles": [
+      "Super Administrator - All Privileges"
+    ],
+    "status": "accepted",
+    "two_factor": true
+  }
+]

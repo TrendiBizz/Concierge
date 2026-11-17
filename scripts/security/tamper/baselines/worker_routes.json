@@ -1,0 +1,10 @@
+[
+  {
+    "pattern": "trendibizz.com/*",
+    "script": "trendi-force-https"
+  },
+  {
+    "pattern": "www.trendibizz.com/*",
+    "script": "trendi-force-https"
+  }
+]

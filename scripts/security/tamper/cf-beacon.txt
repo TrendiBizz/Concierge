@@ -1,0 +1,6 @@
+# Cloudflare Web Analytics auto-injects one <script> tag into HTML served to
+# browsers (Accept: text/html). live_integrity.py strips ONLY that exact tag
+# shape from static.cloudflareinsights.com with this site token before hashing.
+# A different token (analytics going to someone else's account) = FAIL.
+# Token seen on live 2026-11-02 15:06 NZDT:
+d08798a545e64c8ea8ec3ebf496574dc
