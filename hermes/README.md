@@ -51,8 +51,8 @@ by an unattended routine.
 | Innovation scout (Trendi) | `seo-innovation-scout` | seo-engine | active |
 | Trendi LinkedIn weekly draft | `trendi-linkedin-weekly` | trendi-desk | active |
 | Trendi biweekly SEO + pen-test news | `trendi-biweekly-news` | trendi-desk | active |
-| Trendi daily SEO / pen-test social drafts | `trendi-social-drafts` | trendi-desk | active |
-| Trendi SEO forums daily deep dive | `trendi-deep-dive` | trendi-desk | active |
+| Trendi daily SEO / pen-test social drafts | `trendi-social-drafts` | workwatch | active |
+| Trendi SEO forums daily deep dive | `trendi-deep-dive` | workwatch | active |
 | Twice-monthly post brief (Trendi) | `trendi-post-brief` | trendi-desk | active |
 | trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | active — kit in `scripts/security/tamper/`, first run quiet 2026-11-17 |
 | Ego Lite Linux watch | `ego-lite-linux-watch` | trendi-desk | paused — one-shot; re-enable when there is a Linux build |

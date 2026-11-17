@@ -120,7 +120,7 @@ routines:
     status: active
 
   - id: trendi-social-drafts
-    profile: trendi-desk
+    profile: workwatch
     name: "Trendi daily SEO / pen-test social drafts"
     schedule: "0 7 * * *"
     procedure: routines/trendi-social-drafts.md
@@ -131,7 +131,7 @@ routines:
     status: active
 
   - id: trendi-deep-dive
-    profile: trendi-desk
+    profile: workwatch
     name: "Trendi SEO forums daily deep dive"
     schedule: "30 7 * * *"
     procedure: routines/trendi-deep-dive.md

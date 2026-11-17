@@ -30,13 +30,11 @@ EXPECTED: dict[str, list[str]] = {
     "trendi-desk": [
         "trendi-linkedin-weekly",
         "trendi-biweekly-news",
-        "trendi-social-drafts",
-        "trendi-deep-dive",
         "trendi-post-brief",
     ],
     "pen-test": ["pen-test-weekly-advisories"],
     "site-watch": ["trendi-tamper-watch"],
-    "workwatch": ["workwatch-weekly-report"],
+    "workwatch": ["workwatch-weekly-report", "trendi-social-drafts", "trendi-deep-dive"],
 }
 
 # Lanes whose only routine is deliberately paused in schedules.yaml. No report is

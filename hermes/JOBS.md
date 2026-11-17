@@ -17,8 +17,8 @@ project and keep their own owner.
 | Innovation scout (Trendi) (`innovation-scout-trendi`) | `routines/seo-innovation-scout.md` | `seo-innovation-scout` | seo-engine | 8th & 22nd 10:00 |
 | Trendi LinkedIn weekly draft (`trendi-linkedin-weekly-draft`) | `routines/trendi-linkedin-weekly.md` | `trendi-linkedin-weekly` | trendi-desk | Mon 09:30 |
 | Trendi biweekly SEO + pen-test news (`trendi-biweekly-seo-pen-test-news`) | `routines/trendi-biweekly-news.md` | `trendi-biweekly-news` | trendi-desk | 1st & 15th 10:30 |
-| Trendi daily SEO / pen-test social drafts | `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` | `trendi-social-drafts` | trendi-desk | 07:00 daily |
-| Trendi SEO forums daily deep dive | `HANDOVER.md` section 15b | `trendi-deep-dive` | trendi-desk | 07:30 daily |
+| Trendi daily SEO / pen-test social drafts | `~/OpenBot/Shared/workwatch/ops/social/PROMPT.md` | `trendi-social-drafts` | workwatch | 07:00 daily |
+| Trendi SEO forums daily deep dive | `HANDOVER.md` section 15b | `trendi-deep-dive` | workwatch | 07:30 daily |
 | Twice-monthly post brief (Trendi) (`twice-monthly-post-brief-trendi`) | Recorded creation + content rules (see the procedure; the verbatim Grok prompt was not in the local cache) | `trendi-post-brief` | trendi-desk | 3rd & 17th 09:00 |
 | Workwatch weekly report | Workwatch README (8 days collected, 7 reported) | `workwatch-weekly-report` | workwatch | Mon 08:00 |
 | trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `routines/trendi-tamper-watch.md` | `trendi-tamper-watch` | site-watch | 07:30 daily (resumed 2026-11-17) |
