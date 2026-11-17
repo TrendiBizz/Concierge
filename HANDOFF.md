@@ -589,3 +589,9 @@ with no page behind it (item 25 covers the rest of the content list).
 Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy.sh`. If it is not
 `OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
 prefix until the harness restarts (item 32).
+
+## 2026-11-17 PRE keychain dialog (fixed, uncommitted)
+- Cause: `outputs/pentest-research-engine/internal/keychain/keychain.go` probed the macOS keychain (`__pre_probe__`) under the workspace tool HOME, which has no login keychain, so macOS raised a blocking "Keychain Not Found" dialog.
+- Fix: skip the OS keychain when `PRE_KEYCHAIN=file` or `$HOME` has no `Library/Keychains/login.keychain-db`. `pre` rebuilt to `~/go/bin/pre`; umbrella restarted on `:9130` with `PRE_KEYCHAIN=file`.
+- Proof so far: toolchain check passes all required tools; dry-run scan lists all 9 stages, no dialog. No live scan yet: the demo scope is acme.com (not ours); a live run needs a target we own.
+- Gap: `toolchain-check.sh` counts any non-blocked output as OK (ffuf/dalfox/commix print flag errors, httpx/naabu/katana print nothing), so it proves "not a shim", not "works".
