@@ -28,7 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `fcb4c61`; Rust
+- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `650daa8`; Rust
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
@@ -215,7 +215,7 @@ The first three streams are recorded in their own files. The last one is this se
     §3 "Hermes master on the Mac" M1–M10.
 
 15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
-    `fcb4c61` (`Trendiisales/pentest-research-engine`) has the authorization/scope
+    `650daa8` (`Trendiisales/pentest-research-engine`) has the authorization/scope
     gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
     `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
     T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
@@ -281,14 +281,16 @@ M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memo
 
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
-at `fcb4c61`, docs `docs/UMBRELLA.md`; proof
+at `650daa8`, docs `docs/UMBRELLA.md`; proof
 `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
 the host scanners; the Rust engine enforces the signed authorization and scope before
 any active step.
 
-P1. **No customer engagement yet.** The running demo is a placeholder. Create a real
-    engagement with `pentest init` / `authorize` (`docs/UMBRELLA.md` §5), then run a
-    lab (Juice Shop/DVWA) end to end before a customer.
+P1. **Full scan ready; no customer run yet.** The landing tab is the one-field full
+    scan (address + engagement + acknowledgement). `engagements/trendi-self` is valid
+    for `trendibizz.com` (self-authorization) and the preview listed 10 stages;
+    `engagements/pukeko` exists but is **invalid until its signed permission is
+    attached**. Run the own address first, then Pukeko.
 P2. **T3MP3ST missions launch in the War Room**, not the umbrella. The umbrella reads
     health/arsenal/findings and links to `:3333/ui/`; T3MP3ST's agent session,
     approvals and receipts stay native. A unified mission launcher needs its API and
@@ -540,10 +542,11 @@ drift — check `verify-deploy.sh` first.
    master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
    they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
    manual monitor flagged (M3).
-3. **Pen-test umbrella** (P1–P3): open `http://127.0.0.1:9130`, create a real
-   engagement with a signed authorization, run the lab end to end, then one customer
-   Surface Check. Keep T3MP3ST missions in its War Room. Set the authorization
-   template, legal review, insurance and prices (P7–P8) before selling.
+3. **Pen-test full scan** (P1–P3): open `http://127.0.0.1:9130`, choose **Trendi
+   (self-owned)**, tick the authorization and run the full arsenal on
+   `trendibizz.com`. Then attach Pukeko's signed permission and run it there. Keep
+   T3MP3ST missions in its War Room. Set the authorization template, legal review,
+   insurance and prices (P7–P8) before selling.
 4. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
    hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
    the plan before letting anything execute. Pin the customer image first (H2), and extend source
