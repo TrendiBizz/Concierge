@@ -257,7 +257,7 @@ M2. **First scheduled runs:** 2026-11-18 at 07:00 social drafts, 07:30 deep dive
 M3. **The first manual monitor run flagged** `/sitemap.xml` and `/llms.txt` changed with
     no `changes.csv` row, plus two new queries. The test re-runs seeded the state, so the
     current report is quiet. Verify the change was planned before trusting the next run.
-M4. **Tamper watch is STILL PAUSED, but the kit is now in the repo (2026-11-17).** The kit
+M4. **DONE 2026-11-17 21:08 — tamper watch active and ALL CLEAR.** The kit
     moved to `scripts/security/tamper/`; `website/` in this repo is the known-good. Live is
     **not** tampered with: 107/107 files match `website/` at `7c8b113` — the old
     `trendi-site/deploy_known_good` (3 Nov) was stale after the 9 Nov cutover. The watch reads
@@ -266,18 +266,18 @@ M4. **Tamper watch is STILL PAUSED, but the kit is now in the repo (2026-11-17).
     Four silent bugs are fixed with tests (unscoped-section list, empty deployments read as OK,
     partial-section false changes, Cloudflare injection counted as tampering, plus accept
     refusing partial sections) — see `QA/verification/TAMPER_WATCH_2026-11-17.md`.
-    **Pages Read was added 2026-11-17 20:41** — the Pages project and deployment check now run
-    (`50 recent deployments checked, 0 unexpected`) after historic deploys were put in
-    `scripts/security/tamper/deployments_ledger.csv`. **Still open:** (1) Zone SSL and
-    Certificates Read (the Account scope does not cover the zone endpoint) + User Details Read —
-    optional, reported as not checked; (2) Jo confirms the mail DNS/DMARC change (MX to
-    `route*.mx.cloudflare.net`, DKIM added, DMARC `p=quarantine`) — never accept it unconfirmed;
-    (3) accept/reject the other reviewed diffs (min TLS 1.2, WAF rule changes, Worker list now
-    empty while routes remain, Page Shield on, billing alerts); then resume and run once by
-    hand. The job now runs in the container with the kit mounted at
-    `/opt/data/concierge/scripts/security/tamper` and reports in
-    `~/.workwatch/reports/tamper/` (verified inside `hermes-concierge` 20:49).
-    `hermes/JOBS.md` T1 has the exact list.
+    Kit in `scripts/security/tamper/`; `website/` is the known-good. Token from Keychain
+    **`trendi-cf-readonly-token`** on the Mac, mounted 0600 copy in the container. Pages Read
+    added by Jo; deployments check runs (50 checked, 0 unexpected) with historic deploys in
+    `deployments_ledger.csv`. Jo confirmed the mail change at 21:05; baselines accepted for
+    `dns public_dns zone_settings rulesets worker_scripts notifications page_shield`, with
+    per-item **revert notes** in `scripts/security/tamper/baselines/CHANGES.md`. Both paths
+    return ALL CLEAR (18 checks). The Hermes job `4ad2c618d277` (active, catch-up on) runs the kit from
+    `/opt/data/concierge/scripts/security/tamper` (mounted read-only) and writes reports to
+    `~/.workwatch/reports/tamper/`; next run 2026-11-18 07:30.
+    Optional only: Zone SSL + User Details Read, and the redirect ruleset detail, are still
+    403 and reported as not checked (old values kept). See
+    `QA/verification/TAMPER_WATCH_2026-11-17.md`.
 M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `b8c9000b442b`), `~/.workwatch/notes` mounted read-only, first report
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the

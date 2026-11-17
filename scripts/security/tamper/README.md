@@ -81,8 +81,10 @@ bash scripts/security/tamper/daily-watch.sh accept --reason 'who: what, evidence
 ```
 
 Every accept appends to `baselines/ACCEPT-LOG.txt` and copies the previous
-files into `baselines/history/<timestamp>/`. **Never accept the mail DNS or
-DMARC items** without Jo's explicit confirmation.
+files into `baselines/history/<timestamp>/`. Per-item **revert instructions** live in
+`baselines/CHANGES.md`. **Never accept the mail DNS or DMARC items** without Jo's
+explicit confirmation (given 2026-11-17). A section the token can only partially
+read is accepted by keeping the old baseline for the unreadable key/ruleset.
 
 ## Cloudflare edge transforms that are not site changes
 

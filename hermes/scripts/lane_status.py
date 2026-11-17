@@ -41,7 +41,7 @@ EXPECTED: dict[str, list[str]] = {
 
 # Lanes whose only routine is deliberately paused in schedules.yaml. No report is
 # expected, and the master must not read that as a failure.
-PAUSED = {"site-watch"}
+PAUSED = set()  # site-watch resumed 2026-11-17; no lane is paused now
 
 
 def status_of(path: Path) -> str | None:

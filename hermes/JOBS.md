@@ -21,6 +21,7 @@ project and keep their own owner.
 | Trendi SEO forums daily deep dive | `HANDOVER.md` section 15b | `trendi-deep-dive` | trendi-desk | 07:30 daily |
 | Twice-monthly post brief (Trendi) (`twice-monthly-post-brief-trendi`) | Recorded creation + content rules (see the procedure; the verbatim Grok prompt was not in the local cache) | `trendi-post-brief` | trendi-desk | 3rd & 17th 09:00 |
 | Workwatch weekly report | Workwatch README (8 days collected, 7 reported) | `workwatch-weekly-report` | workwatch | Mon 08:00 |
+| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `routines/trendi-tamper-watch.md` | `trendi-tamper-watch` | site-watch | 07:30 daily (resumed 2026-11-17) |
 | — (new) | Master layer over the subagents | `master-daily-brief` | trendi-master | 08:00 daily |
 | — (new) | Master layer over the subagents | `master-weekly-review` | trendi-master | Mon 10:00 |
 
@@ -28,33 +29,31 @@ project and keep their own owner.
 
 | Grok automation (id) | Hermes job | Why paused | How to enable |
 |---|---|---|---|
-| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | Mail DNS/DMARC and a few config drifts unconfirmed; see T1 | T1 below |
 | Ego Lite Linux watch (`ego-lite-linux-watch`) | `ego-lite-linux-watch` | One-shot; no Linux build exists | Re-enable when a Linux build ships, or delete the job |
 
 ## Prerequisites
 
-**T1 — tamper watch. Kit moved into the repo 2026-11-17; not resumed yet.**
+**T1 — tamper watch. DONE 2026-11-17; job active.**
 The kit now lives in `scripts/security/tamper/` in this repo, and the repo's
 `website/` tree is the known-good (the old `trendi-site/deploy_known_good` was from
 3 Nov and made every run report tampering after the Concierge cutover). The watch
 reads the token from the Keychain item `trendi-cf-readonly-token`, **not** from
 `~/.config/trendi/cloudflare_token`; both currently hold the same token.
 
-Still open before `cron resume`:
+Completed:
 
-1. **DONE 2026-11-17:** Pages Read added; Pages project and deployments now check
-   (50 recent, 0 unexpected). Historic deploys are in `deployments_ledger.csv`.
-2. **Zone** SSL and Certificates Read (the Account scope does not cover the zone
-   endpoint) and **User Details Read** are still missing; Universal SSL and the
-   `/user` 2FA check are reported as not checked. The redirect ruleset detail still
-   403s.
-3. **The mail DNS/DMARC change is unconfirmed.** The 15 Nov diff (MX moved to
-   `route*.mx.cloudflare.net`, DKIM added, DMARC `p=none` -> `p=quarantine`, SPF
-   `include:_spf.mx.cloudflare.net`) must be confirmed by Jo before it is baselined.
-4. Other sections have diffs against the 2-3 Nov baselines (min TLS 1.2, WAF AI
-   crawler block, rate limit 60/10s, Worker removed, Page Shield on, billing
-   alerts). Evidence is in `QA/verification/TAMPER_WATCH_2026-11-17.md`; accept or
-   reject each; the Worker removal and the redirect ruleset 403 need a decision.
+1. Pages Read added; Pages project + deployments check (50 recent, 0 unexpected);
+   historic deploys in `deployments_ledger.csv`.
+2. Jo confirmed the mail change at 21:05. `dns`, `public_dns`, `zone_settings`,
+   `rulesets`, `worker_scripts`, `notifications`, `page_shield` baselined, with
+   per-item revert notes in `scripts/security/tamper/baselines/CHANGES.md`.
+3. Mac and container runs both `ALL CLEAR` (exit 0). Job resumed 21:08; next run
+   2026-11-18 07:30 NZDT.
+
+Optional follow-up: Zone SSL and Certificates Read + User Details Read (the Account
+SSL scope does not cover the zone endpoint), and the redirect ruleset detail. Until
+then those parts are kept from the old baseline and reported as not checked; not a
+failure.
 
 The Hermes job runs **inside the container**, so `start-master.sh` mounts the kit at
 `/opt/data/concierge/scripts/security/tamper` and `website/` read-only, sets
@@ -66,7 +65,7 @@ The Hermes job runs **inside the container**, so `start-master.sh` mounts the ki
 Then resume and run once:
 
 ```bash
-docker exec hermes-concierge hermes -p site-watch cron resume 8f4d9ef6b5b3
+docker exec hermes-concierge hermes -p site-watch cron resume 4ad2c618d277
 ```
 
 **T2 — Workwatch notes. DONE 2026-11-17.** Jo asked for Workwatch to be part of the

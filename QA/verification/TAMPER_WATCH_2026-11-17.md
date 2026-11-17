@@ -103,26 +103,43 @@ the kit, so `run-snapshot.sh out.json` wrote to the wrong directory.
   why the previous routine path could never have worked: the job runs in the
   container, which cannot see `/Users/jo` or the Keychain.
 
-## 6. Open items (why the job is still paused)
+## 6. Baseline acceptance and resume (2026-11-17 21:05)
+
+Jo confirmed the mail change. Accepted with per-item revert notes in
+`scripts/security/tamper/baselines/CHANGES.md`: `dns`, `public_dns`,
+`zone_settings` (min TLS 1.2), `rulesets` (rate limit 60/10 s + API exemptions,
+AI-crawler block), `worker_scripts` (empty after the cutover), `notifications`
+(two billing alerts), `page_shield` (enabled). The unreadable Universal SSL and
+redirect-ruleset parts were **kept from the old baseline** rather than dropped.
+
+A transient WAF ruleset named `…pytest-…` existed in the 08:04 snapshot and was
+gone by 08:06; it was mistakenly baselined and removed again with a second
+accept at 21:08. Not a site change; noted in case the test appears again.
+
+Both paths then returned `ALL CLEAR`:
+- Mac: `daily-watch.py` exit 0, 18 checks.
+- Container: `daily-watch.sh` exit 0 (`/opt/data/.workwatch/reports/tamper/`).
+
+The first `cron run` used a stale prompt from before the installer and reported old
+Nov-15 data against the old Mac kit — the profile prompt is rendered at install
+time, and the container had been restarted with `--no-install`. Re-running
+`start-master.sh` (full install) replaced the job with **`4ad2c618d277`** (active,
+catch-up on). Its direct run succeeded and wrote
+`~/.workwatch/reports/hermes/site-watch/2026-11-17-trendi-tamper-watch.md` with
+`Status: quiet`; `latest.md` matches. Next scheduled run 2026-11-18 07:30 NZDT.
+
+## 7. Remaining optional items
 
 1. **DONE:** Pages Read added; Pages project + deployments check run (0 unexpected).
 2. Optional completeness: **Zone** SSL and Certificates Read (the Account variant
    does not cover `/zones/:id/ssl/universal/settings`), **User Details Read**, and
    whichever permission opens the redirect ruleset detail. Until then those are
    reported as not checked, never as changes.
-3. **Confirm the mail DNS/DMARC change** before baselining it: MX moved to
-   `route1/2/3.mx.cloudflare.net`, DKIM `cf2024-1._domainkey` added, DMARC
-   `p=none` -> `p=quarantine`, SPF `include:_spf.mx.cloudflare.net`. This is
-   consistent with the documented Cloudflare Email Routing inbound path
-   (`INBOUND_EMAIL_SECURITY_2026-11-11.md`, `EMAIL_ASSESSMENT_2026-11-12.md`) and
-   DMARC quarantine was noted there as an operator decision — but JOBS T1 still
-   requires Jo's explicit yes.
-4. Review and accept/reject the other baseline diffs: min TLS 1.0 -> 1.2, WAF
-   `api-robots` widened to 60/10 s and scoped away from `/api/v1/*`, "Block AI
-   training crawlers" rule, Worker scripts list now empty (routes still point at
-   `trendi-force-https`; `/api/robots` is 404 — likely removed in the cutover, needs
-   a yes), Page Shield enabled, two billing-budget notifications.
-5. Resume the cron job after 3-4; run it once by hand.
+3. Optional: add **Zone** SSL and Certificates Read + User Details Read, and find
+   the permission for the redirect ruleset detail. Those parts are currently kept
+   from the old baseline and reported as not checked; nothing is failing.
+4. `worker_content` (the old Worker source hash) is also unreadable; the Worker was
+   removed in the cutover, so this section is informational until a Worker returns.
 
 ## 7. Files
 

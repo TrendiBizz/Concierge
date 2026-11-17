@@ -54,7 +54,7 @@ by an unattended routine.
 | Trendi daily SEO / pen-test social drafts | `trendi-social-drafts` | trendi-desk | active |
 | Trendi SEO forums daily deep dive | `trendi-deep-dive` | trendi-desk | active |
 | Twice-monthly post brief (Trendi) | `trendi-post-brief` | trendi-desk | active |
-| trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | paused — kit in `scripts/security/tamper/`; needs Pages Read and DNS confirmation |
+| trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | active — kit in `scripts/security/tamper/`, first run quiet 2026-11-17 |
 | Ego Lite Linux watch | `ego-lite-linux-watch` | trendi-desk | paused — one-shot; re-enable when there is a Linux build |
 | Workwatch weekly report | `workwatch-weekly-report` | workwatch | active — notes mounted read-only |
 | — (new) | `master-daily-brief` | trendi-master | active |
