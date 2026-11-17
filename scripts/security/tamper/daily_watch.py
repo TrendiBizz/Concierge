@@ -264,12 +264,13 @@ def auth_error(err):
 
 def compare(sec, current, baselines, res, ignore_missing=False, drop_unreadable=False):
     bpath = baselines / f"{sec}.json"
+    observed = current
     unread_keys = set()
     if drop_unreadable and isinstance(current, list):
         unread_keys = {(x.get("phase"), x.get("name")) for x in current
                        if isinstance(x, dict) and x.get("rules_unreadable")}
         current = [x for x in current if not (isinstance(x, dict) and x.get("rules_unreadable"))]
-    (STATE / f"{sec}.json").write_text(canon(current))
+    (STATE / f"{sec}.json").write_text(canon(observed))
     if not bpath.is_file():
         res.set("UNCHECKED", "no baseline yet; run: daily-watch.sh accept --reason '...' " + sec)
         return
@@ -307,6 +308,7 @@ def run(args):
     REPORTS.mkdir(parents=True, exist_ok=True)
     started = time.time()
     results = []
+    partial_sections = []
     meta = {"run_at": dt.datetime.now(dt.timezone.utc).isoformat(), "baselines": str(baselines)}
 
     # (1) live integrity
@@ -346,6 +348,8 @@ def run(args):
         else:
             cur = snap["sections"][sec]
             partial = [e for e in errs if auth_error(e)]
+            if partial:
+                partial_sections.append(sec)
             if sec == "rulesets":
                 n_unread = sum(1 for x in cur if isinstance(x, dict) and x.get("rules_unreadable"))
                 if n_unread:
@@ -474,6 +478,7 @@ def run(args):
 
     # ---------------------------------------------------------------- report
     meta["elapsed_s"] = round(time.time() - started, 1)
+    meta["partial_sections"] = sorted(set(partial_sections))
     (STATE / "_meta.json").write_text(canon(meta))
     bad = [x for x in results if x.status in ("CHANGED", "PROBLEM")]
     unk = [x for x in results if x.status == "UNCHECKED"]
@@ -537,9 +542,13 @@ def accept(args):
     bad = [s for s in secs if s not in ALL_SECTIONS]
     if bad:
         print(f"accept: unknown section(s) {bad}; valid: {' '.join(ALL_SECTIONS)} all", file=sys.stderr); return 2
+    partial = set(meta.get("partial_sections") or [])
     hist = baselines / "history" / now_nz().strftime("%Y%m%d-%H%M%S")
-    done = []
+    done, refused = [], []
     for s in secs:
+        if s in partial:
+            refused.append(s)
+            continue
         src = STATE / f"{s}.json"
         if not src.is_file():
             continue
@@ -558,6 +567,11 @@ def accept(args):
         else:
             shutil.copy2(src, dst)
         done.append(s)
+    if refused:
+        print("refused (token could not read this section on the last run; fix the scope and re-run): "
+              + " ".join(refused), file=sys.stderr)
+        if not done:
+            return 2
     with open(baselines / "ACCEPT-LOG.txt", "a") as f:
         f.write(f"{fmt_nz(now_nz())}\t{','.join(done)}\trun {meta['run_at']}\t{args.reason.strip()}\n")
     print(f"accepted {len(done)} section(s) from the run at {fmt_nz(dt.datetime.fromisoformat(meta['run_at']))}: {' '.join(done)}")

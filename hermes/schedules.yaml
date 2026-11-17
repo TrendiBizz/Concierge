@@ -158,7 +158,7 @@ routines:
     schedule: "30 7 * * *"
     procedure: routines/trendi-tamper-watch.md
     enabled: false
-    paused_reason: "Needs a read-only Cloudflare API token on the Mac and the tamper kit in trendi-site; see JOBS.md T1."
+    paused_reason: "Kit is in scripts/security/tamper/; token lacks Pages/SSL/User Read, and the mail DNS/DMARC change is unconfirmed. See JOBS.md T1."
     catch_up: false
     continuity: false
     source: "Grok Trendi Desk automation trendibizz-com-daily-tamper-watch (paused 2026-11-06)"

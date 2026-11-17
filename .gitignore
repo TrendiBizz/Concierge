@@ -37,3 +37,9 @@ QA/verification/geo-daily/
 
 # macOS AppleDouble resource forks — never web content, never committed
 ._*
+
+# Tamper-watch run output and per-run state. Baselines are committed; reports are not.
+scripts/security/tamper/reports/
+
+# Session scratch output (handoff notes, snapshots, embedded checkouts). Never commit.
+/outputs/

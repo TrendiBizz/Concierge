@@ -32,7 +32,7 @@ COMMANDS = [
     ("seo-engine", "DataForSEO weekly (--dry-run)", SEO / "dataforseo/weekly.py", "py", True),
     ("seo-engine", "ship gate seo-gate.sh", SITE / "scripts/seo-gate.sh", "sh", False),
     ("trendi-desk", "offer facts PRODUCT.md", SITE / "PRODUCT.md", "doc", False),
-    ("trendi-desk", "tamper watch daily_watch.py", WW / "tamper-watch/security/daily_watch.py", "py", True),
+    ("trendi-desk", "tamper watch daily_watch.py", Path("/Users/jo/work-staging/concierge-integration/scripts/security/tamper/daily_watch.py"), "py", True),
     ("workwatch", "run_social.sh", WW / "ops/bin/run_social.sh", "sh", False),
     ("workwatch", "run_deep_dive.sh", WW / "ops/bin/run_deep_dive.sh", "sh", False),
     ("workwatch", "check_social.py", WW / "ops/bin/check_social.py", "py", False),

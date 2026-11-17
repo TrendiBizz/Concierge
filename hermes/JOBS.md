@@ -28,22 +28,38 @@ project and keep their own owner.
 
 | Grok automation (id) | Hermes job | Why paused | How to enable |
 |---|---|---|---|
-| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | No read-only Cloudflare token on the Mac; the tamper kit is not in `trendi-site` | T1 below |
+| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | Token has no Pages Read (deployments blind); mail DNS/DMARC unconfirmed; see T1 | T1 below |
 | Ego Lite Linux watch (`ego-lite-linux-watch`) | `ego-lite-linux-watch` | One-shot; no Linux build exists | Re-enable when a Linux build ships, or delete the job |
 
 ## Prerequisites
 
-**T1 — tamper watch.** Jo creates a read-only Cloudflare API token (DNS, Zone, Zone
-Settings, Firewall, Workers Routes Read; Pages, Workers Scripts, Account Settings,
-Notifications Read). The kit (`cf-snapshot.js`, `daily_watch.py`,
-`daily-watch.sh`, baselines) is committed to `trendi-site/scripts/security/`. Then:
+**T1 — tamper watch. Kit moved into the repo 2026-11-17; not resumed yet.**
+The kit now lives in `scripts/security/tamper/` in this repo, and the repo's
+`website/` tree is the known-good (the old `trendi-site/deploy_known_good` was from
+3 Nov and made every run report tampering after the Concierge cutover). The watch
+reads the token from the Keychain item `trendi-cf-readonly-token`, **not** from
+`~/.config/trendi/cloudflare_token`; both currently hold the same token.
+
+Still open before `cron resume`:
+
+1. **Pages Read is missing** on the token, so the Pages project and the
+   "unexpected deployment" check are blind (reported as `UNCHECKED`, exit 2).
+   Add Account -> Cloudflare Pages -> Read (not Write).
+2. **SSL and Certificates Read** and **User Details Read** are missing; Universal
+   SSL and the `/user` 2FA check are reported as not checked.
+3. **The mail DNS/DMARC change is unconfirmed.** The 15 Nov diff (MX moved to
+   `route*.mx.cloudflare.net`, DKIM added, DMARC `p=none` -> `p=quarantine`, SPF
+   `include:_spf.mx.cloudflare.net`) must be confirmed by Jo before it is baselined.
+4. Other sections have diffs against the 2-3 Nov baselines (min TLS 1.2, WAF AI
+   crawler block, rate limit 60/10s, Worker removed, Page Shield on, billing
+   alerts). Evidence is in `QA/verification/TAMPER_WATCH_2026-11-17.md`; accept or
+   reject each; the Worker removal and the redirect ruleset 403 need a decision.
+
+Then resume and run once:
 
 ```bash
 docker exec hermes-concierge hermes -p site-watch cron resume <id>
 ```
-
-and run it once by hand. Review every flag against the change ledger before accepting
-any baseline. Never accept the mail DNS or DMARC items.
 
 **T2 — Workwatch notes. DONE 2026-11-17.** Jo asked for Workwatch to be part of the
 Hermes setup and UI. `~/.workwatch/notes` is mounted read-only at

@@ -121,6 +121,25 @@ class PartialSectionTests(unittest.TestCase):
         self.assertEqual(res.status, "OK", res.lines)
 
 
+class AcceptGuardTests(unittest.TestCase):
+    def test_accept_refuses_a_partially_read_section(self):
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "_baselines"
+            base.mkdir()
+            dw.set_state_dir(base)
+            dw.STATE.mkdir(parents=True, exist_ok=True)
+            (dw.STATE / "_meta.json").write_text(json.dumps({
+                "run_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                "baselines": str(base),
+                "partial_sections": ["zone_settings"],
+            }))
+            (dw.STATE / "zone_settings.json").write_text('{"min_tls_version": "1.2"}')
+            args = type("Args", (), {"baselines": str(base), "reason": "test: reason long enough",
+                                     "sections": ["zone_settings"]})()
+            rc = dw.accept(args)
+        self.assertEqual(rc, 2)
+
+
 class CloudflareInjectionTests(unittest.TestCase):
     def test_challenge_loader_is_stripped(self):
         expected = b"<html><body>hi</body></html>"

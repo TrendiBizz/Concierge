@@ -1,5 +1,7 @@
 #!/bin/bash
 # Reads the read-only token from the macOS Keychain straight into this process env. Never printed or logged.
+# The Keychain item is the watch's source of truth; ~/.config/trendi/cloudflare_token is only a copy.
+# Usage: bash run-snapshot.sh [out.json]   (default ~/.workwatch/tamper-snapshot.json)
 set -euo pipefail
 cd "$(dirname "$0")"
 OUT="${1:-$HOME/.workwatch/tamper-snapshot.json}"

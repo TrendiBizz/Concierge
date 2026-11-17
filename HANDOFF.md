@@ -8,7 +8,7 @@ Records from 2026-11-15: `SYSTEM_AUDIT_2026-11-15.md` (audit), `SEO_PASS_2026-11
 Records from 2026-11-16: `GEO_DAILY_2026-11-16.md`, and — read these before trusting any tool —
 `DEPLOY_GATE_MISDIAGNOSIS_2026-11-16.md` (why `verify-deploy` was red and why no publish was
 needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TEST_ENV_2026-11-16.md`
-(the command that actually runs the suite).
+(the command that actually runs the suite). Tamper watch / M4: `TAMPER_WATCH_2026-11-17.md`.
 
 ## 1. Project and repo
 
@@ -257,8 +257,21 @@ M2. **First scheduled runs:** 2026-11-18 at 07:00 social drafts, 07:30 deep dive
 M3. **The first manual monitor run flagged** `/sitemap.xml` and `/llms.txt` changed with
     no `changes.csv` row, plus two new queries. The test re-runs seeded the state, so the
     current report is quiet. Verify the change was planned before trusting the next run.
-M4. **Tamper watch is paused** — it needs a read-only Cloudflare token on the Mac and the
-    tamper kit in `trendi-site/scripts/security/` (`JOBS.md` T1).
+M4. **Tamper watch is STILL PAUSED, but the kit is now in the repo (2026-11-17).** The kit
+    moved to `scripts/security/tamper/`; `website/` in this repo is the known-good. Live is
+    **not** tampered with: 107/107 files match `website/` at `7c8b113` — the old
+    `trendi-site/deploy_known_good` (3 Nov) was stale after the 9 Nov cutover. The watch reads
+    the token from Keychain `trendi-cf-readonly-token`, **not** from
+    `~/.config/trendi/cloudflare_token` (that file is a copy; both hold the same token).
+    Four silent bugs are fixed with tests (unscoped-section list, empty deployments read as OK,
+    partial-section false changes, Cloudflare injection counted as tampering, plus accept
+    refusing partial sections) — see `QA/verification/TAMPER_WATCH_2026-11-17.md`.
+    **Open, in order:** (1) add **Pages Read** to the token — deployments are blind without it;
+    (2) optional SSL and Certificates Read + User Details Read; (3) Jo confirms the mail
+    DNS/DMARC change (MX to `route*.mx.cloudflare.net`, DKIM added, DMARC `p=quarantine`) —
+    never accept it unconfirmed; (4) accept/reject the other reviewed diffs (min TLS 1.2, WAF
+    rule changes, Worker list now empty while routes remain, Page Shield on, billing alerts);
+    then resume and run once by hand. `hermes/JOBS.md` T1 has the exact list.
 M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `b8c9000b442b`), `~/.workwatch/notes` mounted read-only, first report
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the
