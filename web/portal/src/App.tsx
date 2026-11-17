@@ -1847,6 +1847,7 @@ function Shell() {
 
   const HERO: Record<string, {title: string; line: string}> = {
     home: {title: (brand.name || 'Your business') + ' — ' + greeting(), line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
+    pipeline: {title: 'Pipeline', line: 'Every deal by the stage it has reached, with the value on the table and the forecast it supports.'},
     texts: {title: 'Texts', line: 'Every text conversation, with what Concierge said and what you said. Take over any customer, reply yourself, then hand back.'},
     crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
     contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},

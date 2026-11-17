@@ -20,7 +20,6 @@ def test_contact_consent_does_not_send_unrequested_acknowledgement(monkeypatch):
     monkeypatch.setattr(automation,'get_settings',lambda:SimpleNamespace(default_country_code='64'))
     queue=AsyncMock(return_value=True)
     monkeypatch.setattr(automation.outbox,'enqueue',queue)
-    monkeypatch.setattr(automation.events,'queue_twenty',AsyncMock())
     monkeypatch.setattr(automation.events,'emit',lambda *a,**k:None)
     result=asyncio.run(tools.run_tool(tenant,'capture_lead',{
         'phone':'+64278817368','name':'Jo','message':'Please send details',

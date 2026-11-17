@@ -20,7 +20,6 @@ from pathlib import Path
 
 import acknowledge
 import booking
-import crm
 import notify
 import transcripts
 import tenant_dispatch
@@ -284,14 +283,6 @@ class Concierge(Agent):
             f"Email: {email or 'none'}\nNotes: {notes or 'none'}\nBooking id: {appt.id}",
             booking.ics(appt),
         )
-        await crm.push_lead(
-            name=caller_name,
-            phone=number,
-            email=email,
-            message=f"Booked {appt.service} for {when} (NZ time). Notes: {notes or 'none'}",
-            plan=appt.service,
-            source="Voice call: booking",
-        )
         return (
             f"Booked for {when}. Text confirmation status: {status['text']}. "
             f"Email confirmation status: {status['email']}. "
@@ -356,10 +347,6 @@ class Concierge(Agent):
             f"Follow up by: {followup or 'not stated'}\n"
             f"Email: {email.strip() or 'none'}\n"
             f"Caller asked for a reply by: {channel}",
-        )
-        # The CRM copy is internal: its status is not given to the model, so the caller is never told about it.
-        await crm.push_lead(
-            name=caller_name, phone=number, email=email.strip(), message=reason, source="Voice call: message"
         )
         saved = "Saved. You may now tell the caller the Trendi team will follow up."
         if channel == "none":

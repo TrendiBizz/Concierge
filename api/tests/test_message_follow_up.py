@@ -15,7 +15,6 @@ def test_each_new_message_creates_work_and_replays_do_not(real_db, monkeypatch, 
     tenant = dict(_run(real_db.fetchrow("SELECT * FROM tenants WHERE id=$1", tenant_id)))
     monkeypatch.setattr(owner_notifications, "queue", AsyncMock())
     monkeypatch.setattr(automation.events, "emit", lambda *a, **kw: None)
-    monkeypatch.setattr(automation.events, "queue_twenty", AsyncMock())
     monkeypatch.setattr(automation, "lead_followup", AsyncMock())
     async def capture(message):
         return await enquiries.capture(tenant, "chat", "conversation-1", message,

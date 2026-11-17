@@ -1,11 +1,8 @@
 """Back up live VPS databases, social vault, uploads, release and recovery settings.
 
-The CRM stack (Twenty) runs under the `crm` compose profile and is intentionally stopped; it is
-optional. This script used to dump it unconditionally, so from 2026-11-13 every encrypted backup
-failed with `docker exec trendi-crm-db-1 pg_dump` — container not running — and no restic snapshot
-was produced for two days while the health check reported ok (found 2026-11-15). Optional parts are
-now skipped and recorded in the snapshot; only the core Concierge database is allowed to fail the
-run.
+The Twenty CRM (and its optional compose profile) was retired on 2026-11-17; it had never been used.
+The backup now dumps only the core Concierge database plus the social vault. Only that core database
+is allowed to fail the run — a backup that silently loses it is worse than one that fails loudly.
 """
 import fcntl
 import json
@@ -67,7 +64,6 @@ def main():
     run(['restic', 'cat', 'config'], stdout=subprocess.DEVNULL)
 
     dump_database(stage, 'trendi-postgres-1', 'concierge', required=True, skipped=skipped)
-    dump_database(stage, 'trendi-crm-db-1', 'default', required=False, skipped=skipped)
 
     source = Path(subprocess.check_output(
         ['docker', 'volume', 'inspect', '--format', '{{.Mountpoint}}', 'trendi_social'],
@@ -81,20 +77,6 @@ def main():
         if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise SystemExit('the social vault copy failed its integrity check')
 
-    # CRM storage, Redis and the Twenty database are one optional unit.
-    crm_up = container_running('trendi-crm-db-1') and container_running('trendi-crm-redis-1')
-    if crm_up:
-        with (stage / 'crm-storage.tar.gz').open('wb') as output:
-            run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
-                 '-v', 'trendi_crm-storage:/source:ro', 'node:22-alpine',
-                 'tar', '-czf', '-', '-C', '/source', '.'], stdout=output)
-        run(['docker', 'exec', 'trendi-crm-redis-1', 'redis-cli', 'SAVE'],
-            stdout=subprocess.DEVNULL)
-        run(['docker', 'cp', 'trendi-crm-redis-1:/data/dump.rdb', str(stage / 'crm-redis.rdb')],
-            stdout=subprocess.DEVNULL)
-    else:
-        skipped.append('crm storage, redis and Twenty data skipped: the crm profile is not running')
-
     # Preserve the inactive legacy voice service for recovery, without activating it.
     for filename in ('voice-original.env', 'voice-data.tar.gz'):
         legacy = BACKUPS / filename
@@ -104,7 +86,6 @@ def main():
     (stage / 'backup-manifest.json').write_text(json.dumps({
         'created_at': datetime.now(timezone.utc).isoformat(),
         'skipped': skipped,
-        'crm_included': crm_up,
     }, indent=1) + '\n')
 
     run(['restic', 'backup', str(stage), '/opt/trendi/shared', RELEASES,

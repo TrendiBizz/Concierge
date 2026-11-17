@@ -89,7 +89,6 @@ def test_ingress_owner_notice_survives_scoring_row_reload(monkeypatch):
     monkeypatch.setattr(automation.scoring, 'apply', AsyncMock(return_value=dict(lead)))
     monkeypatch.setattr(automation.tasks, 'create_follow_up', AsyncMock())
     monkeypatch.setattr(automation.events, 'emit', lambda *args, **kwargs: None)
-    monkeypatch.setattr(automation.events, 'queue_twenty', AsyncMock())
     notice = AsyncMock()
     monkeypatch.setattr(automation, '_owner_alert', notice)
     asyncio.run(automation.on_lead_created({'id': 'tenant', 'name': 'Business'}, {**lead, '_owner_notice_queued': True}))

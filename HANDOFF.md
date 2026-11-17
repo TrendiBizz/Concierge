@@ -158,14 +158,24 @@ The first three streams are recorded in their own files. The last one is this se
    false-alarm note (a `--window-size=390` screenshot is cropped, not a mobile layout) are in
    `QA/verification/SOCIAL_ICONS_AND_SEO_2026-11-16.md`.
 
+12. **Studio sales pipeline board + Twenty CRM retired — 2026-11-17 (this session).** A drag-and-drop
+    kanban over the same five lead stages (`new → contacted → booked → won → lost`) the dashboard and
+    weekly summary already use: `GET /owner/crm/pipeline` (the `sales.pipeline()` board) and
+    `POST /owner/crm/leads` (add an offline opportunity), with `Pipeline.tsx` in Studio → Sales. Cards
+    also have a stage menu so it works on touch. Twenty CRM was deleted entirely — compose `crm`
+    profile, bridge, API delivery queue, Grok-agent push and volumes — it had never been used. Proof:
+    1523 API tests, portal `tsc`/build, `verify-deploy.sh`.
+    Record: `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
+
 ## 3. Outstanding — the real worklist
 
 **2026-11-17 — the Docker → Podman migration on the VPS is DONE** (production `trendi` + `asterisk` run on
 Podman; the Docker engine is disabled but kept installed, `/var/lib/docker` untouched; a real reboot was
-survived). Remaining migration open items live in `QA/verification/PODMAN_MIGRATION_2026-11-17.md` "Still open":
-the Twenty CRM (`crm` profile) was not migrated, the Hermes `network_mode: host`/`cap_drop` re-test, keep Docker
-installed for a week, identify the 23:10 reboot trigger, and operator items (delete the one-day DO token;
-approve or decline the Version 1 announcement email — do NOT send it without Jo).
+survived; the 23:10 "unidentified" reboot was that reboot test). Remaining migration open items live in
+`QA/verification/PODMAN_MIGRATION_2026-11-17.md` "Still open": the Hermes `network_mode: host`/`cap_drop`
+re-test, keep Docker installed for a week, and operator items (delete the one-day DO token; approve or
+decline the Version 1 announcement email — do NOT send it without Jo). **The Twenty CRM was retired on
+2026-11-17** — see `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
 
 ### Operator only (cannot be fixed from this repo)
 
@@ -195,7 +205,9 @@ approve or decline the Version 1 announcement email — do NOT send it without J
    **replacement Concierge payment link**, **Cloudflare JS detections** — unchanged from the archive.
 5. **Inbound SMS has never arrived** (`sms:inbound` warn, 1 paired phone). Needs a text sent to the
    business number.
-6. **Decide about the Twenty CRM stack** (`docker compose --profile crm`): run it or retire it.
+6. **RETIRED 2026-11-17 — the Twenty CRM stack** (`crm` profile) is gone: compose profile, bridge, API
+   delivery queue, Grok-agent push and the volumes were deleted; it had never been used. The Studio's own
+   pipeline/contacts/quotes are the CRM. See `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
 7. **Search Console and Bing Webmaster — and the two halves are not in the same state.** Measured
    2026-11-16: the domain TXT already carries
    `google-site-verification=avVhzA1EiofmOxiN_MaeFFNEsykt1q8QAfbrLBSStMA`, so Google ownership is

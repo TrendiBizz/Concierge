@@ -65,7 +65,6 @@ ALLOWED_STAGED_FILES = {
     "HANDOFF.md",
     "Caddyfile",
     "docker-compose.yml",
-    "docker-compose.twenty-bridge.yml",
     ".gitignore",
     ".env.example",
 }

@@ -27,7 +27,6 @@ fill() {
 fill POSTGRES_PASSWORD 24
 fill ADMIN_TOKEN 24
 fill CHATWOOT_SECRET_KEY_BASE 64
-fill TWENTY_APP_SECRET 32
 rm -f .env.bak
 
 chmod 600 .env

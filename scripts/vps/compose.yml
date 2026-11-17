@@ -134,57 +134,8 @@ services:
       api: {condition: service_healthy}
       website: {condition: service_started}
     mem_limit: 96m
-  crm-db:
-    profiles: [crm]
-    image: postgres:16
-    restart: unless-stopped
-    env_file:
-      - {path: /opt/trendi/shared/crm-db.env, format: raw}
-    volumes: [crm-database:/var/lib/postgresql/data]
-    healthcheck:
-      test: [CMD-SHELL, "pg_isready -U postgres -d default"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    mem_limit: 512m
-  crm-redis:
-    profiles: [crm]
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes: [crm-redis:/data]
-    command: [redis-server, --appendonly, "no", --save, "60", "1"]
-    mem_limit: 192m
-  crm:
-    profiles: [crm]
-    image: ${TWENTY_IMAGE:?Use the verified current multi-architecture image digest}
-    restart: unless-stopped
-    env_file:
-      - {path: /opt/trendi/shared/crm.env, format: raw}
-    volumes: [crm-storage:/app/packages/twenty-server/.local-storage]
-    depends_on:
-      crm-db: {condition: service_healthy}
-      crm-redis: {condition: service_started}
-    mem_limit: 1536m
-    healthcheck:
-      test: [CMD-SHELL, "curl -fsS http://localhost:3000/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 60s
-  crm-worker:
-    profiles: [crm]
-    image: ${TWENTY_IMAGE:?Use the verified current multi-architecture image digest}
-    restart: unless-stopped
-    command: [yarn, worker:prod]
-    env_file:
-      - {path: /opt/trendi/shared/crm.env, format: raw}
-    environment:
-      DISABLE_DB_MIGRATIONS: "true"
-      DISABLE_CRON_JOBS_REGISTRATION: "true"
-    volumes: [crm-storage:/app/packages/twenty-server/.local-storage]
-    depends_on:
-      crm: {condition: service_started}
-    mem_limit: 1536m
+  # Twenty CRM (the `crm` profile: crm-db, crm-redis, crm, crm-worker) was retired on 2026-11-17.
+  # It had never been used; the Studio's own pipeline/contacts/quotes are the CRM.
   public-main:
     profiles: [public]
     image: cloudflare/cloudflared:latest
@@ -262,9 +213,6 @@ volumes:
   database:
   api-model-cache:
   social:
-  crm-database:
-  crm-redis:
-  crm-storage:
   rspamd-data:
 
 networks:

@@ -23,13 +23,12 @@ Every production container has `restart: unless-stopped` and comes back after a 
 
 ## Operate
 
-Run on the VPS as root. The root-only `compose.env` selects the website source and
-pins Twenty to the same multi-platform image digest used before migration.
+Run on the VPS as root. The root-only `compose.env` selects the website source.
 
 ```sh
 docker compose --env-file /opt/trendi/shared/compose.env \
   -f /opt/trendi/releases/20261108-vps/product/scripts/vps/compose.yml \
-  --profile crm --profile public ps
+  --profile public ps
 ```
 
 Use the same prefix with `up -d --wait` after a reviewed release. Build API/social

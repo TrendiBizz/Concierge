@@ -548,8 +548,6 @@ async def finish(tenant, call_id, conversation, status, record_session=None, rea
                 if tenant.get('notify_email'):
                     await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'owner_alert','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
                                     tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000] + tail, call_id+':owner-email')
-                if lead:
-                    await events.queue_twenty(tenant, 'voice.completed', call_id, {'lead': dict(lead)}, connection=c)
             await c.execute('UPDATE phone_calls SET status=$3,ended_at=now(),failure_reason=$4 WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status, reason[:500])
 
 

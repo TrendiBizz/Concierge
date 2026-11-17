@@ -141,7 +141,6 @@ async def _finish_enquiry(c, session, tenant):
     body += '\n\nThe complete enquiry is saved in your Concierge CRM.'
     await owner_notifications.queue(tenant, 'Voice enquiry for ' + tenant['name'], body,
                                     'voice-finished:' + str(session['id']), lead_id=lead['id'], connection=c)
-    await events.queue_twenty(tenant, 'voice.completed', str(session['id']), {'lead': {**dict(lead), 'message': transcript[:1400]}}, connection=c)
     await c.execute('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1', session['id'])
     return {'ok': True, 'lead_id': str(lead['id'])}
 

@@ -85,8 +85,6 @@ async def lifespan(_: FastAPI):
     digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
     missed_worker = asyncio.create_task(missed_calls.run_forever(stop)) if settings.outbox_enabled else None
     insights_worker = asyncio.create_task(call_insights.run_forever(stop)) if settings.outbox_enabled else None
-    twenty_worker = asyncio.create_task(events.run_twenty_forever(stop)) if (
-        settings.twenty_bridge_url and settings.twenty_bridge_tenant_slug) else None
     email_worker = asyncio.create_task(email_secretary.run_forever(stop))
     calendar_worker = asyncio.create_task(calendar_connection.run_forever(stop))
     yield
@@ -100,8 +98,6 @@ async def lifespan(_: FastAPI):
         await sla_worker
     if digest_worker:
         await digest_worker
-    if twenty_worker:
-        await twenty_worker
     await db.close()
 
 

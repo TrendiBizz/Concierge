@@ -1,9 +1,8 @@
-"""The nightly encrypted backup must survive an intentionally-stopped CRM profile.
+"""The nightly encrypted backup no longer has to know about a CRM profile.
 
-Measured on the VPS 2026-11-15: the Twenty CRM stack runs under the compose `crm` profile and has
-been stopped since 2026-11-13. backup.py dumped trendi-crm-db-1 unconditionally, so every run died
-with `Error response from daemon: container ... is not running` before restic uploaded anything.
-No snapshot was produced for two days while the health check reported ok.
+Twenty was retired on 2026-11-17 (never used). The backup now dumps only the core database and the
+social vault, so there is no optional CRM unit to skip. This keeps the earlier lesson (a backup must
+never silently lose the core database) while asserting the CRM logic is actually gone.
 """
 import json
 import os
@@ -67,14 +66,13 @@ def _run(tmp_path, fake_bin):
     return subprocess.run(["python3", str(BACKUP)], capture_output=True, text=True, env=env)
 
 
-def test_a_stopped_crm_profile_is_skipped_not_fatal(tmp_path):
+def test_the_backup_dumps_the_core_database_and_touches_no_crm(tmp_path):
     fake_bin, capture = _world(tmp_path)
     done = _run(tmp_path, fake_bin)
     assert done.returncode == 0, done.stderr
-    assert "skipped" in done.stdout.lower()
     manifest = json.loads((capture / "backup-manifest.json").read_text())
-    assert manifest["crm_included"] is False
-    assert any("crm" in item for item in manifest["skipped"])
+    assert "crm_included" not in manifest
+    assert not any("crm" in item for item in manifest["skipped"])
     assert (capture / "concierge.dump").exists(), "the real database must always be dumped"
     assert sorted(p.name for p in (capture / "social-media").iterdir()) == []
 
@@ -90,4 +88,5 @@ def test_the_core_database_can_never_be_skipped_silently(tmp_path):
 def test_the_manifest_says_exactly_what_is_missing():
     source = BACKUP.read_text()
     assert "backup-manifest.json" in source
-    assert "required=True" in source and "required=False" in source
+    assert "required=True" in source
+    assert "trendi-crm" not in source and "crm-storage" not in source

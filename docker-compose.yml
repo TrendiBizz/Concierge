@@ -2,10 +2,9 @@ name: concierge
 
 # Core services (always on): caddy, postgres, redis, api
 # Optional services are enabled with profiles, e.g. in .env:
-#   COMPOSE_PROFILES=support,crm,ops
+#   COMPOSE_PROFILES=support,ops
 #
 #   support    -> chatwoot     (human inbox / live handoff)
-#   crm        -> twenty       (CRM, contacts, pipelines)
 #   ops        -> uptime-kuma  (uptime monitoring)
 
 x-restart: &restart
@@ -27,14 +26,6 @@ x-chatwoot-env: &chatwoot-env
   FORCE_SSL: "false"
   LOG_LEVEL: info
   RAILS_LOG_TO_STDOUT: "true"
-
-x-twenty-env: &twenty-env
-  NODE_PORT: "3000"
-  PG_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/twenty
-  SERVER_URL: https://crm.${DOMAIN:-localhost}
-  REDIS_URL: redis://redis:6379/2
-  APP_SECRET: ${TWENTY_APP_SECRET:?run scripts/gen-env.sh}
-  STORAGE_TYPE: local
 
 services:
   # ---------------------------------------------------------------- core
@@ -200,34 +191,6 @@ services:
       chatwoot-prepare:
         condition: service_completed_successfully
 
-  # ----------------------------------------------------------------- crm
-  twenty:
-    image: twentycrm/twenty:${TWENTY_TAG:-latest}
-    <<: *restart
-    profiles: ["crm"]
-    environment: *twenty-env
-    volumes:
-      - twenty_storage:/app/packages/twenty-server/.local-storage
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  twenty-worker:
-    image: twentycrm/twenty:${TWENTY_TAG:-latest}
-    <<: *restart
-    profiles: ["crm"]
-    command: ["yarn", "worker:prod"]
-    environment:
-      <<: *twenty-env
-      DISABLE_DB_MIGRATIONS: "true"
-      DISABLE_CRON_JOBS_REGISTRATION: "true"
-    volumes:
-      - twenty_storage:/app/packages/twenty-server/.local-storage
-    depends_on:
-      - twenty
-
   # ----------------------------------------------------------------- ops
   uptime-kuma:
     image: louislam/uptime-kuma:1
@@ -243,5 +206,4 @@ volumes:
   pg_data:
   redis_data:
   chatwoot_storage:
-  twenty_storage:
   kuma_data:

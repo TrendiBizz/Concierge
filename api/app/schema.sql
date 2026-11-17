@@ -388,26 +388,9 @@ CREATE TABLE IF NOT EXISTS inbound_mailboxes (
 );
 CREATE INDEX IF NOT EXISTS inbound_mailboxes_tenant_idx ON inbound_mailboxes(tenant_id);
 
--- Durable and tenant-scoped Twenty bridge delivery; never silently deliver to
--- another customer's CRM. Uncertain outcomes require manual reconciliation.
-CREATE TABLE IF NOT EXISTS twenty_deliveries (
-    id          bigserial PRIMARY KEY,
-    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    event       text NOT NULL CHECK (event IN ('lead.created', 'appointment.booked')),
-    source_id   text NOT NULL,
-    payload     jsonb NOT NULL,
-    status      text NOT NULL DEFAULT 'pending'
-                CHECK (status IN ('pending','sending','sent','failed','uncertain')),
-    attempts    integer NOT NULL DEFAULT 0,
-    next_at     timestamptz NOT NULL DEFAULT now(),
-    claimed_at  timestamptz,
-    last_error  text NOT NULL DEFAULT '',
-    delivered_at timestamptz,
-    created_at  timestamptz NOT NULL DEFAULT now(),
-    UNIQUE(tenant_id,event,source_id)
-);
-CREATE INDEX IF NOT EXISTS twenty_delivery_due_idx
-ON twenty_deliveries(status,next_at);
+-- The Twenty CRM and its delivery queue were retired on 2026-11-17 (never used). Drop the queue a
+-- running box may still hold; this is a no-op on a database that never had it.
+DROP TABLE IF EXISTS twenty_deliveries;
 
 -- Customer authorizations do not activate channels. They are owner declarations
 -- and must be paired with separately verified provider grants and operator enablement.

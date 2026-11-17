@@ -39,12 +39,6 @@ class Settings(BaseSettings):
             raise ValueError("Owner portal must be an HTTPS /owner-ui URL (HTTP is allowed only on loopback) without credentials or parameters")
         return value
 
-    # Optional internal Twenty bridge. One explicitly named tenant only; never
-    # silently copy customer leads into Trendi's own CRM.
-    twenty_bridge_url: str = ""
-    twenty_bridge_tenant_slug: str = ""
-    twenty_bridge_auth_file: str = ""  # Docker secret path, never a browser token
-
     # Local Rust social service, completely off unless operator enables it.
     social_service_enabled: bool = False
     social_service_url: str = "http://127.0.0.1:4390"

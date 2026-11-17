@@ -795,7 +795,6 @@ def test_a_booking_alert_goes_to_the_owner_and_reminders_to_the_enquirer(monkeyp
     monkeypatch.setattr(automation.scoring, "apply", AsyncMock(side_effect=lambda lead, **k: lead))
     monkeypatch.setattr(automation.sales, "change_status", AsyncMock())
     monkeypatch.setattr(automation.events, "emit", lambda *a, **k: None)
-    monkeypatch.setattr(automation.events, "queue_twenty", AsyncMock())
 
     appt = {"id": "appt-1", "name": "Hana", "phone": "+6421555123", "email": "hana@example.com",
             "notes": "Checkup", "consent_contact": True, "status": "booked",
@@ -829,7 +828,6 @@ def test_without_consent_the_enquirer_gets_no_confirmation(monkeypatch):
     monkeypatch.setattr(automation.scoring, "apply", AsyncMock(side_effect=lambda lead, **k: lead))
     monkeypatch.setattr(automation.sales, "change_status", AsyncMock())
     monkeypatch.setattr(automation.events, "emit", lambda *a, **k: None)
-    monkeypatch.setattr(automation.events, "queue_twenty", AsyncMock())
 
     appt = {"id": "appt-2", "name": "No Consent", "phone": "+6421555999",
             "email": "nc@example.com", "notes": "x", "consent_contact": False, "status": "booked",
