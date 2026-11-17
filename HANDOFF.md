@@ -295,6 +295,15 @@ M9. **The Mac must be awake.** `--catch-up on` runs a missed job once on wake. T
     not involved in these schedules.
 M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memory and
     session_search. The Mac master is the operator agent, not the customer planner.
+M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py` writes
+     `~/.workwatch/reports/hermes/trendi-master/morning-<date>.md` and `morning-latest.md`
+     from live Omega SSH, Concierge git/deploy/health and the Hermes lane reports. The
+     LaunchAgent `com.trendi.morning-brief` runs it daily at 07:45 (installer
+     `scripts/install-morning-brief-macos.sh`; uninstall with `--uninstall`). First live
+     run: Omega `FAIL`, `SHADOW`, 0 positions, 0 live / 4 shadow trades, last live trade
+     2026-10-16; Concierge `repo and box agree` at `7dfae37`, 46 ok / 2 warn / 0 fail;
+     SEO quiet. Proof: `QA/verification/MORNING_REPORT_2026-11-17.md`. It is not yet
+     posted into Chat; the dashboard Files page reads the reports tree.
 
 ### Authorized pen-testing umbrella — live 2026-11-17
 
