@@ -2424,6 +2424,40 @@ async def owner_crm(user: dict = Depends(owner_auth.current_user)):
             "calendar_url": _origin_of(settings.owner_portal_url) + "/api/v1/calendar/" + tenant["calendar_token"] + ".ics"}
 
 
+@app.get("/owner/crm/pipeline")
+async def owner_crm_pipeline(user: dict = Depends(owner_auth.current_user)):
+    """The sales board: every open lead grouped by stage, with per-stage and weighted value totals.
+
+    Same engine as the admin dashboard (`sales.pipeline`), so the board, the report and the weekly
+    summary can never disagree about what is in the pipeline.
+    """
+    tenant = await _require_tenant(user["slug"])
+    return await sales.pipeline(tenant)
+
+
+class OpportunityCreate(BaseModel):
+    name: str = Field(default="", max_length=160)
+    company: str = Field(default="", max_length=160)
+    email: str = Field(default="", max_length=254)
+    phone: str = Field(default="", max_length=40)
+    message: str = Field(default="", max_length=2000)
+    value_cents: int = Field(default=0, ge=0, le=100_000_000)
+
+
+@app.post("/owner/crm/leads", status_code=201)
+async def owner_create_opportunity(body: OpportunityCreate, user: dict = Depends(owner_auth.current_user)):
+    """Add a deal the owner heard about offline (a walk-in, a referral) to the sales board."""
+    owner_auth.require_role(user, "editor")
+    if not any((body.name, body.company, body.email, body.phone, body.message)):
+        raise HTTPException(status_code=422, detail="Add a name, company, email or phone")
+    row = await db.pool().fetchrow(
+        "INSERT INTO leads(tenant_id,name,company,email,phone,message,channel,status,value_cents) "
+        "VALUES($1,$2,$3,$4,$5,$6,'manual','new',$7) RETURNING *",
+        user["tenant_id"], body.name.strip(), body.company.strip(), body.email.strip(),
+        body.phone.strip(), body.message.strip(), body.value_cents)
+    return dict(row)
+
+
 @app.get("/owner/crm/leads/{lead_id}/transcript")
 async def owner_crm_transcript(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
     exists = await db.pool().fetchval(
