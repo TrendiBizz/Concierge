@@ -21,7 +21,8 @@ SECRETS="$STACK/hermes/hermes.env"
 PORT="${HERMES_PORT:-8642}"
 DASH_PORT="${HERMES_DASHBOARD_PORT:-9120}"
 DASH_USER="${HERMES_DASHBOARD_USER:-jo}"
-MODEL="${HERMES_MODEL:-grok-4.20-0309-non-reasoning}"
+MODEL="${HERMES_MODEL:-deepseek-v4-flash}"
+PROVIDER="${HERMES_PROVIDER:-deepseek}"
 PKG_MOUNT="$REPO/hermes"
 
 say() { printf '%s\n' "$*"; }
@@ -87,15 +88,22 @@ DASH_SECRET="$(grep '^DASHBOARD_SECRET=' "$SECRETS" | head -1 | cut -d= -f2-)"
 
 docker volume create "$VOLUME" >/dev/null
 
+# Keep the DeepSeek key: it lives only in the volume .env, which is rewritten below.
+DEEPSEEK_KEY="$(grep '^DEEPSEEK_API_KEY=' "$STACK/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
+if [[ -z "${DEEPSEEK_KEY// }" ]]; then
+  DEEPSEEK_KEY="$(docker run --rm -v "$VOLUME":/opt/data --entrypoint /bin/sh "$IMAGE" -c 'grep ^DEEPSEEK_API_KEY= /opt/data/.env 2>/dev/null | head -1 | cut -d= -f2-')"
+fi
+
 # Write the xAI key and API-server key into the volume through stdin (never argv).
 {
   printf 'XAI_API_KEY=%s\n' "$XAI_KEY"
+  [[ -n "${DEEPSEEK_KEY// }" ]] && printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_KEY"
   printf 'API_SERVER_ENABLED=true\n'
   printf 'API_SERVER_HOST=0.0.0.0\n'
   printf 'API_SERVER_KEY=%s\n' "$HERMES_KEY"
 } | docker run --rm -i -v "$VOLUME":/opt/data --entrypoint /bin/sh "$IMAGE" -c \
       'umask 077; cat > /opt/data/.env'
-printf 'model:\n  default: %s\n  provider: xai\n' "$MODEL" \
+printf 'model:\n  default: %s\n  provider: %s\n' "$MODEL" "$PROVIDER" \
   | docker run --rm -i -v "$VOLUME":/opt/data --entrypoint /bin/sh "$IMAGE" -c \
       'cat > /opt/data/config.yaml'
 
