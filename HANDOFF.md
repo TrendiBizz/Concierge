@@ -247,7 +247,7 @@ are a separate project and are not in scope. The package is `hermes/`; the live 
 the dashboard and the defects found while installing are in
 `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`.
 
-M1. **Pause the Grok cloud copies.** The six Workwatch launchd labels are disabled, but
+M1. **DONE 2026-11-17 (Jo confirmed all Grok Bot automations are paused; not independently verified from this repo).** Was: pause the Grok cloud copies. The six Workwatch launchd labels are disabled, but
     the Grok Bot cloud automations cannot be paused from this repo. Jo must pause (not
     delete) the 11 Trendi automations in Grok Bot, or they may double-run with Hermes.
     The list is in `hermes/JOBS.md` under "Pause the remaining Trendi automations".
