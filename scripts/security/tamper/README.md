@@ -17,6 +17,7 @@ site "tamper" after the Concierge cutover.
 | `cf-snapshot.js` | GET-only Cloudflare snapshot (DNS, DNSSEC, zone, settings, rulesets, Workers, members, notifications, Page Shield, Pages) |
 | `cf-run-snapshot.js` / `run-snapshot.sh` | Mac runner: reads the token from the Keychain into the process env |
 | `baselines/` | Accepted state, one JSON per section, plus `ACCEPT-LOG.txt` |
+| `deployments_ledger.csv` | Pages deployment ids approved before this repo held the watch (migrated from the old `seo/changes.csv`) |
 | `reports/` | Run output (gitignored) |
 | `tests/` | Regression tests (`python3 -m unittest discover -s tests`, `node tests/test_snapshot.js`) |
 
@@ -42,9 +43,11 @@ Required for a complete run:
 - Account: Pages, Workers Scripts, Account Settings, Notifications
 - User: User Details (for the `/user` 2FA check)
 
-As of 2026-11-17 the Mac token has all of these **except Pages Read** (and the
-`user`/Universal SSL sub-reads), so the Pages project and deployment check is
-honestly reported as "could not check". See `QA/verification/TAMPER_WATCH_2026-11-17.md`.
+As of 2026-11-17 20:41 the Mac token has Pages Read (Jo added it), so the Pages
+project and deployment check run. It still lacks **Zone** SSL and Certificates Read
+(the Account scope does not cover the zone endpoint), User Details Read, and the
+redirect ruleset detail, so those are honestly reported as "could not check". See
+`QA/verification/TAMPER_WATCH_2026-11-17.md`.
 
 ## Run
 

@@ -266,12 +266,15 @@ M4. **Tamper watch is STILL PAUSED, but the kit is now in the repo (2026-11-17).
     Four silent bugs are fixed with tests (unscoped-section list, empty deployments read as OK,
     partial-section false changes, Cloudflare injection counted as tampering, plus accept
     refusing partial sections) — see `QA/verification/TAMPER_WATCH_2026-11-17.md`.
-    **Open, in order:** (1) add **Pages Read** to the token — deployments are blind without it;
-    (2) optional SSL and Certificates Read + User Details Read; (3) Jo confirms the mail
-    DNS/DMARC change (MX to `route*.mx.cloudflare.net`, DKIM added, DMARC `p=quarantine`) —
-    never accept it unconfirmed; (4) accept/reject the other reviewed diffs (min TLS 1.2, WAF
-    rule changes, Worker list now empty while routes remain, Page Shield on, billing alerts);
-    then resume and run once by hand. `hermes/JOBS.md` T1 has the exact list.
+    **Pages Read was added 2026-11-17 20:41** — the Pages project and deployment check now run
+    (`50 recent deployments checked, 0 unexpected`) after historic deploys were put in
+    `scripts/security/tamper/deployments_ledger.csv`. **Still open:** (1) Zone SSL and
+    Certificates Read (the Account scope does not cover the zone endpoint) + User Details Read —
+    optional, reported as not checked; (2) Jo confirms the mail DNS/DMARC change (MX to
+    `route*.mx.cloudflare.net`, DKIM added, DMARC `p=quarantine`) — never accept it unconfirmed;
+    (3) accept/reject the other reviewed diffs (min TLS 1.2, WAF rule changes, Worker list now
+    empty while routes remain, Page Shield on, billing alerts); then resume and run once by
+    hand. `hermes/JOBS.md` T1 has the exact list.
 M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `b8c9000b442b`), `~/.workwatch/notes` mounted read-only, first report
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the

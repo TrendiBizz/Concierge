@@ -36,10 +36,20 @@ trailing newline the Keychain adds. No token value was printed.
 | `/zones/:id/ssl/universal/settings` | **403** — SSL and Certificates Read missing |
 | `/user` | **403** — User Details Read missing |
 | `/zones/:id/rulesets/:id` (`http_request_dynamic_redirect`) | **403** |
-| `/accounts/:id/pages/projects/trendi` and deployments | **403** — **Pages Read missing** |
+| `/accounts/:id/pages/projects/trendi` and deployments | **403 at 20:18** → **200 at 20:41** after Jo added Cloudflare Pages: Read |
 
-Pages Read is the serious gap: without it the "unexpected deployment" check is
-blind. It must be **Read**, not the Write scope that was removed from the token.
+Pages Read was the serious gap: without it the "unexpected deployment" check was
+blind. Jo added **Account -> Cloudflare Pages: Read** at 20:41; the re-probe returned
+200 and a fresh snapshot contains `pages_project` and 50 deployments. The Universal
+SSL 403 persists because the added scope was *Account* SSL and Certificates; the
+zone endpoint needs the **Zone** variant. `/user` and the redirect ruleset detail
+remain 403.
+
+Adding Pages exposed a second gap: the repo had no deployment ledger, so the six
+Pages deploys between 2 and 8 Nov (all recorded in the old
+`trendi-site/seo/changes.csv`) were reported as unexpected. They are now in
+`scripts/security/tamper/deployments_ledger.csv`, which `known_deploy_ids()` reads;
+the next run reports `50 recent deployments checked, 0 unexpected`.
 
 ## 3. Why every run said the site was tampered with
 
@@ -80,29 +90,31 @@ the kit, so `run-snapshot.sh out.json` wrote to the wrong directory.
 - Mutation checks: reverting each fix turns its test red —
   deployments guard, 403-as-INFO, ruleset filter, nonce normalisation,
   accept refusal, snapshot `rules_unreadable`, snapshot omitted deployments.
-- Live run: `daily-watch.sh --cf-snapshot outputs/cf-snapshot-2026-11-17-v2.json`
-  → exit 1, live site OK, deployments UNCHECKED, remaining flags listed below.
+- Live run: `daily-watch.sh --cf-snapshot outputs/cf-snapshot-2026-11-17-v3.json`
+  → exit 1 (DNS + reviewed config drift only). Live site OK; Pages project OK;
+  `50 recent deployments checked, 0 unexpected`.
 - Snapshot: 11 sections, 8 errors (all 403/absent-scope, no 5xx).
 
 ## 6. Open items (why the job is still paused)
 
-1. **Add Pages Read** to the token (Account -> Cloudflare Pages -> Read). Then the
-   Pages project + deployment check can run and the first deployment baseline can
-   be set from a fresh snapshot.
-2. Optional completeness: **SSL and Certificates Read**, **User Details Read**, and
+1. **DONE:** Pages Read added; Pages project + deployments check run (0 unexpected).
+2. Optional completeness: **Zone** SSL and Certificates Read (the Account variant
+   does not cover `/zones/:id/ssl/universal/settings`), **User Details Read**, and
    whichever permission opens the redirect ruleset detail. Until then those are
    reported as not checked, never as changes.
 3. **Confirm the mail DNS/DMARC change** before baselining it: MX moved to
    `route1/2/3.mx.cloudflare.net`, DKIM `cf2024-1._domainkey` added, DMARC
-   `p=none` -> `p=quarantine`, SPF `include:_spf.mx.cloudflare.net`. Per JOBS T1
-   this is never accepted without Jo.
+   `p=none` -> `p=quarantine`, SPF `include:_spf.mx.cloudflare.net`. This is
+   consistent with the documented Cloudflare Email Routing inbound path
+   (`INBOUND_EMAIL_SECURITY_2026-11-11.md`, `EMAIL_ASSESSMENT_2026-11-12.md`) and
+   DMARC quarantine was noted there as an operator decision — but JOBS T1 still
+   requires Jo's explicit yes.
 4. Review and accept/reject the other baseline diffs: min TLS 1.0 -> 1.2, WAF
    `api-robots` widened to 60/10 s and scoped away from `/api/v1/*`, "Block AI
    training crawlers" rule, Worker scripts list now empty (routes still point at
    `trendi-force-https`; `/api/robots` is 404 — likely removed in the cutover, needs
    a yes), Page Shield enabled, two billing-budget notifications.
-5. Resume the cron job only after 1-4; run it once by hand and keep DNS flags
-   visible until confirmed.
+5. Resume the cron job after 3-4; run it once by hand.
 
 ## 7. Files
 

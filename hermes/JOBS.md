@@ -28,7 +28,7 @@ project and keep their own owner.
 
 | Grok automation (id) | Hermes job | Why paused | How to enable |
 |---|---|---|---|
-| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | Token has no Pages Read (deployments blind); mail DNS/DMARC unconfirmed; see T1 | T1 below |
+| trendibizz.com daily tamper watch (`trendibizz-com-daily-tamper-watch`) | `trendi-tamper-watch` | Mail DNS/DMARC and a few config drifts unconfirmed; see T1 | T1 below |
 | Ego Lite Linux watch (`ego-lite-linux-watch`) | `ego-lite-linux-watch` | One-shot; no Linux build exists | Re-enable when a Linux build ships, or delete the job |
 
 ## Prerequisites
@@ -42,11 +42,12 @@ reads the token from the Keychain item `trendi-cf-readonly-token`, **not** from
 
 Still open before `cron resume`:
 
-1. **Pages Read is missing** on the token, so the Pages project and the
-   "unexpected deployment" check are blind (reported as `UNCHECKED`, exit 2).
-   Add Account -> Cloudflare Pages -> Read (not Write).
-2. **SSL and Certificates Read** and **User Details Read** are missing; Universal
-   SSL and the `/user` 2FA check are reported as not checked.
+1. **DONE 2026-11-17:** Pages Read added; Pages project and deployments now check
+   (50 recent, 0 unexpected). Historic deploys are in `deployments_ledger.csv`.
+2. **Zone** SSL and Certificates Read (the Account scope does not cover the zone
+   endpoint) and **User Details Read** are still missing; Universal SSL and the
+   `/user` 2FA check are reported as not checked. The redirect ruleset detail still
+   403s.
 3. **The mail DNS/DMARC change is unconfirmed.** The 15 Nov diff (MX moved to
    `route*.mx.cloudflare.net`, DKIM added, DMARC `p=none` -> `p=quarantine`, SPF
    `include:_spf.mx.cloudflare.net`) must be confirmed by Jo before it is baselined.
