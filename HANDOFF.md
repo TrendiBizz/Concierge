@@ -287,6 +287,9 @@ M12. **Claude Sonnet 5.5 on the Max subscription — DONE 2026-11-18.** Plugin
      Select with `--provider claude-subscription-directsdk-experimental -m sonnet --reasoning low`;
      default model unchanged. Symlink/ownership trap handled in the Hermes start script. See
      `QA/verification/MASTER_HERMES_CLAUDE_SUBSCRIPTION_2026-11-18.md`. UNKNOWN: terms of use; dashboard listing unchecked.
+M13. **OpenAI/Grok subscription providers — bundled, login pending (Jo) 2026-11-18.** `openai-codex` and `xai-oauth`
+     already ship enabled; nothing to install. Both logged out; Jo runs the login as the hermes user. Steps in
+     `QA/verification/MASTER_HERMES_OPENAI_GROK_SUBSCRIPTION_2026-11-18.md`. The old XAI_API_KEY returns 403.
 M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py` writes
      `~/.workwatch/reports/hermes/trendi-master/morning-<date>.md` and `morning-latest.md`
      from live Omega SSH, Concierge git/deploy/health and the Hermes lane reports. The
