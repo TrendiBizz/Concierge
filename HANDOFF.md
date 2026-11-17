@@ -620,22 +620,16 @@ pointing it at `../demo/engagements` (only "ACME Demo", scope acme.com) caused t
 "outside the authorized scope" error for trendibizz.com. Do not change HOME before
 building: it hides rustup's toolchain; build with the normal HOME, run with the tool HOME.
 
-### Not done / open
-1. **No live scan has run.** Only dry runs. Run a full scan against `trendibizz.com` using the
-   `trendi-self` engagement (valid until 2026-11-24, scope trendibizz.com + www) and check
-   every stage produces output. This is the proof of "no tool blocked".
-2. **The new form has not been clicked in the browser**, and the PDF upload path is only
-   unit-tested.
-3. **`toolchain-check.sh` is weak**: any non-"blocked" output counts as OK (ffuf, dalfox,
-   commix print flag errors; httpx, naabu, katana print nothing). It proves "not a shim", not "works".
-4. `nmap` is still a blocked shim (optional; naabu does port scanning). Root-executor blocker
-   from the earlier handoff stands.
-5. Scope is exact on hostnames: `www.x.com` does not cover `x.com`; list both.
-6. No QA record yet under `QA/verification/` for the keychain defect or the engagement form
-   (AGENTS.md rule 5). The keychain package has no test.
-7. The umbrella does not auto-start; after a reboot, rerun the command above.
-8. `pukeko` engagement exists with no authorization; use the form's customer path when the
-   signed Pukeko permission arrives.
+### Not done / open (updated end of session)
+1. **Live scan now proven:** `7d071e4c-...` on trendibizz.com via `trendi-self`: 11/11 stages done with
+   user-owned tools (see `QA/verification/PENTEST_UMBRELLA_TOOLCHAIN_2026-11-17.md`).
+2. **The new engagement form has not been clicked in the browser**; PDF upload is only unit-tested.
+3. `~/Pentest/pre` keychain fix is committed locally (`6aeb54a`), not pushed. The real PRE CLI lives
+   there, NOT in this repo's Go server; do not build the repo's `main.go` over `~/go/bin/pre`.
+4. Scope is exact on hostnames: `www.x.com` does not cover `x.com`; list both.
+5. Umbrella does not auto-start; after a reboot rerun the command above.
+6. `pukeko` has no authorization: use the form's customer path when the signed permission arrives.
+7. Scan notes: testssl runs `--fast --ip one`; nuclei runs `-as` (tech-matched templates only).
 
 ### Decisions
 - Scope stays per-engagement; no global "scan anything" mode and no document-free customer path.
