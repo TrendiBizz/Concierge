@@ -20,7 +20,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("TRENDI_SITE_ROOT", str(HERE.parents[2])))
 if not (ROOT / "website").is_dir() and (Path.home() / "OpenBot/Shared/trendi-site").is_dir():
     ROOT = Path.home() / "OpenBot/Shared/trendi-site"
-REPORTS = HERE / "reports"
+REPORTS = Path(os.environ.get("TRENDI_TAMPER_REPORTS", str(HERE / "reports")))
 STATE = REPORTS / "daily-watch-state"           # last run's observed state (what `accept` copies)
 DEFAULT_BASELINES = HERE / "baselines"
 DOMAIN = "trendibizz.com"

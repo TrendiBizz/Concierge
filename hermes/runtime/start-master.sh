@@ -106,6 +106,8 @@ docker run -d --name "$NAME" --restart unless-stopped \
   --memory 4g --cpus 2 --pids-limit 512 \
   --security-opt no-new-privileges:true \
   -e HOME=/opt/data -e TZ=Pacific/Auckland \
+  -e TRENDI_SITE_ROOT=/opt/data/concierge \
+  -e TRENDI_TAMPER_REPORTS=/opt/data/.workwatch/reports/tamper \
   -e HERMES_DASHBOARD=1 \
   -e HERMES_DASHBOARD_HOST=0.0.0.0 \
   -e HERMES_DASHBOARD_PORT=9120 \
@@ -124,6 +126,8 @@ docker run -d --name "$NAME" --restart unless-stopped \
   -v "$HOME/.config/trendi:/opt/data/.config/trendi:ro" \
   -v "$HOME/.config/trendi-seo:/opt/data/.config/trendi-seo:ro" \
   -v "$PKG_MOUNT:/opt/data/work/hermes:ro" \
+  -v "$REPO/scripts/security/tamper:/opt/data/concierge/scripts/security/tamper:ro" \
+  -v "$REPO/website:/opt/data/concierge/website:ro" \
   "$IMAGE" gateway run >/dev/null
 
 say "Waiting for the Hermes API on 127.0.0.1:$PORT ..."

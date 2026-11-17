@@ -8,5 +8,11 @@ OUT="${1:-$HOME/.workwatch/tamper-snapshot.json}"
 case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
 cd "$(dirname "$0")"
 mkdir -p "$(dirname "$OUT")"
-CF_READONLY_TOKEN="$(security find-generic-password -s trendi-cf-readonly-token -w)" \
-  /opt/homebrew/opt/node@24/bin/node cf-run-snapshot.js "$OUT"
+# macOS: Keychain. Container (no `security` CLI): the mounted 0600 copy.
+if command -v security >/dev/null 2>&1; then
+  TOKEN="$(security find-generic-password -s trendi-cf-readonly-token -w)"
+else
+  TOKEN="$(cat "${CF_TOKEN_FILE:-$HOME/.config/trendi/cloudflare_token}")"
+fi
+NODE="${NODE_BIN:-$(command -v node || echo /opt/homebrew/opt/node@24/bin/node)}"
+CF_READONLY_TOKEN="$TOKEN" "$NODE" cf-run-snapshot.js "$OUT"

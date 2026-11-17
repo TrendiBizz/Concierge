@@ -35,6 +35,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("TRENDI_SITE_ROOT", str(HERE.parents[2])))
 if not ROOT.is_dir():
     ROOT = HERE.parents[2]
+REPORTS = Path(os.environ.get("TRENDI_TAMPER_REPORTS", str(HERE / "reports")))
 UA = "TrendiIntegrityCheck/1.0 (+https://trendibizz.com/.well-known/security.txt)"
 SEC_HEADERS = ["strict-transport-security", "x-content-type-options", "x-frame-options", "referrer-policy",
                "permissions-policy", "cross-origin-opener-policy", "cross-origin-resource-policy",
@@ -351,7 +352,7 @@ def main(argv=None) -> int:
         lines.append("  If a deploy just happened: run scripts/vps/verify-deploy.sh, then re-run this check.")
     report = "\n".join(lines) + "\n"
     print(report, end="")
-    rd = HERE / "reports"
+    rd = REPORTS
     rd.mkdir(exist_ok=True)
     stamp = dt.datetime.now(NZ).strftime("%Y%m%d-%H%M")
     (rd / f"live-integrity-{stamp}.txt").write_text(report)
