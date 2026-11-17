@@ -310,6 +310,7 @@ def run(args):
     started = time.time()
     results = []
     partial_sections = []
+    partial_keys = {}
     meta = {"run_at": dt.datetime.now(dt.timezone.utc).isoformat(), "baselines": str(baselines)}
 
     # (1) live integrity
@@ -355,6 +356,10 @@ def run(args):
                 n_unread = sum(1 for x in cur if isinstance(x, dict) and x.get("rules_unreadable"))
                 if n_unread:
                     r.lines.append(f"{n_unread} ruleset(s) not compared (token cannot read them)")
+                    partial_keys["rulesets"] = [[x.get("phase"), x.get("name")] for x in cur
+                                                if isinstance(x, dict) and x.get("rules_unreadable")]
+            if sec == "zone_settings" and any(e.startswith("universal_ssl") for e in partial):
+                partial_keys["zone_settings"] = ["universal_ssl_enabled"]
             compare(sec, cur, baselines, r,
                     ignore_missing=bool(partial) and sec in ("zone_settings", "account"),
                     drop_unreadable=sec == "rulesets")
@@ -480,6 +485,7 @@ def run(args):
     # ---------------------------------------------------------------- report
     meta["elapsed_s"] = round(time.time() - started, 1)
     meta["partial_sections"] = sorted(set(partial_sections))
+    meta["partial_keys"] = partial_keys
     (STATE / "_meta.json").write_text(canon(meta))
     bad = [x for x in results if x.status in ("CHANGED", "PROBLEM")]
     unk = [x for x in results if x.status == "UNCHECKED"]
@@ -543,13 +549,10 @@ def accept(args):
     bad = [s for s in secs if s not in ALL_SECTIONS]
     if bad:
         print(f"accept: unknown section(s) {bad}; valid: {' '.join(ALL_SECTIONS)} all", file=sys.stderr); return 2
-    partial = set(meta.get("partial_sections") or [])
+    partial_keys = meta.get("partial_keys") or {}
     hist = baselines / "history" / now_nz().strftime("%Y%m%d-%H%M%S")
-    done, refused = [], []
+    done, kept = [], []
     for s in secs:
-        if s in partial:
-            refused.append(s)
-            continue
         src = STATE / f"{s}.json"
         if not src.is_file():
             continue
@@ -565,14 +568,31 @@ def accept(args):
                 acc[did] = args.reason
             new = {"watch_since": old.get("watch_since") or meta["run_at"], "accepted": acc}
             dst.write_text(canon(new))
+        elif s == "zone_settings" and partial_keys.get(s):
+            # Keep the old value for settings this token cannot read, so accepting
+            # the readable changes does not silently drop the unreadable one.
+            cur = json.loads(src.read_text())
+            old = json.loads(dst.read_text()) if dst.is_file() else {}
+            for k in partial_keys[s]:
+                if k in old:
+                    cur.setdefault(k, old[k])
+                    kept.append(k)
+            dst.write_text(canon(cur))
+        elif s == "rulesets" and partial_keys.get(s):
+            # Same for rulesets: keep the baseline entry for any ruleset whose
+            # rules could not be read; replace the rest with the observation.
+            unread = {tuple(x) for x in partial_keys[s]}
+            cur = [x for x in json.loads(src.read_text())
+                   if (x.get("phase"), x.get("name")) not in unread]
+            old = json.loads(dst.read_text()) if dst.is_file() else []
+            cur += [x for x in old if (x.get("phase"), x.get("name")) in unread]
+            kept += [f"{p}/{n}" for p, n in unread]
+            dst.write_text(canon(cur))
         else:
             shutil.copy2(src, dst)
         done.append(s)
-    if refused:
-        print("refused (token could not read this section on the last run; fix the scope and re-run): "
-              + " ".join(refused), file=sys.stderr)
-        if not done:
-            return 2
+    if kept:
+        print("kept the existing baseline for unreadable part(s): " + ", ".join(kept))
     with open(baselines / "ACCEPT-LOG.txt", "a") as f:
         f.write(f"{fmt_nz(now_nz())}\t{','.join(done)}\trun {meta['run_at']}\t{args.reason.strip()}\n")
     print(f"accepted {len(done)} section(s) from the run at {fmt_nz(dt.datetime.fromisoformat(meta['run_at']))}: {' '.join(done)}")

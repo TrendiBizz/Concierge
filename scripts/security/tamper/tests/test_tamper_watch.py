@@ -128,23 +128,60 @@ class LedgerTests(unittest.TestCase):
         self.assertIn("5a53e50a", ids)
 
 
-class AcceptGuardTests(unittest.TestCase):
-    def test_accept_refuses_a_partially_read_section(self):
+class AcceptMergeTests(unittest.TestCase):
+    def test_accept_keeps_an_unreadable_zone_setting(self):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td) / "_baselines"
             base.mkdir()
+            (base / "zone_settings.json").write_text(json.dumps(
+                {"min_tls_version": "1.0", "universal_ssl_enabled": True}))
             dw.set_state_dir(base)
             dw.STATE.mkdir(parents=True, exist_ok=True)
             (dw.STATE / "_meta.json").write_text(json.dumps({
                 "run_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-                "baselines": str(base),
-                "partial_sections": ["zone_settings"],
+                "baselines": str(base), "partial_sections": ["zone_settings"],
+                "partial_keys": {"zone_settings": ["universal_ssl_enabled"]},
             }))
             (dw.STATE / "zone_settings.json").write_text('{"min_tls_version": "1.2"}')
             args = type("Args", (), {"baselines": str(base), "reason": "test: reason long enough",
                                      "sections": ["zone_settings"]})()
             rc = dw.accept(args)
-        self.assertEqual(rc, 2)
+            got = json.loads((base / "zone_settings.json").read_text())
+        self.assertEqual(rc, 0)
+        self.assertEqual(got["min_tls_version"], "1.2")
+        self.assertTrue(got["universal_ssl_enabled"])
+
+    def test_accept_keeps_an_unreadable_ruleset(self):
+        old = [
+            {"name": "default", "phase": "http_request_dynamic_redirect", "kind": "zone",
+             "rules": [{"id": "r1", "action": "redirect"}]},
+            {"name": "custom", "phase": "http_request_firewall_custom", "kind": "zone",
+             "rules": [{"id": "r2", "action": "block"}]},
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "_baselines"
+            base.mkdir()
+            (base / "rulesets.json").write_text(json.dumps(old))
+            dw.set_state_dir(base)
+            dw.STATE.mkdir(parents=True, exist_ok=True)
+            (dw.STATE / "_meta.json").write_text(json.dumps({
+                "run_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                "baselines": str(base), "partial_sections": ["rulesets"],
+                "partial_keys": {"rulesets": [["http_request_dynamic_redirect", "default"]]},
+            }))
+            (dw.STATE / "rulesets.json").write_text(json.dumps([
+                {"name": "default", "phase": "http_request_dynamic_redirect",
+                 "kind": "zone", "rules_unreadable": True},
+                {"name": "custom", "phase": "http_request_firewall_custom", "kind": "zone",
+                 "rules": [{"id": "r3", "action": "block"}]},
+            ]))
+            args = type("Args", (), {"baselines": str(base), "reason": "test: reason long enough",
+                                     "sections": ["rulesets"]})()
+            rc = dw.accept(args)
+            got = {x["phase"]: x for x in json.loads((base / "rulesets.json").read_text())}
+        self.assertEqual(rc, 0)
+        self.assertEqual(got["http_request_dynamic_redirect"]["rules"][0]["id"], "r1")
+        self.assertEqual(got["http_request_firewall_custom"]["rules"][0]["id"], "r3")
 
 
 class CloudflareInjectionTests(unittest.TestCase):
