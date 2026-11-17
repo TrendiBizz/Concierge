@@ -13,12 +13,15 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  Measured at `be9a647`; the handoff commits after it are docs-only and `main` is pushed to
-  `origin/main`. This session drove the Docker→Podman cutover (see §3 and
+  Measured at `be9a647`; the last code commit is `0720715` (Hermes master + subagents) and
+  the handoff commits after it are docs-only. `main` is pushed to `origin/main`. This
+  session drove the Docker→Podman cutover (see §3 and
   `QA/verification/PODMAN_MIGRATION_2026-11-17.md`) and retired Twenty, adding the Studio pipeline
   board (`QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`). The Hermes rollout
   is recorded in `QA/verification/HERMES_ROLLOUT_2026-11-17.md` (local-only — git-ignored because this
-  repo is public) and §2 item 13 / §3 "Hermes". Working tree clean apart from ignored `outputs/`.
+  repo is public) and §2 item 13 / §3 "Hermes on the VPS". The Hermes master migration is §2 item
+  14 / §3 "Hermes master on the Mac" and `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`.
+  Working tree clean apart from ignored `outputs/`.
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
@@ -181,13 +184,23 @@ The first three streams are recorded in their own files. The last one is this se
     `hermes-trendi-support` container is healthy with only `todo`, `memory` and `session_search`
     enabled; Studio → Home gained **Needs you** (approve/edit/discard a prepared reply) and the
     read-only **Ask** box, and Setup has the 7am-note switch (`35f3efd`). The 7am note is on for
-    `trendi-support` only. **Nothing calls `POST /v1/runs` yet**, so no case has ever been planned:
+    `trendi-support` only. **Nothing calls the customer gateway's `POST /v1/runs` yet**, so no customer
+    case has ever been planned:
     `hermes_actions`, `hermes_case_state` and `hermes_tenant_settings` are all empty and the
     gateway's default is `shadow` / 0.8. Full account and the defects found on the way:
     `QA/verification/HERMES_ROLLOUT_2026-11-17.md` — **local-only, git-ignored** because this repo is
     public, so a fresh clone will not have it; this handoff carries the state that matters. The
     "Still to do" lettered list in that record is partly stale — (b), (c) and (d) are done as of
     `35f3efd`.
+
+14. **Hermes master + subagents — 2026-11-17 (now owns the Trendi routines).** The Mac
+    `hermes-concierge` runs the Grok Bot schedules as six Hermes profiles (`trendi-master`
+    plus `seo-engine`, `trendi-desk`, `pen-test`, `site-watch`, `workwatch`) and 14 cron
+    jobs: 11 active, 3 paused. The package is `hermes/` at `0720715` (declarative
+    manifest, idempotent installer, 23 tests, Mac runtime). The VPS customer Hermes is
+    unchanged and still has no trigger. Live proof, the nine defects found while
+    installing, and the open items: `QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`;
+    the worklist is §3 "Hermes master on the Mac" M1–M10.
 
 ## 3. Outstanding — the real worklist
 
@@ -201,14 +214,54 @@ Docker installed for a week, and operator items (delete the one-day DO token; ap
 decline the Version 1 announcement email — do NOT send it without Jo). **The Twenty CRM was retired on
 2026-11-17** — see `QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`.
 
-### Hermes (the AI layer) — deployed, not yet driving anything
+### Hermes master on the Mac — owns the Trendi work (live 2026-11-17)
 
-H1. **Nothing triggers a run.** `POST /v1/runs` exists and the gateway can reach Concierge, but no
-    inbound-message hook, scheduler or Studio button calls it. `hermes_actions` is empty, so no plan
-    has ever been validated or executed. **Next:** pick the first trigger (the inbound-email hook is
-    the natural one, because drafts already land in `email_drafts`), keep the tenant in `shadow`,
-    and run one case that has a real lead. `trendi-support` has no leads at all; use a tenant that
-    does. Do not enable a non-shadow autonomy level until one shadow plan has been read end to end.
+The Grok Bot schedules and procedures for Trendi/Concierge now run in Hermes as a
+master plus five persistent subagents on the Mac: `hermes-concierge` (loopback only),
+profiles `trendi-master`, `seo-engine`, `trendi-desk`, `pen-test`, `site-watch` and
+`workwatch`. **14 cron jobs: 11 active, 3 paused** (tamper watch, Ego Lite, Workwatch
+weekly). The 12 Grok Trendi automations are mapped in `hermes/JOBS.md`; the Omega bots
+are a separate project and are not in scope. The package is `hermes/` (commit
+`0720715`); the live proof and the nine defects found while installing are in
+`QA/verification/MASTER_HERMES_MIGRATION_2026-11-17.md`.
+
+M1. **Pause the Grok cloud copies.** The six Workwatch launchd labels are disabled, but
+    the Grok Bot cloud automations cannot be paused from this repo. Jo must pause (not
+    delete) the 11 Trendi automations in Grok Bot, or they may double-run with Hermes.
+    The list is in `hermes/JOBS.md` under "Pause the remaining Trendi automations".
+M2. **First scheduled runs:** 2026-11-18 at 07:00 social drafts, 07:30 deep dive, 07:40
+    daily monitor, 08:00 master brief. Check `~/.workwatch/reports/hermes/*/latest.md`
+    and the master brief. A lane with no dated routine report is `UNANSWERED`, not quiet.
+M3. **The first manual monitor run flagged** `/sitemap.xml` and `/llms.txt` changed with
+    no `changes.csv` row, plus two new queries. The test re-runs seeded the state, so the
+    current report is quiet. Verify the change was planned before trusting the next run.
+M4. **Tamper watch is paused** — it needs a read-only Cloudflare token on the Mac and the
+    tamper kit in `trendi-site/scripts/security/` (`JOBS.md` T1).
+M5. **Workwatch weekly is paused** — reading `~/.workwatch/notes` needs Jo's yes (T2).
+M6. **Pen Test has no scheduled routine.** The profile exists; the Grok Pen Test scope is
+    still TODO(Jo). The biweekly news and social drafts cover the lane.
+M7. **The image is `:stable`.** Pin `HERMES_IMAGE` to the digest printed by
+    `hermes/runtime/start-master.sh` so a restart cannot change the agent.
+M8. **The reports tree is `0777`** on the Mac mount so the container user can write. It
+    holds no secrets, but it is world-writable; revisit if the Mac is shared.
+M9. **The Mac must be awake.** `--catch-up on` runs a missed job once on wake. The VPS is
+    not involved in these schedules.
+M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memory and
+    session_search. The Mac master is the operator agent, not the customer planner.
+
+### Hermes on the VPS (customer planner) — deployed, still not triggered
+
+The Mac master above now owns the Trendi routines. This section is the customer-facing
+per-tenant planner; it is separate, restricted, and still has no trigger.
+
+H1. **Nothing triggers a customer run.** The VPS `POST /v1/runs` exists and the gateway
+    can reach Concierge, but no inbound-message hook, scheduler or Studio button calls
+    it. `hermes_actions` is empty, so no customer plan has ever been validated or
+    executed. **Next:** pick the first trigger (the inbound-email hook is the natural
+    one, because drafts already land in `email_drafts`), keep the tenant in `shadow`, and
+    run one case that has a real lead. `trendi-support` has no leads at all; use a tenant
+    that does. Do not enable a non-shadow autonomy level until one shadow plan has been
+    read end to end.
 H2. **The customer image floats.** `hermes-trendi-support` runs `nousresearch/hermes-agent:stable`
     (now v0.23.1); only the internal auxiliary is pinned by digest (v0.23.0). **Next:** pin
     `HERMES_IMAGE` to a digest in `hermes.sh`/the compose env before the first real run, so a
@@ -407,10 +460,12 @@ H6. **Committed code cites a record that is not in the repo.** `hermes-gateway/R
 
 ## 4. Next action
 
-**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at the last
-code commit `be9a647`; the handoff commits after it are docs-only.
+**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree`; the
+last code commit is `0720715` (the `hermes/` package is Mac-only, not part of the VPS
+comparison), and the handoff commits after it are docs-only.
 The Docker→Podman move is done and reboot-tested; Twenty is retired; the Studio pipeline board is
-live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deploy.sh` first.
+live; the Hermes master is installed on the Mac. Do not run `deploy-site.sh` expecting to fix
+drift — check `verify-deploy.sh` first.
 
 **Next, in this order:**
 
@@ -420,16 +475,20 @@ live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deplo
 1. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
    system has never carried real data. Everything it does is covered by tests, but tests are not
    a customer.
-2. **Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email hook, keep the
-   tenant in `shadow`, send one real enquiry to a tenant that has a case, and read the plan before
-   letting anything execute. Pin the customer image first (H2), and extend source parity before the
-   next gateway rebuild (H3).
-3. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
+2. **Hermes master, first scheduled morning** (M1–M3): on 2026-11-18 check the 07:00 social
+   drafts, 07:30 deep dive, 07:40 monitor and 08:00 master brief in
+   `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so they cannot double-run;
+   and confirm the `sitemap.xml`/`llms.txt` change the first manual monitor flagged (M3).
+3. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
+   hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
+   the plan before letting anything execute. Pin the customer image first (H2), and extend source
+   parity before the next gateway rebuild (H3).
+4. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
    file if it still serves the old links (the only remaining follow-up from that item).
-4. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
+5. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
    just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
    `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
-5. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
+6. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
 16–18), the security/hygiene list (10–15), and the SEO content list (21–27) all still stand.

@@ -48,6 +48,28 @@ any baseline. Never accept the mail DNS or DMARC items.
 **T2 — Workwatch notes.** Jo says yes to Hermes reading `~/.workwatch/notes`. Mount
 `~/.workwatch/notes` into the container and resume the job.
 
+## Pause the remaining Trendi automations in Grok Bot
+
+The six Workwatch launchd labels are disabled on the Mac. The Grok Bot cloud copies
+cannot be paused from this repo. Jo must **pause (not delete)** these in Grok Bot, or
+they can double-run with Hermes:
+
+1. Daily site + search monitor (Trendi)
+2. Weekly SEO cycle (Trendi)
+3. Monthly SEO audit (Trendi)
+4. Innovation scout (Trendi)
+5. Trendi LinkedIn weekly draft
+6. Trendi biweekly SEO + pen-test news
+7. Trendi daily SEO / pen-test social drafts
+8. Trendi SEO forums daily deep dive
+9. Twice-monthly post brief (Trendi)
+10. trendibizz.com daily tamper watch
+11. Ego Lite Linux watch
+
+The Hermes copies of 10 and 11 are paused until their prerequisites are met, so pausing
+the Grok copies is safe. Once each Hermes copy has a successful scheduled run, the Grok
+copy can be deleted.
+
 ## What changed in the move
 
 - The **schedule owner** is Hermes cron, not launchd or the Grok box. `--catch-up on`
