@@ -574,3 +574,8 @@ with no page behind it (item 25 covers the rest of the content list).
 Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy.sh`. If it is not
 `OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
 prefix until the harness restarts (item 32).
+
+**2026-11-18 social drafts.** Facebook + Instagram drafts adapted from the LinkedIn draft
+`~/.workwatch/reports/trendi_content/linkedin/2026-11-10.md` are in
+`QA/verification/SOCIAL_FB_IG_DRAFTS_2026-11-18.md`. Unverified that this is the text that was posted
+to LinkedIn. Nothing posted to Facebook/Instagram; Instagram needs a 1080x1080 image (not made).
