@@ -290,6 +290,7 @@ M12. **Claude Sonnet 5.5 on the Max subscription — DONE 2026-11-18.** Plugin
 M13. **OpenAI/Grok subscription providers — bundled, login pending (Jo) 2026-11-18.** `openai-codex` and `xai-oauth`
      already ship enabled; nothing to install. Both logged out; Jo runs the login as the hermes user. Steps in
      `QA/verification/MASTER_HERMES_OPENAI_GROK_SUBSCRIPTION_2026-11-18.md`. The old XAI_API_KEY returns 403.
+M14. **Fallback chain — DONE 2026-11-18.** `trendi-master`: Claude Sonnet (Max) -> Codex `gpt-6.1-sol` -> Grok `grok-4.7` (xai-oauth) -> DeepSeek `deepseek-v4-flash` (API, last only). All logins verified by direct turns; the automatic failover hop itself is UNKNOWN (not forced). Config is in the container volume, not the repo; see `QA/verification/MASTER_HERMES_FALLBACK_CHAIN_2026-11-18.md`. Supersedes M13 "login pending".
 M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py` writes
      `~/.workwatch/reports/hermes/trendi-master/morning-<date>.md` and `morning-latest.md`
      from live Omega SSH, Concierge git/deploy/health and the Hermes lane reports. The
