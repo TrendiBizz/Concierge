@@ -12,13 +12,18 @@ Hermes rollout/framework records remain local-only.
 
 ## Documentation defects found
 
-1. **`HANDOFF.md` named the wrong HEAD.** §1 and §4 said `8a16ca1`; the tree, `origin/main` and the
-   commit that wrote the handoff are `be9a647`. Cause: the handoff was written before its own commit
-   existed and the hash was not corrected afterwards. Fix: both references now read `be9a647`.
+1. **`HANDOFF.md` named the wrong HEAD, twice.** §1 and §4 said `8a16ca1`; the tree, `origin/main`
+   and the commit that wrote the handoff were `be9a647`. Cause: a handoff cannot contain the hash of
+   the commit that writes it, so it named the previous commit and was never corrected. Correcting it
+   to `be9a647` reproduced the same trap one commit later. Fix: the handoff now names the **last
+   measured code commit** (`be9a647`) and states that the handoff commits after it are docs-only;
+   it no longer claims to be the tip. Future handoffs should do the same rather than hardcode a
+   hash they cannot know.
 2. **The Hermes rollout was not in the handoff worklist.** `QA/verification/HERMES_ROLLOUT_2026-11-17.md`
    records the gateway deployment, the per-tenant container and the 7am note, but `HANDOFF.md` only
    mentioned "the Hermes record" in passing. Cause: the rollout landed between handoff refreshes.
-   Fix: §2 item 13 and a dedicated §3 "Hermes" block now carry it, with the rollout record linked.
+   Fix: §2 item 13 and a dedicated §3 "Hermes" block now carry it, with the rollout record linked
+   and marked local-only.
 3. **`HERMES_ROLLOUT_2026-11-17.md` "Still to do" is partly stale.** Its items (b) 7am note for
    `trendi-support`, (c) Studio approve/discard drafts and (d) the Ask box are all done — (b) in the
    tenant flag, (c)/(d) in commit `35f3efd`. Its (e) QA-record update is what this file partly does.
@@ -28,7 +33,7 @@ Hermes rollout/framework records remain local-only.
 
 | Check | Result |
 |---|---|
-| `git rev-parse --short HEAD` / `origin/main` | `be9a647` / `be9a647`, tree clean apart from ignored `outputs/` |
+| `git rev-parse --short HEAD` / `origin/main` (at measurement) | `be9a647` / `be9a647`, tree clean apart from ignored `outputs/` |
 | `KEY=./Concierge ./scripts/vps/verify-deploy.sh` | `OK: repo and box agree` (api/app 110, api/static 7, scripts/vps 42, website/site 62) |
 | Full API suite | **1527 passed, 19 skipped** in 20.21s (documented interpreter + shims + test DB) |
 | Box health (`healthcheck.py --no-alert`) | **46 ok / 2 warn / 0 fail** — warns `inbound:onboarding` (trendibizz: owner_account, consent) and `sms:inbound` |

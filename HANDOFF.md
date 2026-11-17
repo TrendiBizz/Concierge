@@ -13,7 +13,8 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD `be9a647`, pushed to `origin/main`. This session drove the Docker→Podman cutover (see §3 and
+  Measured at `be9a647`; the handoff commits after it are docs-only and `main` is pushed to
+  `origin/main`. This session drove the Docker→Podman cutover (see §3 and
   `QA/verification/PODMAN_MIGRATION_2026-11-17.md`) and retired Twenty, adding the Studio pipeline
   board (`QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`). The Hermes rollout
   is recorded in `QA/verification/HERMES_ROLLOUT_2026-11-17.md` (local-only — git-ignored because this
@@ -406,7 +407,8 @@ H6. **Committed code cites a record that is not in the repo.** `hermes-gateway/R
 
 ## 4. Next action
 
-**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at `be9a647`.
+**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at the last
+code commit `be9a647`; the handoff commits after it are docs-only.
 The Docker→Podman move is done and reboot-tested; Twenty is retired; the Studio pipeline board is
 live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deploy.sh` first.
 
