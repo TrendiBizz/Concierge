@@ -40,6 +40,14 @@ different project. It also had no Concierge build/deploy section.
   (`inbound:onboarding`, `sms:inbound`).
 - SEO: `quiet` (monitor run 14:48, 62.6s); `trendi-desk` and `pen-test` had no report.
 
+## IBKR retirement (2026-11-17 22:03)
+
+Jo: "ibkr is now discontinued so can be erased." The `IbkrGateway` scheduled task was
+disabled on `omega-new`; the box health check now reports
+`ibkr.gateway = OK / retired` and Omega overall is **WARN** (two real warns:
+`bracketbot.trades_ndjson` missing, disk 14 GB free), not FAIL. The morning report
+excludes the retired check from its count and labels it.
+
 ## Open
 
 - The report is not yet posted into Hermes Chat. It is written to the mounted reports

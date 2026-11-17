@@ -300,7 +300,7 @@ M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py`
      from live Omega SSH, Concierge git/deploy/health and the Hermes lane reports. The
      LaunchAgent `com.trendi.morning-brief` runs it daily at 07:45 (installer
      `scripts/install-morning-brief-macos.sh`; uninstall with `--uninstall`). First live
-     run: Omega `WARN` (retired IBKR check excluded), `SHADOW`, 0 positions, 0 live / 4 shadow trades, last live trade
+     run: Omega `WARN` (`IbkrGateway` task disabled, retired check now OK), `SHADOW`, 0 positions, 0 live / 4 shadow trades, last live trade
      2026-10-16; Concierge `repo and box agree` at `7dfae37`, 46 ok / 2 warn / 0 fail;
      SEO quiet. Proof: `QA/verification/MORNING_REPORT_2026-11-17.md`. It is not yet
      posted into Chat; the dashboard Files page reads the reports tree.
