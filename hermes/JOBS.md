@@ -56,10 +56,17 @@ Still open before `cron resume`:
    alerts). Evidence is in `QA/verification/TAMPER_WATCH_2026-11-17.md`; accept or
    reject each; the Worker removal and the redirect ruleset 403 need a decision.
 
+The Hermes job runs **inside the container**, so `start-master.sh` mounts the kit at
+`/opt/data/concierge/scripts/security/tamper` and `website/` read-only, sets
+`TRENDI_SITE_ROOT=/opt/data/concierge`, and writes reports to
+`/opt/data/.workwatch/reports/tamper`. The token comes from the mounted 0600 copy
+(no Keychain in Linux). Verified by running the kit inside `hermes-concierge`
+2026-11-17 20:49.
+
 Then resume and run once:
 
 ```bash
-docker exec hermes-concierge hermes -p site-watch cron resume <id>
+docker exec hermes-concierge hermes -p site-watch cron resume 8f4d9ef6b5b3
 ```
 
 **T2 — Workwatch notes. DONE 2026-11-17.** Jo asked for Workwatch to be part of the

@@ -52,10 +52,19 @@ redirect ruleset detail, so those are honestly reported as "could not check". Se
 ## Run
 
 ```bash
+# Mac (Keychain token)
 cd /Users/jo/work-staging/concierge-integration
 bash scripts/security/tamper/run-snapshot.sh /tmp/cf.json
 bash scripts/security/tamper/daily-watch.sh --cf-snapshot /tmp/cf.json
+
+# Hermes container (mounted 0600 token copy, reports to the mounted dir)
+docker exec hermes-concierge bash /opt/data/concierge/scripts/security/tamper/run-snapshot.sh /tmp/cf.json
+docker exec hermes-concierge bash /opt/data/concierge/scripts/security/tamper/daily-watch.sh --cf-snapshot /tmp/cf.json
 ```
+
+`start-master.sh` sets `TRENDI_SITE_ROOT=/opt/data/concierge` and
+`TRENDI_TAMPER_REPORTS=/opt/data/.workwatch/reports/tamper` for the container.
+Baselines are mounted read-only there, so `accept` is a Mac-side action.
 
 Exit: `0` all clear · `1` change/problem · `2` something could not be checked
 (and nothing changed). A 403 section is reported as **INFO "not checked (token

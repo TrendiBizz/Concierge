@@ -274,7 +274,10 @@ M4. **Tamper watch is STILL PAUSED, but the kit is now in the repo (2026-11-17).
     `route*.mx.cloudflare.net`, DKIM added, DMARC `p=quarantine`) — never accept it unconfirmed;
     (3) accept/reject the other reviewed diffs (min TLS 1.2, WAF rule changes, Worker list now
     empty while routes remain, Page Shield on, billing alerts); then resume and run once by
-    hand. `hermes/JOBS.md` T1 has the exact list.
+    hand. The job now runs in the container with the kit mounted at
+    `/opt/data/concierge/scripts/security/tamper` and reports in
+    `~/.workwatch/reports/tamper/` (verified inside `hermes-concierge` 20:49).
+    `hermes/JOBS.md` T1 has the exact list.
 M5. **Workwatch weekly — DONE 2026-11-17.** Active Mon 08:00 (job
     `b8c9000b442b`), `~/.workwatch/notes` mounted read-only, first report
     `Status: quiet` for 2026-11-10..16 (481 bytes). It is the `workwatch` lane in the

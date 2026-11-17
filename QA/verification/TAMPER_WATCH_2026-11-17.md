@@ -93,7 +93,15 @@ the kit, so `run-snapshot.sh out.json` wrote to the wrong directory.
 - Live run: `daily-watch.sh --cf-snapshot outputs/cf-snapshot-2026-11-17-v3.json`
   → exit 1 (DNS + reviewed config drift only). Live site OK; Pages project OK;
   `50 recent deployments checked, 0 unexpected`.
-- Snapshot: 11 sections, 8 errors (all 403/absent-scope, no 5xx).
+- Snapshot: 12 sections, 4 errors (all 403/absent-scope, no 5xx).
+- **Container run (the real scheduled path):** Hermes now mounts the kit at
+  `/opt/data/concierge/scripts/security/tamper` (ro) and `website/` (ro), sets
+  `TRENDI_SITE_ROOT=/opt/data/concierge`, and writes reports to
+  `/opt/data/.workwatch/reports/tamper`. Inside `hermes-concierge`,
+  `run-snapshot.sh` (token from the mounted 0600 copy) → 12 sections;
+  `daily-watch.sh` → exit 1 with only the reviewed flags, report written. This is
+  why the previous routine path could never have worked: the job runs in the
+  container, which cannot see `/Users/jo` or the Keychain.
 
 ## 6. Open items (why the job is still paused)
 
@@ -120,6 +128,8 @@ the kit, so `run-snapshot.sh out.json` wrote to the wrong directory.
 
 - Kit moved to `scripts/security/tamper/` (was only on the Mac at
   `~/OpenBot/Shared/workwatch/tamper-watch/security/`); `website/` is the known-good.
-- `hermes/routines/trendi-tamper-watch.md`, `hermes/JOBS.md`, `hermes/README.md`,
-  `hermes/schedules.yaml`, `hermes/scripts/parity_check.py` now point at the repo path.
+- `hermes/runtime/start-master.sh` mounts the kit + `website/` read-only and sets the
+  report dir; `hermes/routines/trendi-tamper-watch.md` uses the container paths.
+  `hermes/JOBS.md`, `hermes/README.md`, `hermes/schedules.yaml`,
+  `hermes/scripts/parity_check.py` point at the repo path.
 - Reports are gitignored; baselines and `ACCEPT-LOG.txt` stay versioned.
