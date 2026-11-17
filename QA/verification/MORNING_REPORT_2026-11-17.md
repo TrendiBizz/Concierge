@@ -33,9 +33,9 @@ different project. It also had no Concierge build/deploy section.
   `last exit code = 0`.
 - Report written: `~/.workwatch/reports/hermes/trendi-master/morning-latest.md`
   (3437 bytes), and the dated copy.
-- Omega at that run: service `FAIL`; mode `SHADOW`; 0 broker positions; 0 live trades
-  and 4 shadow trades in 24h (net shadow -$13.46); last live trade 2026-10-16. The FAIL
-  is the IBKR gateway throttle check; disk 14.1 GB is a WARN.
+- Omega at that run: service `WARN`; mode `SHADOW`; 0 broker positions; 0 live trades
+  and 4 shadow trades in 24h (net shadow -$13.46); last live trade 2026-10-16. The
+  retired IBKR gateway check is excluded; disk 14 GB is a WARN.
 - Concierge: `repo and box agree` at `7dfae37`; health 46 ok / 2 warn / 0 fail
   (`inbound:onboarding`, `sms:inbound`).
 - SEO: `quiet` (monitor run 14:48, 62.6s); `trendi-desk` and `pen-test` had no report.
