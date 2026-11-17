@@ -492,9 +492,10 @@ H6. **Committed code cites a record that is not in the repo.** `hermes-gateway/R
     outreach ledger and link verification; the first pitch is
     `scripts/seo/backlinks/pitches/ai-crawler-study.md`. The live tracker now has 12 Concierge
     terms; the 2026-11-17 baseline is **not in the top 10 for any of the 25 NZ terms**
-    (`monitor/serp/nz/2026-11-17.csv`). **Next:** name contacts for the 8 tier-1 prospects, get
-    Jo's approval for the first 5 pitches, submit 10 reputable directories, and record GSC/Bing
-    link baselines. Then wire the weekly Hermes report to the backlink report. Proof and the
+    (`monitor/serp/nz/2026-11-17.csv`). **Next:** four pitches were sent 2026-11-17
+    (NZ Entrepreneur, TechDay, BusinessDesk, interest.co.nz); follow up 2026-11-24. The SEJ form
+    is blocked by Cloudflare Turnstile. Submit 10 reputable directories, record the GSC/Bing link
+    baselines, and work the Concierge pages (titles/proof/internal links). Then wire the weekly Hermes report to the backlink report. Proof and the
     continuity-defect fix: `QA/verification/SEO_BACKLINK_ENGINE_2026-11-17.md`.
 
 ### Quotations (from the 2026-11-16 rebuild)

@@ -1,12 +1,12 @@
 id,tier,type,market,domain,url,asset,contact_name,contact_email,status,priority,last_contact,next_action,notes
-1,1,editorial,nz,nzentrepreneur.co.nz,https://www.nzentrepreneur.co.nz/,ai-crawler-study,,,prospect,1,,Find contributor/news contact,Original 100-site robots/llms data; NZ founder audience
-2,1,editorial,nz,techday.co.nz,https://www.techday.co.nz/,ai-crawler-study,,,prospect,1,,Find news desk contact,NZ tech news; data story on AI crawler access
-3,1,editorial,nz,cio.co.nz,https://www.cio.co.nz/,ai-crawler-study,,,prospect,1,,Find editor contact,NZ CIO audience; AI governance angle
-4,1,editorial,nz,idealog.co.nz,https://www.idealog.co.nz/,ai-crawler-study,,,prospect,1,,Find editorial contact,NZ business/innovation audience
+1,1,editorial,nz,nzentrepreneur.co.nz,https://www.nzentrepreneur.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow up 2026-11-24 if no reply,Original 100-site robots/llms data; NZ founder audience
+2,1,editorial,nz,techday.co.nz,https://www.techday.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow up 2026-11-24 if no reply,NZ tech news; data story on AI crawler access
+3,1,editorial,nz,cio.co.nz,https://www.cio.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow up 2026-11-24 if no reply,NZ CIO audience; AI governance angle
+4,1,editorial,nz,idealog.co.nz,https://www.idealog.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow up 2026-11-24 if no reply,NZ business/innovation audience
 5,1,editorial,nz,businessdesk.co.nz,https://www.businessdesk.co.nz/,ai-crawler-study,,,prospect,1,,Find business desk contact,Paywalled business audience; data-led pitch
 6,1,editorial,nz,interest.co.nz,https://www.interest.co.nz/,ai-crawler-study,,,prospect,1,,Find data/news contact,NZ business/data audience
 7,1,editorial,global,searchengineland.com,https://searchengineland.com/,ai-crawler-study,,,prospect,2,,Find news tip contact,Global SEO audience; strongest editorial fit
-8,1,editorial,global,searchenginejournal.com,https://www.searchenginejournal.com/,ai-crawler-study,,,prospect,2,,Find news tip contact,Global SEO audience; second editorial target
+8,1,editorial,global,searchenginejournal.com,https://www.searchenginejournal.com/,ai-crawler-study,,,ready,2,,Submit via SEJ contact form after Turnstile is solved manually,Global SEO audience; second editorial target
 9,2,directory,nz,yellow.co.nz,https://www.yellow.co.nz/,brand,,,prospect,2,,Check free business listing,Brand citation; not an editorial link
 10,2,directory,nz,neighbourly.co.nz,https://www.neighbourly.co.nz/,brand,,,prospect,2,,Check business page,Local citation; NZ neighbourhood audience
 11,2,directory,nz,kiwisaas.com,https://www.kiwisaas.com/,brand,,,prospect,2,,Check membership criteria,NZ SaaS directory; only if eligible

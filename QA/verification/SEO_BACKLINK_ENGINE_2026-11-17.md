@@ -87,6 +87,23 @@ Baseline file: `~/OpenBot/Shared/trendi-seo/monitor/serp/nz/2026-11-17.csv`.
   12/12 and the plan is 52 credits. The baseline run checked all 25 terms with 0
   failures.
 
+## First outreach sent (2026-11-17 22:18 NZDT)
+
+Jo approved sending the first five after seeing the drafts. Four were accepted by the
+Brevo SMTP relay from `admin@trendibizz.com`:
+
+| Prospect | Address | Subject |
+|---|---|---|
+| NZ Entrepreneur | editor@nzentrepreneur.co.nz | Data: how 100 SaaS sites treat AI crawlers |
+| TechDay | editors@techday.com | New Zealand study: AI crawler access on 100 SaaS sites |
+| BusinessDesk | info@businessdesk.co.nz | Data: only 2 of 94 SaaS sites block a major AI crawler |
+| interest.co.nz | news@interest.co.nz | Data: AI crawler access across 100 SaaS sites |
+
+The fifth, Search Engine Journal, is a web form protected by Cloudflare Turnstile and
+was **not** submitted. Its exact text is in
+`scripts/seo/backlinks/outbox/05-search-engine-journal.txt`. Follow-up date for the four
+emails: 2026-11-24. All sends and statuses are in `outreach.csv` and `prospects.csv`.
+
 ## What is not done
 
 - No outreach has been sent. The first 8 tier-1 prospects still need named contacts.
