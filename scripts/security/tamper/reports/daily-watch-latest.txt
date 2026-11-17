@@ -1,9 +1,9 @@
-trendibizz.com daily watch, 2026-11-17 20:28 NZDT: CHANGE OR PROBLEM FOUND (exit 1)
+trendibizz.com daily watch, 2026-11-17 20:34 NZDT: CHANGE OR PROBLEM FOUND (exit 1)
 
 Needs a look:
   - Cloudflare DNS records: DNS RECORDS CHANGED (Cloudflare has no DNS-change alert; this diff is the only DNS alarm): added: MX trendibizz.com -> route1.mx.cloudflare.net; added: MX trendibizz.com -> route2.mx.cloudflare.net; added: MX trendibizz.com -> route3.mx.cloudflare.net; added: TXT _dmarc.trendibizz.com -> "v=DMARC1; 
   - Zone settings (SSL mode, min TLS, HSTS, ...): not compared (token cannot read): universal_ssl_enabled; differs from baseline (+1/-1 lines)
-  - WAF / rulesets: differs from baseline (+13/-50 lines)
+  - WAF / rulesets: 1 ruleset(s) not compared (token cannot read them); differs from baseline (+23/-2 lines)
   - Account Worker scripts: differs from baseline (+1/-6 lines)
   - Cloudflare notification policies: differs from baseline (+30/-0 lines)
   - Client-side security (Page Shield): differs from baseline (+1/-1 lines)
@@ -12,13 +12,12 @@ If this was an approved change (e.g. Omega Boss's DNSSEC/CAA/DNS/notification wo
   bash scripts/security/daily-watch.sh accept --reason 'who: what' dns zone_settings rulesets worker_scripts notifications page_shield public_dns
 If it was NOT approved: treat as possible tampering (see README 'On a FAIL').
 Could not check:
-  - Live site vs deployed files: skipped (--skip-live)
   - Pages deployments vs changes.csv: no deployments in snapshot (Pages token scope missing?)
 
-Runtime 7.6 s. Cloudflare snapshot: 2026-11-17T07:22:32.613Z (5.5 min old)
+Runtime 61.7 s. Cloudflare snapshot: 2026-11-17T07:33:01.758Z (0.5 min old)
 ========================================================================
-[UNCHECKED] Live site vs deployed files
-            skipped (--skip-live)
+[OK       ] Live site vs deployed files
+            live site byte-identical to deploy_known_good: LIVE-INTEGRITY: PASS  (fail=0 warn=0)
 [CHANGED  ] Cloudflare DNS records
             DNS RECORDS CHANGED (Cloudflare has no DNS-change alert; this diff is the only DNS alarm): added: MX trendibizz.com -> route1.mx.cloudflare.net; added: MX trendibizz.com -> route2.mx.cloudflare.net; added: MX trendibizz.com -> route3.mx.cloudflare.net; added: TXT _dmarc.trendibizz.com -> "v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com"; added: TXT cf2024-1._domainkey.trendibizz.com -> "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k" "m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r
             differs from baseline (+32/-14 lines)
@@ -104,7 +103,8 @@ Runtime 7.6 s. Cloudflare snapshot: 2026-11-17T07:22:32.613Z (5.5 min old)
               +  "min_tls_version": "1.2",
                  "minify": {
 [CHANGED  ] WAF / rulesets
-            differs from baseline (+13/-50 lines)
+            1 ruleset(s) not compared (token cannot read them)
+            differs from baseline (+23/-2 lines)
             diff:
               --- baseline
               +++ now
@@ -113,76 +113,36 @@ Runtime 7.6 s. Cloudflare snapshot: 2026-11-17T07:22:32.613Z (5.5 min old)
               -        "expression": "starts_with(http.request.uri.path, \"/api/\")",
               +        "expression": "starts_with(http.request.uri.path, \"/api/\")\nand not starts_with(http.request.uri.path, \"/api/v1/translate\")\nand not starts_with(http.request.uri.path, \"/api/v1/widget-\")\nand not starts_with(http.request.uri.path, \"/api/v1/chat\")\nand not starts_with(http.request.uri.path, \"/api/v1/voice\")",
                        "id": "a0395bfaac794ca585bb44c247a7d9f8",
-              @@ -25,3 +25,3 @@
+              @@ -25,4 +25,20 @@
                          "period": 10,
               -          "requests_per_period": 5
               +          "requests_per_period": 60
                        }
-              @@ -33,53 +33,16 @@
-                   "name": "default",
-              -    "phase": "http_request_dynamic_redirect",
-              +    "phase": "http_request_dynamic_redirect"
+              +      }
+              +    ]
               +  },
               +  {
               +    "kind": "zone",
               +    "name": "Block AI training crawlers",
               +    "phase": "http_request_firewall_custom",
-                   "rules": [
-                     {
-              -        "action": "redirect",
-              -        "action_parameters": {
-              -          "from_value": {
-              -            "preserve_query_string": true,
-              -            "status_code": 301,
-              -            "target_url": {
-              -              "expression": "concat(\"https://trendibizz.com\", http.request.uri)"
-              -            }
-              -          }
-              -        },
-              -        "description": "www to apex HTTPS",
+              +    "rules": [
+              +      {
               +        "action": "block",
               +        "action_parameters": null,
               +        "description": "Block AI training crawlers",
-                       "enabled": true,
-              -        "expression": "(http.host eq \"www.trendibizz.com\")",
-              -        "id": "2832a632bfa547178f1dfd7e45572b5d",
-              -        "ratelimit": null
-              -      },
-              -      {
-              -        "action": "redirect",
-              -        "action_parameters": {
-              -          "from_value": {
-              -            "preserve_query_string": true,
-              -            "status_code": 301,
-              -            "target_url": {
-              -              "expression": "concat(\"https://\", http.host, http.request.uri)"
-              -            }
-              -          }
-              -        },
-              -        "description": "Force HTTPS",
-              -        "enabled": true,
-              -        "expression": "(not ssl)",
-              -        "id": "ad5e802f308c4cf98d6e4ad85fbc8f88",
-              -        "ratelimit": null
-              -      },
-              -      {
-              -        "action": "redirect",
-              -        "action_parameters": {
-              -          "from_value": {
-              -            "preserve_query_string": true,
-              -            "status_code": 301,
-              -            "target_url": {
-              -              "value": "https://trendibizz.com/security-check"
-              -            }
-              -          }
-              -        },
-              -        "description": "Merge /tools/security-check into /security-check",
-              -        "enabled": true,
-              -        "expression": "(http.host eq \"trendibizz.com\" and (http.request.uri.path eq \"/tools/security-check\" or http.request.uri.path eq \"/tools/security-check/\"))",
-              -        "id": "dfaeede6a7574a22a287c63d24c94772",
+              +        "enabled": true,
               +        "expression": "((http.user_agent contains \"GPTBot\") or (http.user_agent contains \"CCBot\") or (http.user_agent contains \"Bytespider\") or (http.user_agent contains \"ClaudeBot\") or (http.user_agent contains \"Google-Extended\") or (http.user_agent contains \"Applebot-Extended\") or (http.user_agent contains \"Amazonbot\") or (http.user_agent contains \"FacebookBot\")) and http.request.uri.path ne \"/robots.txt\"",
               +        "id": "ebb1863a2e9344d1a3ba93b583f9ff92",
-                       "ratelimit": null
+              +        "ratelimit": null
+                     }
+              @@ -44,2 +60,7 @@
+                   "phase": "http_response_firewall_custom"
+              +  },
+              +  {
+              +    "kind": "managed",
+              +    "name": "rulesets-ams-production-26645097af4e5d94d92ef1c129f21add-pytest-wsiBAoqMe7zMMG04ebwFATqwCpO2kxgk",
+              +    "phase": "http_response_firewall_custom"
+                 }
 [CHANGED  ] Account Worker scripts
             differs from baseline (+1/-6 lines)
             diff:

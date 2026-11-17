@@ -264,7 +264,10 @@ def auth_error(err):
 
 def compare(sec, current, baselines, res, ignore_missing=False, drop_unreadable=False):
     bpath = baselines / f"{sec}.json"
+    unread_keys = set()
     if drop_unreadable and isinstance(current, list):
+        unread_keys = {(x.get("phase"), x.get("name")) for x in current
+                       if isinstance(x, dict) and x.get("rules_unreadable")}
         current = [x for x in current if not (isinstance(x, dict) and x.get("rules_unreadable"))]
     (STATE / f"{sec}.json").write_text(canon(current))
     if not bpath.is_file():
@@ -272,7 +275,8 @@ def compare(sec, current, baselines, res, ignore_missing=False, drop_unreadable=
         return
     old_obj = json.loads(bpath.read_text())
     if drop_unreadable and isinstance(old_obj, list):
-        old_obj = [x for x in old_obj if not (isinstance(x, dict) and x.get("rules_unreadable"))]
+        old_obj = [x for x in old_obj if not (isinstance(x, dict) and x.get("rules_unreadable"))
+                   and (x.get("phase"), x.get("name")) not in unread_keys]
     if ignore_missing and isinstance(old_obj, dict) and isinstance(current, dict):
         lost = sorted(k for k in old_obj if k not in current)
         for k in lost:

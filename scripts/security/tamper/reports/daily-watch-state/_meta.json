@@ -1,7 +1,7 @@
 {
   "baselines": "/Users/jo/work-staging/concierge-integration/scripts/security/tamper/baselines",
   "cf_snapshot": {
-    "age_min": 5.5,
+    "age_min": 0.5,
     "errors": [
       "universal_ssl: HTTP 403 Unauthorized to access requested resource",
       "ruleset:http_request_dynamic_redirect: HTTP 403 request is not authorized",
@@ -9,10 +9,11 @@
       "user: HTTP 403 Unauthorized to access requested resource",
       "pages_project: HTTP 403 Authentication error",
       "pages_domains: HTTP 403 Authentication error",
-      "deployments_p1: HTTP 403 Authentication error"
+      "deployments_p1: HTTP 403 Authentication error",
+      "deployments: no deployments returned (Pages token scope?)"
     ],
-    "generated_at": "2026-11-17T07:22:32.613Z"
+    "generated_at": "2026-11-17T07:33:01.758Z"
   },
-  "elapsed_s": 7.6,
-  "run_at": "2026-11-17T07:28:00.824300+00:00"
+  "elapsed_s": 61.7,
+  "run_at": "2026-11-17T07:33:22.761322+00:00"
 }

@@ -1,0 +1,13 @@
+=== Trendi live integrity === 2026-11-17 20:33 NZDT  base=https://trendibizz.com  known-good deployment=repo dd87eee (website/)  paths=107
+ok    107/107 files byte-identical to deployment repo dd87eee (website/) with expected security headers
+ok    probe https://www.trendibizz.com/: 301 -> https://trendibizz.com/
+ok    probe https://trendibizz.com/shop: 410
+ok    probe https://trendibizz.com/wp-login.php: 410
+ok    probe https://trendibizz.com/tools/security-check: 301 -> https://trendibizz.com/security-check
+ok    probe https://trendibizz.com/_headers: 404
+ok    probe https://trendibizz.com/_redirects: 404
+ok    probe https://trendibizz.com/_worker.js: 404
+ok    probe https://trendibizz.com/.git/config: 404
+ok    probe https://trendibizz.com/integrity-probe-does-not-exist-7f3a: 404
+ok    probe http://trendibizz.com/: 301 -> https://trendibizz.com/
+LIVE-INTEGRITY: PASS  (fail=0 warn=0)

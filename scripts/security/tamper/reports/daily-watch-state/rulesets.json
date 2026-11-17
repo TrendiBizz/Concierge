@@ -30,11 +30,6 @@
   },
   {
     "kind": "zone",
-    "name": "default",
-    "phase": "http_request_dynamic_redirect"
-  },
-  {
-    "kind": "zone",
     "name": "Block AI training crawlers",
     "phase": "http_request_firewall_custom",
     "rules": [
@@ -62,6 +57,11 @@
   {
     "kind": "managed",
     "name": "Cloudflare Managed Response Firewall Default",
+    "phase": "http_response_firewall_custom"
+  },
+  {
+    "kind": "managed",
+    "name": "rulesets-ams-production-26645097af4e5d94d92ef1c129f21add-pytest-wsiBAoqMe7zMMG04ebwFATqwCpO2kxgk",
     "phase": "http_response_firewall_custom"
   }
 ]

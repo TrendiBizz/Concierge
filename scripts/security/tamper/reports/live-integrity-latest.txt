@@ -1,5 +1,5 @@
-=== Trendi live integrity === 2026-11-17 20:26 NZDT  base=https://trendibizz.com  known-good deployment=repo 7c8b113 (website/)  paths=107
-ok    107/107 files byte-identical to deployment repo 7c8b113 (website/) with expected security headers
+=== Trendi live integrity === 2026-11-17 20:33 NZDT  base=https://trendibizz.com  known-good deployment=repo dd87eee (website/)  paths=107
+ok    107/107 files byte-identical to deployment repo dd87eee (website/) with expected security headers
 ok    probe https://www.trendibizz.com/: 301 -> https://trendibizz.com/
 ok    probe https://trendibizz.com/shop: 410
 ok    probe https://trendibizz.com/wp-login.php: 410
