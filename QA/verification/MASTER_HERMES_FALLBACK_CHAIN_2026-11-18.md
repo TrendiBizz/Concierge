@@ -25,8 +25,15 @@ Backup of the previous file: `config.yaml.bak-pre-chain` (in the profile dir).
 - `chat --provider xai-oauth -m grok-4.7 -Q -q "reply GROK-OK"` returned `GROK-OK`.
 - Codex logged in (ChatGPT plan); DeepSeek credential "Hermes" answered `DS-OK`.
 
+## Failover proof (2026-11-18 11:00, agent.log, forced with a nonexistent primary model)
+- Claude primary with a bogus model -> `Fallback activated: ... -> gpt-6.1-sol (openai-codex)`, turn answered `HOP2-OK`.
+- Codex primary with a bogus model -> `Fallback activated: ... -> grok-4.7 (xai-oauth)`, answered `FAILOVER-OK`.
+
+## Defect found by the failover test
+First Claude hop skipped Codex (`Fallback to openai-codex failed: provider not configured`, "no Codex OAuth token found") although `auth status` said logged in. Cause: the Codex pool entry in `auth.json` held stale per-model cooldowns (`model_cooldowns`, from earlier bogus-model probes) and the fallback resolver then found no usable token. Fix: `hermes -p trendi-master auth reset openai-codex` (and `xai-oauth`); the hop then worked. Rule: after probing with fake model names, run `auth reset <provider>`.
+
 ## Not verified
-UNKNOWN: the automatic hop on a real primary failure (each provider was tested directly, not by forcing a failover).
+UNKNOWN: the Grok -> DeepSeek hop (DeepSeek was tested directly only; Codex sits ahead of it in the chain so it could not be isolated without editing the config).
 
 ## Persistence
-The file lives in the Docker volume `hermes_concierge_data`, not in this repo. `hermes/runtime/start-master.sh` only rewrites `/opt/data/config.yaml` (the root default), so a restart or container recreate keeps the profile config; losing the volume loses it. Re-apply from the block above.
+The profile config lives in the Docker volume `hermes_concierge_data`. `hermes/runtime/apply-fallback.py` (tracked, idempotent, tested on a scratch profile) rewrites the `fallback_model` block, and `start-master.sh` runs it on every start, so a recreate re-applies the chain. The primary (Claude) `model:` block is still volume-only; set with `--provider claude-subscription-directsdk-experimental -m sonnet`.
