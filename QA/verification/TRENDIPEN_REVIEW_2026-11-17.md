@@ -1,4 +1,4 @@
-# Authorized pen-test umbrella — 2026-11-17
+# Authorized security review umbrella — 2026-11-17
 
 ## What was asked
 

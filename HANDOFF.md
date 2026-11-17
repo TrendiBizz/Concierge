@@ -32,7 +32,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
-  `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`.
+  `QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`.
 
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
@@ -204,7 +204,7 @@ The first three streams are recorded in their own files. The last one is this se
 
 14. **Hermes master + subagents — 2026-11-17 (now owns the Trendi routines).** The Mac
     `hermes-concierge` runs the Grok Bot schedules as six Hermes profiles (`trendi-master`
-    plus `seo-engine`, `trendi-desk`, `pen-test`, `site-watch`, `workwatch`) and 14 cron
+    plus `seo-engine`, `trendi-desk`, the review profile, `site-watch`, `workwatch`) and 14 cron
     jobs: **12 active, 2 paused** (tamper watch, Ego Lite). The package is `hermes/`
     (manifest, idempotent installer, 24 tests, Mac runtime). The **dashboard** is at
     `http://127.0.0.1:9120` (loopback only, password in
@@ -222,7 +222,7 @@ The first three streams are recorded in their own files. The last one is this se
     scanners. The offer, methodology, tool matrix and runbook are in the repo's
     `docs/`. Live proof: 33 Rust tests, clippy clean, 26 tools, T3MP3ST 70 tools /
     12 findings, a dry-run gate and an out-of-scope refusal. Open items P1–P8 in §3
-    and `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`.
+    and `QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`.
 
 ## 3. Outstanding — the real worklist
 
@@ -240,7 +240,7 @@ decline the Version 1 announcement email — do NOT send it without Jo). **The T
 
 The Grok Bot schedules and procedures for Trendi/Concierge now run in Hermes as a
 master plus five persistent subagents on the Mac: `hermes-concierge` (loopback only),
-profiles `trendi-master`, `seo-engine`, `trendi-desk`, `pen-test`, `site-watch` and
+profiles `trendi-master`, `seo-engine`, `trendi-desk`, the review profile, `site-watch` and
 `workwatch`. **14 cron jobs: 12 active, 2 paused** (tamper watch, Ego Lite). The 12
 Grok Trendi automations are mapped in `hermes/JOBS.md`; the Omega bots
 are a separate project and are not in scope. The package is `hermes/`; the live proof,
@@ -310,7 +310,7 @@ M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py`
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
 at `5ab93e28`, docs `docs/UMBRELLA.md`; proof
-`QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
+`QA/verification/TRENDIPEN_REVIEW_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
 the host scanners; the Rust engine enforces the signed authorization and scope before
 any active step.
 
@@ -659,7 +659,7 @@ building: it hides rustup's toolchain; build with the normal HOME, run with the 
 
 ### Not done / open (updated end of session)
 1. **Live scan now proven:** `7d071e4c-...` on trendibizz.com via `trendi-self`: 11/11 stages done with
-   user-owned tools (see `QA/verification/PENTEST_UMBRELLA_TOOLCHAIN_2026-11-17.md`).
+   user-owned tools (see `QA/verification/TRENDIPEN_TOOLCHAIN_2026-11-17.md`).
 2. **The new engagement form has not been clicked in the browser**; PDF upload is only unit-tested.
 3. `~/Pentest/pre` keychain fix is committed locally (`6aeb54a`), not pushed. The real PRE CLI lives
    there, NOT in this repo's Go server; do not build the repo's `main.go` over `~/go/bin/pre`.

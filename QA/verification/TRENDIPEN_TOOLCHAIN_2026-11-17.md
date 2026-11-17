@@ -1,4 +1,4 @@
-# Pentest umbrella: blocked tools, keychain dialog, GUI engagements (2026-11-17)
+# security review umbrella: blocked tools, keychain dialog, GUI engagements (2026-11-17)
 
 Code lives in the separate repo `outputs/pentest-research-engine` (pushed) and `~/Pentest/pre`
 (real PRE CLI, local commit `6aeb54a`).
@@ -11,7 +11,7 @@ Code lives in the separate repo `outputs/pentest-research-engine` (pushed) and `
    check) turned `TestForcedFileModeNeverUsesOSKeyring` red; `pre run --json trendibizz.com` ran with
    no dialog.
 2. **Scan "tools" were blocked shims.** Cause: umbrella started with a shell PATH where
-   `/opt/homebrew/bin` shims (exit 97, "BLOCKED by pentest-router lockdown") and miniforge's Python
+   `/opt/homebrew/bin` shims (exit 97, "BLOCKED by security review-router lockdown") and miniforge's Python
    `httpx` came first. Fix: `prefer_user_owned_tools()` puts `rust/.tools/bin` first for the process and
    children; nmap built user-owned (7.99, no OpenSSL); `pre`/`httpx` linked in. Test:
    `user_owned_dir_comes_first_and_is_not_duplicated`.
@@ -29,7 +29,7 @@ Code lives in the separate repo `outputs/pentest-research-engine` (pushed) and `
 Live scan `7d071e4c-55fa-4dfb-a949-ecf0224539b1`, target trendibizz.com (self-owned, engagement
 `trendi-self`): status `complete`, 11/11 stages `done` (pre, httpx, nmap, naabu, subfinder, katana,
 ffuf, sslscan, testssl.sh, nuclei, nikto). nuclei: 0 findings; httpx: 1 info fingerprint.
-Toolchain check: all 16 required tools OK. Workspace tests: 41 pass (pentest repo).
+Toolchain check: all 16 required tools OK. Workspace tests: 41 pass (security review repo).
 
 ## Recurrence — Keychain Not Found (2026-11-17 22:36)
 
