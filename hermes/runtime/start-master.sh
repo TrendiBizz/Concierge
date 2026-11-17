@@ -168,6 +168,9 @@ say "Dashboard password: $SECRETS (mode 600; change DASHBOARD_PASSWORD there and
 
 # One Linux venv for the trendi-seo scripts. The macOS .venv cannot run in Linux.
 say "Checking the trendi-seo Python environment ..."
+# Claude subscription CLI lives in the volume (/opt/data/tools); the PATH symlink is lost on container
+# recreate, and Hermes runs as uid 10000 so the login files must be hermes-owned (see QA/verification/HERMES_CLAUDE_SUBSCRIPTION_2026-11-18.md).
+docker exec "$NAME" sh -lc 'CLI=$(ls /opt/data/tools/node_modules/.bin/claude 2>/dev/null); [ -n "$CLI" ] && ln -sfn "$CLI" /usr/local/bin/claude; [ -d /opt/data/.claude ] && chown -R hermes:hermes /opt/data/.claude /opt/data/.claude.json 2>/dev/null; true'
 docker exec "$NAME" sh -lc 'mkdir -p /Users && ln -sfn /opt/data /Users/jo && mkdir -p /opt/data/.workwatch/reports/hermes && chmod -R a+rwX /opt/data/.workwatch/reports/hermes && ls -ld /Users/jo'
 docker exec "$NAME" sh -lc '
   if [ ! -x /opt/data/venvs/trendi-seo/bin/python ]; then

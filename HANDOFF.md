@@ -282,6 +282,11 @@ M9. **The Mac must be awake.** `--catch-up on` runs a missed job once on wake. T
     not involved in these schedules.
 M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memory and
     session_search. The Mac master is the operator agent, not the customer planner.
+M12. **Claude Sonnet 5.5 on the Max subscription — DONE 2026-11-18.** Plugin
+     `claude-subscription-directsdk-experimental` in `trendi-master`; live turn passed, no API key.
+     Select with `--provider claude-subscription-directsdk-experimental -m sonnet --reasoning low`;
+     default model unchanged. Symlink/ownership trap handled in the Hermes start script. See
+     `QA/verification/MASTER_HERMES_CLAUDE_SUBSCRIPTION_2026-11-18.md`. UNKNOWN: terms of use; dashboard listing unchecked.
 M11. **Morning report — ADDED 2026-11-17.** `scripts/reports/morning_brief.py` writes
      `~/.workwatch/reports/hermes/trendi-master/morning-<date>.md` and `morning-latest.md`
      from live Omega SSH, Concierge git/deploy/health and the Hermes lane reports. The
