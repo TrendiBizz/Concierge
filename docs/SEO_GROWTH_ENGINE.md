@@ -2,7 +2,9 @@
 
 Status: design + initial pipeline, 2026-11-17. This is the missing structure Jo named:
 one loop that continuously measures rankings, decides what to change, earns links, and
-proves what moved.
+proves what moved. It builds on the page/keyword map in
+`QA/verification/SEO_KEYWORDS_2026-11-11.md`; that map named the Concierge clusters, this
+record adds the measurement, backlink pipeline and cadence.
 
 **This is a mechanism, not a promise of rankings.** Google does not guarantee positions.
 Links are one signal among many; the loop below makes the work visible and testable.
