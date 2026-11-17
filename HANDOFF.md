@@ -28,7 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `23312f4`; Rust
+- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `5ab93e28`; Rust
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
@@ -215,7 +215,7 @@ The first three streams are recorded in their own files. The last one is this se
     §3 "Hermes master on the Mac" M1–M10.
 
 15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
-    `23312f4` (`Trendiisales/pentest-research-engine`) has the authorization/scope
+    `5ab93e28` (`Trendiisales/pentest-research-engine`) has the authorization/scope
     gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
     `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
     T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
@@ -281,17 +281,20 @@ M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memo
 
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
-at `23312f4`, docs `docs/UMBRELLA.md`; proof
+at `5ab93e28`, docs `docs/UMBRELLA.md`; proof
 `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
 the host scanners; the Rust engine enforces the signed authorization and scope before
 any active step.
 
-P1. **Full scan ready; first live run found a bug, now fixed.** The landing tab is the
-    one-field full scan (address + engagement + acknowledgement) and defaults to the
-    valid `Trendi (self-owned)` engagement with `trendibizz.com` filled in. The first
-    live run passed `https://…` to nmap/PRE, so the nmap result was invalid and PRE ran
-    one source; both now get the host (commit `23312f4`). Rerun the own address on the
-    fixed build, then attach Pukeko's signed permission and run it.
+P1. **Full scan works; some scanners are blocked by the old lockdown.** The landing
+    tab defaults to the valid `Trendi (self-owned)` engagement with `trendibizz.com`.
+    The URL→nmap/PRE bug is fixed, but the old `pentest-router` shims block Nmap,
+    Nuclei, Nikto, sslscan and Homebrew ffuf/katana/subfinder with exit 97. Those zeros
+    are invalid; the scan now marks non-zero exits as errors and shows stderr. Use the
+    user-owned Go tools (ffuf, katana, subfinder, naabu, gobuster, dalfox) and wire the
+    root executor (P9) for Nmap/Nikto/sslscan. Attach Pukeko's signed permission
+    (including exploitation) and run it only after that.
+
 P2. **T3MP3ST missions launch in the War Room**, not the umbrella. The umbrella reads
     health/arsenal/findings and links to `:3333/ui/`; T3MP3ST's agent session,
     approvals and receipts stay native. A unified mission launcher needs its API and
@@ -310,6 +313,19 @@ P7. **The authorization/contract/insurance package has not been legally reviewed
     `docs/PENETRATION_TESTING_SERVICE.md` §3 has the minimum contents; counsel and
     insurance are needed before the first paid test.
 P8. **Pricing is not set.** `hermes/BUSINESS.md` §7 is a shape, not a quote.
+
+P9. **Offensive tab is live; the root executor is the blocker.** `/api/offensive/run`
+    has 41 tools, an exploitation gate, finding capture and timestamped reports.
+    WAFW00F ran; sslscan was blocked and correctly reported failed with exit 97. The real
+    Homebrew binaries are root-only and the sandboxed server cannot sudo. Next: run the
+    server from a Terminal and wire
+    `sudo -n /usr/local/libexec/pentest-exec --target <scope> -- <tool>` for the old
+    allowlist, or install user-owned equivalents. Do not bypass the old executor.
+P10. **Tool installs are partial.** User-owned: WAFW00F, Arjun, Commix, NetExec,
+    Impacket, Dalfox, Gobuster, Naabu, ffuf, Katana, Subfinder. Brew is blocked by
+    `/opt/homebrew` ownership; Gitleaks failed its module-path build; user-owned Nuclei
+    and Nikto/sslscan equivalents are still missing. T3MP3ST's 70-tool War Room is the
+    fallback for the deep chain.
 
 ### Hermes on the VPS (customer planner) — deployed, still not triggered
 
@@ -543,11 +559,14 @@ drift — check `verify-deploy.sh` first.
    master brief in `~/.workwatch/reports/hermes/`; pause the 11 Grok cloud copies (M1) so
    they cannot double-run; and confirm the `sitemap.xml`/`llms.txt` change the first
    manual monitor flagged (M3).
-3. **Pen-test full scan** (P1–P3): open `http://127.0.0.1:9130`, choose **Trendi
-   (self-owned)**, tick the authorization and run the full arsenal on
-   `trendibizz.com`. Then attach Pukeko's signed permission and run it there. Keep
-   T3MP3ST missions in its War Room. Set the authorization template, legal review,
-   insurance and prices (P7–P8) before selling.
+3. **Pen-test full scan and offensive tab** (P1–P3, P9–P10): open
+   `http://127.0.0.1:9130`, choose **Trendi (self-owned)**, tick the authorization and
+   run the full arsenal. Then use **Offensive** for validated exploitation: WAFW00F /
+   Arjun / Commix / Dalfox / Gobuster / Naabu / ffuf / Katana / Subfinder are user-owned
+   and work; Nmap/Nikto/sslscan need the root executor. Capture findings and refresh
+   the timestamped report. Then attach Pukeko's signed permission (with exploitation)
+   and run it there. Keep T3MP3ST missions in its War Room. Set the authorization
+   template, legal review, insurance and prices (P7–P8) before selling.
 4. **VPS customer Hermes, first real plan** (H1): choose the trigger. If it is the inbound-email
    hook, keep the tenant in `shadow`, send one real enquiry to a tenant that has a case, and read
    the plan before letting anything execute. Pin the customer image first (H2), and extend source
