@@ -13,8 +13,10 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
 ## 1. Project and repo
 
 - **Repo:** `/Users/jo/work-staging/concierge-integration`, branch `main` (deployed).
-  HEAD includes the quotation rebuild (commit "quotations: a real quote document, builder and
-  lifecycle"), pushed to `origin/main`. Working tree clean apart from ignored outputs.
+  HEAD `8a16ca1`, pushed to `origin/main`. This session drove the Docker→Podman cutover (see §3 and
+  `QA/verification/PODMAN_MIGRATION_2026-11-17.md`) and retired Twenty, adding the Studio pipeline
+  board (`QA/verification/STUDIO_PIPELINE_AND_TWENTY_RETIREMENT_2026-11-17.md`). Working tree clean
+  apart from ignored `outputs/`.
 
 - **Live:** `https://trendibizz.com` (site, 45 indexable URLs), `https://concierge.trendibizz.com/studio/`
   (portal), `https://chat.trendibizz.com/demo/pukeko-construction` (widget).
@@ -27,21 +29,23 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
     IndexNow for the pages that changed.
   - Host tooling (`scripts/vps/`, including the health check): `KEY=./Concierge ./scripts/vps/sync-tooling.sh`.
     **New this session** — without it, editing the health check left `verify-deploy` red forever.
-  - API: `rsync api/app/` into `product/api/app/` then `bash scripts/vps/redeploy-api.sh`.
+  - API: `KEY=./Concierge ./scripts/vps/deploy-api.sh` (copies `api/app`+`api/static`, rebuilds,
+    recreates api+social, verifies). `redeploy-api.sh` now removes social before recreating api — a
+    single `up --force-recreate api social` is refused by Podman and once left the API down.
   - Portal: `KEY=./Concierge ./scripts/vps/deploy-studio.sh`.
 - **Verify before claiming anything is deployed:** `KEY=./Concierge ./scripts/vps/verify-deploy.sh`
-  → must print `OK: repo and box agree` (currently api/app 107 · scripts/vps 38 · website/site 61 —
-  green at `82c2af6`, no publish was needed to get there).
+  → must print `OK: repo and box agree` (currently api/app 110 · scripts/vps 42 · website/site 62 —
+  green at `8a16ca1`).
 - **Tests:** `cd api && PYTHONPATH="$(cd .. && pwd)/QA/verification/shims" \
   TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
-  /Users/jo/work-staging/venv-concierge/bin/python -m pytest -q` → **1420 passed**. The interpreter,
+  /Users/jo/work-staging/venv-concierge/bin/python -m pytest -q` → **1527 passed, 19 skipped**. The interpreter,
   the shims and `Pillow` are all required; the old bare `python3 -m pytest -q` collects 101 errors
   (`QA/verification/TEST_ENV_2026-11-16.md`).
 - **Agent shell git:** if every git command dies with `missing config key GIT_CONFIG_KEY_0`, it is the
   harness, not the repo — prefix `env -u GIT_CONFIG_COUNT` until the harness restarts
   (`QA/verification/HARNESS_GIT_ENV_2026-11-16.md`).
 - **Health (on the box):** `python3 scripts/vps/healthcheck.py --no-alert` →
-  **46 ok / 1 warn (`sms:inbound`) / 0 fail**.
+  **46 ok / 2 warn (`inbound:onboarding`, `sms:inbound`) / 0 fail**.
 - **Website technical SEO:** `python3 scripts/seo/site_seo.py check` (the deploy gate),
   `python3 scripts/seo/site_seo.py sitemap --write` (the sitemap is generated, never hand-edited).
 - **Earlier record:** `HANDOFF_ARCHIVE_2026-11-15_1430.md` holds the session-by-session detail
@@ -346,23 +350,23 @@ decline the Version 1 announcement email — do NOT send it without Jo). **The T
 
 ## 4. Next action
 
-**Nothing is blocked on a deploy any more.** `verify-deploy.sh` prints `OK: repo and box agree` at
-`82c2af6`, and the live calculator already carries the USD/no-GST copy the operator decision asks
-for. Do not run `deploy-site.sh` expecting to fix drift — the drift was the unmerged `origin/main`.
+**Nothing is blocked on a deploy.** `verify-deploy.sh` prints `OK: repo and box agree` at `8a16ca1`.
+The Docker→Podman move is done and reboot-tested; Twenty is retired; the Studio pipeline board is
+live. Do not run `deploy-site.sh` expecting to fix drift — check `verify-deploy.sh` first.
 
 **Next, in this order:**
 
-0. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
+0. **Walk the new pipeline board signed in** (item 12): Studio → Sales → Pipeline, drag one deal
+   between two stages, add one offline opportunity, and confirm the dashboard/Reports numbers agree.
+   The routes are live and tested; nobody has clicked it signed in yet.
+1. **Quotations:** item 34a — write, approve, send and accept one real quote, because the new
    system has never carried real data. Everything it does is covered by tests, but tests are not
    a customer.
-
-1. **DONE (912452f) — the two SEO buy links were dead; replaced with the new tax-inclusive links and
-   deployed.** Only follow-up: purge Cloudflare's cached `/products.js` if it still shows the old links.
-2. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
+2. **Cloudflare `/products.js`** — the tax-inclusive buy links shipped in `912452f`; purge the cached
+   file if it still serves the old links (the only remaining follow-up from that item).
+3. Verify `trendibizz.com` in Google Search Console (the DNS TXT already proves ownership — likely
    just submit the sitemap) and Bing Webmaster (no Bing verification exists), then submit
    `https://trendibizz.com/sitemap.xml` (item 7). Bing feeds ChatGPT search.
-3. DONE (912452f): tax-inclusive copy, FAQ answer, fine print, link updates and the non-answer
-   regression test are shipped.
 4. Rotate the VPS root SSH key, the live Stripe secret and the Stripe webhook secret (item 3).
 
 Everything else in §3 is unchanged and uncancelled: the phone/SMS/email round trips (items 5,
