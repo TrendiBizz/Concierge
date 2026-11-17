@@ -1,0 +1,25 @@
+id,tier,type,market,domain,url,asset,contact_name,contact_email,status,priority,last_contact,next_action,notes
+1,1,editorial,nz,nzentrepreneur.co.nz,https://www.nzentrepreneur.co.nz/,ai-crawler-study,,,prospect,1,,Find contributor/news contact,Original 100-site robots/llms data; NZ founder audience
+2,1,editorial,nz,techday.co.nz,https://www.techday.co.nz/,ai-crawler-study,,,prospect,1,,Find news desk contact,NZ tech news; data story on AI crawler access
+3,1,editorial,nz,cio.co.nz,https://www.cio.co.nz/,ai-crawler-study,,,prospect,1,,Find editor contact,NZ CIO audience; AI governance angle
+4,1,editorial,nz,idealog.co.nz,https://www.idealog.co.nz/,ai-crawler-study,,,prospect,1,,Find editorial contact,NZ business/innovation audience
+5,1,editorial,nz,businessdesk.co.nz,https://www.businessdesk.co.nz/,ai-crawler-study,,,prospect,1,,Find business desk contact,Paywalled business audience; data-led pitch
+6,1,editorial,nz,interest.co.nz,https://www.interest.co.nz/,ai-crawler-study,,,prospect,1,,Find data/news contact,NZ business/data audience
+7,1,editorial,global,searchengineland.com,https://searchengineland.com/,ai-crawler-study,,,prospect,2,,Find news tip contact,Global SEO audience; strongest editorial fit
+8,1,editorial,global,searchenginejournal.com,https://www.searchenginejournal.com/,ai-crawler-study,,,prospect,2,,Find news tip contact,Global SEO audience; second editorial target
+9,2,directory,nz,yellow.co.nz,https://www.yellow.co.nz/,brand,,,prospect,2,,Check free business listing,Brand citation; not an editorial link
+10,2,directory,nz,neighbourly.co.nz,https://www.neighbourly.co.nz/,brand,,,prospect,2,,Check business page,Local citation; NZ neighbourhood audience
+11,2,directory,nz,kiwisaas.com,https://www.kiwisaas.com/,brand,,,prospect,2,,Check membership criteria,NZ SaaS directory; only if eligible
+12,2,directory,global,clutch.co,https://clutch.co/,agency,,,prospect,3,,Create agency profile,Agency directory; needs real client proof
+13,2,directory,global,designrush.com,https://www.designrush.com/,agency,,,prospect,3,,Create agency profile,Agency directory; needs real client proof
+14,2,directory,global,goodfirms.co,https://www.goodfirms.co/,agency,,,prospect,3,,Create agency profile,Agency directory; needs real client proof
+15,2,directory,global,sortlist.com,https://www.sortlist.com/,agency,,,prospect,3,,Create agency profile,Agency directory; needs real client proof
+16,2,directory,global,semrush.com,https://www.semrush.com/agencies/,agency,,,prospect,3,,Check agency listing,Agency directory; tied to Semrush account
+17,2,directory,global,producthunt.com,https://www.producthunt.com/,robots-checker,,,prospect,3,,Check launch requirements,Tool launch; only with a real launch post
+18,2,directory,global,alternativeto.net,https://alternativeto.net/,site-check,,,prospect,3,,Submit tool,Software alternative listing
+19,2,directory,global,saashub.com,https://www.saashub.com/,site-check,,,prospect,3,,Submit tool,SaaS listing; real product page
+20,2,directory,global,futurepedia.io,https://www.futurepedia.io/,robots-checker,,,prospect,3,,Submit tool,AI tool directory
+21,2,directory,global,theresanaiforthat.com,https://theresanaiforthat.com/,robots-checker,,,prospect,3,,Submit tool,AI tool directory
+22,3,association,nz,masterbuilder.org.nz,https://www.masterbuilder.org.nz/,builders-page,,,prospect,2,,Find membership/partner contact,Builders audience; only if a real member/partner route exists
+23,3,association,nz,reinz.co.nz,https://www.reinz.co.nz/,real-estate-page,,,prospect,2,,Find partner/education contact,Real-estate audience; only if a real partner route exists
+24,3,partner,nz,pukeko.co.nz,https://pukeko.co.nz/,pukeko-case-study,,,prospect,2,,Ask permission and confirm numbers,Existing tenant; case study only with written permission and real numbers

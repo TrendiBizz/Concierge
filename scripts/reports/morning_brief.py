@@ -52,7 +52,8 @@ def run(cmd: list[str], *, timeout: int = 60, env: dict | None = None) -> subpro
 def ssh_omega(ps: str, *, timeout: int = 45) -> str:
     """Run one PowerShell command on the live Omega box."""
     result = run(
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", OMEGA_HOST,
+        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+         "-o", "ControlMaster=no", "-o", "ControlPath=none", OMEGA_HOST,
          f'powershell -NoProfile -Command "{ps}"'],
         timeout=timeout,
     )
@@ -78,14 +79,22 @@ def omega_status() -> dict:
     watchdog = checks.get("protection.broker_watchdog", {}).get("detail", "")
     positions = re.search(r"(\d+)\s+broker position", watchdog)
     build = checks.get("binary.hash_matches_head", {}).get("detail", "")
+    # IBKR order paths were closed on 2026-11-02 and IBKR was discontinued on
+    # 2026-11-17. Its gateway check is a retired integration, not a desk fault.
+    retired = {"ibkr.gateway": "IBKR retired 2026-11-17"}
+    active = [c for c in data.get("checks", []) if c.get("name") not in retired]
+    fail = [c for c in active if c.get("severity") == "FAIL"]
+    warn = [c for c in active if c.get("severity") == "WARN"]
+    overall = "FAIL" if fail else ("WARN" if warn else "OK")
     return {
-        "overall": data.get("overall", "UNKNOWN"),
+        "overall": overall,
         "mode": mode or "UNKNOWN",
         "positions": int(positions.group(1)) if positions else None,
         "build": build,
         "checks": checks,
-        "fail": [c for c in data.get("checks", []) if c.get("severity") == "FAIL"],
-        "warn": [c for c in data.get("checks", []) if c.get("severity") == "WARN"],
+        "retired": retired,
+        "fail": fail,
+        "warn": warn,
     }
 
 
@@ -172,6 +181,7 @@ def concierge_health() -> str:
     )
     result = run(
         ["ssh", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
+         "-o", "ControlMaster=no", "-o", "ControlPath=none",
          "-i", str(VPS_KEY), VPS_HOST, cmd],
         timeout=120,
     )
@@ -255,6 +265,7 @@ def build_report(now: dt.datetime, hours: int, *, online: bool = True) -> str:
                 f"**Status: {state}.** Service reports `{status['overall']}`; "
                 f"mode `{status['mode']}`; open broker positions `{status['positions']}`.",
                 f"- Build: {status['build'] or 'UNKNOWN'}.",
+                "- Retired check excluded: `ibkr.gateway` — IBKR was discontinued 2026-11-17.",
                 f"- Trades in the last {hours}h: **{len(live)} live**, **{len(shadow)} shadow/paper**.",
                 f"- Net closed P&L: live {money(live_net)}, shadow {money(shadow_net)}.",
             ]

@@ -486,8 +486,16 @@ H6. **Committed code cites a record that is not in the repo.** `hermes-gateway/R
     refresh log. `site:data` warns at 45 days and fails at 120, so it cannot go quiet, but the refresh
     itself is manual: re-run the collection, replace `research/ai-crawler-blocking-2026/data.csv`,
     bump `temporalCoverage` + `dateModified` + the refresh log, then deploy (IndexNow fires itself).
-27. **Link earning** — pitch the crawler study to NZ business press; get the two tools listed in NZ
-    small-business and agency directories.
+27. **SEO growth engine — BUILT 2026-11-17; execution is the open work.** `docs/SEO_GROWTH_ENGINE.md`
+    now defines the measure → improve → earn → verify loop, the 90-day plan and the stop rules.
+    `scripts/seo/backlink_engine.py` + `scripts/seo/backlinks/*.csv` hold 24 prospects, the
+    outreach ledger and link verification; the first pitch is
+    `scripts/seo/backlinks/pitches/ai-crawler-study.md`. The live tracker now has 12 Concierge
+    terms; the 2026-11-17 baseline is **not in the top 10 for any of the 25 NZ terms**
+    (`monitor/serp/nz/2026-11-17.csv`). **Next:** name contacts for the 8 tier-1 prospects, get
+    Jo's approval for the first 5 pitches, submit 10 reputable directories, and record GSC/Bing
+    link baselines. Then wire the weekly Hermes report to the backlink report. Proof and the
+    continuity-defect fix: `QA/verification/SEO_BACKLINK_ENGINE_2026-11-17.md`.
 
 ### Quotations (from the 2026-11-16 rebuild)
 
