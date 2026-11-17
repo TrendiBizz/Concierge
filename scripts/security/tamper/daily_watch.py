@@ -190,7 +190,8 @@ def collect_certs():
 
 def known_deploy_ids():
     ids = set()
-    for p in [ROOT / "seo" / "changes.csv", ROOT / "deploy_known_good" / "README.txt", ROOT / "deploy_known_good" / "deployment_id.txt"]:
+    for p in [HERE / "deployments_ledger.csv", ROOT / "seo" / "changes.csv",
+              ROOT / "deploy_known_good" / "README.txt", ROOT / "deploy_known_good" / "deployment_id.txt"]:
         if p.is_file():
             t = p.read_text(errors="replace").lower()
             ids |= set(re.findall(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", t))

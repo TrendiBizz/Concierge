@@ -121,6 +121,13 @@ class PartialSectionTests(unittest.TestCase):
         self.assertEqual(res.status, "OK", res.lines)
 
 
+class LedgerTests(unittest.TestCase):
+    def test_repo_ledger_clears_historical_pages_deploys(self):
+        ids = dw.known_deploy_ids()
+        self.assertIn("e1d300c0", ids)
+        self.assertIn("5a53e50a", ids)
+
+
 class AcceptGuardTests(unittest.TestCase):
     def test_accept_refuses_a_partially_read_section(self):
         with tempfile.TemporaryDirectory() as td:
