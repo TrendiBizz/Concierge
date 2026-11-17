@@ -250,6 +250,8 @@ def section_errors(snap, sec):
     keys = {sec}
     if sec == "worker":
         keys.add("worker_content")
+    if sec == "rulesets":
+        keys.add("ruleset")
     if sec == "zone_settings":
         keys.add("universal_ssl")
     if sec == "account":

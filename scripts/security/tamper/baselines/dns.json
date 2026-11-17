@@ -190,39 +190,57 @@
     "type": "CNAME"
   },
   {
-    "content": "mx1-hosting.jellyfish.systems",
+    "content": "route1.mx.cloudflare.net",
     "data": null,
     "name": "trendibizz.com",
-    "priority": 5,
+    "priority": 59,
     "proxied": false,
     "ttl": 1,
     "type": "MX"
   },
   {
-    "content": "mx2-hosting.jellyfish.systems",
+    "content": "route2.mx.cloudflare.net",
     "data": null,
     "name": "trendibizz.com",
-    "priority": 10,
+    "priority": 48,
     "proxied": false,
     "ttl": 1,
     "type": "MX"
   },
   {
-    "content": "mx3-hosting.jellyfish.systems",
+    "content": "route3.mx.cloudflare.net",
     "data": null,
     "name": "trendibizz.com",
-    "priority": 20,
+    "priority": 81,
     "proxied": false,
     "ttl": 1,
     "type": "MX"
   },
   {
-    "content": "\"v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com\"",
+    "content": "\"v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com\"",
     "data": null,
     "name": "_dmarc.trendibizz.com",
     "priority": null,
     "proxied": false,
     "ttl": 3600,
+    "type": "TXT"
+  },
+  {
+    "content": "\"v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k\" \"m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB\"",
+    "data": null,
+    "name": "cf2024-1._domainkey.trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
+    "type": "TXT"
+  },
+  {
+    "content": "\"openai-business-profile=FpzT2Ruon5H5M3iyt-1eTYmDITZkSvs4V7OCkfiI4AE\"",
+    "data": null,
+    "name": "openai-business-profile.trendibizz.com",
+    "priority": null,
+    "proxied": false,
+    "ttl": 1,
     "type": "TXT"
   },
   {
@@ -262,7 +280,7 @@
     "type": "TXT"
   },
   {
-    "content": "v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com ~all",
+    "content": "v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com include:_spf.mx.cloudflare.net ~all",
     "data": null,
     "name": "trendibizz.com",
     "priority": null,

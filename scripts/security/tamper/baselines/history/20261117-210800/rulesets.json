@@ -1,0 +1,125 @@
+[
+  {
+    "kind": "managed",
+    "name": "DDoS L7 ruleset",
+    "phase": "ddos_l7"
+  },
+  {
+    "kind": "zone",
+    "name": "default",
+    "phase": "http_ratelimit",
+    "rules": [
+      {
+        "action": "block",
+        "action_parameters": null,
+        "description": "api-robots",
+        "enabled": true,
+        "expression": "starts_with(http.request.uri.path, \"/api/\")\nand not starts_with(http.request.uri.path, \"/api/v1/translate\")\nand not starts_with(http.request.uri.path, \"/api/v1/widget-\")\nand not starts_with(http.request.uri.path, \"/api/v1/chat\")\nand not starts_with(http.request.uri.path, \"/api/v1/voice\")",
+        "id": "a0395bfaac794ca585bb44c247a7d9f8",
+        "ratelimit": {
+          "characteristics": [
+            "ip.src",
+            "cf.colo.id"
+          ],
+          "mitigation_timeout": 10,
+          "period": 10,
+          "requests_per_period": 60
+        }
+      }
+    ]
+  },
+  {
+    "kind": "zone",
+    "name": "Block AI training crawlers",
+    "phase": "http_request_firewall_custom",
+    "rules": [
+      {
+        "action": "block",
+        "action_parameters": null,
+        "description": "Block AI training crawlers",
+        "enabled": true,
+        "expression": "((http.user_agent contains \"GPTBot\") or (http.user_agent contains \"CCBot\") or (http.user_agent contains \"Bytespider\") or (http.user_agent contains \"ClaudeBot\") or (http.user_agent contains \"Google-Extended\") or (http.user_agent contains \"Applebot-Extended\") or (http.user_agent contains \"Amazonbot\") or (http.user_agent contains \"FacebookBot\")) and http.request.uri.path ne \"/robots.txt\"",
+        "id": "ebb1863a2e9344d1a3ba93b583f9ff92",
+        "ratelimit": null
+      }
+    ]
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Managed Free Ruleset",
+    "phase": "http_request_firewall_managed"
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Normalization Ruleset",
+    "phase": "http_request_sanitize"
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Managed Response Firewall Default",
+    "phase": "http_response_firewall_custom"
+  },
+  {
+    "kind": "managed",
+    "name": "rulesets-ams-production-26645097af4e5d94d92ef1c129f21add-pytest-4S1ydD7OBB8VLImnU2RR7QiCgZTgfeOq",
+    "phase": "http_response_firewall_custom"
+  },
+  {
+    "kind": "zone",
+    "name": "default",
+    "phase": "http_request_dynamic_redirect",
+    "rules": [
+      {
+        "action": "redirect",
+        "action_parameters": {
+          "from_value": {
+            "preserve_query_string": true,
+            "status_code": 301,
+            "target_url": {
+              "expression": "concat(\"https://trendibizz.com\", http.request.uri)"
+            }
+          }
+        },
+        "description": "www to apex HTTPS",
+        "enabled": true,
+        "expression": "(http.host eq \"www.trendibizz.com\")",
+        "id": "2832a632bfa547178f1dfd7e45572b5d",
+        "ratelimit": null
+      },
+      {
+        "action": "redirect",
+        "action_parameters": {
+          "from_value": {
+            "preserve_query_string": true,
+            "status_code": 301,
+            "target_url": {
+              "expression": "concat(\"https://\", http.host, http.request.uri)"
+            }
+          }
+        },
+        "description": "Force HTTPS",
+        "enabled": true,
+        "expression": "(not ssl)",
+        "id": "ad5e802f308c4cf98d6e4ad85fbc8f88",
+        "ratelimit": null
+      },
+      {
+        "action": "redirect",
+        "action_parameters": {
+          "from_value": {
+            "preserve_query_string": true,
+            "status_code": 301,
+            "target_url": {
+              "value": "https://trendibizz.com/security-check"
+            }
+          }
+        },
+        "description": "Merge /tools/security-check into /security-check",
+        "enabled": true,
+        "expression": "(http.host eq \"trendibizz.com\" and (http.request.uri.path eq \"/tools/security-check\" or http.request.uri.path eq \"/tools/security-check/\"))",
+        "id": "dfaeede6a7574a22a287c63d24c94772",
+        "ratelimit": null
+      }
+    ]
+  }
+]

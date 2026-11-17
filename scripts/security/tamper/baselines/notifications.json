@@ -11,6 +11,36 @@
     "name": "Abuse reports against account"
   },
   {
+    "alert_type": "billing_budget_alert",
+    "enabled": true,
+    "filters": {
+      "total_spend_dollars": [
+        "10"
+      ]
+    },
+    "mechanisms": {
+      "email": [
+        "kiwi18@gmail.com"
+      ]
+    },
+    "name": "Billing Budget Alert"
+  },
+  {
+    "alert_type": "billing_budget_alert",
+    "enabled": true,
+    "filters": {
+      "total_spend_dollars": [
+        "10"
+      ]
+    },
+    "mechanisms": {
+      "email": [
+        "kiwi18@gmail.com"
+      ]
+    },
+    "name": "Default budget alert (auto-created)"
+  },
+  {
     "alert_type": "dos_attack_l7",
     "enabled": true,
     "filters": null,

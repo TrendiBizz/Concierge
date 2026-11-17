@@ -1,6 +1,6 @@
 {
   "_dmarc.trendibizz.com TXT": [
-    "\"v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com\""
+    "\"v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com\""
   ],
   "autoconfig.trendibizz.com A": [],
   "autoconfig.trendibizz.com CNAME": [],
@@ -42,9 +42,9 @@
     "2371 13 2 b5c28bcc51abd6d717b1816db7ae97cf1da1b9728aa5f4605beed08feb7aac3f"
   ],
   "trendibizz.com MX": [
-    "10 mx2-hosting.jellyfish.systems.",
-    "20 mx3-hosting.jellyfish.systems.",
-    "5 mx1-hosting.jellyfish.systems."
+    "48 route2.mx.cloudflare.net.",
+    "59 route1.mx.cloudflare.net.",
+    "81 route3.mx.cloudflare.net."
   ],
   "trendibizz.com NS": [
     "gigi.ns.cloudflare.com.",
@@ -55,7 +55,7 @@
     "\"brevo-code:4644711b311ed0326a5b6fec0839cefa\"",
     "\"google-site-verification=avVhzA1EiofmOxiN_MaeFFNEsykt1q8QAfbrLBSStMA\"",
     "\"tiktok-developers-site-verification=OJ0IBlgZ2nLqaNSxaCvZvmtcK1KKdfen\"",
-    "\"v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com ~all\""
+    "\"v=spf1 +a +mx +ip4:63.250.38.99 +ip4:67.223.118.42 include:spf.web-hosting.com include:_spf.mx.cloudflare.net ~all\""
   ],
   "webdisk.trendibizz.com A": [],
   "webdisk.trendibizz.com CNAME": []

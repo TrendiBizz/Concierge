@@ -1,0 +1,91 @@
+[
+  {
+    "alert_type": "abuse_report_alert",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "Abuse reports against account"
+  },
+  {
+    "alert_type": "dos_attack_l7",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "HTTP DDoS attack on trendibizz.com"
+  },
+  {
+    "alert_type": "security_insights_alert",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "Security Insights (all classes)"
+  },
+  {
+    "alert_type": "pages_event_alert",
+    "enabled": true,
+    "filters": {
+      "environment": [
+        "ENVIRONMENT_PRODUCTION"
+      ],
+      "event": [
+        "EVENT_DEPLOYMENT_STARTED",
+        "EVENT_DEPLOYMENT_SUCCESS",
+        "EVENT_DEPLOYMENT_FAILED"
+      ],
+      "project_id": [
+        "3947278a-ff29-45cb-90f2-617b1d36ceb8"
+      ]
+    },
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "Trendi Pages production deploys (started/success/failed)"
+  },
+  {
+    "alert_type": "tunnel_update_event",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "Tunnel created or deleted"
+  },
+  {
+    "alert_type": "dedicated_ssl_certificate_event_type",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "trendibizz.com Advanced certificate events"
+  },
+  {
+    "alert_type": "universal_ssl_event_type",
+    "enabled": true,
+    "filters": null,
+    "mechanisms": {
+      "email": [
+        "admin@trendibizz.com"
+      ]
+    },
+    "name": "trendibizz.com Universal SSL events"
+  }
+]
