@@ -28,7 +28,7 @@ needed), `HARNESS_GIT_ENV_2026-11-16.md` (why git fails in the agent shell), `TE
   The status pass and both handoff corrections are in
   `QA/verification/STATUS_HERMES_2026-11-17.md`.
 
-- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `9622d03`; Rust
+- **Pen-test umbrella:** `Trendiisales/pentest-research-engine` at `a7c42fc`; Rust
   workspace `rust/`, GUI `http://127.0.0.1:9130` (loopback only), docs
   `docs/UMBRELLA.md`. It drives PRE, T3MP3ST, Ghidra and the scanners behind one
   signed-authorization/scope gate. Live proof and open items:
@@ -215,7 +215,7 @@ The first three streams are recorded in their own files. The last one is this se
     §3 "Hermes master on the Mac" M1–M10.
 
 15. **Authorized pen-test umbrella — 2026-11-17.** The Rust workspace at
-    `9622d03` (`Trendiisales/pentest-research-engine`) has the authorization/scope
+    `a7c42fc` (`Trendiisales/pentest-research-engine`) has the authorization/scope
     gate, the audit chain, the report, the CLI and the Axum umbrella GUI at
     `http://127.0.0.1:9130`. It integrates PRE (`~/go/bin/pre`, PWA `:8765`),
     T3MP3ST (`:3333`, War Room), Ghidra (`~/bin/analyzeHeadless`) and the host
@@ -281,17 +281,17 @@ M10. **The VPS customer Hermes is unchanged** — still restricted to todo, memo
 
 The Rust umbrella is the single console for authorized testing:
 `http://127.0.0.1:9130` (loopback only). Repo `Trendiisales/pentest-research-engine`
-at `9622d03`, docs `docs/UMBRELLA.md`; proof
+at `a7c42fc`, docs `docs/UMBRELLA.md`; proof
 `QA/verification/PENTEST_UMBRELLA_2026-11-17.md`. It drives PRE, T3MP3ST, Ghidra and
 the host scanners; the Rust engine enforces the signed authorization and scope before
 any active step.
 
-P1. **Full scan ready; no customer run yet.** The landing tab is the one-field full
-    scan (address + engagement + acknowledgement) and defaults to the valid
-    `Trendi (self-owned)` engagement with `trendibizz.com` filled in. `engagements/trendi-self` is valid
-    for `trendibizz.com` (self-authorization) and the preview listed 10 stages;
-    `engagements/pukeko` exists but is **invalid until its signed permission is
-    attached**. Run the own address first, then Pukeko.
+P1. **Full scan ready; first live run found a bug, now fixed.** The landing tab is the
+    one-field full scan (address + engagement + acknowledgement) and defaults to the
+    valid `Trendi (self-owned)` engagement with `trendibizz.com` filled in. The first
+    live run passed `https://…` to nmap/PRE, so the nmap result was invalid and PRE ran
+    one source; both now get the host (commit `a7c42fc`). Rerun the own address on the
+    fixed build, then attach Pukeko's signed permission and run it.
 P2. **T3MP3ST missions launch in the War Room**, not the umbrella. The umbrella reads
     health/arsenal/findings and links to `:3333/ui/`; T3MP3ST's agent session,
     approvals and receipts stay native. A unified mission launcher needs its API and
