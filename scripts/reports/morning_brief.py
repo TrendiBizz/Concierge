@@ -291,14 +291,17 @@ def build_report(now: dt.datetime, hours: int, *, online: bool = True) -> str:
     try:
         commits = git_commits(hours, now)
         head = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], env=GIT_ENV).stdout.strip()
-        lines.append(f"- Deploy: **{deploy_state()}**; HEAD `{head}`.")
-        lines.append(f"- Health: **{concierge_health()}**.")
+        if online:
+            lines.append(f"- Deploy: **{deploy_state()}**; HEAD `{head}`.")
+            lines.append(f"- Health: **{concierge_health()}**.")
+        else:
+            lines.append(f"- Deploy/health: UNANSWERED (remote checks disabled); HEAD `{head}`.")
         code = [c for c in commits if not re.match(r"^(handoff|docs|qa)\b", c["subject"], re.I)]
         docs = len(commits) - len(code)
         if code:
             groups: dict[str, int] = {}
             for c in code:
-                area = re.split(r"[:\s]", c["subject"], 1)[0].strip().lower()
+                area = re.split(r"[:\s]", c["subject"], maxsplit=1)[0].strip().lower()
                 groups[area] = groups.get(area, 0) + 1
             areas = ", ".join(f"{k} ×{v}" for k, v in sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))[:8])
             lines.append(f"- Built or changed in the last {hours}h: {len(code)} code/config commits ({areas}).")
@@ -340,7 +343,6 @@ def build_report(now: dt.datetime, hours: int, *, online: bool = True) -> str:
             )
     elif omega_error:
         needs.append(f"Omega could not be read: {omega_error}")
-    needs.append("Confirm the report shape and the 07:45/08:00 delivery time.")
     for i, item in enumerate(needs, 1):
         lines.append(f"{i}. {item}")
     return "\n".join(lines).rstrip() + "\n"
