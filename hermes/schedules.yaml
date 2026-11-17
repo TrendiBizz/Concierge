@@ -1,0 +1,231 @@
+# Hermes master schedule — Trendi / Concierge
+#
+# One entry per Grok Bot automation, plus the two master jobs. The installer creates
+# one Hermes profile per `profiles` entry and one cron job per `routines` entry.
+# `enabled: false` creates the job paused, with the reason recorded.
+version: 1
+timezone: Pacific/Auckland
+workdir: /opt/data/work/hermes
+reports_dir: /opt/data/.workwatch/reports/hermes
+model: null            # null = follow the profile's config (grok-4.20 by default)
+
+profiles:
+  trendi-master:
+    description: "Owns the Trendi/Concierge worklist and the morning brief; delegates to the named subagents."
+    soul: profiles/trendi-master/SOUL.md
+  seo-engine:
+    description: "Trendi SEO and AI visibility: monitor, weekly cycle, monthly audit, innovation scout."
+    soul: profiles/seo-engine/SOUL.md
+  trendi-desk:
+    description: "Trendi copy, social drafts, news, LinkedIn, post briefs and the deep dive."
+    soul: profiles/trendi-desk/SOUL.md
+  pen-test:
+    description: "Defensive appsec lane for Trendi content: CVEs, advisories and pen-test developments. No scanning or exploitation."
+    soul: profiles/pen-test/SOUL.md
+  site-watch:
+    description: "Read-only integrity and tamper watch for trendibizz.com. Alerts only; never accepts or reverts."
+    soul: profiles/site-watch/SOUL.md
+  workwatch:
+    description: "Weekly automation review from Workwatch activity notes, once Jo approves reading them."
+    soul: profiles/workwatch/SOUL.md
+
+routines:
+  - id: master-daily-brief
+    profile: trendi-master
+    name: "Master daily brief"
+    schedule: "0 8 * * *"
+    procedure: routines/master-daily-brief.md
+    script: scripts/lane_status.py
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "New — the master layer over the ported Trendi routines"
+    status: active
+
+  - id: master-weekly-review
+    profile: trendi-master
+    name: "Master weekly review"
+    schedule: "0 10 * * 1"
+    procedure: routines/master-weekly-review.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "New — the master layer; mirrors the Workwatch weekly review"
+    status: active
+
+  - id: seo-daily-monitor
+    profile: seo-engine
+    name: "Daily site + search monitor (Trendi)"
+    schedule: "40 7 * * *"
+    procedure: routines/seo-daily-monitor.md
+    enabled: true
+    catch_up: true
+    continuity: false
+    source: "Grok SEO Engine (paused 2026-11-06) -> Workwatch routines/seo-daily-monitor.md"
+    status: active
+
+  - id: seo-weekly-cycle
+    profile: seo-engine
+    name: "Weekly SEO cycle (Trendi)"
+    schedule: "0 9 * * 1"
+    procedure: routines/seo-weekly-cycle.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok SEO Engine -> Workwatch routines/seo-weekly-cycle.md"
+    status: active
+
+  - id: seo-monthly-audit
+    profile: seo-engine
+    name: "Monthly SEO audit (Trendi)"
+    schedule: "0 9 1 * *"
+    procedure: routines/seo-monthly-audit.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok SEO Engine -> Workwatch routines/seo-monthly-audit.md"
+    status: active
+
+  - id: seo-innovation-scout
+    profile: seo-engine
+    name: "Innovation scout (Trendi)"
+    schedule: "0 10 8,22 * *"
+    procedure: routines/seo-innovation-scout.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok SEO Engine -> Workwatch routines/seo-innovation-scout.md"
+    status: active
+
+  - id: trendi-linkedin-weekly
+    profile: trendi-desk
+    name: "Trendi LinkedIn weekly draft"
+    schedule: "30 9 * * 1"
+    procedure: routines/trendi-linkedin-weekly.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok Trendi Desk -> Workwatch routines/trendi-linkedin-weekly.md"
+    status: active
+
+  - id: trendi-biweekly-news
+    profile: trendi-desk
+    name: "Trendi biweekly SEO + pen-test news"
+    schedule: "30 10 1,15 * *"
+    procedure: routines/trendi-biweekly-news.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok Trendi Desk -> Workwatch routines/trendi-biweekly-news.md"
+    status: active
+
+  - id: trendi-social-drafts
+    profile: trendi-desk
+    name: "Trendi daily SEO / pen-test social drafts"
+    schedule: "0 7 * * *"
+    procedure: routines/trendi-social-drafts.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok Workwatch daily social drafts (07:00) -> Workwatch ops/social/PROMPT.md"
+    status: active
+
+  - id: trendi-deep-dive
+    profile: trendi-desk
+    name: "Trendi SEO forums daily deep dive"
+    schedule: "30 7 * * *"
+    procedure: routines/trendi-deep-dive.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok Workwatch deep dive (07:30) -> Workwatch HANDOVER 15b"
+    status: active
+
+  - id: trendi-post-brief
+    profile: trendi-desk
+    name: "Twice-monthly post brief (Trendi)"
+    schedule: "0 9 3,17 * *"
+    procedure: routines/trendi-post-brief.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "Grok Trendi Desk automation twice-monthly-post-brief-trendi (3rd/17th 09:00, created 2026-11-15)"
+    status: active
+
+  - id: trendi-tamper-watch
+    profile: site-watch
+    name: "trendibizz.com daily tamper watch"
+    schedule: "30 7 * * *"
+    procedure: routines/trendi-tamper-watch.md
+    enabled: false
+    paused_reason: "Needs a read-only Cloudflare API token on the Mac and the tamper kit in trendi-site; see JOBS.md T1."
+    catch_up: false
+    continuity: false
+    source: "Grok Trendi Desk automation trendibizz-com-daily-tamper-watch (paused 2026-11-06)"
+    status: paused
+
+  - id: ego-lite-linux-watch
+    profile: trendi-desk
+    name: "Ego Lite Linux watch"
+    schedule: "0 9 * * 1"
+    procedure: routines/ego-lite-linux-watch.md
+    enabled: false
+    paused_reason: "One-shot watch; no Linux build has shipped. Re-enable or delete once it does."
+    catch_up: false
+    continuity: false
+    source: "Grok Trendi Desk automation ego-lite-linux-watch"
+    status: paused
+
+  - id: workwatch-weekly-report
+    profile: workwatch
+    name: "Workwatch weekly report"
+    schedule: "0 8 * * 1"
+    procedure: routines/workwatch-weekly-report.md
+    enabled: false
+    paused_reason: "Reading ~/.workwatch/notes means Hermes sees shell/git activity; needs Jo's explicit yes."
+    catch_up: true
+    continuity: true
+    source: "Grok Workwatch weekly report (Mon 08:00) -> Workwatch README"
+    status: paused
+
+# The Trendi automations that were live in Grok Bot, mapped to their Hermes job.
+# `id` is the Grok automation id where the local cache recorded one; `name` is always
+# the recorded automation name. The two Workwatch-owned routines predate the id
+# capture, so they are matched by name.
+grok_automations:
+  - name: "Daily site + search monitor (Trendi)"
+    id: daily-site-search-monitor-trendi
+    routine: seo-daily-monitor
+  - name: "Weekly SEO cycle (Trendi)"
+    id: weekly-seo-cycle-trendi
+    routine: seo-weekly-cycle
+  - name: "Monthly SEO audit (Trendi)"
+    id: monthly-seo-audit-trendi
+    routine: seo-monthly-audit
+  - name: "Innovation scout (Trendi)"
+    id: innovation-scout-trendi
+    routine: seo-innovation-scout
+  - name: "Trendi LinkedIn weekly draft"
+    id: trendi-linkedin-weekly-draft
+    routine: trendi-linkedin-weekly
+  - name: "Trendi biweekly SEO + pen-test news"
+    id: trendi-biweekly-seo-pen-test-news
+    routine: trendi-biweekly-news
+  - name: "Trendi daily SEO / pen-test social drafts"
+    id: null
+    routine: trendi-social-drafts
+  - name: "Trendi SEO forums daily deep dive"
+    id: null
+    routine: trendi-deep-dive
+  - name: "Twice-monthly post brief (Trendi)"
+    id: twice-monthly-post-brief-trendi
+    routine: trendi-post-brief
+  - name: "trendibizz.com daily tamper watch"
+    id: trendibizz-com-daily-tamper-watch
+    routine: trendi-tamper-watch
+  - name: "Ego Lite Linux watch"
+    id: ego-lite-linux-watch
+    routine: ego-lite-linux-watch
+  - name: "Workwatch weekly report"
+    id: null
+    routine: workwatch-weekly-report
