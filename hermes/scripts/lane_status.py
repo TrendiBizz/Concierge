@@ -34,7 +34,7 @@ EXPECTED: dict[str, list[str]] = {
         "trendi-deep-dive",
         "trendi-post-brief",
     ],
-    "pen-test": [],
+    "pen-test": ["pen-test-weekly-advisories"],
     "site-watch": ["trendi-tamper-watch"],
     "workwatch": ["workwatch-weekly-report"],
 }

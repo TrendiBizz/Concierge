@@ -13,7 +13,7 @@ A deterministic **LANE STATUS TABLE** is injected into this prompt by
 verbatim: a lane listed as `NO REPORT`, `PAUSED` or `NO ROUTINE` has no fresh report,
 whatever a `latest.md` file might say.
 
-Create a missing `~/.workwatch/reports/hermes/<profile>/` directory only if you need to
+Create a missing `/opt/data/.workwatch/reports/hermes/<profile>/` directory only if you need to
 read it; never write a report for another profile. A lane with no report is
 `UNANSWERED (no report yet)`; it is not a question for Jo and not a reason to stop.
 
@@ -36,7 +36,7 @@ Then:
    cannot be written. `## Today` is a next action for the work, never a description
    of this routine.
 4. Save it to
-   `~/.workwatch/reports/hermes/trendi-master/<YYYY-MM-DD>-master-daily-brief.md` and
+   `/opt/data/.workwatch/reports/hermes/trendi-master/<YYYY-MM-DD>-master-daily-brief.md` and
    copy it to `latest.md`.
 5. If every lane is quiet and there is no new decision, write
    `Status: quiet` and one sentence. Do not manufacture work.
@@ -53,8 +53,23 @@ Then:
 - Do not repeat an item that is already in `## Needs Jo` from the previous brief
   unless it is still unanswered; if it is, say `still open (n days)`.
 
-## Finish
 
-The brief is not done until it is on disk. Write it with the file tool to the exact
-path above, then re-read it to confirm. If the write fails, say `WRITE FAILED` in the
-response; do not claim it was written.
+## Required report completion
+
+Use the current **Pacific/Auckland** calendar date (`YYYY-MM-DD`), including on
+catch-up runs; note the scheduled date separately if different. UTC topic selection
+in a routine does not change the report date.
+
+1. Create `/opt/data/.workwatch/reports/hermes/trendi-master/` if missing.
+2. Use `write_file` or a terminal file write to save the actual findings to
+   `/opt/data/.workwatch/reports/hermes/trendi-master/<YYYY-MM-DD>-master-daily-brief.md`.
+   This is the canonical routine report; supplementary drafts do not replace it.
+3. Begin with `# master-daily-brief — <YYYY-MM-DD>` and a plain, unbolded
+   `Status: quiet | attention | needs Jo | blocked` line (choose one).
+4. Copy the same content to `/opt/data/.workwatch/reports/hermes/trendi-master/latest.md`.
+5. Use a file tool to **read back** both files and confirm their content matches.
+   Complete these writes even for quiet, blocked or no-news runs, before returning
+   a final response or `[SILENT]`. Returning text does not save a report.
+6. If writing or verification fails, return `[CRON_FAILURE]` on the first line,
+   followed by `WRITE FAILED`, the path and the error. Claim success only after
+   the read-back succeeds. Never fabricate findings to satisfy this contract.

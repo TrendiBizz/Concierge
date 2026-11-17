@@ -57,8 +57,14 @@ by an unattended routine.
 | trendibizz.com daily tamper watch | `trendi-tamper-watch` | site-watch | active — kit in `scripts/security/tamper/`, first run quiet 2026-11-17 |
 | Ego Lite Linux watch | `ego-lite-linux-watch` | trendi-desk | paused — one-shot; re-enable when there is a Linux build |
 | Workwatch weekly report | `workwatch-weekly-report` | workwatch | active — notes mounted read-only |
+| Weekly defensive security advisories | `pen-test-weekly-advisories` | pen-test | active — Wed 09:00 NZ |
 | — (new) | `master-daily-brief` | trendi-master | active |
 | — (new) | `master-weekly-review` | trendi-master | active |
+
+Schedules use `Pacific/Auckland`: daily SEO monitor 07:30, weekly SEO cycle
+Monday 08:00, LinkedIn draft Monday 09:00, biweekly news on the 1st and 15th
+at 09:00. Every run writes and reads back its dated canonical report and `latest.md`,
+including quiet and blocked runs; final-response text alone is not a saved report.
 
 The Grok **Omega** bots (Omega Boss, Omega Harness, Omega Auditor, Edge Scout, and
 the trade routines) are a separate project and are not part of this migration.
@@ -86,7 +92,8 @@ by default; for reliability set `HERMES_IMAGE` to the digest printed at the end 
 start, so a restart cannot change the agent underneath the schedules.
 
 `install.py` is idempotent: an existing profile is kept and its SOUL refreshed; an
-existing job with the same name is skipped unless `--force` is given.
+existing job with the same name is replaced when its desired schedule/prompt/status
+hash changes, otherwise skipped. `--force` replaces even unchanged jobs.
 
 ## Tests
 

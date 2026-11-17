@@ -56,7 +56,7 @@ routines:
   - id: seo-daily-monitor
     profile: seo-engine
     name: "Daily site + search monitor (Trendi)"
-    schedule: "40 7 * * *"
+    schedule: "30 7 * * *"
     procedure: routines/seo-daily-monitor.md
     enabled: true
     catch_up: true
@@ -67,7 +67,7 @@ routines:
   - id: seo-weekly-cycle
     profile: seo-engine
     name: "Weekly SEO cycle (Trendi)"
-    schedule: "0 9 * * 1"
+    schedule: "0 8 * * 1"
     procedure: routines/seo-weekly-cycle.md
     enabled: true
     catch_up: true
@@ -100,7 +100,7 @@ routines:
   - id: trendi-linkedin-weekly
     profile: trendi-desk
     name: "Trendi LinkedIn weekly draft"
-    schedule: "30 9 * * 1"
+    schedule: "0 9 * * 1"
     procedure: routines/trendi-linkedin-weekly.md
     enabled: true
     catch_up: true
@@ -111,7 +111,7 @@ routines:
   - id: trendi-biweekly-news
     profile: trendi-desk
     name: "Trendi biweekly SEO + pen-test news"
-    schedule: "30 10 1,15 * *"
+    schedule: "0 9 1,15 * *"
     procedure: routines/trendi-biweekly-news.md
     enabled: true
     catch_up: true
@@ -150,6 +150,17 @@ routines:
     catch_up: true
     continuity: true
     source: "Grok Trendi Desk automation twice-monthly-post-brief-trendi (3rd/17th 09:00, created 2026-11-15)"
+    status: active
+
+  - id: pen-test-weekly-advisories
+    profile: pen-test
+    name: "Weekly defensive security advisories"
+    schedule: "0 9 * * 3"
+    procedure: routines/pen-test-weekly-advisories.md
+    enabled: true
+    catch_up: true
+    continuity: true
+    source: "New — Jo approved Hermes parity brief 2026-11-18"
     status: active
 
   - id: trendi-tamper-watch

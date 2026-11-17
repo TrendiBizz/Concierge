@@ -82,7 +82,11 @@ Every routine writes a report to:
 /opt/data/.workwatch/reports/hermes/<profile>/<YYYY-MM-DD>-<routine-id>.md
 ```
 
-and updates `.../latest.md` to the same content. The report starts with:
+using the current Pacific/Auckland calendar date (not UTC), and updates
+`.../latest.md` to the same content. Use `write_file` or a terminal write, then
+read back both files to confirm identical content before finishing, even on quiet
+or blocked runs. A final response is not a file write. On failure return
+`[CRON_FAILURE]` on the first line, then `WRITE FAILED`, the path and error. The report starts with:
 
 ```
 # <routine> — <date>
@@ -90,7 +94,7 @@ Status: quiet | attention | needs Jo | blocked
 ```
 
 Then the findings. Keep it short and plain. If there is nothing to say, say
-`Status: quiet` in one line and stop. The master reads `latest.md` for each profile.
+`Status: quiet` with one sentence, then complete the file writes and read-back. The master reads `latest.md` for each profile.
 
 ## Escalation
 

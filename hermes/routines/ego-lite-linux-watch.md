@@ -29,5 +29,26 @@ path) counts. A roadmap mention or comment does not.
 
 ## Output
 
-Write `~/.workwatch/reports/hermes/trendi-desk/<date>-ego-lite-linux-watch.md` and
+Write `/opt/data/.workwatch/reports/hermes/trendi-desk/<date>-ego-lite-linux-watch.md` and
 update `latest.md`. A quiet week is one line.
+
+
+## Required report completion
+
+Use the current **Pacific/Auckland** calendar date (`YYYY-MM-DD`), including on
+catch-up runs; note the scheduled date separately if different. UTC topic selection
+in a routine does not change the report date.
+
+1. Create `/opt/data/.workwatch/reports/hermes/trendi-desk/` if missing.
+2. Use `write_file` or a terminal file write to save the actual findings to
+   `/opt/data/.workwatch/reports/hermes/trendi-desk/<YYYY-MM-DD>-ego-lite-linux-watch.md`.
+   This is the canonical routine report; supplementary drafts do not replace it.
+3. Begin with `# ego-lite-linux-watch — <YYYY-MM-DD>` and a plain, unbolded
+   `Status: quiet | attention | needs Jo | blocked` line (choose one).
+4. Copy the same content to `/opt/data/.workwatch/reports/hermes/trendi-desk/latest.md`.
+5. Use a file tool to **read back** both files and confirm their content matches.
+   Complete these writes even for quiet, blocked or no-news runs, before returning
+   a final response or `[SILENT]`. Returning text does not save a report.
+6. If writing or verification fails, return `[CRON_FAILURE]` on the first line,
+   followed by `WRITE FAILED`, the path and the error. Claim success only after
+   the read-back succeeds. Never fabricate findings to satisfy this contract.

@@ -61,7 +61,7 @@ def valid_cron(expr: str) -> bool:
 
 class ManifestTests(unittest.TestCase):
     def test_routine_count_and_ids(self):
-        self.assertEqual(len(ROUTINES), 14, "one job per ported routine plus the master")
+        self.assertEqual(len(ROUTINES), 15, "one job per ported routine plus the master")
         self.assertEqual(len(ROUTINES), len(MANIFEST["routines"]), "duplicate routine id")
 
     def test_profiles_have_souls(self):
@@ -132,7 +132,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertIn(rid, ROUTINES, f"{name}: unknown routine {rid}")
         covered = set(mapped.values())
         for rid, routine in ROUTINES.items():
-            if not rid.startswith("master-"):
+            if not rid.startswith("master-") and rid != "pen-test-weekly-advisories":
                 self.assertIn(rid, covered, f"{rid}: not mapped to a Grok automation")
 
     def test_master_routines(self):
@@ -167,6 +167,33 @@ class ManifestTests(unittest.TestCase):
                     self.assertIsNone(
                         re.search(pattern, text), f"{path}: secret-shaped string {pattern}"
                     )
+
+    def test_approved_parity_schedules(self):
+        expected = {
+            "seo-daily-monitor": "30 7 * * *",
+            "seo-weekly-cycle": "0 8 * * 1",
+            "trendi-linkedin-weekly": "0 9 * * 1",
+            "trendi-biweekly-news": "0 9 1,15 * *",
+            "pen-test-weekly-advisories": "0 9 * * 3",
+        }
+        for rid, schedule in expected.items():
+            self.assertEqual(ROUTINES[rid]["schedule"], schedule)
+        self.assertEqual(ROUTINES["pen-test-weekly-advisories"]["profile"], "pen-test")
+
+    def test_report_completion_contract(self):
+        for rid, routine in ROUTINES.items():
+            with self.subTest(routine=rid):
+                procedure = (ROOT / routine["procedure"]).read_text(encoding="utf-8")
+                target = f"/opt/data/.workwatch/reports/hermes/{routine['profile']}/<YYYY-MM-DD>-{rid}.md"
+                prompt = install.build_prompt(MANIFEST, routine, procedure)
+                for text in (procedure, prompt.split("---", 1)[0]):
+                    self.assertIn(target, text)
+                    self.assertIn("Pacific/Auckland", text)
+                    self.assertIn("read back", text)
+                    self.assertIn("WRITE FAILED", text)
+                self.assertIn("ZoneInfo", prompt)
+                self.assertIn("write_file", prompt)
+                self.assertIn("[CRON_FAILURE]", prompt)
 
     def test_prompt_includes_procedure_and_guard(self):
         routine = ROUTINES["seo-daily-monitor"]
@@ -329,7 +356,7 @@ class LaneStatusTests(unittest.TestCase):
             (lane / "latest.md").write_text("# trendi-desk — 2026-11-17\nStatus: quiet\n", encoding="utf-8")
             out = self._run(reports)
             self.assertIn("trendi-desk | NO REPORT", out)
-            self.assertIn("pen-test | NO ROUTINE", out)
+            self.assertIn("pen-test | NO REPORT", out)
             self.assertIn("placeholder latest.md ignored", out)
             self.assertIn("ANSWERED: 0/5", out)
 

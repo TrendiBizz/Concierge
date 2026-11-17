@@ -1,7 +1,7 @@
 # Routine: Weekly SEO cycle (Trendi)
 
 - Profile: `seo-engine`
-- Schedule: `0 9 * * 1` Pacific/Auckland
+- Schedule: `0 8 * * 1` Pacific/Auckland
 - Source: `~/OpenBot/Shared/workwatch/routines/seo-weekly-cycle.md`
 - Status: active
 - Approval: audits only; site changes go through the gate after Jo's yes
@@ -51,5 +51,26 @@ source fails auth.
 
 Never invent numbers or promise rankings; NZ English.
 
-Save to `~/.workwatch/reports/hermes/seo-engine/<date>-seo-weekly-cycle.md` and update
+Save to `/opt/data/.workwatch/reports/hermes/seo-engine/<date>-seo-weekly-cycle.md` and update
 `latest.md`.
+
+
+## Required report completion
+
+Use the current **Pacific/Auckland** calendar date (`YYYY-MM-DD`), including on
+catch-up runs; note the scheduled date separately if different. UTC topic selection
+in a routine does not change the report date.
+
+1. Create `/opt/data/.workwatch/reports/hermes/seo-engine/` if missing.
+2. Use `write_file` or a terminal file write to save the actual findings to
+   `/opt/data/.workwatch/reports/hermes/seo-engine/<YYYY-MM-DD>-seo-weekly-cycle.md`.
+   This is the canonical routine report; supplementary drafts do not replace it.
+3. Begin with `# seo-weekly-cycle — <YYYY-MM-DD>` and a plain, unbolded
+   `Status: quiet | attention | needs Jo | blocked` line (choose one).
+4. Copy the same content to `/opt/data/.workwatch/reports/hermes/seo-engine/latest.md`.
+5. Use a file tool to **read back** both files and confirm their content matches.
+   Complete these writes even for quiet, blocked or no-news runs, before returning
+   a final response or `[SILENT]`. Returning text does not save a report.
+6. If writing or verification fails, return `[CRON_FAILURE]` on the first line,
+   followed by `WRITE FAILED`, the path and the error. Claim success only after
+   the read-back succeeds. Never fabricate findings to satisfy this contract.

@@ -1,5 +1,8 @@
 # Working agreement — Trendi Concierge
 
+Every session reads `docs/AGENT_WORKING_ORDER.md` and `hermes/README.md` first.
+Commit Hermes lane briefs under `docs/`; the container reads this repo at `/opt/data/work`.
+
 **This repository is the only place work lives.** One repository, one commit history, one deploy
 path. If a change is not committed here, it does not exist, and it will be lost or silently
 diverged by the next agent who touches the system.
