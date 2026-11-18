@@ -41,7 +41,7 @@ done
 [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "Tenant must be 1-32 lowercase letters, digits or hyphens." >&2; exit 1; }
 [[ "$mode" == internal || "$mode" == customer ]] || { echo "--mode must be internal or customer." >&2; exit 1; }
 [[ "$(id -u)" == 0 ]] || { echo "Run as root on the VPS." >&2; exit 1; }
-[[ "${HERMES_SH_SKIP_DOCKER_CHECK:-}" == 1 ]] || command -v docker >/dev/null || { echo "docker is not installed." >&2; exit 1; }
+[[ "${HERMES_SH_SKIP_DOCKER_CHECK:-}" == 1 ]] || command -v docker >/dev/null || { echo "docker CLI is not installed (it fronts Podman on the VPS)." >&2; exit 1; }
 
 NAME="hermes-$tenant"
 VOLUME="hermes_${tenant}_data"
@@ -70,7 +70,7 @@ case "$cmd" in
       echo "build actually supports, save that YAML there, then start again. Nothing was created." >&2
       exit 2
     fi
-    docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
+    docker info >/dev/null 2>&1 || { echo "The container engine (Podman, via the docker CLI) is not running." >&2; exit 1; }
     [[ -f "$XAI_SOURCE" ]] || { echo "No $XAI_SOURCE (set HERMES_XAI_ENV_FILE)." >&2; exit 1; }
     XAI_KEY="$(grep -m1 '^XAI_API_KEY=' "$XAI_SOURCE" | cut -d= -f2- || true)"
     [[ -n "${XAI_KEY// }" ]] || { echo "No XAI_API_KEY in $XAI_SOURCE." >&2; exit 1; }
@@ -116,7 +116,7 @@ case "$cmd" in
   toolsets-install)
     SRC="$HERE/hermes.customer.toolsets.yaml"
     [[ -s "$SRC" ]] || { echo "Missing $SRC" >&2; exit 1; }
-    docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
+    docker info >/dev/null 2>&1 || { echo "The container engine (Podman, via the docker CLI) is not running." >&2; exit 1; }
     IMAGE="${HERMES_IMAGE:-nousresearch/hermes-agent:stable}"
     SCRATCH="hermes_toolset_check_$$"
     docker volume create "$SCRATCH" >/dev/null
@@ -131,7 +131,7 @@ case "$cmd" in
     echo "Verified on a scratch volume; enabled tools:"; printf '%s\n' "$enabled"
     echo "Installed $KEYDIR/$tenant.toolsets.yaml. Restart with: hermes.sh start --tenant $tenant --mode customer" ;;
   gateway-start)
-    docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
+    docker info >/dev/null 2>&1 || { echo "The container engine (Podman, via the docker CLI) is not running." >&2; exit 1; }
     [[ -s "$KEYFILE" ]] || { echo "Start Hermes first: hermes.sh start --tenant $tenant" >&2; exit 1; }
     install -d -m 700 "$SHARED" "$KEYDIR"
     if [[ ! -s "$GWFILE" ]]; then

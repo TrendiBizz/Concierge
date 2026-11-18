@@ -10,7 +10,7 @@ The public website, Concierge API, isolated social vault and Twenty CRM run at
 
 The original website worker and static files are served by `website.mjs`. No
 Cloudflare-specific business logic was rewritten. Caddy routes by hostname and
-allows only the existing public API/owner paths. Docker publishes only loopback
+allows only the existing public API/owner paths. The container engine (Podman) publishes only loopback
 ports 8000 and 8080; PostgreSQL, Redis and the social vault have no public ports.
 Two existing Cloudflare Tunnel identities terminate traffic on this VPS. Do not
 run their old Mac connectors concurrently against independent database copies.
