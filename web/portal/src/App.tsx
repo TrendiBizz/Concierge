@@ -28,6 +28,7 @@ import {Icon} from './icons';
 import {createApi, isGenericFailure} from './api';
 import './shell.css';
 import {copyText} from './clipboard';
+import {PhoneForwarding} from './PhoneForwarding';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
 import {StatusLine} from './StatusLine';
 import {QrCode, qrDownloadHref} from './QrCode';
@@ -934,7 +935,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
       <>
             <p>Give us your website and confirm what we found. You do not need to type what we can read.</p>
       <ol style={{display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', padding: 0}}>
-        {['Welcome', 'Your business', 'Finish'].map((label, index) => (
+        {['Welcome', 'Your business', 'Phone', 'Finish'].map((label, index) => (
           <li key={label} style={{padding: '6px 12px', borderRadius: 999, border: '1px solid var(--color-border)', background: step === index + 1 ? 'var(--color-accent)' : 'transparent', color: step === index + 1 ? 'var(--color-on-accent)' : 'inherit', fontSize: 13}}>
             {index + 1}. {label}
           </li>
@@ -1026,6 +1027,11 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
       ) : null}
 
       {step === 3 ? (
+        <PhoneForwarding token={token} onContinue={() => setStep(4)}
+          consent={<ChannelAsk token={token} channels={['telephone']} question="answer your calls" />} />
+      ) : null}
+
+      {step === 4 ? (
         <Card>
           <Section dividers={['top']}><Heading level={2}>Now the chat window</Heading></Section>
           <p>Pick whichever is easiest. You will not need to touch any code, and you do not need to

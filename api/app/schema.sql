@@ -461,8 +461,21 @@ CREATE TABLE IF NOT EXISTS voice_recording_shares (
 CREATE TABLE IF NOT EXISTS mobile_forwarding_connections (
  tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
  destination text UNIQUE NOT NULL REFERENCES phone_numbers(e164) ON DELETE CASCADE,
- carrier text NOT NULL CHECK(carrier IN ('spark_nz','other')),
+ carrier text NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- Carrier ids are validated in the app against data/call_forwarding.json (unknown -> 'other').
+ALTER TABLE mobile_forwarding_connections DROP CONSTRAINT IF EXISTS mobile_forwarding_connections_carrier_check;
+ALTER TABLE mobile_forwarding_connections ADD COLUMN IF NOT EXISTS destination_country text;
+
+-- Owner's own country/carrier/answer-mode choices for the Studio forwarding step. Kept apart from
+-- managed_phone_setups so they can be saved before a setup row exists.
+CREATE TABLE IF NOT EXISTS call_forwarding_preferences (
+ tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+ country text,
+ carrier text,
+ answer_mode text CHECK(answer_mode IN ('all_calls','unanswered')),
+ updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Telephone AudioSocket capture uses bounded mono PCM WAV, shared owner playback.
