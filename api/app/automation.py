@@ -57,6 +57,16 @@ async def on_lead_created(tenant: dict, lead: dict, *, message_key: str | None =
         await tasks.create_follow_up(tenant, lead, message_key=message_key)
     except Exception:
         log.exception("follow-up to-do failed for %s", lead.get("id"))
+    try:
+        from . import case_planner
+        note = case_planner.note_for(lead)
+        if note:
+            await tasks.create(
+                tenant["id"], note["title"], notes=note["notes"], source="planner", kind="manual",
+                lead_id=lead.get("id"), case_id=lead.get("case_id"),
+            )
+    except Exception:
+        log.exception("case planner failed for %s", lead.get("id"))
     events.emit(tenant, "lead.created", lead_id=lead["id"], lead=events.lead_view(lead))
 
     contact = lead["phone"] or lead["email"] or "-"

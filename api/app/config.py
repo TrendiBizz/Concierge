@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     hermes_gateway_enabled: bool = False
     hermes_gateway_key: str = ""
 
+    # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.
+    case_planner: str = ""
+
     calendar_credentials_dir: str = ""  # mounted private secret directory, not source control
 
     # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).
