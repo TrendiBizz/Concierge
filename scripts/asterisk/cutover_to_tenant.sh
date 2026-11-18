@@ -69,7 +69,10 @@ render_extensions() {                         # renders into a temp dir and inst
   (cd "$REL" && python3 render_routes.py "$SHARED/asterisk-routes.json" "$tmp" bridge 152.42.239.240)
   # Safety net: the registration file must be byte-identical or something is wrong.
   cmp -s "$tmp/pjsip.conf" "$GEN/pjsip.conf" || { echo "ABORT: rendered pjsip.conf differs from live"; rm -rf "$tmp"; return 1; }
-  install -m 644 "$tmp/extensions.conf" "$GEN/extensions.conf"
+  # The PBX bind-mounts this file by inode. install/mv/cp replace the inode, so the
+  # container keeps the old (now deleted) file and `dialplan reload` is a no-op.
+  cat "$tmp/extensions.conf" > "$GEN/extensions.conf"
+  chmod 644 "$GEN/extensions.conf"
   rm -rf "$tmp"
 }
 
@@ -99,7 +102,8 @@ if [ "${1:-}" = "--rollback" ]; then
   echo "== rollback: $NEW_SLUG -> $OLD_SLUG using $BK"
   cp -a "$BK/asterisk-routes.json" "$SHARED/asterisk-routes.json"
   cp -a "$BK/phone.env" "$SHARED/phone.env"
-  cp -a "$BK/extensions.conf" "$GEN/extensions.conf"
+  cat "$BK/extensions.conf" > "$GEN/extensions.conf"
+  chmod 644 "$GEN/extensions.conf"
   sql <<SQL
 UPDATE phone_numbers SET tenant_id=(SELECT id FROM tenants WHERE slug='$OLD_SLUG') WHERE e164='$NUMBER';
 SQL
