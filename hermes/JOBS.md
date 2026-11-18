@@ -89,7 +89,7 @@ they can double-run with Hermes:
 9. Twice-monthly post brief (Trendi)
 10. trendibizz.com daily tamper watch
 
-The Hermes copies of 10 and 11 are paused until their prerequisites are met, so pausing
+The Hermes copy of 10 is paused until their prerequisites are met, so pausing
 the Grok copies is safe. Once each Hermes copy has a successful scheduled run, the Grok
 copy can be deleted.
 

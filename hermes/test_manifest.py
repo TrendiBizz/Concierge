@@ -60,7 +60,7 @@ def valid_cron(expr: str) -> bool:
 
 class ManifestTests(unittest.TestCase):
     def test_routine_count_and_ids(self):
-        self.assertEqual(len(ROUTINES), 15, "one job per ported routine plus the master")
+        self.assertEqual(len(ROUTINES), 14, "one job per ported routine plus the master")
         self.assertEqual(len(ROUTINES), len(MANIFEST["routines"]), "duplicate routine id")
 
     def test_profiles_have_souls(self):
