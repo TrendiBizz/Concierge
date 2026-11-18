@@ -10,6 +10,9 @@
 const EDGE_STATUSES = [502, 504, 520, 521, 522, 523, 524];
 
 /** Turn any failed response into a sentence a tradesperson can act on. */
+/** True for the generic sentences describeFailure uses when it hides a 5xx or edge error. */
+export const isGenericFailure = (message: string) => /^(Request failed|That took too long)/.test(message);
+
 export function describeFailure(status: number, payload: unknown): string {
   const detail = typeof (payload as {detail?: unknown})?.detail === 'string'
     ? (payload as {detail: string}).detail

@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS tenant_invites (
  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
  email text NOT NULL,
  role text NOT NULL CHECK (role IN ('viewer','editor','owner')),
- purpose text NOT NULL CHECK (purpose IN ('invite','recovery')),
+ purpose text NOT NULL CHECK (purpose IN ('invite','recovery','code')),
  token_hash text UNIQUE NOT NULL,
  expires_at timestamptz NOT NULL,
  used_at timestamptz,
@@ -1254,3 +1254,8 @@ CREATE INDEX IF NOT EXISTS site_enquiries_created ON site_enquiries(created_at D
 
 -- Highest release notice this person has dismissed (releases.py). 0 = has not seen any.
 ALTER TABLE tenant_users ADD COLUMN IF NOT EXISTS last_seen_version integer NOT NULL DEFAULT 0;
+
+-- Six-digit sign-in codes are tenant_invites rows with purpose 'code'; older databases only allowed two values.
+ALTER TABLE tenant_invites DROP CONSTRAINT IF EXISTS tenant_invites_purpose_check;
+ALTER TABLE tenant_invites ADD CONSTRAINT tenant_invites_purpose_check
+    CHECK (purpose IN ('invite','recovery','code'));

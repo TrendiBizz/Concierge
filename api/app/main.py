@@ -2180,7 +2180,9 @@ async def owner_email_code(body: OwnerCodeRequest, request: Request):
     if not await owner_auth.allow_login_attempt(ip, "signin", email):
         raise HTTPException(429, "Too many attempts. Please try again in a few minutes.")
     issued: set[str] = set()
-    for account in await owner_auth.account_emails(email):
+    accounts = await owner_auth.account_emails(email)
+    sent = 0
+    for account in accounts:
         try:
             code = await owner_auth.make_code(account["tenant_id"], email, account["role"], avoid=issued)
             issued.add(code)
@@ -2194,8 +2196,14 @@ async def owner_email_code(body: OwnerCodeRequest, request: Request):
                 "and nothing will change.\n\n— Trendi Concierge",
                 from_name="Trendi Concierge",
             )
+            sent += 1
         except Exception:  # noqa: BLE001 - never reveal delivery detail to a caller
             log.exception("sign-in code could not be sent for %s", account.get("slug"))
+    if accounts and not sent:
+        # A known address where nothing went out must not look like success: the app would claim
+        # "we emailed a code". Only reachable for an address that has an account, so it reveals
+        # nothing an attacker could not already get from the 200 path being absent for unknowns.
+        raise HTTPException(503, "The sign-in code could not be sent. Please try again.")
     return {"ok": True}
 
 

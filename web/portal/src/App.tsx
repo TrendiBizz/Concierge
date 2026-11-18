@@ -25,7 +25,7 @@ import {Companies} from './Companies';
 import {SavedReplies} from './SavedReplies';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
-import {createApi} from './api';
+import {createApi, isGenericFailure} from './api';
 import './shell.css';
 import {copyText} from './clipboard';
 import {InternationalizationProvider} from '@astryxdesign/core/i18n';
@@ -213,7 +213,10 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
       await api('/owner/auth/code', 'POST', {email: email.trim()});
       setCodeSent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the code');
+      // describeFailure hides 5xx detail, leaving a generic sentence; say what actually happened.
+      const message = e instanceof Error ? e.message : '';
+      setError(!message || isGenericFailure(message)
+        ? 'The sign-in code could not be sent. Please try again.' : message);
     }
     setCodeBusy(false);
   }
