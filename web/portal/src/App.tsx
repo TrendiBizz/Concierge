@@ -782,7 +782,7 @@ function PhoneInstall({token}: {token: string}) {
     <div style={{marginTop: 20, padding: 16, border: '1px solid var(--line, #333)', borderRadius: 10}}>
       <Heading level={3}>Put Concierge on your phone</Heading>
       <p style={{fontSize: 14}}>
-        Scan with your phone. Android: tap <strong>Install</strong>. iPhone: in Safari,
+        Scan with your phone. Android: tap <strong>Install</strong>. iPhone: in Safari, Chrome, Firefox or Edge,
         <strong> Share → Add to Home Screen</strong>. Open the new icon and you are already signed in.
       </p>
       <div style={{display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap'}}>
