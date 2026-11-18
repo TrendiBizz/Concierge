@@ -1,0 +1,84 @@
+{
+  "_about": "Call-forwarding codes and number formats for the Studio 'forward your calls' step. Loaded by app/call_forwarding.py; nothing here is hardcoded in Python. Only the GSM standard (3GPP TS 22.030 / 22.082 supplementary-service codes) is treated as universal. A carrier override is added ONLY where the repo or a published source backs it; every other carrier is an alias of the GSM standard. When unsure, say so in 'note' and send the owner to their carrier.",
+  "fallback_text": "or ask your carrier, or use your phone's Settings.",
+  "international": {
+    "format": "e164_plus",
+    "note": "A destination in a different country than the owner's phone is written as +E.164 (for example +6492431347). A '+' is accepted inside forwarding codes on GSM networks. If a phone rejects it, the owner can replace the '+' with their country's international call prefix (shown as international_prefix for their country). A bare national number is never used across countries."
+  },
+  "gsm": {
+    "_source": "GSM standard supplementary-service codes (3GPP TS 22.030). Register *SC*num#, cancel ##SC#, check *#SC#.",
+    "cancel_all": "##002#",
+    "kinds": {
+      "all":         {"label": "Forward all calls",                "set": "*21*{num}#", "cancel": "##21#", "check": "*#21#"},
+      "busy":        {"label": "Forward calls when you are busy",  "set": "*67*{num}#", "cancel": "##67#", "check": "*#67#"},
+      "no_answer":   {"label": "Forward calls you do not answer",  "set": "*61*{num}#", "cancel": "##61#", "check": "*#61#"},
+      "unreachable": {"label": "Forward calls when you have no signal or your phone is off", "set": "*62*{num}#", "cancel": "##62#", "check": "*#62#"}
+    },
+    "modes": {
+      "all_calls": ["all"],
+      "unanswered": ["no_answer", "busy", "unreachable"]
+    }
+  },
+  "devices": {
+    "iphone": {
+      "label": "iPhone",
+      "path": "Settings > Phone > Call Forwarding",
+      "note": "iPhone shows one switch here that forwards every call. Forwarding only when busy or unanswered usually still needs the codes, typed in the Phone app (not Messages). iPhone will not run these codes from a tapped link.",
+      "tap_to_dial": false
+    },
+    "android": {
+      "label": "Android",
+      "path": "Phone app > three-dot menu > Settings > Calls (or Calling accounts) > Call forwarding",
+      "note": "Wording differs between phone makers. Tapping a code opens the dialler with it filled in; press call to send it.",
+      "tap_to_dial": true
+    }
+  },
+  "carriers": {
+    "other":       {"name": "Another carrier / not sure", "country": null, "note": "These are the standard codes. Most mobile networks accept them; if yours does not, ask your carrier or use your phone's Settings."},
+    "spark_nz":    {"name": "Spark", "country": "NZ", "verified": true,
+                    "note": "Spark's published diversion codes end in *11#. Ring-me-first uses unanswered and busy.",
+                    "modes": {"all_calls": ["all"], "unanswered": ["no_answer", "busy"]},
+                    "kinds": {
+                      "all":       {"set": "*21*{num}*11#", "check": "*#21*11#"},
+                      "no_answer": {"set": "*61*{num}*11#", "check": "*#61*11#"},
+                      "busy":      {"set": "*67*{num}*11#", "check": "*#67*11#"}}},
+    "one_nz":      {"name": "One NZ", "country": "NZ", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "2degrees_nz": {"name": "2degrees", "country": "NZ", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "telstra_au":  {"name": "Telstra", "country": "AU", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "optus_au":    {"name": "Optus", "country": "AU", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "vodafone_au": {"name": "Vodafone", "country": "AU", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "ee_gb":       {"name": "EE", "country": "GB", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "o2_gb":       {"name": "O2", "country": "GB", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "vodafone_gb": {"name": "Vodafone", "country": "GB", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "three_gb":    {"name": "Three", "country": "GB", "note": "No carrier-specific codes on file; showing the standard codes."},
+    "verizon_us":  {"name": "Verizon", "country": "US", "verified": false,
+                    "note": "Verizon commonly uses *72 to forward all calls and *73 to stop (unverified here; confirm with Verizon). For forwarding only when unanswered or busy, check with Verizon or use your phone's Settings.",
+                    "modes": {"all_calls": ["all"]},
+                    "kinds": {"all": {"set": "*72{num}", "cancel": "*73", "check": null}}},
+    "att_us":      {"name": "AT&T", "country": "US", "note": "AT&T usually accepts the standard codes; some plans use other codes. Check with AT&T if these do not work."},
+    "tmobile_us":  {"name": "T-Mobile", "country": "US", "note": "T-Mobile usually accepts the standard codes; some plans use other codes. Check with T-Mobile if these do not work."}
+  },
+  "timezone_country": {"Pacific/Auckland": "NZ", "Pacific/Chatham": "NZ", "Europe/London": "GB"},
+  "timezone_prefix_country": {"Australia/": "AU"},
+  "countries": {
+    "_about": "dial = ITU country calling code. trunk = digit(s) dialled before the national number when calling within the country (E.164 drops it). Format within a country = trunk + E.164 minus the country code. intl_prefix = what to dial instead of '+'. 'primary' marks the country shown for a shared calling code (+1 is the North American plan: US, CA, ...). US/CA: national format is the 10-digit number.",
+    "NZ": {"name": "New Zealand",   "dial": "64",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "AU": {"name": "Australia",     "dial": "61",  "trunk": "0", "intl_prefix": "0011", "primary": true},
+    "GB": {"name": "United Kingdom","dial": "44",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "US": {"name": "United States", "dial": "1",   "trunk": "",  "intl_prefix": "011",  "primary": true},
+    "CA": {"name": "Canada",        "dial": "1",   "trunk": "",  "intl_prefix": "011"},
+    "IE": {"name": "Ireland",       "dial": "353", "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "ZA": {"name": "South Africa",  "dial": "27",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "SG": {"name": "Singapore",     "dial": "65",  "trunk": "",  "intl_prefix": "001",  "primary": true},
+    "HK": {"name": "Hong Kong",     "dial": "852", "trunk": "",  "intl_prefix": "001",  "primary": true},
+    "IN": {"name": "India",         "dial": "91",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "DE": {"name": "Germany",       "dial": "49",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "FR": {"name": "France",        "dial": "33",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "NL": {"name": "Netherlands",   "dial": "31",  "trunk": "0", "intl_prefix": "00",   "primary": true},
+    "ES": {"name": "Spain",         "dial": "34",  "trunk": "",  "intl_prefix": "00",   "primary": true},
+    "IT": {"name": "Italy",         "dial": "39",  "trunk": "",  "intl_prefix": "00",   "primary": true},
+    "JP": {"name": "Japan",         "dial": "81",  "trunk": "0", "intl_prefix": "010",  "primary": true},
+    "FJ": {"name": "Fiji",          "dial": "679", "trunk": "",  "intl_prefix": "00",   "primary": true},
+    "ZZ": {"name": "Another country", "dial": null, "trunk": "", "intl_prefix": null}
+  }
+}
