@@ -479,7 +479,7 @@ in a routine does not change the report date.
 ## Procedure
 
 Draft a bi-weekly Trendi news update for Jo: SEO/AI-visibility snippets **plus**
-penetration-testing / appsec developments. Draft only. Never auto-post to LinkedIn,
+application security / appsec developments. Draft only. Never auto-post to LinkedIn,
 Instagram, Facebook, email or anywhere else.
 
 Each run:
