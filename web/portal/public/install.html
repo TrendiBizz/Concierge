@@ -106,7 +106,7 @@
         <path d="M32 40V8" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round"/>
         <path d="M20 20 L32 8 L44 20" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>This is the <strong>Share</strong> button — in Safari's bottom bar (top right on iPad).</span>
+      <span id="ios-sharebar-text">This is the <strong>Share</strong> button — in Safari's bottom bar (top right on iPad).</span>
     </div>
 
     <ol>
@@ -223,6 +223,8 @@
         var on = document.getElementById('ios-own-name');
         if (on) on.textContent = own;
         if (ownNote) ownNote.hidden = false;
+        var sb = document.getElementById('ios-sharebar-text');
+        if (sb) sb.innerHTML = 'This is the <strong>Share</strong> button — in ' + own + ', at the right end of the address bar or under <strong>⋯</strong>.';
         if (step1) step1.innerHTML = own === 'Chrome'
           ? 'Tap the <strong>Share</strong> button — the square with the arrow, at the right end of the address bar. If you do not see it, tap <strong>⋯</strong> and choose <strong>Share</strong>.'
           : 'Tap the <strong>Share</strong> button — the square with the arrow, in the address bar or the <strong>⋯</strong> menu.';
