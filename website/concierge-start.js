@@ -7,7 +7,7 @@
   var email = document.getElementById("setup-email");
   var status = document.getElementById("setup-status");
   var plan = new URLSearchParams(location.search).get("plan");
-  if (plan === "monthly" || plan === "yearly") form.elements.plan.value = plan;
+  if (plan === "monthly") form.elements.plan.value = plan;
   function resetReview() {
     result.hidden = true;
     draft.textContent = "";

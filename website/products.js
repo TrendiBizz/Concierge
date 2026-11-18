@@ -54,21 +54,20 @@ window.TRENDI = {
     }
   ],
 
-  // Concierge (USD 250 a month, 3-month minimum; yearly USD 2,700 = 10% off). Paste each Stripe Payment Link
+  // Concierge (USD 250 a month, 3-month minimum). Paste each Stripe Payment Link
   // below, for example "https://buy.stripe.com/abc123". While a link is empty the /concierge button stays
   // "Email to start" (it opens an email). Once a link is here the button goes to Stripe and says "Start ...".
   // 2026-11-15 (Jo: "add the buy button where required"): monthly Concierge link is
   // plink_1Ube9yJVm2iwIxUdbzwHgJhD on the Concierge Stripe account (price_1Ube9aJVm2iwIxUd0IcWNhGm, USD 250/month),
   // checked live that day. Every Concierge monthly buy button carries data-concierge-plan="monthly" and goes there.
-  // 2026-11-15 (Jo: "so this should be on stripe its on the website"): yearly is buyable from day one.
+  // 2026-11-15 (Jo: "so this should be on stripe its on the website"): yearly plan retired 2026-11-19 (Jo).
   // Yearly link plink_1UbraFJVm2iwIxUd3gVPERTY (price_1UbnwwJVm2iwIxUdMoJ9g2Ve, USD 2,700/year = 12 x 250 less 10%),
   // automatic tax on, same settings as monthly. Buttons carry data-concierge-plan="yearly".
   // checkout is the one switch: false sends every button back to /concierge-start (the setup request form)
   // without deleting the link, e.g. if Stripe pauses the link again.
   concierge: {
     checkout: true,
-    monthly: { price: 250, stripeLink: "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" },
-    yearly: { price: 2700, stripeLink: "https://buy.stripe.com/6oU28s8OH7b76528aQ04804" }
+    monthly: { price: 250, stripeLink: "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" }
   },
 
   // Shown under whichever plan is selected.
