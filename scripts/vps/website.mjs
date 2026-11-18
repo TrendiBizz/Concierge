@@ -22,8 +22,21 @@ for (const line of (await fs.readFile(path.join(root,'_headers'),'utf8')).split(
     const colon=line.indexOf(':');blocks.at(-1).headers[line.slice(0,colon).trim()]=line.slice(colon+1).trim();
   }
 }
-const redirects=(await fs.readFile(path.join(root,'_redirects'),'utf8')).split('\n')
-  .map(line=>line.trim()).filter(line=>line && !line.startsWith('#')).map(line=>line.split(/\s+/));
+// _redirects is re-read when its mtime changes, so an rsync takes effect without a restart. Exact-path matching only.
+const redirectsFile=path.join(root,'_redirects');
+let redirects=[], redirectsStamp=-1;
+async function loadRedirects() {
+  let stamp;
+  try { stamp=(await fs.stat(redirectsFile)).mtimeMs; } catch { return redirects; }
+  if (stamp===redirectsStamp) return redirects;
+  try {
+    redirects=(await fs.readFile(redirectsFile,'utf8')).split('\n')
+      .map(line=>line.trim()).filter(line=>line && !line.startsWith('#')).map(line=>line.split(/\s+/));
+    redirectsStamp=stamp;
+  } catch { /* keep the last good table */ }
+  return redirects;
+}
+await loadRedirects();
 function matches(pattern,value) {
   return new RegExp('^'+pattern.split('*').map(part=>part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.*')+'$').test(value);
 }
@@ -33,7 +46,7 @@ async function asset(request) {
   catch { return new Response('Bad request',{status:400}); }
   if (pathname.includes('\0') || pathname.split('/').some(part=>part.startsWith('.') && part!=='.well-known') || ['/_headers','/_redirects','/_worker.js','/_routes.json'].includes(pathname))
     return new Response('Not found',{status:404});
-  for (const [from,to,status='302'] of redirects) {
+  for (const [from,to,status='302'] of await loadRedirects()) {
     if (pathname===from) {
       const code=Number(status);
       if (code>=300 && code<400) return new Response(null,{status:code,headers:{Location:to}});

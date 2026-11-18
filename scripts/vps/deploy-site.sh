@@ -79,6 +79,17 @@ PY"
 echo "--- verifying parity"
 KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"
 
+# 3b. website.mjs reads _headers and the worker once at start (it re-reads _redirects itself), so a
+#     file sync alone leaves a long-running process on the old tables. Restart only the website
+#     service: no postgres, api or volumes. Verify ran first because it checks the files on disk.
+echo "--- restarting the website service"
+"${SSH[@]}" "$HOST" "cd '$RELEASE/product/scripts/vps' && docker compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public restart website >/dev/null"
+sleep 5
+if ! curl -fsS -o /dev/null --max-time 15 "${SITE_URL:-https://trendibizz.com}/"; then
+  echo "WARNING: the site did not answer after the website restart; check the box before leaving" >&2
+  exit 1
+fi
+
 # 4. Tell IndexNow (Bing, Yandex, Seznam and Bing's partners — which feed ChatGPT search) which pages
 #    changed since the previous deploy. Google does not use IndexNow, so this is not a ranking step;
 #    it is the difference between a change being noticed in hours rather than weeks.

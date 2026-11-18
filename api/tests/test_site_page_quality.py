@@ -90,6 +90,7 @@ def test_the_page_check_reads_the_whole_document(monkeypatch):
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         monkeypatch.setattr(healthcheck, "SITE", f"http://127.0.0.1:{server.server_port}")
+        monkeypatch.setattr(healthcheck, "RENAMED_PAGES", {})  # redirects are covered in test_site_redirects.py
         monkeypatch.setattr(healthcheck, "MONEY_PAGES", ("/",))
         results = healthcheck.check_site_pages()
         assert results[0]["status"] == "ok", results[0]["detail"]

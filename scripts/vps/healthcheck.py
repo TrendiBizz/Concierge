@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -122,6 +123,23 @@ def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: s
         return exc.code, b"", time.monotonic() - started
     except Exception as exc:  # noqa: BLE001 - any network failure is a failed check
         return 0, str(exc).encode()[:200], time.monotonic() - started
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
+def redirect_of(url: str, timeout: float = 10.0):
+    """(status, Location) for one request, without following the redirect."""
+    request = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
+            return response.status, response.headers.get("Location", "")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.headers.get("Location", "") if exc.headers else ""
+    except Exception:  # noqa: BLE001 - any network failure is a failed check
+        return 0, ""
 
 
 # ---------------------------------------------------------------- individual checks
@@ -485,13 +503,25 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
 
 
 SITE_SENDER_DOMAIN = SITE.split("//", 1)[-1].split("/", 1)[0].split(":", 1)[0]
-MONEY_PAGES = ("/", "/concierge", "/pricing", "/ai-receptionist", "/ai-receptionist-cost",
+MONEY_PAGES = ("/", "/concierge", "/pricing", "/ai-office", "/ai-office-cost",
                "/after-hours-answering", "/missed-call-text-back", "/ai-chat-widget",
-               "/ai-receptionist-clinics", "/ai-receptionist-real-estate",
-               "/ai-receptionist-builders", "/ai-receptionist-nz", "/best-ai-receptionist",
+               "/ai-office-clinics", "/ai-office-real-estate",
+               "/ai-office-builders", "/ai-office-nz", "/best-ai-office",
                "/virtual-receptionist",
                "/ai-answering-service-vs-human",
                "/ai-visibility", "/security")
+# The pages above were renamed from /ai-receptionist*; the old URLs must keep answering with a permanent
+# redirect (slash and .html variants too), or every inbound link and ranking signal is lost.
+RENAMED_PAGES = {
+    "/ai-receptionist": "/ai-office",
+    "/ai-receptionist-cost": "/ai-office-cost",
+    "/ai-receptionist-clinics": "/ai-office-clinics",
+    "/ai-receptionist-real-estate": "/ai-office-real-estate",
+    "/ai-receptionist-builders": "/ai-office-builders",
+    "/ai-receptionist-nz": "/ai-office-nz",
+    "/best-ai-receptionist": "/best-ai-office",
+    "/how-does-an-ai-receptionist-work": "/how-does-an-ai-office-work",
+}
 THIN_PAGE_WORDS = 600
 DESCRIPTION_LIMIT = 160
 
@@ -651,6 +681,11 @@ def check_deploy_manifest() -> list[dict]:
     return [_ok("deploy:manifest", f"{len(manifest['files'])} files match the deploy at {commit}")]
 
 
+def redirect_target_path(location: str) -> str:
+    """The path a Location header points at, whether it is relative or absolute."""
+    return urllib.parse.urlsplit(location or "").path
+
+
 def check_site_pages() -> list[dict]:
     """Fetch the pages that carry the ranking and conversion work and check them for damage.
 
@@ -674,6 +709,12 @@ def check_site_pages() -> list[dict]:
         problems = page_quality(html)
         if problems:
             broken.append(f"{path}: {', '.join(problems)}")
+    old_paths = [(old + suffix, new) for old, new in RENAMED_PAGES.items() for suffix in ("", "/")]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        hops = list(pool.map(lambda pair: redirect_of(SITE + pair[0], timeout=20.0), old_paths))
+    for (old, new), (code, location) in zip(old_paths, hops):
+        if redirect_target_path(location) != new or code not in (301, 302):
+            broken.append(f"{old} -> {code} {redirect_target_path(location) or '(no redirect)'}, want {new}")
     if broken:
         return [_fail("site:pages", "; ".join(broken)[:400])]
     return [_ok("site:pages", f"{len(pages)} key pages: copy, snippet, canonical and h1 all clean")]
