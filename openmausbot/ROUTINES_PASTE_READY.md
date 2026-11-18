@@ -742,7 +742,7 @@ Trendi Content Bot: daily, find the single most important verified development i
 
 ## Topic
 
-Today's UTC day-of-year number: **odd = SEO, even = penetration testing.** Never both.
+Today's UTC day-of-year number: **odd = SEO, even = application security.** Never both.
 
 ## Research
 
