@@ -67,7 +67,7 @@ def test_booking_creates_the_customer_and_links_the_lead(monkeypatch):
     # The visitor has already been read the details back and confirmed them.
     monkeypatch.setattr(booking.convo, "get_pending_booking", AsyncMock(return_value={
         "start": "2026-11-15T21:00:00+00:00", "name": "sarah",
-        "email": "sarah@acme.co.nz", "phone": "+64215557788", "consent": False}))
+        "email": "sarah@acme.co.nz", "phone": "+64215557788"}))
     monkeypatch.setattr(booking.convo, "set_pending_booking", AsyncMock())
     timeline = AsyncMock()
     monkeypatch.setattr(booking.casetimeline, "record", timeline)

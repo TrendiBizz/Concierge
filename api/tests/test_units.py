@@ -145,6 +145,15 @@ def test_guard_allows_backed_prices_and_flags_invented_ones():
     assert guard.unknown_amounts("Budget $34500 or $12.50", evidence) == {Decimal("12.5")}
 
 
+def test_guard_catches_written_and_abbreviated_prices():
+    evidence = "Rentals are $650 weekly."
+    for reply in ("About 500 dollars.", "NZD 500 plus GST", "NZ$500", "Roughly $5k", "500 bucks", "500 NZD"):
+        assert guard.unknown_amounts(reply, evidence), reply
+    assert guard.unknown_amounts("650 dollars a week", evidence) == set()
+    assert guard.unknown_amounts("$0.65k", evidence) == set()
+    assert guard.unknown_amounts("We have 5 kids' bikes and 12 lb weights.", evidence) == set()
+
+
 # ---- contacts / SMS --------------------------------------------------------
 def test_normalize_phone():
     # The dialling country must be given, not guessed; see tests/test_phone_normalization.py.

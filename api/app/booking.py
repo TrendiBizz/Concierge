@@ -133,22 +133,16 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
         return {"ok": False, "error": "That local time does not exist because of daylight saving"}
     conversation_id = ctx.get('conversation_id')
     if conversation_id and args.get('confirmed') is True:
-        previous = await db.pool().fetchrow(
-            'SELECT * FROM appointments WHERE tenant_id=$1 AND conversation_id=$2 AND starts_at=$3',
-            tenant['id'], conversation_id, start_utc)
-        if previous:
-            if previous['status'] != 'booked':
-                return {'ok': False, 'error': 'That earlier booking is no longer active. Ask the team to reschedule or choose a new time.'}
-            if previous['name'] != name or previous['email'] != (email if is_email(email) else '') or previous['phone'] != phone:
-                return {"ok": False, "error": "A different booking already exists for this conversation and time"}
-            return booking_result(tenant, previous, duplicate=True)
+        duplicate = await _earlier_booking(tenant, conversation_id, start_utc, name, email, phone)
+        if duplicate:
+            return duplicate
     free = await _slots_on(tenant, start_local.date())
     if start_utc not in free:
         return {"ok": False, "error": "That time is not available. Call check_availability and offer a listed slot."}
 
     # --- Enforced read-back -------------------------------------------------
     conversation_id = ctx.get("conversation_id")
-    key = {"start": start_utc.isoformat(), "name": name.lower(), "email": email.lower(), "phone": phone, "consent": consent}
+    key = {"start": start_utc.isoformat(), "name": name.lower(), "email": email.lower(), "phone": phone}
     pending = await convo.get_pending_booking(conversation_id) if conversation_id else None
     if not (args.get("confirmed") is True and pending == key):
         if conversation_id:
@@ -183,6 +177,11 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             # Serialise bookings per client so two visitors cannot take the same slot.
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", str(tenant["id"]))
             if start_utc not in await _slots_on(tenant, start_local.date(), conn):
+                # A concurrent confirm of this same booking may have won the lock: report it as the duplicate it is.
+                if conversation_id and args.get("confirmed") is True:
+                    duplicate = await _earlier_booking(tenant, conversation_id, start_utc, name, email, phone, conn)
+                    if duplicate:
+                        return duplicate
                 return {"ok": False, "error": "Sorry, that time was just taken. Call check_availability for other times."}
             existing_lead = await conn.fetchrow('SELECT * FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], conversation_id) if conversation_id else None
             if existing_lead and case_id and not existing_lead["case_id"]:
@@ -233,6 +232,19 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
     ctx["appointment_text"] = text
     ctx["lead_captured"] = True
     return result
+
+
+async def _earlier_booking(tenant, conversation_id, start_utc, name, email, phone, conn=None):
+    previous = await (conn or db.pool()).fetchrow(
+        'SELECT * FROM appointments WHERE tenant_id=$1 AND conversation_id=$2 AND starts_at=$3',
+        tenant['id'], conversation_id, start_utc)
+    if not previous:
+        return None
+    if previous['status'] != 'booked':
+        return {'ok': False, 'error': 'That earlier booking is no longer active. Ask the team to reschedule or choose a new time.'}
+    if previous['name'] != name or previous['email'] != (email if is_email(email) else '') or previous['phone'] != phone:
+        return {"ok": False, "error": "A different booking already exists for this conversation and time"}
+    return booking_result(tenant, previous, duplicate=True)
 
 
 def booking_result(tenant, appt, duplicate=False):
