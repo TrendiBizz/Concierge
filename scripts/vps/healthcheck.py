@@ -941,17 +941,10 @@ def check_tls() -> list[dict]:
 
 
 def check_local_services() -> list[dict]:
-    results = []
-    # Uptime Kuma was removed on 2026-11-12: it had zero monitors configured, so it checked
-    # nothing while looking like monitoring. healthcheck.py + the GitHub Actions uptime probe
-    # are the real monitors (2026-11-12 system check).
-    for name, url, expected in (
-        ("aux:hermes", "http://127.0.0.1:8642/health", (200,)),
-    ):
-        status, _, _ = http(url, timeout=6)
-        results.append(_ok(name, f"HTTP {status}") if status in expected
-                       else _fail(name, f"HTTP {status}"))
-    return results
+    # Uptime Kuma was removed on 2026-11-12. The Hermes containers (auxiliary planner,
+    # trendi-support planner, gateway) were stopped on 2026-11-19. Concierge handles
+    # drafts, tasks and the daily note itself. Nothing here is probed.
+    return []
 
 
 # ------------------------------------------------------------------------ plumbing
