@@ -17,7 +17,7 @@
 #     Undo: iptables -D DOCKER-USER -p udp -m conntrack --ctstate DNAT \
 #              --ctorigdstport 5060 -j TRENDI-SIP ; systemctl disable --now trendi-sip-firewall
 #  2. IPv6 udp/5060 dropped (Hero is IPv4-only).
-#  3. Container log rotation (logrotate copytruncate) + docker default log caps.
+#  3. Journal size cap (Podman container logs go to journald).
 #  4. sshd: X11 off, MaxAuthTries 3, root key-only, validated before reload.
 #  5. fail2ban: sshd jail with 1 h ban after 3 failures, plus recidive jail.
 set -euo pipefail
@@ -80,38 +80,16 @@ systemctl enable --now trendi-sip-firewall.service >/dev/null
 /usr/local/sbin/trendi-sip-firewall.sh
 echo "   DOCKER-USER now:"; iptables -S DOCKER-USER; echo "   FORWARD head:"; iptables -S FORWARD | head -3; iptables -S TRENDI-SIP
 
-echo "== 3. log rotation"
-cat > /etc/logrotate.d/docker-containers <<'EOF'
-/var/lib/docker/containers/*/*-json.log {
-    size 100M
-    rotate 3
-    compress
-    delaycompress
-    missingok
-    copytruncate
-}
+echo "== 3. container log cap"
+# Production is Podman, log driver journald (verified 2026-11-19); the old per-container json logrotate
+# no longer covers anything. Cap the journal instead.
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/trendi-cap.conf <<'EOF'
+[Journal]
+SystemMaxUse=1G
+SystemKeepFree=2G
 EOF
-mkdir -p /etc/docker
-if [ ! -f /etc/docker/daemon.json ]; then
-  cat > /etc/docker/daemon.json <<'EOF'
-{
-  "log-driver": "json-file",
-  "log-opts": { "max-size": "50m", "max-file": "3" }
-}
-EOF
-  echo "   wrote /etc/docker/daemon.json (applies to containers on next recreate; docker NOT restarted)"
-fi
-# Shrink the existing oversized PBX log now, keeping the most recent lines.
-PBXLOG="$(docker inspect -f '{{.LogPath}}' asterisk-pbx-1 2>/dev/null || true)"
-if [ -n "$PBXLOG" ] && [ -f "$PBXLOG" ]; then
-  SIZE=$(stat -c %s "$PBXLOG")
-  if [ "$SIZE" -gt 209715200 ]; then
-    tail -c 20000000 "$PBXLOG" > "$BK/pbx-log-tail.json" || true
-    : > "$PBXLOG"
-    echo "   truncated PBX log (was $((SIZE/1048576)) MB); tail kept in $BK"
-  fi
-fi
-/usr/sbin/logrotate -f /etc/logrotate.d/docker-containers || true
+systemctl restart systemd-journald
 
 echo "== 4. sshd"
 cat > /etc/ssh/sshd_config.d/00-trendi-hardening.conf <<'EOF'
