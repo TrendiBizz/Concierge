@@ -256,3 +256,14 @@ def test_the_studio_qr_is_minted_per_signed_in_user_and_renewed():
     assert '@app.post("/owner/auth/install-ticket")' in src
     assert src.index('"/studio/manifest.webmanifest"') < src.index('"/studio/{path:path}"'), \
         "the manifest route must precede the static catch-all or it is never reached"
+
+
+def test_iphone_chrome_firefox_edge_are_told_to_install_in_their_own_browser():
+    """Reported 2026-11-19: iPhone Chrome users were sent to Safari. Since iOS 16.4 Chrome, Firefox
+    and Edge add a web app to the Home Screen from their own Share menu, so only in-app browsers,
+    the Google app and Opera are handed over to Safari."""
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "install from ' + own" in page
+    assert "/^(Chrome|Firefox|Edge)$/.test(iosBrowser)" in page
+    assert "no need to switch to Safari" in page
+    assert 'id="ios-step1"' in page

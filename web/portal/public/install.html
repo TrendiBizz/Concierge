@@ -98,6 +98,7 @@
   <section class="card" id="ios" hidden>
     <h2 id="ios-title">On iPhone or iPad: install from Safari</h2>
     <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari to do it. No website can change that, and no web page can start the install by itself.</p>
+    <p id="ios-own-note" hidden>You can install it right here in <strong id="ios-own-name">this browser</strong> — no need to switch to Safari.</p>
 
     <div class="sharebar">
       <svg viewBox="0 0 64 64" width="46" height="46" role="img" aria-label="Safari Share button: a square with an arrow pointing up">
@@ -109,7 +110,7 @@
     </div>
 
     <ol>
-      <li>Tap the <strong>Share</strong> button — the square with the arrow, in the bottom bar on iPhone (top right on iPad). If you cannot see the bar, swipe up on the page once.</li>
+      <li id="ios-step1">Tap the <strong>Share</strong> button — the square with the arrow, in the bottom bar on iPhone (top right on iPad). If you cannot see the bar, swipe up on the page once.</li>
       <li>Scroll the list and tap <strong>Add to Home Screen</strong>.</li>
       <li>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
     </ol>
@@ -166,9 +167,8 @@
   var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
   var android = /Android/i.test(ua);
-  // Which browser this is, on iOS. Apple only exposes "Add to Home Screen" in Safari, so Chrome,
-  // Firefox, Edge and the in-app browsers on an iPhone cannot install a web app at all — saying
-  // "use Safari" without saying why reads like the site is broken.
+  // Which browser this is, on iOS. Since iOS 16.4 Chrome, Firefox and Edge can add to the Home
+  // Screen; the in-app browsers, the Google app and Opera cannot, and need a reason to use Safari.
   var inApp = /Instagram/.test(ua) ? 'Instagram'
     : /FBAN|FBAV/.test(ua) ? 'Facebook'
     : /WhatsApp/.test(ua) ? 'WhatsApp'
@@ -202,17 +202,31 @@
     // iOS first: Apple never fires the install prompt, and should one ever appear on an iOS
     // browser it would be a dead button. Safari's gesture is the only real route there.
     if (ios) {
+      // iOS 16.4+ lets Chrome, Firefox and Edge add a web app to the Home Screen from their own
+      // Share menu. Only in-app browsers, the Google app and Opera still have to hand over to Safari.
+      var own = !inApp && /^(Chrome|Firefox|Edge)$/.test(iosBrowser) ? iosBrowser : '';
       var safari = !iosBrowser && !inApp;
       var note = document.getElementById('ios-browser-note');
       var name = document.getElementById('ios-browser-name');
       var copyBtn = document.getElementById('copy-ios');
       var help = document.getElementById('other-browser-help');
       var title = document.getElementById('ios-title');
-      if (safari) {
-        // In Safari the copy button is noise, and it was the only thing some people noticed.
+      var ownNote = document.getElementById('ios-own-note');
+      var step1 = document.getElementById('ios-step1');
+      if (safari || own) {
+        // Here the copy button is noise, and it was the only thing some people noticed.
         if (copyBtn) copyBtn.hidden = true;
         if (help) help.hidden = true;
-      } else {
+      }
+      if (own) {
+        if (title) title.textContent = 'On iPhone: install from ' + own;
+        var on = document.getElementById('ios-own-name');
+        if (on) on.textContent = own;
+        if (ownNote) ownNote.hidden = false;
+        if (step1) step1.innerHTML = own === 'Chrome'
+          ? 'Tap the <strong>Share</strong> button — the square with the arrow, at the right end of the address bar. If you do not see it, tap <strong>⋯</strong> and choose <strong>Share</strong>.'
+          : 'Tap the <strong>Share</strong> button — the square with the arrow, in the address bar or the <strong>⋯</strong> menu.';
+      } else if (!safari) {
         if (note && name) { name.textContent = inApp || iosBrowser; note.hidden = false; }
         if (title) title.textContent = 'On iPhone, install from Safari — not ' + (inApp || iosBrowser);
         if (copyBtn) copyBtn.hidden = false;
