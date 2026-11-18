@@ -60,9 +60,8 @@ window.TRENDI = {
   // 2026-11-15 (Jo: "add the buy button where required"): monthly Concierge link is
   // plink_1Ube9yJVm2iwIxUdbzwHgJhD on the Concierge Stripe account (price_1Ube9aJVm2iwIxUd0IcWNhGm, USD 250/month),
   // checked live that day. Every Concierge monthly buy button carries data-concierge-plan="monthly" and goes there.
-  // 2026-11-15 (Jo: "so this should be on stripe its on the website"): yearly plan retired 2026-11-19 (Jo).
-  // Yearly link plink_1UbraFJVm2iwIxUd3gVPERTY (price_1UbnwwJVm2iwIxUdMoJ9g2Ve, USD 2,700/year = 12 x 250 less 10%),
-  // automatic tax on, same settings as monthly. Buttons carry data-concierge-plan="yearly".
+  // 2026-11-19, Jo: monthly only. Yearly billing is available on request (email admin@trendibizz.com); the public
+  // yearly payment link is to be deactivated (Omega Boss will deactivate it).
   // checkout is the one switch: false sends every button back to /concierge-start (the setup request form)
   // without deleting the link, e.g. if Stripe pauses the link again.
   concierge: {
