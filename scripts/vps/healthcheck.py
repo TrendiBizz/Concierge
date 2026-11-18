@@ -1081,6 +1081,12 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
     example "consent" becoming "consent,mailbox" as another part of the same chain breaks -- is
     still the same problem, and re-emailing every time the wording changes is exactly the noise
     this is meant to avoid. A detail change updates what the next reminder says, silently.
+
+    A failure is only mailed once it has failed on two consecutive runs. The first fail is recorded
+    in `state` without `last_sent` ("pending"); the next run that still fails mails it. Blips such
+    as a deploy swapping the site for a minute used to send a FAIL and then a RECOVERED mail every
+    time. For the same reason a pending fail that clears is dropped silently: the operator never
+    heard of it, so telling them it recovered would be the same noise. Warnings mail at once.
     """
     remind = REMIND_HOURS if remind_hours is None else remind_hours
     new_alerts, reminders, recoveries = [], [], []
@@ -1096,9 +1102,16 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
             state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
                            "first_seen": first_seen or now.isoformat(), "last_sent": last_sent}
         elif previous.get("key") != key or previous.get("status") == "cleared":
-            new_alerts.append(item)
             state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
-                           "first_seen": first_seen or now.isoformat(), "last_sent": now.isoformat()}
+                           "first_seen": first_seen or now.isoformat(), "last_sent": None}
+            if item["status"] == "fail":
+                continue  # first fail: pending, mailed only if the next run fails too
+            new_alerts.append(item)
+            state[name]["last_sent"] = now.isoformat()
+        elif item["status"] == "fail" and not last_sent:
+            # Second consecutive fail: confirmed.
+            new_alerts.append(item)
+            state[name].update(detail=item["detail"], last_sent=now.isoformat())
         elif last_sent and now - datetime.fromisoformat(last_sent) > timedelta(hours=remind):
             reminders.append(item)
             state[name].update(last_sent=now.isoformat(), detail=item["detail"])
@@ -1110,8 +1123,9 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
         if name in problems:
             continue
         if previous.get("status") == "fail":
-            recoveries.append({"check": name, "was": "fail", "since": previous.get("first_seen")})
-            state.pop(name, None)
+            if previous.get("last_sent"):
+                recoveries.append({"check": name, "was": "fail", "since": previous.get("first_seen")})
+            state.pop(name, None)  # a never-mailed (pending) fail leaves no trace
         elif previous.get("status") == "warn":
             # Silent: a warning that clears needs no mail. Remember it, so a flap does not re-announce.
             previous["status"] = "cleared"

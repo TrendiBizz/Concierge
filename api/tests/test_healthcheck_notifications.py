@@ -23,17 +23,58 @@ def a_problem(detail="trendi-support: consent", status="fail", check="inbound:ch
     return {check: {"check": check, "status": status, "detail": detail}}
 
 
-def test_a_new_failure_is_emailed_once():
+def confirm(state, problem, t0):
+    """Apply a failing problem on two consecutive runs; return the second run's plan."""
+    healthcheck.plan_notifications(problem, state, t0)
+    return healthcheck.plan_notifications(problem, state, t0 + timedelta(minutes=5))
+
+
+def test_a_new_failure_is_emailed_once_confirmed():
     state = {}
     alerts, reminders, recoveries = healthcheck.plan_notifications(a_problem(), state, NOW)
+    assert (alerts, reminders, recoveries) == ([], [], []), "first fail is pending"
+    assert not state["inbound:chain"].get("last_sent")
+    second = NOW + timedelta(minutes=5)
+    alerts, reminders, recoveries = healthcheck.plan_notifications(a_problem(), state, second)
     assert len(alerts) == 1 and reminders == [] and recoveries == []
-    assert state["inbound:chain"]["last_sent"] == NOW.isoformat()
+    assert state["inbound:chain"]["last_sent"] == second.isoformat()
+    alerts, reminders, _ = healthcheck.plan_notifications(
+        a_problem(), state, NOW + timedelta(minutes=10))
+    assert alerts == [] and reminders == [], "one email, not one per run"
+
+
+def test_fail_ok_fail_is_not_two_consecutive_fails():
+    state = {}
+    healthcheck.plan_notifications(a_problem(), state, NOW)
+    _, _, recoveries = healthcheck.plan_notifications({}, state, NOW + timedelta(minutes=5))
+    assert recoveries == [] and state == {}
+    alerts, _, recoveries = healthcheck.plan_notifications(
+        a_problem(), state, NOW + timedelta(minutes=10))
+    assert alerts == [] and recoveries == []
+    assert not state["inbound:chain"].get("last_sent"), "pending again"
+
+
+def test_a_pending_fail_that_becomes_a_warning_mails_the_warning_only():
+    state = {}
+    healthcheck.plan_notifications(a_problem(status="fail"), state, NOW)
+    alerts, _, recoveries = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    assert [a["status"] for a in alerts] == ["warn"] and recoveries == []
+
+
+def test_a_warning_that_becomes_a_failure_starts_the_debounce():
+    state = {}
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    alerts, _, _ = healthcheck.plan_notifications(a_problem(status="fail"), state, NOW)
+    assert alerts == [] and not state["inbound:chain"].get("last_sent")
+    alerts, _, _ = healthcheck.plan_notifications(
+        a_problem(status="fail"), state, NOW + timedelta(minutes=5))
+    assert len(alerts) == 1
 
 
 def test_a_wordier_detail_does_not_email_again():
     """The bug: the same broken thing, described in more detail, must not send another email."""
     state = {}
-    healthcheck.plan_notifications(a_problem("trendi-support: consent"), state, NOW)
+    confirm(state, a_problem("trendi-support: consent"), NOW)
     later = NOW + timedelta(minutes=20)
     alerts, reminders, _ = healthcheck.plan_notifications(
         a_problem("trendi-support: consent,mailbox"), state, later)
@@ -45,7 +86,7 @@ def test_a_wordier_detail_does_not_email_again():
 
 def test_a_still_broken_condition_reminds_once_the_window_passes():
     state = {}
-    healthcheck.plan_notifications(a_problem(), state, NOW)
+    confirm(state, a_problem(), NOW)
     _, reminders, _ = healthcheck.plan_notifications(a_problem(), state, NOW + timedelta(hours=47))
     assert reminders == [], "two days is the reminder interval, not six hours"
     alerts, reminders, _ = healthcheck.plan_notifications(
@@ -80,18 +121,26 @@ def test_a_warning_back_after_the_window_is_announced_again():
 
 def test_going_from_fail_to_warn_is_a_new_alert():
     state = {}
-    healthcheck.plan_notifications(a_problem(status="fail"), state, NOW)
+    confirm(state, a_problem(status="fail"), NOW)
     alerts, _, _ = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
     assert len(alerts) == 1, "a change of severity is worth being told about"
 
 
 def test_recovery_is_announced_and_the_state_is_cleared():
     state = {}
-    healthcheck.plan_notifications(a_problem(), state, NOW)
-    alerts, reminders, recoveries = healthcheck.plan_notifications({}, state, NOW)
+    confirm(state, a_problem(), NOW)
+    alerts, reminders, recoveries = healthcheck.plan_notifications({}, state, NOW + timedelta(minutes=10))
     assert alerts == [] and reminders == []
     assert recoveries == [{"check": "inbound:chain", "was": "fail", "since": NOW.isoformat()}]
     assert "inbound:chain" not in state, "a healthy check must not be remembered as broken"
+
+
+def test_a_pending_failure_that_clears_is_not_announced():
+    state = {}
+    healthcheck.plan_notifications(a_problem(), state, NOW)
+    alerts, reminders, recoveries = healthcheck.plan_notifications({}, state, NOW + timedelta(minutes=5))
+    assert (alerts, reminders, recoveries) == ([], [], [])
+    assert state == {}
 
 
 def test_a_quiet_check_never_enters_the_state():
@@ -112,7 +161,7 @@ def test_a_check_that_nobody_here_can_fix_is_never_emailed():
 
     # A real problem still reaches the operator.
     real = {"inbound:chain": {"check": "inbound:chain", "status": "fail", "detail": "consent"}}
-    alerts, _, _ = healthcheck.plan_notifications(healthcheck.mailable(real), {}, NOW)
+    alerts, _ = confirm({}, healthcheck.mailable(real), NOW)[:2]
     assert len(alerts) == 1
 
 
@@ -169,5 +218,5 @@ def test_a_real_failure_still_emails_alongside_that_warning():
         "sms:inbound": {"check": "sms:inbound", "status": "warn", "detail": "never delivered"},
         "inbound:chain": {"check": "inbound:chain", "status": "fail", "detail": "acme: consent"},
     }
-    alerts, _, _ = healthcheck.plan_notifications(healthcheck.mailable(problems), {}, NOW)
+    alerts, _, _ = confirm({}, healthcheck.mailable(problems), NOW)
     assert [a["check"] for a in alerts] == ["inbound:chain"]
