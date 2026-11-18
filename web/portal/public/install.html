@@ -97,7 +97,7 @@
 
   <section class="card" id="ios" hidden>
     <h2 id="ios-title">On iPhone or iPad: install from Safari</h2>
-    <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari to do it. No website can change that, and no web page can start the install by itself.</p>
+    <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari (and, from iOS 16.4, Chrome, Firefox and Edge) to do it. No website can change that, and no web page can start the install by itself.</p>
     <p id="ios-own-note" hidden>You can install it right here in <strong id="ios-own-name">this browser</strong> — no need to switch to Safari.</p>
 
     <div class="sharebar">
@@ -106,7 +106,7 @@
         <path d="M32 40V8" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round"/>
         <path d="M20 20 L32 8 L44 20" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span id="ios-sharebar-text">This is the <strong>Share</strong> button — in Safari's bottom bar (top right on iPad).</span>
+      <span id="ios-sharebar-text">This is the <strong>Share</strong> button — in Safari it is in the bottom bar (top right on iPad). On newer iOS it can be under the <strong>⋯</strong> button instead.</span>
     </div>
 
     <ol>
@@ -120,18 +120,19 @@
     <p class="fine" id="copy-ios-note" role="status"></p>
     <p id="other-browser-help"><strong>Not in Safari?</strong> If you see “<span id="other-browser-name">another browser</span>” around the address bar, or you opened this from Instagram, Facebook, WhatsApp, LinkedIn or TikTok, tap <strong>⋯</strong> there and choose <strong>Open in Safari</strong>, or tap “Copy the link for Safari” and paste it into Safari yourself.</p>
     <p><strong>No Share button anywhere on screen?</strong> If the address bar has no toolbar at all, you are in a link preview inside another app. Tap <strong>⋯</strong> and choose <strong>Open in Safari</strong>, or open Safari and paste this address: <span class="url">concierge.trendibizz.com/studio/install</span></p>
+    <p class="fine" id="ios-default-note">If the heading above names the wrong browser, your phone’s default browser is still that one. Changing the default in Settings only applies once it has really taken effect — or just open this page in the browser you want to install from.</p>
     <p><strong>Share sheet without “Add to Home Screen”?</strong> Scroll to the bottom of that sheet, tap <strong>Edit Actions…</strong> and switch <strong>Add to Home Screen</strong> on.</p>
   </section>
 
   <section class="card" id="menu" hidden>
     <h2>Install from the browser menu</h2>
     <p id="menu-copy">This browser has not offered its own install button, but it can still install the app. Open the browser menu and choose “Install app” or “Add to Home screen”.</p>
-    <p>On Android, Chrome gives the best result. On iPhone the install must be done in Safari — other browsers cannot add to the home screen.</p>
+    <p>On Android, Chrome gives the best result. On iPhone, use Safari, or Chrome, Firefox or Edge on iOS 16.4 or newer, and install from its Share menu.</p>
   </section>
 
   <section class="card" id="desktop" hidden>
     <h2>Scan this with the phone you want it on</h2>
-    <p>Point the phone camera at the code, then install it there. On Android the page shows an <strong>Install</strong> button; on iPhone use Safari’s Share → <strong>Add to Home Screen</strong>.</p>
+    <p>Point the phone camera at the code, then install it there. On Android the page shows an <strong>Install</strong> button; on iPhone use the Share menu in Safari (or Chrome, Firefox or Edge) → <strong>Add to Home Screen</strong>.</p>
     <div class="qr">
       <img src="/studio/install-qr.svg" width="168" height="168" alt="QR code for the Concierge install page">
       <div>
@@ -218,13 +219,20 @@
         if (copyBtn) copyBtn.hidden = true;
         if (help) help.hidden = true;
       }
+      if (safari) {
+        var sbs = document.getElementById('ios-sharebar-text');
+        if (sbs) sbs.innerHTML = 'This is the <strong>Share</strong> button. On newer iOS, Safari puts Share under the <strong>⋯</strong> button; on older iOS it is in the bottom bar (top right on iPad).';
+        if (step1) step1.innerHTML = 'Tap the <strong>Share</strong> button — the square with the arrow. Newer iOS shows it under <strong>⋯</strong> in the bottom bar; older iOS shows it in the bar itself (top right on iPad). If you cannot see the bar, swipe up on the page once.';
+      }
       if (own) {
         if (title) title.textContent = 'On iPhone: install from ' + own;
         var on = document.getElementById('ios-own-name');
         if (on) on.textContent = own;
         if (ownNote) ownNote.hidden = false;
         var sb = document.getElementById('ios-sharebar-text');
-        if (sb) sb.innerHTML = 'This is the <strong>Share</strong> button — in ' + own + ', at the right end of the address bar or under <strong>⋯</strong>.';
+        if (sb) sb.innerHTML = own === 'Chrome'
+          ? 'This is the <strong>Share</strong> button — in Chrome, at the right end of the address bar. If it is missing, tap <strong>⋯</strong> then <strong>Share</strong>.'
+          : 'This is the <strong>Share</strong> button — in ' + own + ', in the address bar or under <strong>⋯</strong>.';
         if (step1) step1.innerHTML = own === 'Chrome'
           ? 'Tap the <strong>Share</strong> button — the square with the arrow, at the right end of the address bar. If you do not see it, tap <strong>⋯</strong> and choose <strong>Share</strong>.'
           : 'Tap the <strong>Share</strong> button — the square with the arrow, in the address bar or the <strong>⋯</strong> menu.';
@@ -242,7 +250,7 @@
     if (copy) {
       copy.textContent = android
         ? 'This browser has not offered its own install button, but it can still install the app. Tap the ⋮ menu (top right) and choose “Install app” or “Add to Home screen”.'
-        : 'Open this page in Safari and use Share → “Add to Home Screen”. Other browsers cannot add to the home screen.';
+        : 'Open this page in Safari, Chrome, Firefox or Edge and use Share → “Add to Home Screen”. In-app browsers (Instagram, Facebook and similar) cannot — open it in Safari first.';
     }
     show('menu');
   }

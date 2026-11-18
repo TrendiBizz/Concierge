@@ -267,3 +267,17 @@ def test_iphone_chrome_firefox_edge_are_told_to_install_in_their_own_browser():
     assert "/^(Chrome|Firefox|Edge)$/.test(iosBrowser)" in page
     assert "no need to switch to Safari" in page
     assert 'id="ios-step1"' in page
+
+
+def test_the_share_hint_is_specific_to_the_browser_and_the_default_browser_is_explained():
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert "if (safari) {" in page, "Safari never updates the share hint"
+    assert "Safari puts Share under the <strong>⋯</strong> button" in page, "newer-iOS Share location is missing"
+    assert "at the right end of the address bar. If it is missing, tap <strong>⋯</strong> then <strong>Share</strong>" in page
+    assert 'id="ios-default-note"' in page
+    assert "names the wrong browser" in page and "default browser is still that one" in page
+    assert "in Safari’s bottom bar (top right on iPad).</span>" not in page
+    # no leftover claim that only Safari can install on iPhone
+    assert "must be done in Safari" not in page
+    assert "Other browsers cannot add to the home screen" not in page
+    assert "Open in Safari" in page and "Instagram" in page, "in-app browsers lost their Safari handover"
