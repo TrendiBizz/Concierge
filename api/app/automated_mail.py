@@ -133,6 +133,35 @@ def verification_reason(subject: str = "", body: str = "") -> str | None:
     return None
 
 
+# Cold supplier / bulk-outreach copy. 18 Nov 2026 15:31 NZDT: a Shenzhen hardware factory pitch
+# ("TRENDIBIZZ offers travel cases, belt buckles... Do you currently source any of these parts?")
+# from a throwaway domain, with no List-Unsubscribe header, became an "Email enquiry" lead and an
+# owner alert. Phrases are narrow so a real customer who writes "unsubscribe" is still an enquiry.
+SOLICITATION_PHRASES = (
+    "no longer wish to receive",
+    "do not wish to receive",
+    "don't wish to receive",
+    "click on the following link: unsubscribe",
+    "click here to unsubscribe",
+    "reply unsubscribe",
+    "do you currently source",
+    "are you currently sourcing",
+    "we are a manufacturer",
+    "we are a factory",
+    "factory direct",
+    "alibaba.com",
+    "made-in-china.com",
+)
+
+
+def solicitation_reason(body: str = "") -> str | None:
+    text = (body or "").lower()
+    for phrase in SOLICITATION_PHRASES:
+        if phrase in text:
+            return "body:solicitation"
+    return None
+
+
 def _headers(raw: bytes | None) -> Message | None:
     if not raw:
         return None
@@ -179,6 +208,7 @@ def classify(sender: str, subject: str = "", raw: bytes | None = None,
         domain_reason(envelope_from or ""),
         subject_reason(subject),
         verification_reason(subject, body),
+        solicitation_reason(body),
     ):
         if check:
             return check

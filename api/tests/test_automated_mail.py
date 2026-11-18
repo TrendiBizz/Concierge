@@ -259,3 +259,15 @@ def test_owner_sms_redacts_a_code_in_an_otherwise_human_enquiry(monkeypatch):
     assert all("445566" not in body for body in bodies)
     assert any("[redacted]" in body for body in bodies)
     assert all("+64211111111" in body for body in bodies)
+
+
+def test_cold_supplier_pitch_is_not_an_enquiry():
+    """18 Nov 2026: a Shenzhen factory pitch with an unsubscribe footer became an owner alert."""
+    pitch = ("TRENDIBIZZ offers travel cases, belt buckles and daily-use hardware. Do you currently "
+             "source any of these parts? Web: http://hongsheng0755.en.alibaba.com\n"
+             "If you no longer wish to receive these emails, click on the following link: unsubscribe")
+    assert automated_mail.classify("prod@zenithen2.com", "", None, None, pitch) == "body:solicitation"
+    # A real customer mentioning unsubscribe, or asking for hardware, stays an enquiry.
+    assert automated_mail.classify(
+        "marcus@harbourjoinery.example.nz", "Quote", None, None,
+        "Hi, please unsubscribe my old address and quote for hinges.") is None
