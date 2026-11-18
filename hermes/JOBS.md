@@ -29,7 +29,6 @@ project and keep their own owner.
 
 | Grok automation (id) | Hermes job | Why paused | How to enable |
 |---|---|---|---|
-| Ego Lite Linux watch (`ego-lite-linux-watch`) | `ego-lite-linux-watch` | One-shot; no Linux build exists | Re-enable when a Linux build ships, or delete the job |
 
 ## Prerequisites
 
@@ -89,7 +88,6 @@ they can double-run with Hermes:
 8. Trendi SEO forums daily deep dive
 9. Twice-monthly post brief (Trendi)
 10. trendibizz.com daily tamper watch
-11. Ego Lite Linux watch
 
 The Hermes copies of 10 and 11 are paused until their prerequisites are met, so pausing
 the Grok copies is safe. Once each Hermes copy has a successful scheduled run, the Grok

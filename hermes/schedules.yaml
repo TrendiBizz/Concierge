@@ -174,18 +174,6 @@ routines:
     source: "Grok Trendi Desk automation trendibizz-com-daily-tamper-watch (paused 2026-11-06; resumed 2026-11-17)"
     status: active
 
-  - id: ego-lite-linux-watch
-    profile: trendi-desk
-    name: "Ego Lite Linux watch"
-    schedule: "0 9 * * 1"
-    procedure: routines/ego-lite-linux-watch.md
-    enabled: false
-    paused_reason: "One-shot watch; no Linux build has shipped. Re-enable or delete once it does."
-    catch_up: false
-    continuity: false
-    source: "Grok Trendi Desk automation ego-lite-linux-watch"
-    status: paused
-
   - id: workwatch-weekly-report
     profile: workwatch
     name: "Workwatch weekly report"
@@ -232,9 +220,6 @@ grok_automations:
   - name: "trendibizz.com daily tamper watch"
     id: trendibizz-com-daily-tamper-watch
     routine: trendi-tamper-watch
-  - name: "Ego Lite Linux watch"
-    id: ego-lite-linux-watch
-    routine: ego-lite-linux-watch
   - name: "Workwatch weekly report"
     id: null
     routine: workwatch-weekly-report

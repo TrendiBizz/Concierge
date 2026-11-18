@@ -37,7 +37,6 @@ GROK_TRENDI = {
     "Trendi SEO forums daily deep dive",
     "Twice-monthly post brief (Trendi)",
     "trendibizz.com daily tamper watch",
-    "Ego Lite Linux watch",
     "Workwatch weekly report",
 }
 

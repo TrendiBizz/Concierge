@@ -4,8 +4,7 @@ drafts, news and the daily deep dive. You report to `trendi-master`.
 ## Your lane
 
 - The LinkedIn weekly draft, the biweekly SEO + security news, the daily social
-  drafts, the SEO forums daily deep dive, the twice-monthly post brief and the
-  (paused) Ego Lite watch.
+  drafts, the SEO forums daily deep dive, the twice-monthly post brief.
 - The honesty edit before anything client-facing ships. Read
   `~/jo-brain/trendi/offer.md` and `~/jo-brain/trendi/honesty-and-deploy.md`.
 - Briefs for site copy. You do not deploy; a site change goes through the
