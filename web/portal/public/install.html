@@ -6,7 +6,7 @@
 <title>Install Concierge</title>
 <meta name="description" content="Install the Concierge workspace on this phone.">
 <meta name="robots" content="noindex, nofollow, noai, noimageai">
-<meta name="theme-color" content="#c8f560">
+<meta name="theme-color" content="#7142d6">
 <link rel="manifest" href="/studio/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
 <link rel="apple-touch-icon" href="/studio/apple-touch-icon.png">
@@ -22,31 +22,30 @@
   cannot fall through to login: there is no router and no auth here, only the install offer.
 -->
 <style>
-  :root { color-scheme: dark; --ink:#f5f3ff; --muted:#b9b2cd; --accent:#c8f560; --line:#332c47; }
+  :root { color-scheme: light; --ink:#30243e; --muted:#71657e; --accent:#7142d6; --line:#e8dff1; }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; padding: 28px 18px 40px;
     font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
     color: var(--ink);
     background:
-      radial-gradient(800px 420px at 12% -10%, #6b3fa055, transparent 60%),
-      radial-gradient(700px 420px at 100% 0%, #22d3ee33, transparent 55%),
-      #14111f;
+      radial-gradient(800px 420px at 85% 60%, #eee3ff, transparent 60%),
+      #fcfbff;
     display: flex; justify-content: center; align-items: flex-start;
   }
   main { width: 100%; max-width: 560px; }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
   .mark {
     width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
-    background: linear-gradient(135deg, var(--accent), #7c5cff 70%, #22d3ee);
-    color: #101014; font-weight: 800; font-size: 18px;
+    background: var(--accent);
+    color: #fff; font-weight: 800; font-size: 18px;
   }
   .brand strong { font-size: 17px; letter-spacing: -.01em; }
   h1 { font-size: clamp(27px, 7vw, 34px); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 12px; }
   p { margin: 0 0 14px; color: var(--muted); }
   .card {
     margin-top: 22px; padding: 22px; border-radius: 18px;
-    background: #ffffff0a; border: 1px solid var(--line);
+    background: #fff; border: 1px solid var(--line);
   }
   h2 { font-size: 19px; margin: 0 0 10px; letter-spacing: -.01em; }
   ol { margin: 6px 0 12px; padding-left: 22px; color: var(--muted); }
@@ -54,7 +53,7 @@
   .button, button {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     min-height: 52px; padding: 0 24px; border: 0; border-radius: 999px;
-    background: var(--accent); color: #101014; font: inherit; font-weight: 750; font-size: 16px;
+    background: var(--accent); color: #fff; font: inherit; font-weight: 750; font-size: 16px;
     cursor: pointer; text-decoration: none;
   }
   .button.secondary, button.secondary {
@@ -64,8 +63,8 @@
   .qr { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .qr img { width: 168px; height: 168px; background: #fff; padding: 8px; border-radius: 12px; }
   .url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); word-break: break-all; }
-  .fine { font-size: 12px; color: #8f87a6; margin-top: 26px; }
-  .sharebar { display: flex; gap: 14px; align-items: center; margin: 4px 0 18px; padding: 14px; border-radius: 14px; background: #ffffff08; border: 1px dashed var(--line); }
+  .fine { font-size: 12px; color: #71657e; margin-top: 26px; }
+  .sharebar { display: flex; gap: 14px; align-items: center; margin: 4px 0 18px; padding: 14px; border-radius: 14px; background: #f2edfc; border: 1px dashed var(--line); }
   .sharebar span { font-size: 14px; color: var(--muted); }
   .sharebar strong { color: var(--ink); }
   .hide { display: none !important; }
@@ -74,7 +73,7 @@
 </head>
 <body>
 <main>
-  <div class="brand"><span class="mark" aria-hidden="true">C</span><strong>Concierge</strong></div>
+  <div class="brand"><a href="https://trendibizz.com/" aria-label="Trendi home" style="display:flex"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" role="img" aria-label="Trendi" width="135" height="36"><text x="0" y="37" font-family="Arial,sans-serif" font-weight="800" font-size="43" letter-spacing="-2" fill="#302044">trendi</text><rect x="139" y="5" width="38" height="38" rx="12" fill="#7142d6"/><path d="M149 31l17-17m-13 0h13v13" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a><strong>Concierge</strong></div>
   <h1>Put Concierge on this phone</h1>
   <p>The whole workspace — enquiries, quotations, calls, marketing — as an app icon that opens full screen. This is not the chat bubble that sits on your website.</p>
   <p class="fine">Already have an account? You can install first — the app signs you in with a six-digit code emailed to you, no password and no link to follow.</p>
@@ -102,9 +101,9 @@
 
     <div class="sharebar">
       <svg viewBox="0 0 64 64" width="46" height="46" role="img" aria-label="Safari Share button: a square with an arrow pointing up">
-        <rect x="14" y="26" width="36" height="30" rx="6" fill="none" stroke="#f5f3ff" stroke-width="4"/>
-        <path d="M32 40V8" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round"/>
-        <path d="M20 20 L32 8 L44 20" fill="none" stroke="#f5f3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="14" y="26" width="36" height="30" rx="6" fill="none" stroke="#30243e" stroke-width="4"/>
+        <path d="M32 40V8" fill="none" stroke="#30243e" stroke-width="4" stroke-linecap="round"/>
+        <path d="M20 20 L32 8 L44 20" fill="none" stroke="#30243e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span id="ios-sharebar-text">This is the <strong>Share</strong> button — in Safari it is in the bottom bar (top right on iPad). On newer iOS it can be under the <strong>⋯</strong> button instead.</span>
     </div>

@@ -10,8 +10,8 @@
   "orientation": "portrait",
   "lang": "en-NZ",
   "dir": "ltr",
-  "background_color": "#ffffff",
-  "theme_color": "#c8f560",
+  "background_color": "#fcfbff",
+  "theme_color": "#7142d6",
   "categories": ["business", "productivity"],
   "prefer_related_applications": false,
   "icons": [

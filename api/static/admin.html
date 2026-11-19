@@ -5,30 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Concierge admin</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='15' fill='%237142d6'/%3E%3Cpath d='M14 34l20-20m-16 0h16v16' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"><meta name="theme-color" content="#fcfbff">
 <style>
-  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e5e8;--ink:#111;--mute:#666;--acc:#2563eb;--hot:#b42318;--warm:#b54708;--cold:#475467;--ok:#027a48}
+  :root{--bg:#fcfbff;--card:#fff;--line:#e8dff1;--ink:#30243e;--mute:#71657e;--acc:#7142d6;--hot:#b42318;--warm:#b54708;--cold:#475467;--ok:#027a48}
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
-  header{background:#111827;color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  header{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   header h1{font-size:16px;margin:0 12px 0 0}
   select,input,button,textarea{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
   button{background:var(--acc);color:#fff;border:0;cursor:pointer}
-  button.sec{background:#e5e7eb;color:#111}
+  button.sec{background:#f0e8ff;color:#30243e}
   button.danger{background:var(--hot)}
   button:disabled{opacity:.5;cursor:not-allowed}
   main{max-width:1180px;margin:16px auto;padding:0 16px}
   .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-  .tabs button{background:#e5e7eb;color:#111}.tabs button.on{background:var(--acc);color:#fff}
+  .tabs button{background:#f0e8ff;color:#30243e}.tabs button.on{background:var(--acc);color:#fff}
   .tabs .count{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--hot);color:#fff;font-size:12px;line-height:18px;text-align:center}
   .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;overflow-x:auto}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
   .stat b{display:block;font-size:24px}.stat span{color:var(--mute);font-size:12px}
   table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
-  code,pre{background:#f1f5f9;border-radius:6px;padding:2px 6px;font-size:12px;word-break:break-all}
+  code,pre{background:#f2edfc;border-radius:6px;padding:2px 6px;font-size:12px;word-break:break-all}
   pre{padding:8px;white-space:pre-wrap}
   .mut{color:var(--mute)} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .bubble{padding:6px 10px;border-radius:10px;margin:3px 0;max-width:80%}
-  .user{background:#dbeafe;margin-left:auto}.assistant{background:#f1f5f9}.flag{outline:2px solid #f59e0b}
+  .user{background:#dbeafe;margin-left:auto}.assistant{background:#f2edfc}.flag{outline:2px solid #7142d6}
   #login{max-width:360px;margin:80px auto}
   .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
   .badge.hot{background:var(--hot)}.badge.warm{background:var(--warm)}.badge.cold{background:var(--cold)}
@@ -49,7 +50,7 @@
   .deal input,.deal select{width:100%;padding:4px 6px;font-size:13px}
   .overdue{color:var(--hot);font-weight:600}
   .todo-done td{opacity:.55;text-decoration:line-through}
-  .src{font-size:11px;padding:1px 7px;border-radius:999px;background:#e5e7eb;color:#333}
+  .src{font-size:11px;padding:1px 7px;border-radius:999px;background:#f0e8ff;color:#333}
 </style>
 </head>
 <body>
@@ -62,7 +63,7 @@
 
 <div id="app" hidden>
   <header>
-    <h1>Concierge</h1>
+    <a href="https://trendibizz.com/" aria-label="Trendi home" style="display:flex"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" role="img" aria-label="Trendi" width="112" height="30" class="brand-logo"><text x="0" y="37" font-family="Arial,sans-serif" font-weight="800" font-size="43" letter-spacing="-2" fill="#302044">trendi</text><rect x="139" y="5" width="38" height="38" rx="12" fill="#7142d6"/><path d="M149 31l17-17m-13 0h13v13" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a><h1>Concierge admin</h1>
     <select id="tenant"></select>
     <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
     <button class="sec" id="new-customer">Add customer</button>

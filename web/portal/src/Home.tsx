@@ -62,7 +62,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
           {channels.length === 0 ? <p style={{opacity: 0.7, fontSize: 14}}>Nothing yet. Each channel that sends you an enquiry will appear here.</p> : null}
           <div style={{height: 240}}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={channels}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
+              <BarChart data={channels}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#7142d6'} radius={[4, 4, 0, 0]} /></BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
@@ -71,7 +71,7 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
           {quotes.length === 0 ? <p style={{opacity: 0.7, fontSize: 14}}>No quotes yet. The first one you save will show up here as a draft.</p> : null}
           <div style={{height: 240}}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={quoteStates}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#c8f560'} radius={[4, 4, 0, 0]} /></BarChart>
+              <BarChart data={quoteStates}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill={brand.accent || '#7142d6'} radius={[4, 4, 0, 0]} /></BarChart>
             </ResponsiveContainer>
           </div>
         </Card>

@@ -212,14 +212,25 @@ def test_an_installed_app_signs_in_with_a_code_not_a_pasted_link():
 
 def test_the_icon_is_visible_on_a_dark_home_screen():
     """The icon was a near-black tile with a lime C: on a dark wallpaper (and under iOS's dark
-    icon treatment) it read as a black blob (reported 2026-11-16). The tile is now lime."""
+    icon treatment) it read as a black blob (reported 2026-11-16). The tile is now the Trendi purple
+    (#7142d6), the same mark the website uses. Every icon must be an opaque tile that keeps at least
+    3:1 contrast against a black wallpaper, so it can never collapse into the background."""
+    from PIL import Image
+    import io
+
+    def luminance(rgb):
+        def channel(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        r, g, b = (channel(v) for v in rgb)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
     for name in ("apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"):
-        data = (PUBLIC / name).read_bytes()
-        # corner pixel of an RGB PNG, via PIL: the tile colour must be bright, not near-black
-        from PIL import Image
-        import io
-        corner = Image.open(io.BytesIO(data)).convert("RGB").getpixel((2, 2))
-        assert sum(corner) / 3 > 140, f"{name} corner {corner} is dark — invisible on a dark screen"
+        image = Image.open(io.BytesIO((PUBLIC / name).read_bytes()))
+        assert image.mode == "RGB", f"{name} must be opaque: iOS composites transparency onto black"
+        corner = image.getpixel((2, 2))
+        contrast_on_black = (luminance(corner) + 0.05) / 0.05
+        assert contrast_on_black >= 3, f"{name} corner {corner} is too dark — invisible on a dark screen"
 
 
 def test_the_manifest_route_carries_a_ticket_into_the_installed_apps_start_url(tmp_path, monkeypatch):

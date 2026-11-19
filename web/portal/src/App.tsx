@@ -751,8 +751,16 @@ type Suggestion = {
   notes: string[];
 };
 
+// Text colour that stays readable on the chosen accent: white on dark accents, near-black on light ones.
+function onAccent(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '#ffffff';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#101408' : '#ffffff';
+}
+
 // Offered first, never a hex box: the customer picks a colour, they do not type one.
-const ACCENT_PRESETS = ['#7142d6', '#c8f560', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#111827', '#db2777'];
+const ACCENT_PRESETS = ['#7142d6', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#111827', '#db2777'];
 const TIMEZONES: Array<[string, string]> = [
   ['Pacific/Auckland', 'New Zealand (Auckland)'],
   ['Australia/Sydney', 'Australia (Sydney)'],
@@ -821,7 +829,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [reading, setReading] = useState(false);
   const [name, setName] = useState('');
-  const [accent, setAccent] = useState('#c8f560');
+  const [accent, setAccent] = useState('#7142d6');
   const [contact, setContact] = useState('');
   const [timezone, setTimezone] = useState('Pacific/Auckland');
   const [logoData, setLogoData] = useState<string | null>(null);
@@ -842,7 +850,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
       setWebsite(b.site_url || '');
       setName(b.name || '');
       setTimezone(b.timezone || 'Pacific/Auckland');
-      setAccent(brand.accent || '#c8f560');
+      setAccent(brand.accent || '#7142d6');
       setContact(brand.contact || '');
     }).catch((e) => setProblem(e instanceof Error ? e.message : 'Could not load setup'));
   }, [token]);
@@ -855,7 +863,7 @@ function Setup({token, brand, setBrand, onDone}: {token: string; brand: Brand; s
       const found: Suggestion = await api('/owner/onboarding/brand-suggestion?website=' + encodeURIComponent(address));
       setSuggestion(found);
       setName(found.name || business.name || '');
-      setAccent(found.accent || '#c8f560');
+      setAccent(found.accent || '#7142d6');
       setContact(found.contact?.line || '');
       setTimezone(found.timezone || timezone);
       setLogoData(found.logo?.data || null);
@@ -1700,7 +1708,7 @@ function Shell() {
     sessionStorage.removeItem('concierge.startAtSetup');
     setTab('setup');
   }, [token]);
-  const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
+  const [brand, setBrand] = useState<Brand>({name: '', accent: '#7142d6', contact: ''});
   const [canInstall, setCanInstall] = useState(installAvailable());
   const [locale, setLocaleState] = useState(initialLocale);
   const [catalog, setCatalog] = useState<Record<string, string>>(en);
@@ -1734,7 +1742,7 @@ function Shell() {
     if (localStorage.getItem('concierge.locale') || new URLSearchParams(location.search).get('lang')) return;
     api('/owner/locale').then((data) => { const suggested = (data as {locale?: string}).locale; if (suggested && hasLocale(suggested)) setLocaleState(suggested); }).catch(() => undefined);
   }, []);
-  const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#c8f560', '--color-on-accent': '#101408'}}), [brand.name, brand.accent]);
+  const theme = useMemo(() => defineTheme({name: 'tenant-' + (brand.name || 'concierge'), extends: neutralTheme, tokens: {'--color-accent': brand.accent || '#7142d6', '--color-on-accent': onAccent(brand.accent || '#7142d6')}}), [brand.name, brand.accent]);
   const api = useApi(token);
 
   useEffect(() => {
@@ -1776,7 +1784,7 @@ function Shell() {
 
   useEffect(() => {
     if (!token) return;
-    api('/owner/media/brand').then((b) => setBrand({name: b.name || '', accent: b.accent || '#c8f560', contact: b.contact || '', logo: b.logo_data || null})).catch(() => undefined);
+    api('/owner/media/brand').then((b) => setBrand({name: b.name || '', accent: b.accent || '#7142d6', contact: b.contact || '', logo: b.logo_data || null})).catch(() => undefined);
   }, [token]);
 
   // Every hook must be declared before the signed-out return below. A hook after a conditional
@@ -1822,30 +1830,30 @@ function Shell() {
   });
 
   const NAV: {group: string; colour: string; items: {tab: string; label: string; glyph: string}[]}[] = [
-    {group: 'Overview', colour: '#7c5cff', items: [
+    {group: 'Overview', colour: '#7142d6', items: [
       {tab: 'home', label: 'Home', glyph: 'home'},
     ]},
-    {group: 'Customers', colour: '#22d3ee', items: [
+    {group: 'Customers', colour: '#8b5fe0', items: [
       {tab: 'crm', label: 'Enquiries', glyph: 'chat'},
       {tab: 'texts', label: 'Texts', glyph: 'chat'},
       {tab: 'contacts', label: 'Contacts', glyph: 'users'},
       {tab: 'companies', label: 'Companies', glyph: 'box'},
       {tab: 'bookings', label: 'Bookings', glyph: 'calendar'},
     ]},
-    {group: 'Sales', colour: '#fbbf24', items: [
+    {group: 'Sales', colour: '#a450ca', items: [
       {tab: 'pipeline', label: 'Pipeline', glyph: 'chart'},
       {tab: 'quotes', label: 'Quotes', glyph: 'quote'},
       {tab: 'products', label: 'Products', glyph: 'box'},
       {tab: 'designs', label: 'Designs and CAD', glyph: 'compass'},
     ]},
-    {group: 'Marketing', colour: '#f472b6', items: [
+    {group: 'Marketing', colour: '#c17ad9', items: [
       {tab: 'social', label: 'Social', glyph: 'megaphone'},
       {tab: 'media', label: 'Marketing media', glyph: 'image'},
     ]},
-    {group: 'Insights', colour: '#34d399', items: [
+    {group: 'Insights', colour: '#5830ae', items: [
       {tab: 'reports', label: 'Reports', glyph: 'chart'},
     ]},
-    {group: 'Settings', colour: '#94a3b8', items: [
+    {group: 'Settings', colour: '#71657e', items: [
       {tab: 'setup', label: 'Setup', glyph: 'gear'},
       {tab: 'permissions', label: 'Channels and permissions', glyph: 'shield'},
       {tab: 'team', label: 'Team', glyph: 'handshake'},
@@ -1902,7 +1910,7 @@ function Shell() {
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div className="c-shell">
       <div className="c-brand">
-        {brand.logo ? <img src={brand.logo} alt="" style={{height: 42, width: 'auto', borderRadius: 12}} /> : <div className="c-brand-mark">{initials || 'C'}</div>}
+        {brand.logo ? <img src={brand.logo} alt="" style={{height: 42, width: 'auto', borderRadius: 12}} /> : (brand.name ? <div className="c-brand-mark">{initials || 'C'}</div> : <img src="/studio/favicon.svg" alt="Trendi" style={{height: 42, width: 42, borderRadius: 14}} />)}
         <div>
           <div className="c-brand-name">{brand.name || 'Concierge'}</div>
           <div className="c-brand-sub">

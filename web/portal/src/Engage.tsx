@@ -229,7 +229,7 @@ export function Media({token}: {token: string}) {
               takeFiles(Array.from(event.dataTransfer.files));
             }}
             style={{
-              border: '2px dashed ' + (isDragging ? 'var(--color-accent, #c8f560)' : 'var(--color-border)'),
+              border: '2px dashed ' + (isDragging ? 'var(--color-accent, #7142d6)' : 'var(--color-border)'),
               borderRadius: 12,
               padding: 16,
               margin: '8px 0',

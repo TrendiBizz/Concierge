@@ -4,7 +4,7 @@
    grouped, colour-coded navigation, and cards that look like they belong to 2026. */
 
 .c-shell {
-  --c-accent: var(--color-accent, #c8f560);
+  --c-accent: var(--color-accent, #7142d6);
   /* These are the design system's own tokens, so the shell follows the chosen light/dark mode.
      Two earlier attempts guessed token names (`--color-bg`, `--color-text`) that do not exist:
      the app rendered a white page behind dark cards, with white numbers on white. */
@@ -17,7 +17,7 @@
   min-height: 100vh;
   background:
     radial-gradient(1200px 600px at 12% -10%, color-mix(in oklab, var(--c-accent) 22%, transparent), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, color-mix(in oklab, #7c5cff 18%, transparent), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in oklab, #a450ca 14%, transparent), transparent 55%),
     var(--c-page);
   color: var(--c-ink);
   display: grid;
@@ -36,8 +36,8 @@
 .c-brand-mark {
   width: 42px; height: 42px; border-radius: 14px; flex: none;
   display: grid; place-items: center;
-  font-weight: 800; font-size: 17px; letter-spacing: -0.02em; color: #101014;
-  background: linear-gradient(135deg, var(--c-accent), #7c5cff 70%, #22d3ee);
+  font-weight: 800; font-size: 17px; letter-spacing: -0.02em; color: var(--color-on-accent, #fff);
+  background: var(--c-accent);
   box-shadow: 0 10px 24px -12px color-mix(in oklab, var(--c-accent) 80%, transparent);
 }
 .c-brand-name { font-weight: 750; font-size: 17px; letter-spacing: -0.02em; color: var(--c-ink); }
@@ -79,14 +79,14 @@
 }
 .c-nav-item:hover { background: var(--c-surface); transform: translateX(2px); }
 .c-nav-item[data-active="true"] {
-  background: linear-gradient(100deg, color-mix(in oklab, var(--c-accent) 42%, transparent), color-mix(in oklab, #7c5cff 26%, transparent));
+  background: linear-gradient(100deg, color-mix(in oklab, var(--c-accent) 42%, transparent), color-mix(in oklab, #a450ca 22%, transparent));
   font-weight: 700;
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c-accent) 45%, transparent);
 }
 .c-nav-item .c-nav-glyph { width: 18px; text-align: center; font-size: 15px; flex: none; opacity: 0.95; }
 .c-nav-badge {
   margin-left: auto; font-size: 11px; font-weight: 800; min-width: 20px; text-align: center;
-  padding: 2px 6px; border-radius: 999px; color: #101014;
+  padding: 2px 6px; border-radius: 999px; color: var(--color-on-accent, #fff);
   background: var(--c-accent);
 }
 
@@ -96,7 +96,7 @@
   border-radius: 22px; padding: 26px 28px; margin-bottom: 22px;
   background:
     radial-gradient(600px 220px at 8% 0%, color-mix(in oklab, var(--c-accent) 55%, transparent), transparent 70%),
-    linear-gradient(120deg, color-mix(in oklab, #7c5cff 30%, transparent), transparent 60%),
+    linear-gradient(120deg, color-mix(in oklab, #a450ca 24%, transparent), transparent 60%),
     var(--c-surface);
   box-shadow: inset 0 0 0 1px var(--c-line);
 }
@@ -112,7 +112,7 @@
 }
 .c-kpi::after {
   content: ""; position: absolute; inset: 0 auto 0 0; width: 4px;
-  background: linear-gradient(180deg, var(--c-accent), #7c5cff);
+  background: var(--c-accent);
 }
 .c-kpi strong { display: block; font-size: 30px; letter-spacing: -0.03em; color: var(--c-ink); }
 .c-kpi span { color: var(--c-muted); font-size: 13.5px; }
@@ -133,8 +133,8 @@
 }
 .c-row-avatar {
   width: 34px; height: 34px; border-radius: 11px; flex: none;
-  display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #101014;
-  background: linear-gradient(135deg, var(--c-accent), #7c5cff);
+  display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--color-on-accent, #fff);
+  background: var(--c-accent);
 }
 .c-row-main { display: flex; flex-direction: column; min-width: 0; }
 .c-row-main strong { font-size: 14.5px; }
@@ -142,7 +142,7 @@
 .c-row-tag {
   margin-left: auto; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.06em; padding: 3px 9px; border-radius: 999px;
-  background: color-mix(in oklab, #22d3ee 22%, transparent);
+  background: color-mix(in oklab, #8b5fe0 20%, transparent);
   color: var(--c-ink);
 }
 
@@ -186,7 +186,7 @@
 }
 .c-crash-button {
   border: 0; cursor: pointer; padding: 10px 18px; border-radius: 999px; font-weight: 700;
-  background: var(--c-accent); color: #101014;
+  background: var(--c-accent); color: var(--color-on-accent, #fff);
 }
 
 /* Media thumbnails: seeing the thing is what proves the generation worked. */
