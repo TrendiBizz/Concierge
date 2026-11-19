@@ -23,6 +23,7 @@ box-only changes are lost or silently diverge. "It works" and "it is what we com
 4. Run `KEY=./Concierge ./scripts/vps/verify-deploy.sh` before saying "deployed" (exit 0 = repo and box agree). Drift: deploy the repo or commit the box state. No third option.
 5. Every defect: fixed, tested, documented (cause, fix, proof) the same session; mutation-check the test once.
 6. Never verify a mail fix by replaying to production; never send real SMS or place real calls to test.
+7. `scripts/seo/geo-daily.py` must report 0 changed on a quiet day. Any per-page change count that equals the sitemap size is fingerprint noise, not edits — Cloudflare per-request CSP nonces are the known cause (see `QA/verification/GEO_DAILY_FIX_2026-11-20.md`). Diff two raw fetches before re-baselining `.geo-state.json`, and run `python3 -m pytest scripts/seo/test_geo_daily.py -q` after touching the script.
 
 ## Branches and pushes
 `main` is deployed. `git pull --rebase` before pushing (shared repo + checkpoint bot); push only after the full suite passes:

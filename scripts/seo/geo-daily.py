@@ -39,7 +39,12 @@ PROMPTS = [
 # response. Measuring `len(text)` therefore changed on every fetch: the 2026-11-15 and 2026-11-16
 # runs both reported *every* page as changed and re-pinged IndexNow for the whole site daily.
 SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>.*?</script>", re.S)
-CF_MARKERS = ("__CF$cv$params", "cdn-cgi/challenge-platform", "challenge-platform/scripts")
+CF_MARKERS = ("__CF$cv$params", "cdn-cgi/challenge-platform", "challenge-platform/scripts",
+              # Cloudflare Web Analytics injects this beacon into every response.
+              "static.cloudflareinsights.com", "data-cf-beacon")
+# Cloudflare also stamps a fresh CSP nonce on that beacon on every request. The nonce is
+# per-response noise, never page content, so it must not reach the fingerprint.
+NONCE = re.compile(r'nonce="[^"]*"')
 MODIFIED = re.compile(r'"dateModified"\s*:\s*"([^"]+)"')
 
 
@@ -47,6 +52,7 @@ def fingerprint(text: str) -> str:
     """Stable fingerprint of the page's own content, ignoring the Cloudflare injection."""
     stable = SCRIPT_BLOCK.sub(
         lambda m: "" if any(marker in m.group(0) for marker in CF_MARKERS) else m.group(0), text)
+    stable = NONCE.sub('nonce=""', stable)
     stable = "\n".join(
         line for line in stable.splitlines()
         if not any(marker in line for marker in CF_MARKERS))
