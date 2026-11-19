@@ -47,7 +47,7 @@ def tenant_country_code(tenant: dict | None) -> str:
             return own
     configured = str(getattr(get_settings(), "default_country_code", "") or "").strip()
     # An empty country code is honoured as empty. Defaulting it to '1' silently prefixed a New
-    # Zealand number with a US code (+10275550123), which cannot be dialled and split one customer
+    # Zealand number with a US code (+10278817368), which cannot be dialled and split one customer
     # into two identities.
     return configured if configured.isdigit() and 1 <= len(configured) <= 3 else ""
 
