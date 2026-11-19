@@ -47,18 +47,22 @@ async function asset(request) {
   catch { return new Response('Bad request',{status:400}); }
   if (pathname.includes('\0') || pathname.split('/').some(part=>part.startsWith('.') && part!=='.well-known') || ['/_headers','/_redirects','/_worker.js','/_routes.json'].includes(pathname))
     return new Response('Not found',{status:404});
+  // A 410 rule in _redirects ("/old-page /404.html 410") marks a deliberately removed page: it is served with
+  // the site's 404 page as the body and status 410 Gone, so search engines drop it instead of retrying a 404.
+  let gone=false;
   for (const [from,to,status='302'] of await loadRedirects()) {
     if (pathname===from) {
       const code=Number(status);
       if (code>=300 && code<400) return new Response(null,{status:code,headers:{Location:to}});
       if (code===404) return new Response('Not found',{status:404});
+      if (code===410) { gone=true; break; }
     }
   }
   // SEO-ENGINE-301 (15 Nov 2026, ranking plan item 13): one URL per page.
   // 301 /page.html and /page/ to /page when site/page.html exists. Only lowercase [a-z0-9/-] page paths,
   // so .txt/.xml/.json/.js/.css/images, the IndexNow key, /llms.txt, /robots.txt and /sitemap.xml never match.
   // /concierge/*, /cdn-cgi/*, /.well-known/*, asset folders and /404 are excluded. Query string is kept.
-  {
+  if (!gone) {
     let clean=null;
     if (/^\/[a-z0-9][a-z0-9\/-]*\.html$/.test(pathname)) clean=pathname.slice(0,-5);
     else if (/^\/[a-z0-9][a-z0-9\/-]*[a-z0-9]\/$/.test(pathname)) clean=pathname.slice(0,-1);
@@ -75,7 +79,7 @@ async function asset(request) {
   }
   const relative=pathname==='/'?'index.html':pathname.replace(/^\//,'');
   let file,stat;
-  for (const candidate of [relative,relative+'.html',path.join(relative,'index.html')]) {
+  if (!gone) for (const candidate of [relative,relative+'.html',path.join(relative,'index.html')]) {
     const resolved=path.resolve(root,candidate);
     if (!resolved.startsWith(root+'/')) continue;
     try {
@@ -87,6 +91,7 @@ async function asset(request) {
   }
   let status=200;
   if(!file){file=path.join(root,'404.html');stat=await fs.stat(file);status=404;}
+  if(gone)status=410;
   const headers={'Content-Type':mime[path.extname(file)]||'application/octet-stream','Accept-Ranges':'bytes'};
   for(const block of blocks)if(matches(block.pattern,pathname))Object.assign(headers,block.headers);
   let start=0,end=stat.size-1;
