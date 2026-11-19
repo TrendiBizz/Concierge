@@ -1,6 +1,7 @@
 /_headers /404.html 404
 /_redirects /404.html 404
 # Path redirects (host-level www→apex is a Cloudflare Redirect Rule)
+/concierge/ /concierge 301
 /tools/security-check /security-check 301
 /tools/security-check/ /security-check 301
 
