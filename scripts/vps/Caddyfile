@@ -14,12 +14,12 @@
         }
         format filter {
             wrap json
-            request>uri regexp "\\?.*$" ""
+            request>uri regexp `[?].*$` ""
             request>headers>Cookie delete
             request>headers>Authorization delete
             request>headers>Cf-Connecting-Ip delete
             request>headers>X-Forwarded-For delete
-            request>headers>Referer regexp "\\?.*$" ""
+            request>headers>Referer regexp `[?].*$` ""
             request>client_ip delete
             request>remote_ip delete
             resp_headers delete
