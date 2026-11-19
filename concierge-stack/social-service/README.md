@@ -240,3 +240,13 @@ These are offline-tested request contracts only. No external account was
 connected and no real post sent. Separate staging approval, genuine
 provider permissions, consent, connected account, and end-to-end tests
 remain mandatory before enabling either network.
+
+## YouTube customer channels
+
+Set `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REDIRECT_URI` through the operator's secret configuration. The redirect must be HTTPS at `/owner/social/oauth/callback`, without query, fragment or user information. Missing or invalid configuration reports YouTube as unavailable. Never put credentials in source or logs.
+
+Owners connect through `/v1/customers/:c/oauth/youtube/start` and `/finish`. Google authorization uses S256 PKCE, single-use tenant state, offline consent, `youtube.upload` and `youtube.readonly`. The owned channel ID/title comes from `channels?part=snippet&mine=true`; both access and refresh credentials use the existing tenant vault label. Missing refresh credentials or upload scope fails linking. Renewal uses Google's refresh grant; invalid grants mark reconnection required. Disconnect attempts Google revocation and always erases local credentials.
+
+Compose an uploaded video with options `title` (required, at most 100 characters, no angle brackets), `description` (at most 5000 bytes), and `privacy` (`private`, `unlisted`, `public`; default `private`). Metadata and media are included in the existing exact approval. Submit, request approval, approve, then the scheduler delivers; no alternate publish endpoint exists. Both `SOCIAL_ENABLE_PUBLISH` and `SOCIAL_ENABLE_YOUTUBE_PUBLISH` must equal `true`. The uploader sends bounded chunks, follows 308 ranges, and queries upload status after interruptions or server errors with bounded backoff. Exhausted or ambiguous attempts require reconciliation, never automatic reinitialization. Results retain the video ID and watch URL. Existing standard platform rules gain YouTube; customized platform policies must explicitly include it.
+
+Google lifted unverified-project private-only uploads on November 2, 2026, but OAuth verification is still needed for sensitive scopes before general customer use without warnings. Testing mode allows listed test users with seven-day refresh credentials. See [network access requirements](../docs/SOCIAL-NETWORKS-ACCESS.md) for current quota and verification sources. All YouTube tests use synthetic credentials and local mock HTTP servers.

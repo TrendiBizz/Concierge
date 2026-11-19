@@ -328,6 +328,8 @@ final class AppStore {
                         ? "Add the Facebook page under Social pages first."
                         : "Text is copied. On the page, choose Create post and paste."
                 )
+            case .youtube:
+                return PublishTarget(platform: id, label: "Open YouTube Studio", url: URL(string: "https://studio.youtube.com"), hint: "Upload your video and review title, description and visibility before publishing.")
             case .instagram:
                 return PublishTarget(
                     platform: id,

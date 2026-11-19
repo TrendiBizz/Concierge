@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Platforms
 
 enum Platform: String, CaseIterable, Identifiable {
-    case linkedin, facebook, instagram, twitter
+    case linkedin, facebook, instagram, twitter, youtube
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum Platform: String, CaseIterable, Identifiable {
         case .linkedin: return "LinkedIn"
         case .facebook: return "Facebook"
         case .instagram: return "Instagram"
+        case .youtube: return "YouTube"
         case .twitter: return "X"
         }
     }
@@ -22,6 +23,7 @@ enum Platform: String, CaseIterable, Identifiable {
         case .linkedin: return "in"
         case .facebook: return "f"
         case .instagram: return "ig"
+        case .youtube: return "YT"
         case .twitter: return "X"
         }
     }
@@ -31,6 +33,7 @@ enum Platform: String, CaseIterable, Identifiable {
         case .linkedin: return Color(red: 0.04, green: 0.40, blue: 0.76)
         case .facebook: return Color(red: 0.09, green: 0.47, blue: 0.95)
         case .instagram: return Color(red: 0.76, green: 0.21, blue: 0.52)
+        case .youtube: return Color.red
         case .twitter: return Color.primary
         }
     }

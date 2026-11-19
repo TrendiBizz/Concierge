@@ -34,6 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let store_for_scheduler = store.clone();
         let vault_for_scheduler = vault.clone();
         let mut registry = concierge_social::connector::Registry::new();
+        if concierge_social::youtube_publish::enabled() {
+            registry.register(Arc::new(concierge_social::youtube_publish::YouTube::new()?));
+        }
         if std::env::var("SOCIAL_ENABLE_TIKTOK_PUBLISH").as_deref() == Ok("true") {
             registry.register(Arc::new(concierge_social::tiktok_publish::TikTok::new(
                 &std::env::var("SOCIAL_TIKTOK_VERIFIED_MEDIA_ORIGINS").unwrap_or_default(),

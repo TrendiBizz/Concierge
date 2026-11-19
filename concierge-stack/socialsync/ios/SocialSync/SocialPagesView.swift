@@ -136,7 +136,7 @@ struct ChannelForm: View {
     }
 
     private var platforms: [String] {
-        store.channelPlatforms.isEmpty ? ["facebook", "instagram", "linkedin", "twitter", "other"] : store.channelPlatforms
+        store.channelPlatforms.isEmpty ? ["facebook", "instagram", "linkedin", "twitter", "youtube", "other"] : store.channelPlatforms
     }
 
     var body: some View {

@@ -70,6 +70,23 @@ fn server_err(msg: String) -> (StatusCode, Json<ErrorBody>) {
         return err(StatusCode::BAD_REQUEST, msg);
     }
     const META_USER_ERRORS: &[&str] = &[
+        "YouTube did not grant upload access",
+        "YouTube authorization unavailable",
+        "YouTube authorization rejected; reconnect YouTube",
+        "Invalid YouTube token response",
+        "YouTube channel lookup unavailable",
+        "YouTube channel verification failed",
+        "Invalid YouTube channel response",
+        "Select one YouTube channel and reconnect",
+        "YouTube renewal unavailable",
+        "Reconnect YouTube to renew upload access",
+        "YouTube title is required",
+        "YouTube title must be at most 100 characters without angle brackets",
+        "Invalid YouTube description",
+        "YouTube description exceeds 5000 bytes",
+        "Invalid YouTube privacy",
+        "YouTube requires exactly one uploaded video",
+        "Upload a video for YouTube",
         "TikTok token exchange unavailable",
         "TikTok token exchange rejected",
         "Invalid TikTok token response",
@@ -225,6 +242,7 @@ struct OAuthProviders {
     instagram: bool,
     google_business: bool,
     tiktok: bool,
+    youtube: bool,
     x: bool,
     callback_path: &'static str,
 }
@@ -246,6 +264,7 @@ async fn oauth_providers(State(s): State<AppState>, h: HeaderMap) -> ApiResult<O
         instagram: crate::meta::from_env("instagram").is_ok(),
         google_business: crate::google_business::from_env().is_ok(),
         tiktok: crate::tiktok::from_env().is_ok(),
+        youtube: crate::youtube::from_env().is_ok(),
         x: crate::x::from_env().is_ok(),
         callback_path,
     }))
@@ -902,6 +921,53 @@ async fn tiktok_oauth_disconnect(
     crate::tiktok::disconnect(&s.store, &c, &id).map_err(server_err)?;
     Ok(Json(Health { ok: true }))
 }
+async fn youtube_oauth_start(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+) -> ApiResult<crate::oauth::Start> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::youtube::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "YouTube OAuth not configured",
+        )
+    })?;
+    Ok(Json(
+        crate::youtube::start(&s.store, &s.vault, &c, &cfg).map_err(server_err)?,
+    ))
+}
+async fn youtube_oauth_finish(
+    State(s): State<AppState>,
+    Path(c): Path<String>,
+    h: HeaderMap,
+    Json(input): Json<OAuthFinish>,
+) -> ApiResult<MetaAccounts> {
+    role(&h, &s, true, Some(&c))?;
+    let cfg = crate::youtube::from_env().map_err(|_| {
+        err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "YouTube OAuth not configured",
+        )
+    })?;
+    let id = crate::youtube::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(MetaAccounts {
+        account_ids: vec![id],
+    }))
+}
+async fn youtube_oauth_disconnect(
+    State(s): State<AppState>,
+    Path((c, id)): Path<(String, String)>,
+    h: HeaderMap,
+) -> ApiResult<Health> {
+    role(&h, &s, true, Some(&c))?;
+    crate::youtube::disconnect(&s.store, &s.vault, &c, &id)
+        .await
+        .map_err(server_err)?;
+    Ok(Json(Health { ok: true }))
+}
 async fn google_oauth_start(
     State(s): State<AppState>,
     Path(c): Path<String>,
@@ -1043,6 +1109,18 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/customers/:c/oauth/tiktok/accounts/:id",
             axum::routing::delete(tiktok_oauth_disconnect),
+        )
+        .route(
+            "/v1/customers/:c/oauth/youtube/start",
+            post(youtube_oauth_start),
+        )
+        .route(
+            "/v1/customers/:c/oauth/youtube/finish",
+            post(youtube_oauth_finish),
+        )
+        .route(
+            "/v1/customers/:c/oauth/youtube/accounts/:id",
+            axum::routing::delete(youtube_oauth_disconnect),
         )
         .route("/v1/customers/:c/oauth/renew/:id", post(oauth_renew))
         .route(

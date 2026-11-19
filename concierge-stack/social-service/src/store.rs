@@ -87,6 +87,9 @@ impl Store {
                 post_id TEXT NOT NULL, account_id TEXT NOT NULL, external_post_id TEXT,
                 error TEXT, at INTEGER NOT NULL, ok INTEGER NOT NULL,
                 PRIMARY KEY(post_id,account_id,ok));
+             CREATE TABLE IF NOT EXISTS post_result_urls(
+                post_id TEXT NOT NULL, account_id TEXT NOT NULL, url TEXT NOT NULL,
+                PRIMARY KEY(post_id,account_id));
              CREATE TABLE IF NOT EXISTS events(
                 at INTEGER NOT NULL, customer_id TEXT NOT NULL, post_id TEXT,
                 kind TEXT NOT NULL, detail TEXT NOT NULL);",
@@ -115,7 +118,14 @@ impl Store {
                 r.get(0)
             })
             .map_err(|_| "Customer not found")?;
-        serde_json::from_str(&raw).map_err(|e| e.to_string())
+        let mut rules: Rules = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+        // Upgrade the shipped pre-YouTube defaults, preserving explicitly customized policies.
+        let mut legacy = crate::guardrails::default_platforms();
+        let youtube = legacy.remove("youtube").expect("YouTube default rule");
+        if serde_json::to_value(&rules.platforms).ok() == serde_json::to_value(&legacy).ok() {
+            rules.platforms.insert("youtube".into(), youtube);
+        }
+        Ok(rules)
     }
 
     pub fn update_rules(&self, customer: &str, rules: &Rules) -> Result<()> {
@@ -273,6 +283,17 @@ impl Store {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .map_err(|_| "Account not found or requires login".into())
+    }
+
+    /// Owner disconnect may destroy expired or revoked credentials, never use them for publishing.
+    pub fn disconnect_credentials(
+        &self,
+        customer: &str,
+        id: &str,
+    ) -> Result<(String, String, String, Option<String>)> {
+        self.db.lock().map_err(|_| "DB mutex poisoned")?.query_row(
+            "SELECT network,external_id,token_enc,refresh_enc FROM accounts WHERE id=?1 AND customer_id=?2",
+            params![id,customer], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(|_| "Account not found".into())
     }
 
     /// Require a tenant-owned, active provider grant before publishing.
@@ -517,6 +538,36 @@ impl Store {
         )
         .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn record_result_with_url(
+        &self,
+        post: &str,
+        account: &str,
+        success: bool,
+        external_id: Option<&str>,
+        url: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let mut conn = self.db.lock().map_err(|_| "DB mutex poisoned")?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR IGNORE INTO post_results(post_id,account_id,ok,external_post_id,error,at) VALUES(?1,?2,?3,?4,?5,?6)",
+            params![post, account, success as i32, external_id, error, now()],
+        ).map_err(|e| e.to_string())?;
+        if let Some(url) = url {
+            tx.execute(
+                "INSERT OR IGNORE INTO post_result_urls(post_id,account_id,url) VALUES(?1,?2,?3)",
+                params![post, account, url],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    pub fn result_url(&self, customer: &str, post: &str, account: &str) -> Result<Option<String>> {
+        self.db.lock().map_err(|_| "DB mutex poisoned")?.query_row(
+            "SELECT r.url FROM post_result_urls r JOIN posts p ON p.id=r.post_id WHERE p.customer_id=?1 AND r.post_id=?2 AND r.account_id=?3",params![customer,post,account],|r|r.get(0)).optional().map_err(|e|e.to_string())
     }
 
     pub fn pending_receipts(&self) -> Result<Vec<(Post, String, String)>> {
@@ -771,6 +822,16 @@ impl Store {
                     .optional()
                     .map_err(|e| e.to_string())?;
                 nets.push(net.ok_or("Account not found for customer")?);
+            }
+        }
+        if nets.iter().any(|net| net == "youtube") {
+            crate::youtube_publish::validate(&p.media, &p.options)?;
+            crate::youtube_publish::check_rules(&p.options, &rules)?;
+            for item in &p.media {
+                let asset = crate::media::load(customer, item.trim_start_matches("upload:"))?;
+                if asset.kind != "video" {
+                    return Err("YouTube requires exactly one uploaded video".into());
+                }
             }
         }
         let checked = crate::guardrails::check_post(

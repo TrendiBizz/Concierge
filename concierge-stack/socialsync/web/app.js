@@ -469,6 +469,9 @@ function publishTargets(post) {
       hint = url
         ? 'Text copied. On the page, choose Create post and paste.'
         : 'Add the Facebook page under Pages first.';
+    } else if (id === 'youtube') {
+      url = 'https://studio.youtube.com';
+      hint = 'Open YouTube Studio to upload your video and review title, description and visibility before publishing.';
     } else if (id === 'instagram') {
       hint = url
         ? 'Text copied. Instagram posts are made in the Instagram app: add the photo and paste.'

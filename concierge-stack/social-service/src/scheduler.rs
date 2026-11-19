@@ -127,10 +127,17 @@ async fn run_due_inner(
                         | "linkedin"
                         | "linkedin_organization"
                         | "tiktok"
+                        | "youtube"
                         | "google_business"
                         | "x"
                 ) && expiry.is_some_and(|deadline| {
-                    deadline <= now + if network == "x" { 300 } else { 7 * 86400 }
+                    deadline
+                        <= now
+                            + if network == "x" || network == "youtube" {
+                                300
+                            } else {
+                                7 * 86400
+                            }
                 }) && crate::token_refresh::refresh(store, vault, &post.customer_id, account_id)
                     .await
                     .is_err()
@@ -192,6 +199,18 @@ async fn run_due_inner(
                         break;
                     }
                 };
+            if network == "youtube" && !crate::youtube_publish::enabled() {
+                failed = Some("YouTube publishing is not enabled".into());
+                break;
+            }
+            if network == "youtube" {
+                if let Err(reason) =
+                    crate::youtube_publish::check_rules(&post.options, &current_rules)
+                {
+                    failed = Some(reason);
+                    break;
+                }
+            }
             // OIDC account linking does not authorize posting. Check the actual
             // tenant-bound grant even if LinkedIn publishing is later enabled.
             if network == "linkedin"
@@ -202,6 +221,7 @@ async fn run_due_inner(
             }
             let required_scope = match network.as_str() {
                 "linkedin_organization" => Some("w_organization_social"),
+                "youtube" => Some(crate::youtube::UPLOAD_SCOPE),
                 "tiktok" => Some("video.publish"),
                 "x" => Some("tweet.write"),
                 _ => None,
@@ -251,7 +271,11 @@ async fn run_due_inner(
                     .iter()
                     .map(|v| {
                         if let Some(id) = v.strip_prefix("upload:") {
-                            crate::media::provider_url(vault, &post.customer_id, id)
+                            if network == "youtube" {
+                                Ok(v.clone())
+                            } else {
+                                crate::media::provider_url(vault, &post.customer_id, id)
+                            }
                         } else {
                             Ok(v.clone())
                         }
@@ -288,11 +312,12 @@ async fn run_due_inner(
             match connector.publish(request).await {
                 Ok(result) => {
                     processing |= result.external_id.starts_with("pending:");
-                    store.record_result(
+                    store.record_result_with_url(
                         &post.id,
                         account_id,
                         true,
                         Some(&result.external_id),
+                        result.url.as_deref(),
                         None,
                     )?;
                 }

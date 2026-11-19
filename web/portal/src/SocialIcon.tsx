@@ -20,6 +20,7 @@ export const SOCIAL_NETWORKS: Network[] = [
   {id: 'linkedin', label: 'LinkedIn', file: 'linkedin.svg', note: 'Your profile'},
   {id: 'linkedin_organization', label: 'LinkedIn company page', file: 'linkedin.svg', note: 'Requires organization approval'},
   {id: 'x', label: 'X', file: 'x.svg', note: 'Posts and media'},
+  {id: 'youtube', label: 'YouTube', file: 'youtube.svg', note: 'Your channel videos'},
   {id: 'tiktok', label: 'TikTok', file: 'tiktok.svg', note: 'Video publishing'},
   {id: 'google_business', label: 'Google Business Profile', file: 'google-business.svg', note: 'Business locations'},
 ];

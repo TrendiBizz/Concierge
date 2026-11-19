@@ -474,3 +474,7 @@ publish-reviewed-post trendi-oauth-staging POST_ID
 sqlite3 /Users/jo/work-staging/concierge-integration/.private/oauth-staging/social.db \
   "SELECT id,status FROM posts; SELECT post_id,account_id,ok,external_post_id,error,at FROM post_results;"
 ```
+
+## YouTube
+
+Connect the customer's own channel, upload a video, and review its title, description and visibility in the normal approval flow. Visibility starts at Private; choosing Unlisted or Public must be part of that review. Google OAuth configuration and both publishing switches must be enabled by the operator. Reconnect on revoked or expired grants. Quota or channel upload limits require waiting or operator review; ambiguous uploads require reconciliation before another attempt. No live YouTube verification is part of the offline test suite.
