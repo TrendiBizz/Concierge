@@ -78,6 +78,16 @@ Before any future session ends, run `KEY=./Concierge ./scripts/vps/verify-deploy
 `OK: repo and box agree`, the session is not finished. Remember the `env -u GIT_CONFIG_COUNT`
 prefix until the harness restarts (item 32).
 
+**2026-11-20 GEO daily — fingerprint defect fixed (`32ce876`).** `geo-daily.py` had been reporting
+`changed since last run: 44` (the whole sitemap) and re-pinging IndexNow for every URL daily: the
+Cloudflare Web Analytics beacon carries a per-request CSP `nonce` that the old noise filter did not
+match. Fixed by normalising nonce attributes and dropping the `cloudflareinsights` beacon; test is
+`scripts/seo/test_geo_daily.py` (mutation-checked). Three consecutive live runs: 44 (re-baseline) /
+0 / 0 changed. Cause, fix and proof: `QA/verification/GEO_DAILY_FIX_2026-11-20.md`. This does **not**
+close the commercial gap — still absent from Bing for all five prompts, and `site:` is now position 1
+(the old "position 10" note is stale). The `/ai-receptionist-for-small-business` page below is still
+the cheapest move and is still not started.
+
 **2026-11-18 social drafts.** Facebook + Instagram drafts adapted from the LinkedIn draft
 `~/.workwatch/reports/trendi_content/linkedin/2026-11-10.md` are in
 `QA/verification/SOCIAL_FB_IG_DRAFTS_2026-11-18.md`. Unverified that this is the text that was posted
