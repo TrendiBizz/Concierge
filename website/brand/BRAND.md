@@ -1,47 +1,46 @@
 # Trendi brand guide
 
+One identity everywhere: the public website, the customer workspace (`/owner-ui`), onboarding, the admin console, the Studio app, the install page, browser tabs, home-screen icons and social share images. If a page needs a colour or logo that is not on this sheet, change this sheet first.
+
 ## Logo
 
 | File | Use |
 |---|---|
-| `logo-horizontal.svg` | Default logo on light backgrounds |
-| `logo-horizontal-dark.svg` | Logo on dark backgrounds |
-| `logo-symbol.svg` | App icon, avatars, social profile picture |
-| `favicon.svg`, `apple-touch-icon.png`, `icon-512.png` | Browser tab, home screen icons |
-| `og-image.png` | Social share image (1200 x 630) |
+| `logo-refresh.svg` / `logo-horizontal.svg` | Default logo on light backgrounds (wordmark + arrow mark). Same artwork, two names. |
+| `logo-horizontal-dark.svg` | Logo on dark backgrounds (white wordmark) |
+| `mark-refresh.svg`, `favicon.svg`, `logo-symbol.svg` | The arrow mark alone: browser tab, app icon, avatars |
+| `apple-touch-icon.png`, `icon-512.png`, `og-image.png` | Generated: `python3 scripts/brand/make_pwa_icons.py` (icons) and the share image from `logo-refresh.svg` |
 
-The mark is a lowercase **t** whose crossbar climbs like a trend line. The wordmark is drawn as shapes, so it looks identical on every device and needs no font.
+The mark is a purple rounded tile with a white up-right arrow. The wordmark is lowercase **trendi**.
 
 ### Rules
-- Keep clear space around the logo equal to the height of the "t" stem's top bar (about a quarter of the symbol).
-- Minimum size: symbol 16 px, horizontal logo 90 px wide.
-- Use the dark version on dark backgrounds, never the light one.
-- Don't recolour, stretch, rotate, outline or add shadows.
-- Don't put the logo on busy photos without a solid navy or white panel behind it.
+- Never recolour, stretch, rotate, outline or add shadows to the logo.
+- Minimum size: mark 16 px, horizontal logo 90 px wide.
+- Do not draw a second logo. Pages that need the logo inline copy `logo-refresh.svg`; they do not redraw it.
+- Customer workspaces may show a business's own logo or initials for that business. Trendi's own mark is the default.
 
 ## Colour
 
 | Name | Hex | Use |
 |---|---|---|
-| Trendi Navy | `#14213D` | Logo tile, buttons, headings |
-| Signal Lime | `#C6F432` | The crossbar, highlights, buttons in dark mode. Never as text on white. |
-| Ink | `#0E1730` | Body text on light |
-| Slate | `#5B6B8C` | Secondary text |
-| Mist | `#F7F8FC` | Page background (light) |
-| Night | `#070B14` | Page background (dark) |
+| Trendi Purple | `#7142D6` | Logo tile, primary buttons, active states, theme colour |
+| Deep Purple | `#5830AE` | Button hover, pressed, emphasis |
+| Link Purple | `#6540AA` | Text links |
+| Ink | `#30243E` | Body text and headings |
+| Muted | `#71657E` | Secondary text |
+| Page | `#FCFBFF` | Page background |
+| Tint | `#F2EDFC` | Panels, code blocks, table headers |
+| Line | `#E8DFF1` | Borders and dividers (`#D8C8EB` for stronger lines) |
+| Focus | `#7142D6` | Keyboard focus ring |
+| Dark theme colour | `#30243E` | `theme-color` for dark mode |
 
-Lime on white fails accessibility contrast. Use it only on navy or as a filled highlight with navy text on top.
+Status colours stay semantic and are not brand colours: success `#247451`, warning `#895A17`, danger `#B83F50`.
 
 ## Type
 
-- **Wordmark:** lowercase, drawn shapes. Never retype it in a font.
-- **Website:** the system font stack (fast, no downloads). If you later want a custom font, a geometric sans such as Inter or Plus Jakarta Sans (self-hosted) suits the rounded logo.
+- **Website:** Plus Jakarta Sans, self-hosted (`/fonts/plus-jakarta-sans-var.woff2`). App pages served from another origin use the system font stack.
+- **Wordmark:** drawn in the SVG. Never retype it in a font.
 - Headlines: bold, tight tracking. Body: regular, generous line height.
 
-## Voice
-
-Plain, short and confident. Say what the work is, not what it might do. No guarantees we can't keep. Lowercase "trendi" only in the logo; write "Trendi" in sentences.
-
-## Before launch
-
-Search IPONZ (NZ trade marks) and the web for existing "Trendi" marks in marketing, SEO and software before investing further in the brand.
+## Retired
+The navy `#14213D` + lime `#C6F432` "t" logo and the Studio's lime `#C8F560` "C" tile are retired. Do not reintroduce them.

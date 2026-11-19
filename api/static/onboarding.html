@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Set up Concierge — Trendi</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='15' fill='%237142d6'/%3E%3Cpath d='M14 34l20-20m-16 0h16v16' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"><meta name="theme-color" content="#fcfbff">
 <style>
-:root{--bg:#0b0d10;--card:#15191f;--line:#2a3038;--text:#f2f5f8;--muted:#a8b3c1;--accent:#c8f560;--accent-ink:#101408;--danger:#ff8d7a}
+:root{--bg:#fcfbff;--card:#fff;--line:#e8dff1;--text:#30243e;--muted:#71657e;--accent:#7142d6;--accent-ink:#fff;--danger:#b83f50;--tint:#f2edfc}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:860px;margin:0 auto;padding:32px 20px 80px}
@@ -15,7 +16,7 @@ p{margin:0 0 14px}
 .muted{color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin:18px 0}
 label{display:block;font-weight:600;margin:14px 0 6px}
-input{width:100%;padding:14px;border-radius:10px;border:1px solid var(--line);background:#0f1216;color:var(--text);font-size:1rem}
+input{width:100%;padding:14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--text);font-size:1rem}
 input:focus,button:focus{outline:3px solid var(--accent);outline-offset:2px}
 button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:14px 22px;cursor:pointer;background:var(--accent);color:var(--accent-ink);margin:10px 8px 0 0}
 button.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
@@ -24,17 +25,18 @@ ol.steps{display:flex;gap:8px;flex-wrap:wrap;list-style:none;padding:0;margin:0 
 ol.steps li{font-size:.82rem;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
 ol.steps li[aria-current="step"]{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
 .diagram{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
-.diagram div{border:1px solid var(--line);border-radius:12px;padding:14px;background:#0f1216}
+.diagram div{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--tint)}
 .diagram strong{display:block;color:var(--accent);margin-bottom:4px}
 .status{min-height:24px;color:var(--muted)}
 .status.error{color:var(--danger)}
-.snippet{width:100%;min-height:70px;background:#0f1216;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:.9rem}
+.snippet{width:100%;min-height:70px;background:var(--tint);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:.9rem}
 .skip{margin-top:8px}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <main>
+<a href="https://trendibizz.com/" aria-label="Trendi home" style="display:inline-block;margin-bottom:18px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" role="img" aria-label="Trendi" width="112" height="30" class="brand-logo"><text x="0" y="37" font-family="Arial,sans-serif" font-weight="800" font-size="43" letter-spacing="-2" fill="#302044">trendi</text><rect x="139" y="5" width="38" height="38" rx="12" fill="#7142d6"/><path d="M149 31l17-17m-13 0h13v13" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
 <h1>Set up Concierge</h1>
 <p class="muted">A plain-language, click-through setup. Nothing here plays audio; every step is text and keyboard accessible.</p>
 

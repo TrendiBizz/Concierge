@@ -11,7 +11,7 @@
  * job site).
  */
 
-const COLOURS = ['#c8f560', '#7c5cff', '#22d3ee', '#f472b6', '#fbbf24', '#34d399', '#fb7185', '#a78bfa'];
+const COLOURS = ['#7142d6', '#5830ae', '#8b5fe0', '#a450ca', '#c17ad9', '#ab8be9', '#eee3ff', '#fbbf24'];
 
 /** How long new confetti keeps arriving from the top (ms). */
 const EMIT_MS = 5000;
