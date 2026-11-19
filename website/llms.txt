@@ -69,3 +69,7 @@ Contact: admin@trendibizz.com
 ## Concierge customer access
 - [Set up Concierge](https://trendibizz.com/concierge-start): review a setup request; channels are tested before activation.
 - [Customer sign-in](https://trendibizz.com/concierge/sign-in): existing customer access to the private Concierge portal.
+
+- [Concierge by Trendi vs Smith.ai](https://trendibizz.com/trendi-vs-smith-ai): published pricing, setup and channel requirements; sources checked 20 November 2026.
+- [Concierge by Trendi vs Goodcall](https://trendibizz.com/trendi-vs-goodcall): published pricing, setup and channel requirements; sources checked 20 November 2026.
+- [Concierge by Trendi vs Upfirst](https://trendibizz.com/trendi-vs-upfirst): published pricing, setup and channel requirements; sources checked 20 November 2026.
