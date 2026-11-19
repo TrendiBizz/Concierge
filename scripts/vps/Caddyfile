@@ -4,6 +4,29 @@
 }
 :8080 {
     header X-Trendi-Release "20261108-vps"
+    # Access log for the public website only, so crawl and bot visits can be measured (weekly SEO audit).
+    # Other hosts carry tokens in their paths (quotes, invoices, uploads, unsubscribe), so they are not logged.
+    # Query strings, cookies, auth headers and visitor IPs are removed before anything is written.
+    log {
+        output file /var/log/caddy/trendibizz-access.log {
+            roll_size 50MiB
+            roll_keep 5
+        }
+        format filter {
+            wrap json
+            request>uri regexp "\\?.*$" ""
+            request>headers>Cookie delete
+            request>headers>Authorization delete
+            request>headers>Cf-Connecting-Ip delete
+            request>headers>X-Forwarded-For delete
+            request>headers>Referer regexp "\\?.*$" ""
+            request>client_ip delete
+            request>remote_ip delete
+            resp_headers delete
+        }
+    }
+    @notwebsite not host trendibizz.com
+    log_skip @notwebsite
     encode gzip
     # The website's enquiry forms post to the API; everything else on the apex is the static site.
     @enquiry {

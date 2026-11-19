@@ -129,7 +129,7 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports: [127.0.0.1:8080:8080]
-    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, /opt/trendi/monitoring/caddy:/var/log/caddy]
     depends_on:
       api: {condition: service_healthy}
       website: {condition: service_started}
