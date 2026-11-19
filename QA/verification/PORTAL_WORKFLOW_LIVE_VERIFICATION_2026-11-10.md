@@ -82,9 +82,9 @@ Both owner destinations were queued and **actually delivered**, not just queued:
 | outbox id | kind | channel | recipient | status | sent_at |
 | --- | --- | --- | --- | --- | --- |
 | 13 | owner_alert | email | admin@trendibizz.com | **sent** | set |
-| 14 | owner_alert | sms | +64278817368 | **sent** | set |
+| 14 | owner_alert | sms | +64275550123 | **sent** | set |
 | 15 | owner_alert | email | admin@trendibizz.com | **sent** | set |
-| 16 | owner_alert | sms | +64278817368 | **sent** | set |
+| 16 | owner_alert | sms | +64275550123 | **sent** | set |
 
 Owner SMS is gated on that business's own `sms_send` authorization, so saving a
 number is never treated as permission to text it. A website-only business still

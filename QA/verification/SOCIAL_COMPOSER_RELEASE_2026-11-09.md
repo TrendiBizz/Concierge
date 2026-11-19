@@ -24,7 +24,7 @@ Facebook/TikTok pending receipts stay Processing until provider reconciliation. 
 
 - LinkedIn: developer portal directly confirmed Share on LinkedIn and OpenID Connect provisioned. Community Management request is blocked: LinkedIn requires it to be the ONLY product on an app. A separate Community Management app, company verification, grants and customer consent are required for company Pages. Existing member app/account retained.
 - TikTok: Content Posting API approval, video.publish consent, app audit/visibility restrictions and approved real-video delivery remain unverified. Login Kit linking is not publishing approval.
-- Google Business Profile: OAuth branding/client and Business Profile entitlement/approval remain unfinished/unverified. Temporary kiwi18@gmail.com support address must still be replaced with eligible support@trendibizz.com and verified on consent branding.
+- Google Business Profile: OAuth branding/client and Business Profile entitlement/approval remain unfinished/unverified. Temporary the owner's personal Gmail (redacted) support address must still be replaced with eligible support@trendibizz.com and verified on consent branding.
 - Meta: customer-wide app review/permission approval and real Instagram/Facebook publishing remain unverified. Existing Facebook and Instagram account records preserved.
 - Real provider publishing requires explicit approved content/destination and provider activation. Do not replay old/uncertain jobs when enabling it.
 

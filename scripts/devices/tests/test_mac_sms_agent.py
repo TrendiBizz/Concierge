@@ -19,7 +19,7 @@ class PhoneAgentTest(unittest.TestCase):
         c.executescript("CREATE TABLE handle(id TEXT);CREATE TABLE message(guid TEXT,is_sent INTEGER,error INTEGER,destination_caller_id TEXT,handle_id INTEGER,is_from_me INTEGER,service TEXT,text TEXT);")
         c.execute("INSERT INTO handle VALUES('+64215550123')");c.commit();c.close()
         self.agent=module.PhoneAgent({'url':'https://concierge.trendibizz.com/api/v1/device-sms',
-            'token':'t'*48,'from_number':'+64278817368','bridge':str(self.root),
+            'token':'t'*48,'from_number':'+64275550123','bridge':str(self.root),
             'messages_db':str(self.db),'state_dir':str(self.root/'state'),
             'filter_path':str(self.root/'filter.json'),'address_books':frozenset()})
         self.calls=[];self.agent.api=lambda path,payload:self.calls.append((path,payload)) or {'job':None}
@@ -27,7 +27,7 @@ class PhoneAgentTest(unittest.TestCase):
     def tearDown(self):
         self.agent.journal.close();self.tmp.cleanup()
 
-    def add(self,service='SMS',line='+64278817368',text='Business question',outgoing=0,sent=1,error=0,handle=1):
+    def add(self,service='SMS',line='+64275550123',text='Business question',outgoing=0,sent=1,error=0,handle=1):
         with sqlite3.connect(self.db) as c:
             c.execute("INSERT INTO message(guid,is_sent,error,destination_caller_id,handle_id,is_from_me,service,text) VALUES(?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),sent,error,line,handle,outgoing,service,text))
 
@@ -145,7 +145,7 @@ class PhoneAgentTest(unittest.TestCase):
     def test_platform_never_texts_a_personal_contact(self):
         self.use_filter(contacts={'+64211112222'})
         self.agent.bridge_request=lambda *a:(_ for _ in ()).throw(AssertionError('must not reach Messages'))
-        job={'id':str(uuid.uuid4()),'from_number':'+64278817368','recipient':'+64211112222','body':'Thanks!'}
+        job={'id':str(uuid.uuid4()),'from_number':'+64275550123','recipient':'+64211112222','body':'Thanks!'}
         self.assertEqual(self.agent.send(job),('failed',''))
 
     def test_dry_run_counts_without_sending(self):
@@ -194,8 +194,8 @@ class PhoneAgentTest(unittest.TestCase):
         self.assertEqual(self.calls[0][1]['body'],'Can I get a quote?')
 
     def test_owner_alert_to_own_number_is_allowed_even_when_saved_in_contacts(self):
-        self.use_filter(contacts={'+64278817368','+64211112222'})
-        self.assertTrue(self.agent.filter.may_text('+64278817368',set()))
+        self.use_filter(contacts={'+64275550123','+64211112222'})
+        self.assertTrue(self.agent.filter.may_text('+64275550123',set()))
         self.assertFalse(self.agent.filter.may_text('+64211112222',set()))
 
 

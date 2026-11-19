@@ -12,7 +12,7 @@ Nothing is posted, scheduled, or deleted without Jo's yes. The Monday job only w
 
 - Post only to the **Trendi Facebook Page** and **Instagram @trendi456**.
 - Never post to Jo's personal Facebook, personal Instagram, personal LinkedIn, or any other personal account.
-- In the staging database, the LinkedIn account row (`ZEeJ8tLwJxoaj8kKgUtJg2YjIuhbB4B_`, display name "Jo van der Burgh") is a personal account. Never put that id, or the TikTok account id, on a post.
+- In the staging database, the LinkedIn account row (`<personal LinkedIn account id, see staging DB>`, display name the owner's personal name) is a personal account. Never put that id, or the TikTok account id, on a post.
 - Never use the word **"free"** in copy, hashtags, or image text.
 - Never invent statistics, testimonials, review counts, "trusted by", client names, results, or lead/sales promises.
 - Never include a personal name, personal phone, photo of a person, or any street, postal or locality address.

@@ -36,7 +36,7 @@ API_ENV = Path(os.environ.get("API_ENV", "/opt/trendi/shared/api.env"))
 COMPOSE_ENV = Path(os.environ.get("COMPOSE_ENV", "/opt/trendi/shared/compose.env"))
 STATE_FILE = Path(os.environ.get("HEALTH_STATE", "/opt/trendi/monitoring/state.json"))
 STATUS_FILE = Path(os.environ.get("HEALTH_STATUS", "/opt/trendi/monitoring/status.json"))
-ALERT_TO = os.environ.get("HEALTH_ALERT_TO", "kiwi18@gmail.com")
+ALERT_TO = os.environ.get("HEALTH_ALERT_TO", "admin@trendibizz.com")
 REMIND_HOURS = float(os.environ.get("HEALTH_REMIND_HOURS", "48"))
 UA = "trendi-healthcheck/1.0"
 

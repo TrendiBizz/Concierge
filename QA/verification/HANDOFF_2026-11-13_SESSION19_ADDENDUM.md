@@ -37,7 +37,7 @@ abroad may be under stricter rules. Revisit before wide rollout. Rollback of the
 
 Everything in the session-19 handoff §4, minus the loop test. Biggest: Conrad's telephone consent and invite (expires 11:31 NZDT on 14 Nov),
 the SMS phone, per-caller cap on the AI path, take-over ordering decision, Hero origin list, go-live secret rotation.
-Possible next fix: turn spoken digits and emails in owner alerts into written form ("027 88 17 368", "kiwi18@gmail.com") while keeping the spoken text.
+Possible next fix: turn spoken digits and emails in owner alerts into written form ("027 55 50 123", "the owner's personal Gmail (redacted)") while keeping the spoken text.
 
 
 ## Support mailbox (13:10 NZDT)

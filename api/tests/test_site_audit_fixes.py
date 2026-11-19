@@ -46,12 +46,12 @@ def test_the_owner_app_serves_a_favicon_instead_of_404():
 
 
 def test_no_real_looking_phone_number_is_used_as_a_placeholder():
-    """The business-number field invited customers to type +64278817368 — a real NZ mobile.
+    """The business-number field invited customers to type +64275550123 — a real NZ mobile.
 
     A placeholder must be obviously fake, or people submit it as their own number.
     """
     page = (ROOT / "static" / "owner.html").read_text()
-    assert 'placeholder="+64278817368"' not in page, "a real phone number is back as a placeholder"
+    assert 'placeholder="+64275550123"' not in page, "a real phone number is back as a placeholder"
     assert 'placeholder="+64211234567"' in page
     placeholders = page.split('placeholder="')[1:]
     for value in (chunk.split('"', 1)[0] for chunk in placeholders):

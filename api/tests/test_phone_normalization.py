@@ -79,7 +79,7 @@ def test_bare_number_with_country_code_already_present_is_not_doubled():
 
 def test_us_number_with_a_leading_country_code_one():
     # A country code is now required rather than assumed: without one we cannot tell a US number
-    # from a New Zealand one, and inventing "+1" is what produced +10278817368 for a NZ mobile.
+    # from a New Zealand one, and inventing "+1" is what produced +10275550123 for a NZ mobile.
     assert normalize_phone("1 214 555 0100", "1") == "+12145550100"
     assert normalize_phone("12145550100", "1") == "+12145550100"
 

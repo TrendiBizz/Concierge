@@ -867,7 +867,7 @@ four things are not:
 
 1. **P1 Worker secret**: `CONCIERGE_INBOUND_SECRET` is still `plain_text` (confirmed via the
    Workers settings API) and its value was printed during this check — rotate it now and set the
-   binding to Secret. `FORWARD_TO` is also plain text (`kiwi18@gmail.com`).
+   binding to Secret. `FORWARD_TO` is also plain text (`the owner's personal Gmail (redacted)`).
 2. **P1 Kuma has zero monitors** (`select count(*) from monitor` = 0); the healthcheck's
    `aux:kuma` 302 check can't see that. Monitoring is really healthcheck.py + GitHub uptime.
 3. **P1 device-SMS receipts are lost on every deploy**: 42/42 `/api/v1/device-sms/receipt` calls
@@ -1510,7 +1510,7 @@ live-PBX fix (`300bb51`).
 5. **Per-tenant `transfer_number`.** Transfers use `managed_phone_setups.owner_number`, else
    `tenants.notify_phone`; `pukeko-construction` has neither set. Supervision uses the same
    fallback, so the tenant that will ring today is `trendi-oauth-staging` (`notify_phone`
-   +64278817368, the tenant the DID currently reaches).
+   +64275550123, the tenant the DID currently reaches).
 6. **Decide the DID's tenant** — currently the internal `trendi-oauth-staging`; production should be
    `pukeko-construction` (set `notify_phone` with it, or supervision refuses to ring).
 7. **SIP exposure** — no fail2ban on 5060/udp; consider a DOCKER-USER restriction to Hero's ranges.

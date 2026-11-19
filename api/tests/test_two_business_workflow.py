@@ -964,10 +964,10 @@ def test_a_reclaimed_outbox_row_cannot_text_the_customer_twice(monkeypatch):
     request_key derived from the outbox row id, so a re-claim collides on (tenant_id, request_key)
     instead of queueing a second text. Verified live: two enqueues with one key produced one job.
     """
-    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
 
     for _attempt in (1, 2):
         try:
@@ -987,10 +987,10 @@ def test_a_reclaimed_outbox_row_cannot_text_the_customer_twice(monkeypatch):
 
 def test_changed_content_under_an_existing_key_is_refused(monkeypatch):
     """A job whose body no longer matches the stored one must be reviewed, never silently sent."""
-    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
 
     try:
         asyncio.run(device_sms.enqueue(tenant, "+6421555123", "Original", "outbox:9", outbox_id=9))
@@ -1004,12 +1004,12 @@ def test_changed_content_under_an_existing_key_is_refused(monkeypatch):
 
 def test_a_historical_outbox_row_is_not_replayed_after_a_phone_is_connected(monkeypatch):
     """Activating a phone must not flush texts queued before it existed."""
-    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
     # The outbox row predates the device, so the validity check returns None.
     monkeypatch.setattr(device_sms.db, "pool", lambda: pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
 
     async def historical(sql, *args):
         if "created_at >= $3" in sql:
@@ -1039,7 +1039,7 @@ def test_a_reclaim_reuses_the_same_sms_request_key(monkeypatch):
     monkeypatch.setattr(outbox.sms, "sender_ready", lambda t: True)
     monkeypatch.setattr(outbox, "next_allowed_send", lambda *a, **k: datetime(2000, 1, 1, tzinfo=timezone.utc))
     monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value={
-        **BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368",
+        **BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123",
         "timezone": "Pacific/Auckland"}))
     monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=True))
     monkeypatch.setattr(outbox.casetimeline, "is_paused_for", AsyncMock(return_value=False))

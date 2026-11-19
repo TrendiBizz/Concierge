@@ -143,11 +143,11 @@ def test_take_over_sets_the_target_then_redirects_the_caller(monkeypatch):
         monkeypatch.setattr(call_control.asterisk_ami, 'set_variable', set_variable)
         monkeypatch.setattr(call_control.asterisk_ami, 'redirect', redirect)
         channel = await call_control.transfer_call(
-            'ast:3f2b8c1e-0000-4000-8000-000000000000', 'pukeko-construction', '+64278817368',
+            'ast:3f2b8c1e-0000-4000-8000-000000000000', 'pukeko-construction', '+64275550123',
             config=Settings())
         assert channel == 'PJSIP/concierge-reg-00000002'
         assert calls == [
-            ('setvar', 'PJSIP/concierge-reg-00000002', 'CONCIERGE_TRANSFER', '+64278817368'),
+            ('setvar', 'PJSIP/concierge-reg-00000002', 'CONCIERGE_TRANSFER', '+64275550123'),
             ('redirect', 'PJSIP/concierge-reg-00000002', 'business-pukeko-construction-takeover',
              's', 1),
         ]
@@ -179,10 +179,10 @@ def test_supervision_rings_the_owner_and_returns_the_spy_leg_not_the_caller(monk
         monkeypatch.setattr(call_control.asterisk_ami, 'get_variable', get_variable)
         monkeypatch.setattr(call_control.asterisk_ami, 'originate', originate)
         leg = await call_control.attach_supervisor(
-            'ast:3f2b8c1e-0000-4000-8000-000000000000', '+64278817368', 'whisper',
+            'ast:3f2b8c1e-0000-4000-8000-000000000000', '+64275550123', 'whisper',
             channel_dial='PJSIP/<number>@concierge-reg', spy_marker='aa11bb22cc33dd44',
             config=Settings())
-        assert originated == [('PJSIP/64278817368@concierge-reg', 'ChanSpy',
+        assert originated == [('PJSIP/64275550123@concierge-reg', 'ChanSpy',
                                f'{caller},qw')]
         assert leg == spy, "the record must name the supervisor's leg, not the caller's channel"
     run(scenario())
@@ -200,7 +200,7 @@ def test_an_ended_call_is_refused_rather_than_dialling_the_owner(monkeypatch):
         monkeypatch.setattr(call_control.asterisk_ami, 'originate', originate)
         with pytest.raises(call_control.CallControlUnavailable, match='no longer'):
             await call_control.attach_supervisor(
-                'ast:3f2b8c1e-0000-4000-8000-000000000000', '+64278817368', 'listen',
+                'ast:3f2b8c1e-0000-4000-8000-000000000000', '+64275550123', 'listen',
                 channel_dial='PJSIP/<number>@concierge-reg', config=Settings())
     run(scenario())
 

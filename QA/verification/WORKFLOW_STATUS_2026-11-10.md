@@ -78,7 +78,7 @@ probe so no external message was sent:
   `email_drafts` row, CRM lead + customer case, no auto-send. Test rows removed.
 - **Owner notification config restored.** `notify_email` had been blanked during an
   earlier phone test and never restored; it is `admin@trendibizz.com` again
-  (`notify_phone` = `+64278817368`).
+  (`notify_phone` = `+64275550123`).
 - **Deployed API matches HEAD on the throttle fix**: running
   `owner_notifications.py` hash `d0cf88b8…` equals the repo at `a27f5ec`.
 
@@ -170,7 +170,7 @@ Owner decision: move email intake to Cloudflare (accepting the MX migration away
   (old Jellyfish MX backed up before deletion). SPF updated to include
   `_spf.mx.cloudflare.net`.
 - Rules: `admin@trendibizz.com` -> Worker `concierge-inbound-worker`;
-  catch-all -> `kiwi18@gmail.com` (destination verified).
+  catch-all -> `the owner's personal Gmail (redacted)` (destination verified).
 - Worker posts to **`https://concierge.trendibizz.com/api/v1/inbound/cloudflare`**
   (the gateway routes that path on the owner host, not the chat host) with a
   browser UA; then forwards the original to Gmail.

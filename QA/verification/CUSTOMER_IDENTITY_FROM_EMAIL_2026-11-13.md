@@ -38,16 +38,16 @@ Added `company` to `leads` and `customer_cases`, returned it from `/owner/contac
 the Contacts table and the detail card.
 
 **3. Every tenant had an empty country code, so local numbers were given a US one.** `normalize_phone`
-defaulted to `"1"`. That is where `+10278817368` came from — a New Zealand mobile prefixed with a US
+defaulted to `"1"`. That is where `+10275550123` came from — a New Zealand mobile prefixed with a US
 code, undiallable, and (worse for this module) a different case identity from the same person dialling
-`+64278817368`. All four tenants now carry `default_country_code = '64'`, and an unknown country is
+`+64275550123`. All four tenants now carry `default_country_code = '64'`, and an unknown country is
 now honoured as unknown: `normalize_phone("021 555 1234", "")` returns `None` rather than inventing a
 prefix.
 
 ## Repair of existing data
 
 * Conrad: name `Conrad Schiess`, company `Pukeko Construction`, case display name set.
-* The mangled number `+10278817368` corrected to `+64278817368` across `leads`,
+* The mangled number `+10275550123` corrected to `+64275550123` across `leads`,
   `customer_addresses` and `customer_cases.case_key`, with a `pg_dump` taken first
   (`/opt/trendi/backups/signature-backfill-20261113/before.dump`).
 * **19 leads still have no name.** They are chat and phone enquiries with no email body to read — there

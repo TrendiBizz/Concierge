@@ -49,12 +49,12 @@ for case in guard_cases:
     case["unknown"] = sorted(format(__import__("decimal").Decimal(x), "f") for x in case["unknown"])
 
 phones = ["", "  ", "abc", "+64 21 123 4567", "021 123 4567", "(555) 123-4567", "15551234567", "5551234567", "+1234567", "1234567",
-          "12345678", "+123456789012345", "+1234567890123456", " +64278817368 ", "0064278817368", "+", "+++1", "99999999999999999"]
+          "12345678", "+123456789012345", "+1234567890123456", " +64275550123 ", "0064275550123", "+", "+++1", "99999999999999999"]
 contact_cases = [{"v": v, "cc": cc, "phone": contact.normalize_phone(v, cc), "key": contact.contact_key(v, cc), "email": contact.is_email(v)}
                  for v in phones + ["A@B.co", " a@b.c ", "a@b", "a b@c.d", "@x.y", "a@@b.c", "UPPER@Case.COM", "x@y.z\n"] for cc in ("1", "64")]
 
 unsub_cases = []
-for tenant, who in (("0a3e7155-2f19-4527-bee1-f2dec7b676c7", "+64278817368"), ("t", "a@b.co"), ("tenant|pipe", "x|y"), ("é", "日本")):
+for tenant, who in (("0a3e7155-2f19-4527-bee1-f2dec7b676c7", "+64275550123"), ("t", "a@b.co"), ("tenant|pipe", "x|y"), ("é", "日本")):
     tok = unsub.make_token(tenant, who)
     unsub_cases.append({"tenant": tenant, "contact": who, "token": tok, "read": list(unsub.read_token(tok) or []) or None,
                         "url": unsub.url_for(tenant, who)})

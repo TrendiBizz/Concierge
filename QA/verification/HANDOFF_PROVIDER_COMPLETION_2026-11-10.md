@@ -30,7 +30,7 @@ Read-only dashboard verification in this session:
 - Meta app 676274422041376: **Review in progress**, six permissions (instagram_content_publish, instagram_basic, business_management, pages_read_engagement, pages_show_list, pages_manage_posts). Already submitted; do not duplicate.
 - LinkedIn Pages app 266706827: company verified; Community Management API Development Tier **Review in progress**. Already submitted.
 - TikTok app 7705532547380250645 production: **In review**, Login Kit/user.info.basic only. Uploaded demo is listed. This request does not cover video publishing; Content Posting API approval remains separate if publishing is required.
-- Google: previous approved session enabled Business Profile API and connected Trendi using kiwi18@gmail.com. OAuth remains External Testing; production verification has not been submitted. Prepare actual scopes, branding/domain/privacy and review evidence before moving public. Posting remains disabled.
+- Google: previous approved session enabled Business Profile API and connected Trendi using the owner's personal Gmail (redacted). OAuth remains External Testing; production verification has not been submitted. Prepare actual scopes, branding/domain/privacy and review evidence before moving public. Posting remains disabled.
 - Telephony: no real carrier number/call acceptance completed. No number purchased and no call made.
 
 ## Stripe correction

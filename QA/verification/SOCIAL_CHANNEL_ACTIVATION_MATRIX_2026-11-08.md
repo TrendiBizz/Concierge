@@ -2,7 +2,7 @@
 
 ## Open follow-up: Google consent support email
 
-- [ ] Replace the temporary Google OAuth consent support address `kiwi18@gmail.com` with **`support@trendibizz.com`**. Requested by Jo on 2026-11-08.
+- [ ] Replace the temporary Google OAuth consent support address `the owner's personal Gmail (redacted)` with **`support@trendibizz.com`**. Requested by Jo on 2026-11-08.
 - Jo approved the Gmail address temporarily so setup can proceed. The intended customer-facing address is `support@trendibizz.com`.
 - Configure the business support address as an eligible Google Group, select it in the Google Auth Platform branding settings for project `trendi-seo`, and verify the customer consent screen displays the new address before closing this item.
 

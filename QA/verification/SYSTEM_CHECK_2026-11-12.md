@@ -19,7 +19,7 @@ Rust 6/6 + 6/6, no 5xx, no crash loops, TLS/DNS sane, git clean, no committed se
 ```
 CONCIERGE_INBOUND_SECRET  type=plain_text  (value returned)
 CONCIERGE_INBOUND_URL     type=plain_text
-FORWARD_TO                type=plain_text  (kiwi18@gmail.com)
+FORWARD_TO                type=plain_text  (the owner's personal Gmail (redacted))
 ```
 
 The value was printed while verifying the binding type, so it is now in this session's log as
@@ -28,7 +28,7 @@ rotate `INBOUND_CLOUDFLARE_SECRET` in `/opt/trendi/shared/api.env` and the Worke
 same sitting, and make the binding a **Secret**. Alternative that fixes both: create a new
 secret, deploy the Worker, restart `api`, send a test email, confirm a draft.
 
-Also note `FORWARD_TO` is a plain-text personal address (`kiwi18@gmail.com`) — the Worker
+Also note `FORWARD_TO` is a plain-text personal address (`the owner's personal Gmail (redacted)`) — the Worker
 forwards every unmatched inbound address there. Decide whether that should survive go-live.
 
 ### 2. Uptime Kuma is running but has ZERO monitors

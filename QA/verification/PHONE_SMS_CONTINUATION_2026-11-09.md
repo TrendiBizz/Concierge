@@ -24,7 +24,7 @@ this phone continuation. Preserve all existing data and unrelated changes.
   active and separate from global delivery.
 - Only `trendi-oauth-staging` was paired. Existing `sms_read` and `sms_send`
   authorization records were checked before provisioning. Its SMS fields are
-  now `sms_enabled=true`, `sms_transport=device`, `sms_from=+64278817368`.
+  now `sms_enabled=true`, `sms_transport=device`, `sms_from=+64275550123`.
   Before pairing they were false / empty / empty. Campaigns remain disabled.
 - One enabled tenant-scoped device exists; PostgreSQL stores only its token hash.
   Private configuration is `/Users/jo/.config/trendi-phone/config.json` (600),
@@ -49,7 +49,7 @@ this phone continuation. Preserve all existing data and unrelated changes.
 Exactly one connection test was queued after a current background heartbeat:
 
 - Job `e92b54cb-86a5-4f79-9f06-577726f60037`.
-- To the paired owner's own Spark number, +64 27 881 7368.
+- To the paired owner's own Spark number, +64 27 555 0123.
 - Exact body: `Trendi Concierge SMS connection test. No reply needed.`
 - Stable request key: `phone-test:20261109-first-live`.
 - Final server and Mac journal status: **failed**; empty receipt; journal acked.

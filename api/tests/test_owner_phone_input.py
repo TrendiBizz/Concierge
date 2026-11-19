@@ -13,7 +13,7 @@ def _profile(**kw):
     return ob.OwnerBusinessProfile(**kw)
 
 
-@pytest.mark.parametrize("typed", ["0278817368", "027 881 7368", "+64 27 881 7368", "(027) 881-7368", "027.881.7368"])
+@pytest.mark.parametrize("typed", ["0275550123", "027 555 0123", "+64 27 555 0123", "(027) 555-0123", "027.881.7368"])
 def test_the_usual_ways_of_writing_a_number_are_accepted(typed):
     assert _profile(notify_phone=typed).notify_phone == typed.strip()
 
@@ -47,15 +47,15 @@ def _save(monkeypatch, current, **profile):
     return saved
 
 
-@pytest.mark.parametrize("typed", ["0278817368", "027 881 7368", "+64 27 881 7368", "64278817368", "(027) 881-7368"])
+@pytest.mark.parametrize("typed", ["0275550123", "027 555 0123", "+64 27 555 0123", "64275550123", "(027) 555-0123"])
 def test_a_new_zealand_business_gets_the_international_form(monkeypatch, typed):
     saved = _save(monkeypatch, {"timezone": "Pacific/Auckland"}, notify_phone=typed)
-    assert saved["notify_phone"] == "+64278817368"
+    assert saved["notify_phone"] == "+64275550123"
 
 
 def test_the_timezone_in_the_same_request_is_used(monkeypatch):
-    saved = _save(monkeypatch, {"timezone": "America/Chicago"}, notify_phone="0278817368", timezone="Pacific/Auckland")
-    assert saved["notify_phone"] == "+64278817368"
+    saved = _save(monkeypatch, {"timezone": "America/Chicago"}, notify_phone="0275550123", timezone="Pacific/Auckland")
+    assert saved["notify_phone"] == "+64275550123"
 
 
 def test_a_number_that_cannot_be_dialled_is_refused_not_guessed(monkeypatch):

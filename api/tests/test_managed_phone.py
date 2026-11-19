@@ -13,7 +13,7 @@ from app import managed_phone as m
 def test_setup_rejects_injected_destinations_and_provider_secrets():
     for extra in ({'designated_number':'sip:attacker@invalid'}, {'sip_password':'secret'}, {'answer_mode':'invalid'}):
         with pytest.raises(ValidationError):
-            m.PhoneSetup(**{'designated_number':'+64278817368','owner_number':'+64278817368',**extra})
+            m.PhoneSetup(**{'designated_number':'+64275550123','owner_number':'+64275550123',**extra})
 
 
 def test_carrier_audio_routes_directly_to_grok_with_escaped_credentials():
@@ -78,7 +78,7 @@ def test_owner_setup_is_tenant_scoped_and_cannot_activate_or_purchase(monkeypatc
     monkeypatch.setattr(m,'save_setup',write)
     async def run():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='https://testserver') as client:
-            return await client.put('/owner/phone-setup',json={'designated_number':'+64278817368','owner_number':'+64278817368','connection':'existing_sip'})
+            return await client.put('/owner/phone-setup',json={'designated_number':'+64275550123','owner_number':'+64275550123','connection':'existing_sip'})
     try:
         result=asyncio.run(run())
         assert result.status_code==code
@@ -89,4 +89,4 @@ def test_owner_setup_is_tenant_scoped_and_cannot_activate_or_purchase(monkeypatc
 
 def test_new_service_purchase_is_not_a_setup_option():
     with pytest.raises(ValidationError):
-        m.PhoneSetup(designated_number='+64278817368',owner_number='+64278817368',connection='new_number')
+        m.PhoneSetup(designated_number='+64275550123',owner_number='+64275550123',connection='new_number')

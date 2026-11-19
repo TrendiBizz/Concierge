@@ -10,7 +10,7 @@ They never paste code, never type what we can read, never share a password, neve
 ## 1. What a customer has to do today (observed 13 Nov, first real onboarding)
 
 * **Two separate portals**: the setup wizard (`/studio`) and the permissions page (`/owner-ui`). Consent lives in a different place from setup; the health check even raised a false alarm because a tenant existed before its owner had consented.
-* **Typing what we can read**: business name, website, greeting, notification email, phone (international form only: `0278817368` was refused with an unhelpful message), brand name, contact line, a **hex colour code**, a logo upload.
+* **Typing what we can read**: business name, website, greeting, notification email, phone (international form only: `0275550123` was refused with an unhelpful message), brand name, contact line, a **hex colour code**, a logo upload.
 * **Website import is a separate click** after the website was already entered.
 * **Paste an embed code** into their website (step 6). Nothing checks it worked.
 * **Password** with a 12-character minimum and an unreadable error ("[object Object]").

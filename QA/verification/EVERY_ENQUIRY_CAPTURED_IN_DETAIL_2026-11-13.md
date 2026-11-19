@@ -86,7 +86,7 @@ was right to push back.
 * `SMS_PROVIDER=none` has been the value in **every** `api.env` copy on disk since at least 9 Nov —
   checked across ten backups. Nothing changed it, and it is not a regression.
 * Texts are sent through the **paired-phone (device) transport**, which ignores that global setting.
-  `trendi-oauth-staging` has `sms_enabled=t`, `sms_transport=device`, `sms_from=+64278817368`, and
+  `trendi-oauth-staging` has `sms_enabled=t`, `sms_transport=device`, `sms_from=+64275550123`, and
   **47 owner-alert texts were sent today**, with the phone polling as recently as 04:32 UTC.
 * My capture check posted to `/api/v1/sms/{key}`, which is the **Twilio** webhook. That route
   legitimately returns 503 when `sms_provider` is not `twilio`. The 503 was correct behaviour for a
@@ -108,7 +108,7 @@ Two things are now true that were not before:
    `tests/test_inbound_sms_route.py` and the receipt tests pass (49 SMS/device tests green), and
    `_sms_reply` captures the sender, reconciles the customer and runs the normal consent/STOP path.
 
-**What is still needed, and only the operator can do it:** send one text to `+64278817368` and watch
+**What is still needed, and only the operator can do it:** send one text to `+64275550123` and watch
 `sms:inbound` turn green. That single message proves the reply path end to end.
 
 ## Sending versus receiving — why "it worked a few days ago" is right

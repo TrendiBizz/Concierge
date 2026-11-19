@@ -38,7 +38,7 @@ def test_a_signature_with_a_number_yields_the_number():
 
 
 def test_a_body_without_a_signature_yields_nothing_rather_than_a_guess():
-    assert parse_signature("Hi, can you call me on 027 881 7368? Thanks") == {
+    assert parse_signature("Hi, can you call me on 027 555 0123? Thanks") == {
         "name": "", "company": "", "phone": ""}
     assert parse_signature("") == {"name": "", "company": "", "phone": ""}
 
@@ -52,7 +52,7 @@ def test_a_quoted_history_is_not_mistaken_for_the_signature():
 
 
 def test_an_unknown_country_code_does_not_invent_one():
-    # This is the bug that turned a New Zealand mobile into +10278817368.
+    # This is the bug that turned a New Zealand mobile into +10275550123.
     assert normalize_phone("021 555 1234", "") is None
     assert normalize_phone("021 555 1234", "64") == "+64215551234"
     assert normalize_phone("+64 21 555 1234", "") == "+64215551234"

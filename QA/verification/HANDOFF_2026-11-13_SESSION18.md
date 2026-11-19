@@ -117,7 +117,7 @@ PBX log tail).
    `HERO_NETS` (env var of `harden_host.sh`) or ask Hero for their full call-origin address list.
 4. Then supervision on that real call: Studio → Bookings → "Happening now" → **Listen in** → answer →
    hear the caller → **Stop listening** → "Who listened" shows one closed leg. Note Listen in rings
-   +64278817368 (staging) until the DID's tenant is moved.
+   +64275550123 (staging) until the DID's tenant is moved.
 5. Then take-over, whisper, join, and the 30 s no-answer fallback into the assistant.
 6. **Send Conrad the plan-upload link** (`/upload/{token}`, created 2026-11-11, 0 uploads; sending
    never confirmed).

@@ -120,7 +120,7 @@ card "USD 400" is deliberate styling (not a bug); the `llms.txt` "USD 00/month" 
   coming back was dropped); no pause needed. Of the 3 rows, 1 was the test; the other 2 were **not a loop** but the
   alerts for the operator's real phone call at 12:39 NZDT (`Phone message...` + the caller's text copy). The staging
   address is **left unsuppressed** (staging email alerts work again) and the kill switch is **off**.
-* **What the two test calls showed (12:31 and 12:39 NZDT):** callback number heard correctly (027 881 7368) and
+* **What the two test calls showed (12:31 and 12:39 NZDT):** callback number heard correctly (027 555 0123) and
   email heard correctly; summaries accurate (`quote_requested`); lead saved with consent; owner email alert and the
   caller's email copy sent. **Gaps seen:** *no caller name was captured on either call* (consider prompting for
   it); the caller asked for a **text copy** and the insight says "the text was queued", but SMS is stuck

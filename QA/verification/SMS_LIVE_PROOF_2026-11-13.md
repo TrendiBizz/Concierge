@@ -5,7 +5,7 @@ The operator asked for the number to be used rather than reasoned about. It was.
 ## Sending: proven, right now
 
 ```
-outbox id 1252 -> to +64278817368, status "sent", attempts 1
+outbox id 1252 -> to +64275550123, status "sent", attempts 1
 queued 04:44:05 UTC  ->  sent 04:44:16 UTC  (11 seconds)
 body: "Trendi delivery test 04:44 UTC. Please ignore."
 ```

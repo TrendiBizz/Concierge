@@ -9,7 +9,7 @@ from app import tools, automation
 def test_contact_consent_does_not_send_unrequested_acknowledgement(monkeypatch):
     tenant={'id':'business-a','name':'Test Business','sms_enabled':True}
     lead={'id':7,'tenant_id':'business-a','conversation_id':'conversation-a','name':'Jo',
-          'phone':'+64278817368','email':'','channel':'phone','message':'Please send details',
+          'phone':'+64275550123','email':'','channel':'phone','message':'Please send details',
           'consent_contact':True,'consent_marketing':False}
     # capture_lead now reconciles the caller into a customer case before writing the lead, so the
     # fake must model both calls. The consent behaviour under test is unchanged.
@@ -22,7 +22,7 @@ def test_contact_consent_does_not_send_unrequested_acknowledgement(monkeypatch):
     monkeypatch.setattr(automation.outbox,'enqueue',queue)
     monkeypatch.setattr(automation.events,'emit',lambda *a,**k:None)
     result=asyncio.run(tools.run_tool(tenant,'capture_lead',{
-        'phone':'+64278817368','name':'Jo','message':'Please send details',
+        'phone':'+64275550123','name':'Jo','message':'Please send details',
         'consent_to_contact':True}, {'conversation_id':'conversation-a','channel':'phone'}))
     assert result['ok']
     assert queue.await_count==0, 'Contact consent is separate from requesting an acknowledgement'
@@ -34,5 +34,5 @@ def test_followup_requires_consent_and_does_not_text_inbound_sms_again(monkeypat
     queue=AsyncMock();monkeypatch.setattr(automation.outbox,'enqueue',queue)
     async def run():
         for channel,consent in [('phone',False),('sms',True)]:
-            await automation.lead_followup(tenant,{'id':7,'phone':'+64278817368','name':'Jo','channel':channel,'consent_contact':consent})
+            await automation.lead_followup(tenant,{'id':7,'phone':'+64275550123','name':'Jo','channel':channel,'consent_contact':consent})
     asyncio.run(run());queue.assert_not_awaited()

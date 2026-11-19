@@ -21,7 +21,7 @@ def codes(steps,field='set'):
 class FakePool:
     """Answers fetchrow by a fragment of the SQL, and records the tenant id each query was scoped to."""
     def __init__(self,tenant=None,connection=None,call=None,saved=None):
-        self.tenant={'default_country_code':'64','timezone':'Pacific/Auckland','notify_phone':'+64278817368','pref_country':None,'pref_carrier':None,'pref_answer_mode':None,**(tenant or {})}
+        self.tenant={'default_country_code':'64','timezone':'Pacific/Auckland','notify_phone':'+64275550123','pref_country':None,'pref_carrier':None,'pref_answer_mode':None,**(tenant or {})}
         self.connection,self.call,self.args,self.executed=connection,call,[],[]
         self.saved=saved
     async def fetchrow(self,sql,*args):
@@ -38,7 +38,7 @@ class FakePool:
 
 
 def connection(**kw):
-    return {'destination':NZ_DID,'carrier':'spark_nz','created_at':datetime.now(timezone.utc),'destination_country':'NZ','answer_mode':'unanswered','designated_number':'+64278817368','connection':'mobile_forwarding',**kw}
+    return {'destination':NZ_DID,'carrier':'spark_nz','created_at':datetime.now(timezone.utc),'destination_country':'NZ','answer_mode':'unanswered','designated_number':'+64275550123','connection':'mobile_forwarding',**kw}
 
 
 def use(monkeypatch,pool,authorized=True):
@@ -118,7 +118,7 @@ def test_owner_connection_is_scoped_and_does_not_claim_live_without_inbound_call
     assert result['country']=='NZ' and result['carrier']=='spark_nz' and result['country_mismatch'] is False
     assert codes(result['steps'])==['*61*092431347*11#','*67*092431347*11#']
     assert {c['code'] for c in result['countries']}>={'NZ','AU','GB','US','ZZ'} and result['device_hints']['iphone']['tap_to_dial'] is False
-    assert any(c['id']=='spark_nz' for c in result['carriers']) and result['notify_phone']=='+64278817368'
+    assert any(c['id']=='spark_nz' for c in result['carriers']) and result['notify_phone']=='+64275550123'
     assert set(pool.args)=={'business-a'}
 
 
@@ -148,7 +148,7 @@ def test_country_mismatch_and_loop_are_warnings_in_the_owner_response(monkeypatc
     assert codes(result['steps'])[0].startswith('*61*+649')
     use(monkeypatch,FakePool(tenant={'notify_phone':'+64 9 243 1347'},connection=connection()))
     assert asyncio.run(m.mobile_connection(owner()))['destination_is_notify_phone'] is True
-    use(monkeypatch,FakePool(tenant={'notify_phone':'+64278817368'},connection=connection()))
+    use(monkeypatch,FakePool(tenant={'notify_phone':'+64275550123'},connection=connection()))
     assert asyncio.run(m.mobile_connection(owner()))['destination_is_notify_phone'] is False
 
 
@@ -186,7 +186,7 @@ def test_owner_cannot_bind_a_forwarding_number_or_activate_a_business(monkeypatc
 def bind(monkeypatch,tenant,body,enabled=True):
     async def get_by_slug(slug):return {'id':'t1','slug':slug,**tenant}
     class Conn(FakePool):
-        async def fetchrow(self,sql,*a):return {'connection':'mobile_forwarding','designated_number':'+64278817368'}
+        async def fetchrow(self,sql,*a):return {'connection':'mobile_forwarding','designated_number':'+64275550123'}
         async def fetchval(self,sql,*a):return 1 if enabled else None
     conn=Conn()
     monkeypatch.setattr(m.tenants,'get_by_slug',get_by_slug)
@@ -212,7 +212,7 @@ def test_admin_bind_in_the_tenants_own_country_has_no_warning_and_old_carriers_s
 def test_admin_bind_still_refuses_the_public_number_and_unconnected_numbers(monkeypatch):
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as e:
-        bind(monkeypatch,{'default_country_code':'64'},{'destination':'+64278817368'})
+        bind(monkeypatch,{'default_country_code':'64'},{'destination':'+64275550123'})
     assert e.value.status_code==409
     with pytest.raises(HTTPException) as e:
         bind(monkeypatch,{'default_country_code':'64'},{'destination':NZ_DID},enabled=False)

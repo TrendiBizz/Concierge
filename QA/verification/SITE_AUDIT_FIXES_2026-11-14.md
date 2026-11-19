@@ -17,7 +17,7 @@ because the site's deploy source is **not** the trendi-site checkout on this mac
 | 8 | Two OWASP links 308-redirected | OWASP moved its project URLs | pointed at `/projects/web-security-testing-guide` and `/projects/top-ten` | live hrefs |
 | 9 | `concierge.trendibizz.com/` answered 404 | the gateway's path allowlist had no `/` entry | `/` added to the allowlist; the API answers `GET /` with a 307 to `/owner-ui` | `root:307 -> https://concierge.trendibizz.com/owner-ui` |
 | 10 | Owner app had no favicon (`/favicon.ico` 404) | nothing served it | routes for `/favicon.ico` and `/favicon.svg` serving the Studio icon | `plain favicon.ico now: 200`, `image/svg+xml` |
-| 11 | Business number field used `+64278817368` — a real NZ mobile — as its placeholder | copied from the contact number | same obvious dummy as the other field, `+64211234567` | live owner-ui HTML |
+| 11 | Business number field used `+64275550123` — a real NZ mobile — as its placeholder | copied from the contact number | same obvious dummy as the other field, `+64211234567` | live owner-ui HTML |
 
 Also fixed while doing it — **a deploy trap that made edits invisible**: `site-i18n.css` had no
 `_headers` cache rule, so Cloudflare served a cached copy (`cf-cache-status: HIT`, age 6,706s) and

@@ -60,7 +60,7 @@ The actual failing migration test returned voice token 503 because `XAI_API_KEY`
 
 Operational audio smoke test: `docker exec -i trendi-api-1 python - < /opt/trendi/shared/check-grok-voice.py`. Source is `scripts/vps/check-grok-voice.py`; no microphone or real phone call required.
 
-**Telephone and SMS are not operational.** Jo's existing provider/number is **Spark, +64 27 881 7368**. A standard mobile subscription provides neither a configured SIP destination nor an SMS API. `PHONE_RECEPTIONIST_ENABLED=false`, `SMS_PROVIDER=none`, no enabled phone-number rows. No carrier credentials, purchase or porting occurred.
+**Telephone and SMS are not operational.** Jo's existing provider/number is **Spark, +64 27 555 0123**. A standard mobile subscription provides neither a configured SIP destination nor an SMS API. `PHONE_RECEPTIONIST_ENABLED=false`, `SMS_PROVIDER=none`, no enabled phone-number rows. No carrier credentials, purchase or porting occurred.
 
 The preserved LiveKit/Grok agent was proven through the Mac microphone only. Existing Twilio ConversationRelay code uses Twilio STT/TTS plus Grok text; it is not proof of Grok audio over PSTN. For true Grok telephone voice, provision a compatible SIP/VoIP path and the Grok audio bridge, forward the Spark number with owner approval, expose only signed/verified carrier hooks, then test inbound/outbound and consent. For SMS, obtain a genuine Spark Business Messaging/gateway connection or an owner-approved alternative. Do not label all calls/messages active merely because web voice works.
 
@@ -77,7 +77,7 @@ The preserved LiveKit/Grok agent was proven through the Mac microphone only. Exi
 
 All callbacks above use `https://concierge.trendibizz.com/owner/social/oauth/callback`.
 
-Google project `trendi-seo` (104168392411), external OAuth Testing. Enabled Business Information, Account Management, Lodging, Place Actions, Notifications, Verifications, Q&A and Performance APIs. Jo confirmed Profile verified over 60 days. The temporary consent support address remains **kiwi18@gmail.com**, explicitly approved earlier. **support@trendibizz.com mailbox still needs setup**, user confirmed; then make it an eligible Google Account/Group and replace branding. Existing mail appears Namecheap/cPanel; no hosting login or mailbox created, no MX changed.
+Google project `trendi-seo` (104168392411), external OAuth Testing. Enabled Business Information, Account Management, Lodging, Place Actions, Notifications, Verifications, Q&A and Performance APIs. Jo confirmed Profile verified over 60 days. The temporary consent support address remains **the owner's personal Gmail (redacted)**, explicitly approved earlier. **support@trendibizz.com mailbox still needs setup**, user confirmed; then make it an eligible Google Account/Group and replace branding. Existing mail appears Namecheap/cPanel; no hosting login or mailbox created, no MX changed.
 
 Private provider files: local `.private/provider-activation-20261109/{google-oauth,x-oauth,linkedin-pages-oauth,meta-review-login}.json`; matching VPS `/opt/trendi/shared/` files, all 600. Environment names are visible in connector source; never paste values into handoffs or Git. Dedicated organization prefix `SOCIAL_LINKEDIN_ORGANIZATION_*`.
 
@@ -108,7 +108,7 @@ See `META_REVIEW_PACKET_2026-11-09.md` for prepared permission descriptions and 
 
 ## Phone/SMS — exact state at immediate session handoff
 
-Jo confirmed: **iPhone linked to this Mac through Phone/Messages**, Spark **+64 27 881 7368**. They explicitly rejected the proposed new paid Twilio intake service: **Use no new paid service.** No account, number, credits, forwarding change or paid service was created. Pursue the free existing-Mac/iPhone route; do not re-ask for paid intake without a materially changed instruction.
+Jo confirmed: **iPhone linked to this Mac through Phone/Messages**, Spark **+64 27 555 0123**. They explicitly rejected the proposed new paid Twilio intake service: **Use no new paid service.** No account, number, credits, forwarding change or paid service was created. Pursue the free existing-Mac/iPhone route; do not re-ask for paid intake without a materially changed instruction.
 
 ### Saved code, tests and deployment boundary
 
