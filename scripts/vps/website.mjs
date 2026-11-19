@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {Readable} from 'node:stream';
 import path from 'node:path';
+import {randomBytes} from 'node:crypto';
 const {default:worker}=await import('data:text/javascript;base64,'+
   (await fs.readFile('/website/deploy_known_good/_worker.js')).toString('base64'));
 
@@ -100,6 +101,18 @@ async function asset(request) {
   headers['Content-Length']=String(end-start+1);
   return new Response(request.method==='HEAD'?null:Readable.toWeb(createReadStream(file,{start,end})),{status,headers});
 }
+// Cloudflare Bot Fight Mode injects an inline JavaScript Detections script into every HTML page. Our CSP has no
+// 'unsafe-inline' (and must not), so that script was blocked. Cloudflare copies a CSP nonce from the response
+// header onto the scripts it injects, so each HTML response gets a fresh random nonce in script-src. The site
+// itself has no inline scripts, so nothing else uses it. HTML is not cached at Cloudflare (cf-cache-status DYNAMIC).
+function withCspNonce(headers) {
+  const type=headers['content-type']||'';
+  const csp=headers['content-security-policy'];
+  if (!type.startsWith('text/html') || !csp || !/(^|;)\s*script-src\s/.test(csp)) return headers;
+  const nonce=randomBytes(16).toString('base64');
+  headers['content-security-policy']=csp.replace(/((?:^|;)\s*script-src\s[^;]*)/, `$1 'nonce-${nonce}'`);
+  return headers;
+}
 http.createServer(async(incoming,outgoing)=>{
   try {
     let size=0;const body=[];
@@ -108,7 +121,7 @@ http.createServer(async(incoming,outgoing)=>{
     const request=new Request('https://'+incoming.headers.host+incoming.url,{method,headers:incoming.headers,
       ...(method!=='GET'&&method!=='HEAD'?{body:Buffer.concat(body)}:{})});
     const response=await worker.fetch(request,{PAGESPEED_API_KEY:process.env.PAGESPEED_API_KEY,ASSETS:{fetch:asset}},{waitUntil:promise=>promise.catch(()=>{})});
-    outgoing.writeHead(response.status,Object.fromEntries(response.headers));
+    outgoing.writeHead(response.status,withCspNonce(Object.fromEntries(response.headers)));
     if(method==='HEAD'||!response.body)outgoing.end();
     else Readable.fromWeb(response.body).pipe(outgoing);
   }catch{
