@@ -56,3 +56,18 @@ def test_site_pages_passes_when_old_urls_redirect(monkeypatch):
 def test_website_server_rereads_redirects_when_the_file_changes():
     source = (ROOT / "scripts/vps/website.mjs").read_text()
     assert "mtimeMs" in source and "await loadRedirects()" in source
+
+
+def test_removed_pages_are_410_gone():
+    """Deliberately removed pages answer 410 Gone (not 404) so search engines drop them."""
+    source = (ROOT / "scripts/vps/website.mjs").read_text()
+    assert "code===410" in source and "status=410" in source
+    rules = {}
+    for line in (ROOT / "website/_redirects").read_text().splitlines():
+        parts = line.split()
+        if parts and not parts[0].startswith("#"):
+            rules[parts[0]] = parts[1:]
+    for slug in ("trendi-vs-smith-ai", "trendi-vs-goodcall", "trendi-vs-upfirst"):
+        for variant in (f"/{slug}", f"/{slug}/", f"/{slug}.html"):
+            assert rules.get(variant, [None, None])[-1] == "410", variant
+        assert not (ROOT / f"website/{slug}.html").exists()

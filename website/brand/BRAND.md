@@ -1,36 +1,46 @@
 # Trendi brand guide
 
+Current brand: **purple "refresh"** (in use on the site since mid-November 2026, made site-wide on 20 Nov 2026).
+The navy-and-lime "t" brand is **retired**; its file names below now hold purple artwork so old links still show the current brand.
+
 ## Logo
 
 | File | Use |
 |---|---|
-| `logo-horizontal.svg` | Default logo on light backgrounds |
-| `logo-horizontal-dark.svg` | Logo on dark backgrounds |
-| `logo-symbol.svg` | App icon, avatars, social profile picture |
-| `favicon.svg`, `apple-touch-icon.png`, `icon-512.png` | Browser tab, home screen icons |
-| `og-image.png` | Social share image (1200 x 630) |
+| `logo-refresh.svg` | Default logo (header, footer, share image) on light backgrounds |
+| `logo-horizontal.svg` | Same artwork as `logo-refresh.svg` (kept for old links) |
+| `logo-horizontal-dark.svg` | Wordmark in white with the purple tile, for dark backgrounds |
+| `mark-refresh.svg` | The purple arrow tile on its own: app icon, avatars, social profile picture |
+| `favicon.svg`, `logo-symbol.svg` | Same artwork as `mark-refresh.svg` |
+| `/favicon.ico`, `apple-touch-icon.png` (180), `icon-512.png` | Browser tab and home-screen icons, rendered from `mark-refresh.svg` |
+| `og-image.png` | Social share image (1200 x 630), light purple, same headline as before |
 
-The mark is a lowercase **t** whose crossbar climbs like a trend line. The wordmark is drawn as shapes, so it looks identical on every device and needs no font.
+The wordmark is lowercase "trendi" followed by a rounded purple tile with a white up-right arrow.
+On 20 Nov 2026 the wordmark was converted from typed Arial text to drawn outlines (Arial Bold glyphs), so it looks identical on every device and needs no font. Never retype it in a font.
 
 ### Rules
-- Keep clear space around the logo equal to the height of the "t" stem's top bar (about a quarter of the symbol).
-- Minimum size: symbol 16 px, horizontal logo 90 px wide.
-- Use the dark version on dark backgrounds, never the light one.
-- Don't recolour, stretch, rotate, outline or add shadows.
-- Don't put the logo on busy photos without a solid navy or white panel behind it.
+- Every page uses one icon set: `<link rel="icon" href="/brand/favicon.svg">`, `<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">`, `<meta name="theme-color" content="#7142d6">`, absolute paths only.
+- Organization schema `logo` is `https://trendibizz.com/brand/icon-512.png`.
+- Brand assets are cached for 30 days at Cloudflare; when artwork changes, bump the `?v=` on every reference.
+- Keep clear space around the logo equal to a quarter of the tile height. Minimum size: tile 16 px, horizontal logo 90 px wide.
+- Don't recolour, stretch, rotate, outline or add shadows. Don't put the logo on busy photos without a solid white or light-purple panel behind it.
 
 ## Colour
 
 | Name | Hex | Use |
 |---|---|---|
-| Trendi Navy | `#14213D` | Logo tile, buttons, headings |
-| Signal Lime | `#C6F432` | The crossbar, highlights, buttons in dark mode. Never as text on white. |
-| Ink | `#0E1730` | Body text on light |
-| Slate | `#5B6B8C` | Secondary text |
-| Mist | `#F7F8FC` | Page background (light) |
-| Night | `#070B14` | Page background (dark) |
+| Trendi Purple | `#7142D6` | Logo tile, buttons, links, theme-color |
+| Purple Deep | `#5830AE` | Hover and pressed states |
+| Aubergine Ink | `#30243E` | Body text, wordmark (`#302044`) |
+| Muted | `#71657E` | Secondary text |
+| Lilac Surface | `#F2EDFC` | Tinted panels |
+| Page | `#FCFBFF` | Page background |
+| Orchid | `#A450CA` | Accent highlights |
 
-Lime on white fails accessibility contrast. Use it only on navy or as a filled highlight with navy text on top.
+The live values are the `:root` variables in `/refresh.css`; `/styles.css` now carries the same base values.
+
+### Retired (do not use)
+Trendi Navy `#14213D`, Signal Lime `#C6F432`, Ink `#0E1730`, the navy "t" mark with the lime crossbar, and the navy share image.
 
 ## Type
 
