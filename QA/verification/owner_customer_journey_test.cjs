@@ -32,6 +32,8 @@ function portal(hash='',fetcher){
     history:{replaceState(_a,_b,url){location.hash='';location.replaced=url;}},
     navigator:{},confirm:()=>true,
     fetch:async(url,options)=>{
+      // The page fetches its public build label on load. It carries no customer data, so it is not counted.
+      if(url==='/version')return {ok:true,status:200,json:async()=>({label:'synthetic'})};
       requests.push({url,options});
       const data=fetcher?await fetcher(url,options):{};
       return {ok:true,status:200,json:async()=>data};
@@ -39,12 +41,16 @@ function portal(hash='',fetcher){
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   return {nodes,context,location,requests,run:code=>vm.runInContext(code,context)};
 }
-test('invitation fragment is consumed locally and removed from history',()=>{
+test('invitation fragment is removed from history and used once to open the workspace',async()=>{
   const token='synthetic_invitation_'+'a'.repeat(32);
-  const p=portal('#invite='+token);
-  assert.equal(p.nodes['redeem-token'].value,token);
+  const p=portal('#invite='+token,()=>({}));
+  await new Promise(resolve=>setImmediate(resolve));
   assert.equal(p.location.hash,'');
-  assert.equal(p.requests.length,0);
+  assert.equal(p.nodes['redeem-token'].value,'');
+  const invites=p.requests.filter(request=>request.url==='/owner/auth/invite');
+  assert.equal(invites.length,1);
+  assert.equal(invites[0].options.method,'POST');
+  assert.equal(JSON.parse(invites[0].options.body).token,token);
 });
 test('sign-out clears private draft, invitation and identity fields before another customer enters',async()=>{
   const p=portal();
@@ -70,7 +76,7 @@ test('late HTTP results from customer A are rejected after the session changes t
 test('an invitation opens the correct workspace after password setup without re-entering the business ID',async()=>{
   const channels=Object.fromEntries(['telephone','call_recording','email_read','email_send','sms_read','sms_send','social']
     .map(key=>[key,{configured:false,active:false}]));
-  const p=portal('#invite=synthetic_invitation_'+ 'a'.repeat(32),(url)=>{
+  const p=portal('',(url)=>{
     if(url==='/owner/auth/redeem')return {slug:'synthetic-a',email:'owner-a@example.test',role:'owner'};
     if(url==='/owner/auth/login')return {access_token:'synthetic-session-a'};
     if(url==='/owner/me')return {tenant:'synthetic-a',email:'owner-a@example.test',role:'owner'};
@@ -80,6 +86,7 @@ test('an invitation opens the correct workspace after password setup without re-
     if(url==='/owner/social/status')return {enabled:false,providers:{}};
     return [];
   });
+  p.nodes['redeem-token'].value='synthetic_invitation_'+'a'.repeat(32);
   p.nodes['new-password'].value='SyntheticTestPassword123!';p.nodes['confirm-password'].value='SyntheticTestPassword123!';
   await p.nodes['redeem-form'].handlers.submit({preventDefault(){}});
   assert.equal(p.nodes['app-panel'].hidden,false);assert.equal(p.nodes['login-panel'].hidden,true);
@@ -88,7 +95,8 @@ test('an invitation opens the correct workspace after password setup without re-
   assert.equal(p.nodes['new-password'].value,'');assert.equal(p.nodes['redeem-token'].value,'');
 });
 test('mismatching passwords do not consume the invitation or contact the server',async()=>{
-  const p=portal('#invite=synthetic_invitation_'+ 'b'.repeat(32));
+  const p=portal();
+  p.nodes['redeem-token'].value='synthetic_invitation_'+'b'.repeat(32);
   p.nodes['new-password'].value='SyntheticPassword123!';p.nodes['confirm-password'].value='DifferentPassword123!';
   await p.nodes['redeem-form'].handlers.submit({preventDefault(){}});
   assert.equal(p.requests.length,0);assert.ok(p.nodes['redeem-token'].value);
