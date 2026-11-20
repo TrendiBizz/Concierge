@@ -47,7 +47,7 @@ The SEO and AI visibility service is USD $500 per month, with a three-month mini
 - [Sample SEO report: what a client gets each week](https://trendibizz.com/sample-report)
 - [Website security check: HTTPS and headers scan](https://trendibizz.com/security-check)
 - [Vulnerability disclosure: report a security issue](https://trendibizz.com/security)
-- [Terms of Service for SEO and AI visibility work](https://trendibizz.com/terms)
+- [Terms of Service](https://trendibizz.com/terms)
 - [Partner programme: refer a client to Trendi](https://trendibizz.com/partners)
 - [Robots.txt AI crawlers checker: test your rules](https://trendibizz.com/tools/robots-ai-check)
 - [SEO audit tool: site snapshot for crawl readiness](https://trendibizz.com/tools/site-check)
