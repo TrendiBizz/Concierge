@@ -113,6 +113,12 @@ database, permissions, recordings, CRM and tools stay in Python, reached over `/
 (`api/app/voice_internal.py`). The Python bridge keeps running at .4 the whole time. Which one answers calls is
 decided by one thing only: the host in the dialplan's `AudioSocket(...)` line.
 
+First see exactly what would change (changes nothing; also checks the preconditions):
+
+```
+bash scripts/asterisk/cutover_to_rust_shell.sh --dry-run
+```
+
 Switch a line to the Rust shell, on the VPS as root (changes only `generated/extensions.conf` and reloads the
 dialplan; no restart, no data change; refuses if a call is in progress):
 
