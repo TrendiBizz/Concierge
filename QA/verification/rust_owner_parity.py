@@ -319,6 +319,8 @@ def main():
                 verify_tasks(py,rs,DB,sql,request)
                 from rust_action_scenarios import verify
                 verify(py,rs,DB,sql,request)
+                from rust_sales_scenarios import verify as verify_sales
+                verify_sales(py,rs,DB,sql,request,environment,BIN,work)
                 from rust_sla_scenarios import verify as verify_sla
                 verify_sla(DB,sql,environment,BIN,work)
                 from rust_maintenance_scenarios import verify as verify_maintenance

@@ -150,3 +150,35 @@ pub fn digest_text(business: &str, s: &Summary) -> (String, String) {
 pub fn digest_is_due(weekday_from_monday: u32, hour: u32) -> bool {
     weekday_from_monday == 0 && (8..21).contains(&hour)
 }
+
+pub fn daily_is_due(hour: u32) -> bool {
+    (7..10).contains(&hour)
+}
+
+pub fn daily_text(business: &str, s: &Summary) -> Option<(String, String)> {
+    let waiting = s.leads_waiting.unwrap_or(0);
+    if s.new_leads == 0 && s.overdue_todos == 0 && waiting == 0 {
+        return None;
+    }
+    let mut subject = format!("{business}: {} new in the last day", s.new_leads);
+    if waiting != 0 {
+        subject.push_str(&format!(", {waiting} waiting for a reply"));
+    }
+    let mut lines = vec![
+        format!("Good morning. Here is what needs you at {business}."),
+        String::new(),
+    ];
+    if waiting != 0 {
+        lines.push(format!("Waiting for a reply: {waiting}"));
+    }
+    if s.overdue_todos != 0 {
+        lines.push(format!("To-dos overdue: {}", s.overdue_todos));
+    }
+    lines.extend([
+        format!("New leads in the last day: {}", s.new_leads),
+        String::new(),
+        "Open Studio to reply: https://concierge.trendibizz.com/studio/".into(),
+        "Nothing is sent to your customers until you approve it.".into(),
+    ]);
+    Some((subject, lines.join("\n") + "\n"))
+}

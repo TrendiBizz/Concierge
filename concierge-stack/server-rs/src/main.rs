@@ -8,7 +8,11 @@ async fn main() {
         && !matches!(
             args.first().map(String::as_str),
             Some(
-                "--migrate-only" | "--purge-voice-once" | "--check-sla-once" | "--prune-owner-auth"
+                "--migrate-only"
+                    | "--purge-voice-once"
+                    | "--check-summaries-once"
+                    | "--check-sla-once"
+                    | "--prune-owner-auth"
             )
         )
     {
@@ -49,6 +53,33 @@ async fn main() {
             .expect("database connection");
         match concierge_server::maintenance::prune_auth(&state, batch, !apply).await {
             Ok(v) => println!("{v}"),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+    if args.first().is_some_and(|a| a == "--check-summaries-once") {
+        let now = if args.len() == 1 {
+            None
+        } else if args.len() == 3 && args[1] == "--at" {
+            match chrono::DateTime::parse_from_rfc3339(&args[2]) {
+                Ok(t) => Some(t.with_timezone(&chrono::Utc)),
+                Err(_) => {
+                    eprintln!("Invalid --at timestamp");
+                    std::process::exit(2);
+                }
+            }
+        } else {
+            eprintln!("usage: --check-summaries-once [--at RFC3339]");
+            std::process::exit(2);
+        };
+        let state = State::connect(Config::from_env())
+            .await
+            .expect("database connection");
+        match concierge_server::sales::check_summaries(&state, now).await {
+            Ok(n) => println!("{n}"),
             Err(e) => {
                 eprintln!("{e}");
                 std::process::exit(1);
@@ -106,6 +137,24 @@ async fn main() {
             .unwrap_or(60);
         Some(tokio::spawn(concierge_server::sla::worker(
             state.clone(),
+            stop_rx.clone(),
+            std::time::Duration::from_secs(interval),
+        )))
+    } else {
+        None
+    };
+    let digest_worker = if concierge_core::pydantic::parse_bool(&serde_json::json!(std::env::var(
+        "OUTBOX_ENABLED"
+    )
+    .unwrap_or_else(|_| "true".into())))
+    .unwrap_or(false)
+    {
+        let interval = std::env::var("DIGEST_POLL_SECONDS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(300);
+        Some(tokio::spawn(concierge_server::sales::worker(
+            state.clone(),
             stop_rx,
             std::time::Duration::from_secs(interval),
         )))
@@ -135,6 +184,9 @@ async fn main() {
     .await
     .expect("serve");
     worker.await.expect("retention worker");
+    if let Some(worker) = digest_worker {
+        worker.await.expect("digest worker");
+    }
     if let Some(worker) = sla_worker {
         worker.await.expect("SLA worker");
     }

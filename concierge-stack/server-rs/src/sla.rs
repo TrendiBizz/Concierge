@@ -5,6 +5,20 @@ use concierge_core::{contact, schedule, sla};
 use std::time::Duration;
 use tokio::sync::watch;
 
+pub async fn overdue(
+    c: &tokio_postgres::Client,
+    tid: &uuid::Uuid,
+    minutes: i32,
+    min_score: i32,
+    max_age_days: i32,
+    only_unalerted: bool,
+) -> Result<Vec<tokio_postgres::Row>, String> {
+    if minutes <= 0 {
+        return Ok(Vec::new());
+    }
+    c.query("SELECT id,name,phone,email,message,channel,score,score_label,score_reasons,created_at,sla_alerted_at,floor(EXTRACT(EPOCH FROM (now()-created_at))/60)::int AS minutes_waiting FROM leads WHERE tenant_id=$1 AND status='new' AND ($3<=0 OR score>=$3) AND created_at<now()-make_interval(mins=>$2) AND created_at>now()-make_interval(days=>$4) AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.lead_id=leads.id AND a.status IN ('booked','completed')) AND NOT EXISTS(SELECT 1 FROM customer_cases c WHERE c.id=leads.case_id AND c.automation_paused) AND NOT EXISTS(SELECT 1 FROM opt_outs o WHERE o.tenant_id=leads.tenant_id AND o.contact=ANY(ARRAY[CASE WHEN leads.email<>'' THEN lower(leads.email) END,CASE WHEN leads.phone<>'' THEN leads.phone END])) AND (NOT $5 OR sla_alerted_at IS NULL) ORDER BY score DESC,created_at LIMIT 100",&[tid,&minutes,&min_score,&max_age_days,&only_unalerted]).await.map_err(|e|e.to_string())
+}
+
 pub async fn check_once(state: &State) -> Result<u64, String> {
     let pool = state.0.pool.as_ref().ok_or("database unavailable")?;
     let c = pool.get().await.map_err(|e| e.to_string())?;
@@ -28,7 +42,7 @@ pub async fn check_once(state: &State) -> Result<u64, String> {
         let tid: uuid::Uuid = tenant.get("id");
         let minutes: i32 = tenant.get("sla_minutes");
         let min_score: i32 = tenant.get::<_, Option<i32>>("sla_min_score").unwrap_or(70);
-        let leads=c.query("SELECT id,name,phone,email,message,channel,score,score_label,floor(EXTRACT(EPOCH FROM (now()-created_at))/60)::int AS minutes_waiting FROM leads WHERE tenant_id=$1 AND status='new' AND ($3<=0 OR score>=$3) AND created_at<now()-make_interval(mins=>$2) AND created_at>now()-interval '2 days' AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.lead_id=leads.id AND a.status IN ('booked','completed')) AND NOT EXISTS(SELECT 1 FROM customer_cases c WHERE c.id=leads.case_id AND c.automation_paused) AND NOT EXISTS(SELECT 1 FROM opt_outs o WHERE o.tenant_id=leads.tenant_id AND o.contact=ANY(ARRAY[CASE WHEN leads.email<>'' THEN lower(leads.email) END,CASE WHEN leads.phone<>'' THEN leads.phone END])) AND sla_alerted_at IS NULL ORDER BY score DESC,created_at LIMIT 100",&[&tid,&minutes,&min_score]).await.map_err(|e|e.to_string())?;
+        let leads = overdue(&c, &tid, minutes, min_score, 2, true).await?;
         let name: String = tenant.get("name");
         for lead in leads {
             let id: uuid::Uuid = lead.get("id");

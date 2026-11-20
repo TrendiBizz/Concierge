@@ -31,6 +31,7 @@ mod portability;
 mod products;
 mod releases;
 mod reports;
+pub mod sales;
 pub mod sla;
 mod tasks;
 mod templates;
@@ -1123,6 +1124,12 @@ pub fn app(state: State) -> Router {
     // method handler inside axum's `MethodRouter`, which then appends its own `Allow: GET,HEAD` to a CORS preflight.
     let routes = Router::new()
         .route("/healthz", get_only(healthz))
+        .route("/admin/install-requests", get_only(install::admin_listing))
+        .route(
+            "/admin/install-requests/:request_id/status",
+            axum::routing::post(install::admin_status)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
         .route("/owner/install-requests", get_only(install::listing))
         .route(
             "/owner/install-request",
@@ -1130,6 +1137,7 @@ pub fn app(state: State) -> Router {
         )
         .route("/version", get_only(releases::public_version))
         .route("/owner/version", get_only(releases::public_version))
+        .route("/owner/crm/pipeline", get_only(sales::pipeline))
         .route("/owner/release", get_only(releases::notice))
         .route(
             "/owner/release/seen",
