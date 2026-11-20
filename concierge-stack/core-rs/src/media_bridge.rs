@@ -18,6 +18,7 @@ use base64::engine::DecodePaddingMode;
 use base64::{alphabet, Engine};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::OnceLock;
 
 /// 20 ms of 16-bit mono audio at 8 kHz, the native AudioSocket frame.
 pub const FRAME_BYTES: usize = 320;
@@ -96,6 +97,20 @@ impl Role {
             Self::Assistant => "assistant",
         }
     }
+}
+
+/// Remove internal angle-bracket control tags the model can leak into a transcript.
+/// Text without a tag is returned unchanged.
+pub fn strip_control_tags(text: &str) -> String {
+    static TAG: OnceLock<regex::Regex> = OnceLock::new();
+    let tag = TAG.get_or_init(|| {
+        regex::Regex::new(r"</?[A-Za-z_][A-Za-z0-9_:\-]*(?:\s[^<>]*)?/?>").expect("tag pattern")
+    });
+    if !tag.is_match(text) {
+        return text.to_string();
+    }
+    let cleaned = tag.replace_all(text, " ");
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Something the caller must do, in the order returned.
@@ -362,13 +377,19 @@ impl Bridge {
             Some(item) if truthy(item) => Some(item),
             _ => event.get("response_id"),
         };
-        let Some(text) = event
+        let Some(raw) = event
             .get("transcript")
             .and_then(Value::as_str)
             .filter(|t| !t.is_empty())
         else {
             return Ok(());
         };
+        // Model control markup (e.g. `<response_segment_0_already_spoken>`) is not speech.
+        let stripped = strip_control_tags(raw);
+        let text = stripped.as_str();
+        if text.is_empty() {
+            return Ok(());
+        }
         let item_id = match identity {
             Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
             Some(other) if truthy(other) => {
@@ -467,5 +488,24 @@ impl Bridge {
             }
         }
         OutputStep::Wait
+    }
+}
+
+#[cfg(test)]
+mod strip_tests {
+    use super::strip_control_tags;
+
+    #[test]
+    fn leaked_shell_tags_are_removed() {
+        assert_eq!(
+            strip_control_tags("<response_segment_0_already_spoken> Hello there</response_segment_0_already_spoken>"),
+            "Hello there"
+        );
+        assert_eq!(strip_control_tags("a <br/> b"), "a b");
+    }
+
+    #[test]
+    fn plain_text_is_unchanged() {
+        assert_eq!(strip_control_tags("Yes,  2 < 3\nand 5 > 4"), "Yes,  2 < 3\nand 5 > 4");
     }
 }

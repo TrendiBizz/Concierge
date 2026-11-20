@@ -7,7 +7,7 @@ from . import automation, casetimeline, db, email_signature, identity, owner_not
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
                   conversation_id=None, email: str = "", phone: str = "",
                   name: str = "", company: str = "",
-                  consent_contact: bool = False) -> dict:
+                  consent_contact: bool = False, notify_owner: bool = True) -> dict:
     if channel not in ("email", "sms", "phone", "chat") or not source:
         raise ValueError("Authenticated channel event required")
 
@@ -78,10 +78,11 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
             await conn.execute(
                 'INSERT INTO enquiry_sources(tenant_id,channel,source_key,lead_id,original_text) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
                 tenant['id'], channel, original_key, row['id'], message[:30000])
-            await owner_notifications.queue(
-                tenant, channel.title() + ' enquiry for ' + tenant['name'],
-                f'Channel: {channel}\nEmail: {email}\nPhone: {phone}\n\n' + message[:30000],
-                f"enquiry-original:{tenant['id']}:{channel}:{original_key}", lead_id=row['id'], connection=conn)
+            if notify_owner:  # False: the caller sends its own, richer alert (end-of-call)
+                await owner_notifications.queue(
+                    tenant, channel.title() + ' enquiry for ' + tenant['name'],
+                    f'Channel: {channel}\nEmail: {email}\nPhone: {phone}\n\n' + message[:30000],
+                    f"enquiry-original:{tenant['id']}:{channel}:{original_key}", lead_id=row['id'], connection=conn)
 
     # Record the message on the unified timeline. Idempotent on (tenant, channel, source_key), so a
     # retried provider webhook collapses instead of duplicating the customer's history.

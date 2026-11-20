@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from . import asterisk_bridge, channel_authorization, db, tenants, voice_records
 from .config import get_settings
+from .speech_text import strip_control_tags
 
 router = APIRouter(prefix="/internal/voice", include_in_schema=False)
 
@@ -84,6 +85,7 @@ async def start(body: Start, x_concierge_internal: str | None = Header(default=N
 @router.post("/transcript")
 async def transcript(body: Transcript, x_concierge_internal: str | None = Header(default=None)):
     _authorize(x_concierge_internal)
+    body.text = strip_control_tags(body.text)  # defence in depth: the shell strips these too
     if body.item_id:
         row = await db.pool().fetchrow(
             """INSERT INTO messages(conversation_id,role,content,item_id)

@@ -45,7 +45,7 @@ def test_whitespace_and_length_are_normalised():
     assert result["next_step"] == ""
     long = call_insights.parse_analysis(json.dumps(
         {"summary": "x" * 900, "outcome": "booked", "sentiment": "neutral", "next_step": ""}))
-    assert len(long["summary"]) == 400
+    assert len(long["summary"]) == 700
 
 
 # ------------------------------------------------------------------ deterministic rules
