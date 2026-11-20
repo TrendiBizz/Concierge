@@ -6,7 +6,7 @@
   Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://chat.trendibizz.com; connect-src 'self' https://cloudflareinsights.com https://chat.trendibizz.com wss://api.x.ai; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; style-src 'self'; script-src 'self' https://www.googletagmanager.com https://static.cloudflareinsights.com https://chat.trendibizz.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://cloudflareinsights.com https://chat.trendibizz.com wss://api.x.ai; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /llms.txt
   Content-Type: text/plain; charset=utf-8
