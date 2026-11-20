@@ -30,7 +30,7 @@ BIN = ROOT / "concierge-stack/server-rs/target/debug/concierge-server"
 
 
 def sql(database, statement):
-    result = subprocess.run(["psql", database, "-X", "-v", "ON_ERROR_STOP=1", "-At", "-c", statement], capture_output=True, text=True)
+    result = subprocess.run(["psql", database, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", statement], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()
 
@@ -41,10 +41,11 @@ def port():
         return sock.getsockname()[1]
 
 
-def request(port_number, path, token=None, method="GET", data=None):
+def request(port_number, path, token=None, method="GET", data=None, extra_headers=None):
     headers = {} if token is None else {"Authorization": token}
     if data is not None:
         headers["Content-Type"] = "application/json"
+    headers.update(extra_headers or {})
     req = urllib.request.Request(f"http://127.0.0.1:{port_number}{path}", headers=headers, method=method, data=None if data is None else json.dumps(data).encode())
     try:
         response = urllib.request.urlopen(req, timeout=10)
@@ -83,7 +84,8 @@ def main():
     environment = {"PATH": os.environ["PATH"], "PYTHONPATH": str(ROOT / "QA/verification/shims"),
                    "DATABASE_URL": DB, "ADMIN_TOKEN": "local-test-only", "OUTBOX_ENABLED": "false",
                    "SMS_PROVIDER": "none", "PUBLIC_BASE_URL": "http://localhost:8000",
-                   "STATIC_DIR": str(ROOT / "api/static")}
+                   "STATIC_DIR": str(ROOT / "api/static"), "ACTION_GATEWAY_ENABLED":"true",
+                   "ACTION_GATEWAY_KEY":"local-action-test-key-only"}
     sql(BASE, f'CREATE DATABASE "{NAME}"')
     try:
         with tempfile.TemporaryDirectory(prefix="concierge-owner-parity-") as work, tempfile.TemporaryFile(mode="w+") as log:
@@ -284,6 +286,8 @@ def main():
                     sql(DB,f"DELETE FROM products WHERE id='{pid}'")
                 assert normalised[0]==normalised[1],normalised
                 print("PASS: product validation/CRUD, tenant and role isolation, owner-only costs, concurrent stock updates and audit records")
+                from rust_action_scenarios import verify
+                verify(py,rs,DB,sql,request)
                 for path in ("/owner/me","/owner/revenue"):
                     for method in ("HEAD","POST","PUT","DELETE"):
                         same("method boundary", path, "Bearer empty", method)

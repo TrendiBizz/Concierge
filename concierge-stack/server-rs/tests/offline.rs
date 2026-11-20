@@ -8,6 +8,9 @@ use tower::ServiceExt;
 
 fn router(admin: &str) -> axum::Router {
     app(State::without_database(Config {
+        action_gateway_enabled: false,
+        action_gateway_key: String::new(),
+        default_country_code: "1".into(),
         database_url: String::new(),
         admin_token: admin.into(),
         public_base_url: "http://localhost:8000".into(),

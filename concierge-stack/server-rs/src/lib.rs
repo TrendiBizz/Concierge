@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres::Row;
+mod actions;
 mod owner;
 mod owner_sessions;
 mod owner_validation;
@@ -24,6 +25,9 @@ mod products;
 
 #[derive(Clone)]
 pub struct Config {
+    pub action_gateway_enabled: bool,
+    pub action_gateway_key: String,
+    pub default_country_code: String,
     pub database_url: String,
     pub admin_token: String,
     pub public_base_url: String,
@@ -36,6 +40,13 @@ impl Config {
     pub fn from_env() -> Config {
         let get = |k: &str, d: &str| std::env::var(k).unwrap_or_else(|_| d.to_string());
         Config {
+            action_gateway_enabled: concierge_core::pydantic::parse_bool(&json!(get(
+                "ACTION_GATEWAY_ENABLED",
+                "false"
+            )))
+            .unwrap_or(false),
+            action_gateway_key: get("ACTION_GATEWAY_KEY", ""),
+            default_country_code: get("DEFAULT_COUNTRY_CODE", "1"),
             database_url: get(
                 "DATABASE_URL",
                 "postgresql://postgres:postgres@localhost:5432/concierge",
@@ -1088,6 +1099,23 @@ pub fn app(state: State) -> Router {
         .route("/widget.js", get_only(widget_js))
         .route("/admin-ui", get_only(admin_ui))
         .route("/owner-ui", get_only(owner_ui))
+        .route(
+            "/internal/actions/cases/:lead_id/policy-context",
+            get_only(actions::context),
+        )
+        .route(
+            "/internal/actions/cases/:lead_id/brief",
+            get_only(actions::brief),
+        )
+        .route(
+            "/internal/actions/cases/:lead_id/automation",
+            axum::routing::put(actions::automation)
+                .fallback(|| async { method_not_allowed("PUT") }),
+        )
+        .route(
+            "/internal/actions/cases/:lead_id/execute",
+            axum::routing::post(actions::execute).fallback(|| async { method_not_allowed("POST") }),
+        )
         .route("/owner/me", get_only(owner::me))
         .route(
             "/owner/auth/login",

@@ -32,6 +32,11 @@ pub enum Ty {
     ListLit(&'static [&'static str]),
     DictStr,
     Dict,
+    Model(&'static str),
+    ListModel {
+        model: &'static str,
+        max: usize,
+    },
     Uuid,
     Datetime,
     Hours,
@@ -340,6 +345,47 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             vec![s("email").len(0, 320), s("code").pat(r"^\d{6}$")],
             false,
         ),
+        "ActionAutomation" => (vec![Fd::of("tenant_id", Ty::Uuid), b("paused")], true),
+        "CaseAction" => (
+            vec![
+                s("op").len(0, 64),
+                s("idempotency_key").len(1, 128),
+                s("dedupe_key").len(0, 300),
+                s("fingerprint").len(1, 128),
+                Fd::of("case_version", Ty::Int { ge: None, le: None }),
+                Fd::of("params", Ty::Dict).dflt(json!({})),
+            ],
+            true,
+        ),
+        "CaseDelivery" => (
+            vec![
+                lit("channel", &["email", "sms"]),
+                s("recipient").len(0, 320),
+                s("subject").len(0, 300).dflt(json!("")),
+                s("body").len(1, 4000),
+                lit("mode", &["shadow_only", "needs_approval", "auto"]),
+                s("fingerprint").len(1, 128),
+                s("dedupe_key").len(1, 300),
+                s("send_at").dflt(json!("")),
+            ],
+            true,
+        ),
+        "CaseBundle" => (
+            vec![
+                s("task_id").len(1, 300),
+                Fd::of("tenant_id", Ty::Uuid),
+                Fd::of(
+                    "actions",
+                    Ty::ListModel {
+                        model: "CaseAction",
+                        max: 10,
+                    },
+                )
+                .dflt(json!([])),
+                Fd::of("delivery", Ty::Model("CaseDelivery")).opt(),
+            ],
+            true,
+        ),
         "ProductIn" => (
             vec![
                 s("sku").len(1, 64),
@@ -620,6 +666,47 @@ fn field(f: &Fd, v: &Value, errors: &mut Vec<FieldErr>) -> Result<Value, Outcome
         Ty::Dict => match v {
             Value::Object(_) => return Ok(v.clone()),
             _ => fail(n.into(), "dict_type"),
+        },
+        Ty::Model(model) => match validate(model, v) {
+            Ok(value) => return Ok(value),
+            Err(Outcome::Unsupported(e)) => return Err(Outcome::Unsupported(e)),
+            Err(Outcome::Errors(nested)) => errors.extend(nested.into_iter().map(|mut e| {
+                e.loc = if e.loc.is_empty() {
+                    n.into()
+                } else {
+                    format!("{n}.{}", e.loc)
+                };
+                e
+            })),
+        },
+        Ty::ListModel { model, max } => match v.as_array() {
+            None => fail(n.into(), "list_type"),
+            Some(items) => {
+                let before = errors.len();
+                let mut normalised = Vec::new();
+                for (index, item) in items.iter().enumerate() {
+                    match validate(model, item) {
+                        Ok(value) => normalised.push(value),
+                        Err(Outcome::Unsupported(e)) => return Err(Outcome::Unsupported(e)),
+                        Err(Outcome::Errors(nested)) => {
+                            errors.extend(nested.into_iter().map(|mut e| {
+                                e.loc = if e.loc.is_empty() {
+                                    format!("{n}.{index}")
+                                } else {
+                                    format!("{n}.{index}.{}", e.loc)
+                                };
+                                e
+                            }))
+                        }
+                    }
+                }
+                if items.len() > *max {
+                    errors.push(err(n, "too_long"));
+                }
+                if errors.len() == before {
+                    return Ok(Value::Array(normalised));
+                }
+            }
         },
         Ty::Uuid => match uuid(v) {
             Ok(u) => return Ok(u),
