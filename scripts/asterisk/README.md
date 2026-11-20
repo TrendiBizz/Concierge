@@ -105,6 +105,30 @@ Ops gotchas learned the hard way:
 - `ChanSpy` needs `app_chanspy.so`, which the Debian/Ubuntu `asterisk` package loads by default.
   Verify with `asterisk -rx "module show like chanspy"`.
 
+## Rust telephone shell (optional, Python is the default and the fallback)
+
+`concierge-stack/core-rs` builds `asterisk_shell`, which owns the AudioSocket listeners, 20 ms pacing and the Grok
+websocket. The database, permissions, recordings, CRM and tools stay in Python, reached over `/internal/voice/*`
+(`api/app/voice_internal.py`). Why: steady frame pacing with no interpreter pauses during a call.
+
+1. Set `INTERNAL_TOKEN` in the private API env file and redeploy the API (the internal API answers 503 while it is unset).
+   Block `/internal/` at the public proxy; it is for the private compose network only.
+2. Export the same value as `INTERNAL_TOKEN`, plus `XAI_API_KEY`, for the compose command.
+3. Swap only the bridge:
+
+```
+docker compose -f scripts/asterisk/compose.yml -f scripts/asterisk/compose.rust.yml up -d --build bridge
+```
+
+Rollback (restores the Python bridge on the same ports):
+
+```
+docker compose -f scripts/asterisk/compose.yml up -d --force-recreate bridge
+```
+
+Run one bridge per route port, never both. Before switching a real business, place a softphone call and check: audio
+both ways, transcript saved, consent-gated recording, recording withdrawal, `end_call`, and the owner SMS queued once.
+
 ## Behavior
 
 - Standard AudioSocket PCM16 little-endian mono 8kHz is sent directly to Grok
