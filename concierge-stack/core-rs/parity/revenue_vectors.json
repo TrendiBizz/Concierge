@@ -26513,6 +26513,222 @@
         "value_per_enquiry": 741871386.49,
         "currency": ""
       }
+    },
+    {
+      "current": {
+        "enquiries": 3,
+        "accepted_cents": 9223372036854775808,
+        "paid_cents": 9223372036854775808,
+        "outstanding_cents": 9223372036854775808,
+        "currency": "NZD"
+      },
+      "previous": {
+        "accepted_cents": 4611686018427387904
+      },
+      "expected": {
+        "enquiries": 3,
+        "enquiries_previous": 0,
+        "enquiries_change_percent": 100,
+        "by_channel": {
+          "phone": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "email": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "sms": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "chat": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          }
+        },
+        "quotes_sent": 0,
+        "quotes_accepted": 0,
+        "quotes_sent_previous": 0,
+        "quotes_accepted_previous": 0,
+        "accept_rate_percent": 0.0,
+        "accepted_cents": 9223372036854775808,
+        "accepted_value": 9.223372036854776e+16,
+        "accepted_previous_value": 4.611686018427388e+16,
+        "accepted_change_percent": 100,
+        "paid_cents": 9223372036854775808,
+        "paid_value": 9.223372036854776e+16,
+        "outstanding_cents": 9223372036854775808,
+        "outstanding_value": 9.223372036854776e+16,
+        "value_per_enquiry": 3.0744573456182584e+16,
+        "currency": "NZD"
+      }
+    },
+    {
+      "current": {
+        "enquiries": 3,
+        "accepted_cents": 18446744073709551614,
+        "paid_cents": 18446744073709551614,
+        "outstanding_cents": 18446744073709551614,
+        "currency": "NZD"
+      },
+      "previous": {
+        "accepted_cents": 9223372036854775807
+      },
+      "expected": {
+        "enquiries": 3,
+        "enquiries_previous": 0,
+        "enquiries_change_percent": 100,
+        "by_channel": {
+          "phone": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "email": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "sms": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "chat": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          }
+        },
+        "quotes_sent": 0,
+        "quotes_accepted": 0,
+        "quotes_sent_previous": 0,
+        "quotes_accepted_previous": 0,
+        "accept_rate_percent": 0.0,
+        "accepted_cents": 18446744073709551614,
+        "accepted_value": 1.8446744073709552e+17,
+        "accepted_previous_value": 9.223372036854776e+16,
+        "accepted_change_percent": 100,
+        "paid_cents": 18446744073709551614,
+        "paid_value": 1.8446744073709552e+17,
+        "outstanding_cents": 18446744073709551614,
+        "outstanding_value": 1.8446744073709552e+17,
+        "value_per_enquiry": 6.148914691236517e+16,
+        "currency": "NZD"
+      }
+    },
+    {
+      "current": {
+        "enquiries": 3,
+        "accepted_cents": 10000000000000000000017,
+        "paid_cents": 10000000000000000000017,
+        "outstanding_cents": 10000000000000000000017,
+        "currency": "NZD"
+      },
+      "previous": {
+        "accepted_cents": 5000000000000000000008
+      },
+      "expected": {
+        "enquiries": 3,
+        "enquiries_previous": 0,
+        "enquiries_change_percent": 100,
+        "by_channel": {
+          "phone": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "email": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "sms": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "chat": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          }
+        },
+        "quotes_sent": 0,
+        "quotes_accepted": 0,
+        "quotes_sent_previous": 0,
+        "quotes_accepted_previous": 0,
+        "accept_rate_percent": 0.0,
+        "accepted_cents": 10000000000000000000017,
+        "accepted_value": 1e+20,
+        "accepted_previous_value": 5e+19,
+        "accepted_change_percent": 100,
+        "paid_cents": 10000000000000000000017,
+        "paid_value": 1e+20,
+        "outstanding_cents": 10000000000000000000017,
+        "outstanding_value": 1e+20,
+        "value_per_enquiry": 3.3333333333333336e+19,
+        "currency": "NZD"
+      }
+    },
+    {
+      "current": {
+        "enquiries": 3,
+        "accepted_cents": 85070591730234615847396907784232501249,
+        "paid_cents": 85070591730234615847396907784232501249,
+        "outstanding_cents": 85070591730234615847396907784232501249,
+        "currency": "NZD"
+      },
+      "previous": {
+        "accepted_cents": 42535295865117307923698453892116250624
+      },
+      "expected": {
+        "enquiries": 3,
+        "enquiries_previous": 0,
+        "enquiries_change_percent": 100,
+        "by_channel": {
+          "phone": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "email": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "sms": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          },
+          "chat": {
+            "enquiries": 0,
+            "previous": 0,
+            "change_percent": null
+          }
+        },
+        "quotes_sent": 0,
+        "quotes_accepted": 0,
+        "quotes_sent_previous": 0,
+        "quotes_accepted_previous": 0,
+        "accept_rate_percent": 0.0,
+        "accepted_cents": 85070591730234615847396907784232501249,
+        "accepted_value": 8.507059173023462e+35,
+        "accepted_previous_value": 4.253529586511731e+35,
+        "accepted_change_percent": 100,
+        "paid_cents": 85070591730234615847396907784232501249,
+        "paid_value": 8.507059173023462e+35,
+        "outstanding_cents": 85070591730234615847396907784232501249,
+        "outstanding_value": 8.507059173023462e+35,
+        "value_per_enquiry": 2.8356863910078203e+35,
+        "currency": "NZD"
+      }
     }
   ],
   "note": "This period beside the one before it. `days` is clamped so a typo cannot scan history."

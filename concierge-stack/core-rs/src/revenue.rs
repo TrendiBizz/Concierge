@@ -14,9 +14,9 @@ pub struct Period {
     pub by_channel: BTreeMap<String, i64>,
     pub quotes_sent: i64,
     pub quotes_accepted: i64,
-    pub accepted_cents: i64,
-    pub paid_cents: i64,
-    pub outstanding_cents: i64,
+    pub accepted_cents: i128,
+    pub paid_cents: i128,
+    pub outstanding_cents: i128,
     pub currency: String,
 }
 
@@ -57,7 +57,7 @@ pub fn convert_rate(numerator: i64, denominator: i64) -> f64 {
         .unwrap()
 }
 
-fn money(cents: i64) -> f64 {
+fn money(cents: i128) -> f64 {
     format!("{:.2}", cents as f64 / 100.0).parse().unwrap()
 }
 
@@ -81,12 +81,26 @@ pub fn build(current: &Period, previous: &Period) -> Value {
         "accepted_cents": current.accepted_cents,
         "accepted_value": money(current.accepted_cents),
         "accepted_previous_value": money(previous.accepted_cents),
-        "accepted_change_percent": percent_change(current.accepted_cents, previous.accepted_cents),
+        "accepted_change_percent": wide_percent_change(current.accepted_cents, previous.accepted_cents),
         "paid_cents": current.paid_cents,
         "paid_value": money(current.paid_cents),
         "outstanding_cents": current.outstanding_cents,
         "outstanding_value": money(current.outstanding_cents),
-        "value_per_enquiry": money(per_enquiry(current.accepted_cents, current.enquiries)),
+        "value_per_enquiry": money(wide_per_enquiry(current.accepted_cents, current.enquiries)),
         "currency": current.currency,
     })
+}
+
+fn wide_percent_change(current: i128, previous: i128) -> Option<i128> {
+    if previous <= 0 {
+        return (current > 0).then_some(100);
+    }
+    Some(((((current - previous) as f64) / previous as f64) * 100.0).round_ties_even() as i128)
+}
+fn wide_per_enquiry(cents: i128, enquiries: i64) -> i128 {
+    if enquiries <= 0 {
+        0
+    } else {
+        (cents as f64 / enquiries as f64).round_ties_even() as i128
+    }
 }

@@ -88,9 +88,9 @@ async fn period<C: GenericClient + Sync>(
     let row = client.query_one(
         "SELECT count(*) FILTER (WHERE sent_at IS NOT NULL), \
          count(*) FILTER (WHERE status='accepted'), \
-         COALESCE(SUM(total_cents) FILTER (WHERE status='accepted'),0)::bigint, \
-         COALESCE(SUM(total_cents) FILTER (WHERE payment_confirmed_at IS NOT NULL AND payment_status='paid'),0)::bigint, \
-         COALESCE(SUM(total_cents) FILTER (WHERE status='accepted' AND payment_status IN ('unpaid','declared')),0)::bigint, \
+         COALESCE(SUM(total_cents) FILTER (WHERE status='accepted'),0)::text, \
+         COALESCE(SUM(total_cents) FILTER (WHERE payment_confirmed_at IS NOT NULL AND payment_status='paid'),0)::text, \
+         COALESCE(SUM(total_cents) FILTER (WHERE status='accepted' AND payment_status IN ('unpaid','declared')),0)::text, \
          max(currency) FROM quotations WHERE tenant_id=$1 AND created_at >= $2 AND created_at < $3",
         &[&tenant, &start, &end],
     ).await?;
@@ -103,9 +103,18 @@ async fn period<C: GenericClient + Sync>(
         by_channel,
         quotes_sent: row.get(0),
         quotes_accepted: row.get(1),
-        accepted_cents: row.get(2),
-        paid_cents: row.get(3),
-        outstanding_cents: row.get(4),
+        accepted_cents: row
+            .get::<_, String>(2)
+            .parse()
+            .expect("bigint sum fits i128"),
+        paid_cents: row
+            .get::<_, String>(3)
+            .parse()
+            .expect("bigint sum fits i128"),
+        outstanding_cents: row
+            .get::<_, String>(4)
+            .parse()
+            .expect("bigint sum fits i128"),
         currency: row.get::<_, Option<String>>(5).unwrap_or_default(),
     })
 }

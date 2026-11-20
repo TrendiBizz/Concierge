@@ -1,0 +1,2311 @@
+{
+  "scope": "Concierge-owned Python services; Hermes removed",
+  "cutover_ready": false,
+  "counts": {
+    "mounted_python_routes": 342,
+    "registered_rust_matches": 30,
+    "missing_rust_routes": 312,
+    "python_background_task_sites": 18,
+    "python_voice_modules": 7
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/internal/voice/start",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/transcript",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/tool",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/monitor",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/finish",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/recording",
+      "source": "app.voice_internal",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/poll",
+      "source": "app.device_sms",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/receipt",
+      "source": "app.device_sms",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/inbound",
+      "source": "app.device_sms",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sms/inbox",
+      "source": "app.sms_inbox",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sms/conversations/{conversation_id}",
+      "source": "app.sms_inbox",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/sms/conversations/{conversation_id}/takeover",
+      "source": "app.sms_inbox",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/sms/conversations/{conversation_id}/reply",
+      "source": "app.sms_inbox",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/xai/{connection_id}",
+      "source": "app.phone_sip",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/managed/twilio/{connection_id}",
+      "source": "app.managed_phone",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/tenants/{slug}/mobile-connection",
+      "source": "app.mobile_connections",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/mobile-connection",
+      "source": "app.mobile_connections",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/mobile-connection",
+      "source": "app.mobile_connections",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/quotations",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/quotations/{quote_id}",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/crm/quotations/{quote_id}",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/duplicate",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/status",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/draft",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/quotations/{quote_id}/print",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/send",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/quote/{token}",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/accept",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/decline",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/payment-declared",
+      "source": "app.quotations",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/products",
+      "source": "app.products",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products",
+      "source": "app.products",
+      "registered_in_rust": true
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/products/{product_id}",
+      "source": "app.products",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products/{product_id}/stock",
+      "source": "app.products",
+      "registered_in_rust": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/products/{product_id}",
+      "source": "app.products",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/guide/bonsai-cladding",
+      "source": "app.guides",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/quote-profiles",
+      "source": "app.quote_profiles",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/quote-profiles",
+      "source": "app.quote_profiles",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/quote-profiles/{profile_id}",
+      "source": "app.quote_profiles",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/quote-profiles/{profile_id}",
+      "source": "app.quote_profiles",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/invoices/{invoice_id}/payment-link",
+      "source": "app.invoices",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/invoices",
+      "source": "app.invoices",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/invoice/{token}",
+      "source": "app.invoices",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/privacy/requests",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/privacy/requests/{request_id}/erase",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/privacy/contacts/{contact_key}/consent",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/privacy/contacts/{contact_key}/consent",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/privacy",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/privacy/request",
+      "source": "app.privacy",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/stripe",
+      "source": "app.platform_billing",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/billing/charge",
+      "source": "app.platform_billing",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/billing/invoices",
+      "source": "app.platform_billing",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/receipt/{token}",
+      "source": "app.platform_billing",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/designs",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/designs/{design_id}/file",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/designs/{design_id}",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/{design_id}/takeoff",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/link",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/{design_id}/quote",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/public-design/{token}",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/upload/{token}",
+      "source": "app.designs",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/brand",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/media/brand",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/upload",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/usage",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/assets",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/assets/{asset_id}/to-social",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/assets/{asset_id}/file",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/assets/delete",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/media/assets/{asset_id}",
+      "source": "app.media_studio",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/calendar",
+      "source": "app.calendar_connection",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/calendar/start",
+      "source": "app.calendar_connection",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/calendar/finish",
+      "source": "app.calendar_connection",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/calendar",
+      "source": "app.calendar_connection",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-secretary/jobs",
+      "source": "app.email_secretary",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-secretary/jobs/{job_id}/retry",
+      "source": "app.email_secretary",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/actions/cases/{lead_id}/policy-context",
+      "source": "app.action_ops",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/internal/actions/cases/{lead_id}/brief",
+      "source": "app.action_ops",
+      "registered_in_rust": true
+    },
+    {
+      "method": "PUT",
+      "path": "/internal/actions/cases/{lead_id}/automation",
+      "source": "app.action_ops",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/internal/actions/cases/{lead_id}/execute",
+      "source": "app.action_ops",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/widget.js",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/translate",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/widget-logo",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/widget-config",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/chat",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/chat/stream",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/sms/{public_key}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/smsgate/{public_key}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/token",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tools/{name}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/log",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/sessions/{session_id}/recording",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/sessions/{session_id}/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/voice/recordings/shared/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/demo/{slug}",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/report/{token}",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin-ui",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/status",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/outbound/status",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/outbound/pause",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/outbound/resume",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/rotate-key",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/tenants/{slug}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/tenants/{slug}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/clone",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/crawl",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/ingest-text",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/demo-questions",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/leads",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/campaigns",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/campaigns",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/campaigns/{campaign_id}/preview",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/campaigns/{campaign_id}/send",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/campaigns/{campaign_id}/cancel",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/campaigns/{campaign_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/leads/{lead_id}/marketing-consent",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/unsubscribe/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/unsubscribe/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/scoring",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/rescore",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/sla",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/tasks",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/tasks",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/tasks/{task_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/tasks/{task_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/pipeline",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/sales-summary",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/calendar/{token}.ics",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/leads/{lead_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/appointments",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/appointments/{appointment_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/outbox",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/conversations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/stats",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/capabilities",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/email-drafts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/email-drafts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/tenants/{slug}/email-drafts/{draft_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/email-drafts/{draft_id}/discard",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/email-drafts/{draft_id}/approve",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/twilio/inbound",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/twilio/ended",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/twilio/recording",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "WEBSOCKET",
+      "path": "/api/v1/phone/relay",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/phone-setup",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/phone-numbers",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/phone-numbers",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/tenants/{slug}/phone-numbers/{number}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/phone-calls",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/inbound-mailboxes",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inbound/cloudflare",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/l/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/l/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/webhooks/brevo",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/brevo",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-suppressions",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-suppressions",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/email-suppressions/{address}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/email-suppressions",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/owner-invitations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/owner-recovery",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/owner-invite",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.svg",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner-ui",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/owner/qrcode.js",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/assets/{path:path}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/install/",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/install",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/manifest.webmanifest",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/install-ticket",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/studio/{path:path}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/robots.txt",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/social/oauth/callback",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/redeem",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/invite",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/code",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/code/verify",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/link",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/login",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/owner/locale",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/me",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sw.js",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/push/key",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/push/subscribe",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/push/unsubscribe",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/push/test",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/channel-health",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/alerts/test",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/test-alert",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/pipeline",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/leads",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/leads/{lead_id}/transcript",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/leads/{lead_id}/recordings",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/voice-recordings/{session_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/voice-recordings/{session_id}/share",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/leads/{lead_id}/deliver",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/tasks",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/owner/tasks",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/tasks/{task_id}",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/tasks/{task_id}",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/owner/companies",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/companies",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/companies/{company_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/companies/{company_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/{case_key}/company",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/{case_key}/assignee",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/crm/leads/{lead_id}/assignee",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/contacts/bulk-assign",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/reports/export.csv",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-templates",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-templates",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/email-templates/{template_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/email-templates/{template_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/crm/leads/{lead_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/leads/{lead_id}/case",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/live-calls",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/live-calls/{call_sid}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/live-calls/{call_sid}/supervise",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/live-calls/{call_sid}/supervise/stop",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/supervision",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/live-calls/{call_sid}/takeover",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/revenue",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/enquiry",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/site-enquiries",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/install-request",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/install-requests",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/install-requests",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/install-requests/{request_id}/status",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/version",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/version",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/release",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/release/seen",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/releases/announce",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/ask",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/business",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/business",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/payment-settings",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/payment-settings",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/payment",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/call-insights",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/contacts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/contacts/{case_key}/addresses",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/contacts/{case_key}/addresses",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/contacts/{case_key}/addresses/{address_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/export/contacts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/import/contacts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/webhooks",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/webhooks",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/webhooks",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/webhooks/deliver",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/contacts/{case_key}/timeline",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/{case_key}/takeover",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/leads/{lead_id}/takeover",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/provider-readiness",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/logout",
+      "source": "app.main",
+      "registered_in_rust": true
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/onboarding/profile",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/authorizations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/knowledge/import-website",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/knowledge",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/knowledge",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/knowledge/{document_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/brand-suggestion",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/install-check",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/inbound-readiness",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/inbound-readiness",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/inbound-audit",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/inbound-audit",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/authorization-audit",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/admin/tenants/{slug}/channel-authorizations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/{slug}/authorization-audit",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/pause",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/pause",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/onboarding/authorizations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/onboarding/email-auto-reply",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/onboarding/native-booking",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/onboarding/readiness",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/invitations",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/team",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/team/{user_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/team/{user_id}/deactivate",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/team/{user_id}/reactivate",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-drafts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/email-drafts/{draft_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-drafts/{draft_id}/discard",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-drafts/{draft_id}/approve",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-drafts/{draft_id}/release",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-sender-rules",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-sender-rules",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/email-sender-rules/{rule_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/phone-setup",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/phone-setup",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/phone-numbers",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sms-phone",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/missed-calls",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/missed-calls/textback",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/sms-phone/test",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/phone-calls",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/phone-calls/{call_id}/transcript",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/media",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/social-media/{token}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/compose",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/social/status",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/renew/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/tiktok/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/tiktok/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/social/oauth/tiktok/accounts/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/google/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/google/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/social/oauth/google/accounts/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/x/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/x/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/social/oauth/x/accounts/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/meta/{network}/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/meta/{network}/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/social/oauth/meta/{network}/accounts/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/social/oauth/linkedin/accounts/{account_id}",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/linkedin_organization/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/linkedin_organization/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/linkedin/start",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/oauth/linkedin/finish",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/social/accounts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/social/posts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/posts",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/posts/{post_id}/submit",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/posts/{post_id}/approval-request",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/approvals/{token}/approve",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "POST",
+      "path": "/owner/social/approvals/{token}/reject",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-engagement",
+      "source": "app.main",
+      "registered_in_rust": false
+    },
+    {
+      "method": "GET",
+      "path": "/admin/pending-invites",
+      "source": "app.main",
+      "registered_in_rust": false
+    }
+  ],
+  "rust_registrations": [
+    {
+      "method": "GET",
+      "path": "/healthz"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/widget-config"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/tenants/:slug"
+    },
+    {
+      "method": "GET",
+      "path": "/report/:token"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/calendar/:token"
+    },
+    {
+      "method": "GET",
+      "path": "/demo/:slug"
+    },
+    {
+      "method": "GET",
+      "path": "/widget.js"
+    },
+    {
+      "method": "GET",
+      "path": "/admin-ui"
+    },
+    {
+      "method": "GET",
+      "path": "/owner-ui"
+    },
+    {
+      "method": "GET",
+      "path": "/internal/actions/cases/:lead_id/policy-context"
+    },
+    {
+      "method": "GET",
+      "path": "/internal/actions/cases/:lead_id/brief"
+    },
+    {
+      "method": "PUT",
+      "path": "/internal/actions/cases/:lead_id/automation"
+    },
+    {
+      "method": "POST",
+      "path": "/internal/actions/cases/:lead_id/execute"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/me"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/logout"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/invite"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/redeem"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/auth/code/verify"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/revenue"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/tasks"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/tasks/:task_id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/tasks/:task_id"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/products"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/products/:product_id"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/products/:product_id"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products/:product_id/stock"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/social/oauth/callback"
+    }
+  ],
+  "background_tasks": [
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 199,
+      "call": "asyncio.create_task(packet(self.reader))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 385,
+      "call": "asyncio.create_task(f())",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 596,
+      "call": "asyncio.create_task(MediaBridge(reader, writer, ws, session, transcript, tool, recording).run())",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 597,
+      "call": "asyncio.create_task(monitor())",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 218,
+      "call": "asyncio.create_task(packet(self.reader))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/asterisk_bridge.py",
+      "line": 214,
+      "call": "asyncio.create_task(packet(self.reader))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/events.py",
+      "line": 18,
+      "call": "asyncio.create_task(coro)",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 82,
+      "call": "asyncio.create_task(maintain_voice_records())",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 88,
+      "call": "asyncio.create_task(email_secretary.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 89,
+      "call": "asyncio.create_task(calendar_connection.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 83,
+      "call": "asyncio.create_task(outbox.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 84,
+      "call": "asyncio.create_task(sla.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 85,
+      "call": "asyncio.create_task(sales.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 86,
+      "call": "asyncio.create_task(missed_calls.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/main.py",
+      "line": 87,
+      "call": "asyncio.create_task(call_insights.run_forever(stop))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/owner_notifications.py",
+      "line": 78,
+      "call": "asyncio.get_running_loop().create_task(webpush.notify(tenant, subject, body, dedupe))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/phone_relay.py",
+      "line": 379,
+      "call": "asyncio.create_task(respond(prompt))",
+      "verified_rust_replacement": false
+    },
+    {
+      "source": "api/app/portability.py",
+      "line": 175,
+      "call": "asyncio.create_task(deliver_pending(tenant_id))",
+      "verified_rust_replacement": false
+    }
+  ],
+  "voice_modules": [
+    "concierge-stack/agent/transcripts.py",
+    "concierge-stack/agent/sms_providers.py",
+    "concierge-stack/agent/tenant_dispatch.py",
+    "concierge-stack/agent/booking.py",
+    "concierge-stack/agent/notify.py",
+    "concierge-stack/agent/acknowledge.py",
+    "concierge-stack/agent/agent.py"
+  ],
+  "limitation": "Registration is not verification. HTTP differential evidence and worker lifecycle verification are required before deployment."
+}

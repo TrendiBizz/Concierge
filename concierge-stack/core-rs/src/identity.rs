@@ -1,6 +1,13 @@
 //! Conservative message identity extraction, matching app/identity.py.
 use crate::{contact::normalize_phone, py_strip, pyval::truncate_chars};
 use regex::Regex;
+use std::sync::OnceLock;
+fn patterns() -> &'static [Regex; 6] {
+    static PATTERNS: OnceLock<[Regex; 6]> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        [_EMAIL, _PHONE, _NAME, _COMPANY, _COMPANY_BARE, r"\d"].map(|s| Regex::new(s).unwrap())
+    })
+}
 use serde_json::{json, Value};
 const _EMAIL: &str = r#"[\w.+-]+@[\w-]+\.[\w.-]{2,}"#;
 const _PHONE: &str = r#"(?:\+\d{1,3}[\s-]?)?(?:\(?0\d{1,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{3,4}"#;
@@ -28,16 +35,15 @@ pub fn extract_details(text: &str, cc: &str, allow_phone: bool) -> Value {
     if py_strip(&body).is_empty() {
         return out;
     }
-    if let Some(m) = Regex::new(_EMAIL).unwrap().find(&body) {
+    if let Some(m) = patterns()[0].find(&body) {
         out["email"] = json!(m
             .as_str()
             .trim_end_matches(['.', ',', ';', ':', ')', ']'])
             .to_lowercase())
     }
     if allow_phone {
-        for m in Regex::new(_PHONE).unwrap().find_iter(&body) {
-            let forbidden =
-                |c: char| c == '/' || Regex::new(r"\d").unwrap().is_match(&c.to_string());
+        for m in patterns()[1].find_iter(&body) {
+            let forbidden = |c: char| c == '/' || patterns()[5].is_match(&c.to_string());
             if body[..m.start()].chars().next_back().is_some_and(forbidden)
                 || body[m.end()..].chars().next().is_some_and(forbidden)
             {
@@ -49,16 +55,11 @@ pub fn extract_details(text: &str, cc: &str, allow_phone: bool) -> Value {
             }
         }
     }
-    if let Some(m) = Regex::new(_NAME).unwrap().captures(&body) {
+    if let Some(m) = patterns()[2].captures(&body) {
         out["name"] = json!(clean_name(&m[1]))
     }
     if out["name"] == "" {
-        if let Some(tail) = body
-            .lines()
-            .map(py_strip)
-            .filter(|l| !l.is_empty())
-            .next_back()
-        {
+        if let Some(tail) = body.lines().map(py_strip).rfind(|l| !l.is_empty()) {
             if tail.split_whitespace().count() <= 2
                 && tail.chars().count() > 2
                 && tail.chars().count() < 40
@@ -69,8 +70,8 @@ pub fn extract_details(text: &str, cc: &str, allow_phone: bool) -> Value {
             }
         }
     }
-    for pattern in [_COMPANY, _COMPANY_BARE] {
-        if let Some(m) = Regex::new(pattern).unwrap().captures(&body) {
+    for pattern in &patterns()[3..5] {
+        if let Some(m) = pattern.captures(&body) {
             out["company"] = json!(truncate_chars(&m[1], 120));
             break;
         }

@@ -20,4 +20,8 @@ for i in range(300):
                 "outstanding_cents":rng.randrange(10**12), "currency":rng.choice(["", "NZD", "AUD"])}
     current, previous = ({}, {}) if i == 0 else (period(), period())
     cases.append({"current":current,"previous":previous,"expected":revenue.build(current,previous)})
+for amount in [2**63, 2**64-2, 10**22+17, (2**63-1)**2]:
+    current={"enquiries":3,"accepted_cents":amount,"paid_cents":amount,"outstanding_cents":amount,"currency":"NZD"}
+    previous={"accepted_cents":amount//2}
+    cases.append({"current":current,"previous":previous,"expected":revenue.build(current,previous)})
 print(json.dumps({"arithmetic":[{"a":a,"b":b,"change":revenue.percent_change(a,b),"average":revenue.per_enquiry(a,b),"rate":revenue.convert_rate(a,b)} for a,b in pairs],"build":cases,"note":revenue.report.__doc__},indent=2))

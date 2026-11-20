@@ -90,6 +90,10 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="concierge-owner-parity-") as work, tempfile.TemporaryFile(mode="w+") as log:
             try:
+                for _ in range(2):
+                    migration=subprocess.run([str(BIN), "--migrate-only"],cwd=work,env=environment,stdout=log,stderr=log,timeout=60)
+                    assert migration.returncode==0,"Rust schema migration failed"
+                print("PASS: Rust initialises and reapplies the full schema without Python")
                 processes.append(subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--app-dir", str(ROOT / "api"), "--host", "127.0.0.1", "--port", str(py)], cwd=work, env=environment, stdout=log, stderr=log))
                 wait(py, processes[-1])
                 processes.append(subprocess.Popen([str(BIN)], cwd=work, env={**environment, "BIND": f"127.0.0.1:{rs}"}, stdout=log, stderr=log))
@@ -138,6 +142,11 @@ def main():
                     sql(DB, f"""INSERT INTO quotations(tenant_id,lead_id,title,currency,status,lines,contact,tax_basis_points,subtotal_cents,tax_cents,total_cents,payment_status,payment_confirmed_at,sent_at,created_at)
                         SELECT t.id,(SELECT id FROM leads WHERE tenant_id=t.id LIMIT 1),'fixture','NZD','{status}','[]','{{}}',0,{cents},0,{cents},'{payment}',{confirmed},{sent_value},now()-interval '{days} days' FROM tenants t WHERE slug='{slug}'""")
 
+                sql(DB,"""INSERT INTO quotations(tenant_id,lead_id,title,currency,status,lines,contact,tax_basis_points,subtotal_cents,tax_cents,total_cents,payment_status,payment_confirmed_at,sent_at)
+                    SELECT t.id,(SELECT id FROM leads WHERE tenant_id=t.id LIMIT 1),'overflow-fixture','NZD','accepted','[]','{}',0,9223372036854775807,0,9223372036854775807,'paid',now(),now() FROM tenants t CROSS JOIN generate_series(1,2) WHERE slug='alpha'""")
+                overflow=same("revenue aggregate beyond signed bigint", "/owner/revenue", "Bearer alpha")
+                assert overflow[0]==200 and overflow[1]["accepted_cents"]>2**64-2,overflow
+                sql(DB,"DELETE FROM quotations WHERE title='overflow-fixture'")
                 for path in ("/owner/me", "/owner/revenue", "/owner/revenue?days=bad"):
                     for auth in (None,"", "Basic alpha", "Bearer", "Bearer ", "Bearer " + "x"*257, "Bearer unknown", "Bearer  alpha"):
                         same("invalid authentication", path, auth)
@@ -286,6 +295,8 @@ def main():
                     sql(DB,f"DELETE FROM products WHERE id='{pid}'")
                 assert normalised[0]==normalised[1],normalised
                 print("PASS: product validation/CRUD, tenant and role isolation, owner-only costs, concurrent stock updates and audit records")
+                from rust_task_scenarios import verify as verify_tasks
+                verify_tasks(py,rs,DB,sql,request)
                 from rust_action_scenarios import verify
                 verify(py,rs,DB,sql,request)
                 for path in ("/owner/me","/owner/revenue"):

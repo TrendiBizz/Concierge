@@ -30,6 +30,7 @@ class FixedDT(datetime):
 automation.datetime = FixedDT
 cc_holder = {"cc": "1"}
 automation.get_settings = lambda: SimpleNamespace(default_country_code=cc_holder["cc"])
+automation.casetimeline.get_settings = automation.get_settings
 enq, alerts, cancels = [], [], []
 
 

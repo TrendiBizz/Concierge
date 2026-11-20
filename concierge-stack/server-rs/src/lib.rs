@@ -1,7 +1,7 @@
-//! Read-only routes of the Concierge API in Rust: `/healthz`, `/api/v1/widget-config`, `GET /admin/tenants` and
+//! HTTP and PostgreSQL adapters for the Concierge API in Rust: `/healthz`, `/api/v1/widget-config`, `GET /admin/tenants` and
 //! `GET /admin/tenants/{slug}`, plus the owner-portal origin boundary and wildcard CORS. Every decision (origin allow-list,
 //! channel authorization, public view, admin gate, snippet URLs) is `concierge-core` logic held to the Python originals;
-//! this crate only adds HTTP and PostgreSQL. Nothing here writes except the calendar token backfill the Python route also does.
+//! this crate adds HTTP, PostgreSQL, owner sessions, catalogue, tasks and the durable action executor.
 use axum::extract::{Path, Query, Request, State as AxState};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -22,9 +22,11 @@ mod owner;
 mod owner_sessions;
 mod owner_validation;
 mod products;
+mod tasks;
 
 #[derive(Clone)]
 pub struct Config {
+    pub embed_dim: usize,
     pub action_gateway_enabled: bool,
     pub action_gateway_key: String,
     pub default_country_code: String,
@@ -40,6 +42,7 @@ impl Config {
     pub fn from_env() -> Config {
         let get = |k: &str, d: &str| std::env::var(k).unwrap_or_else(|_| d.to_string());
         Config {
+            embed_dim: get("EMBED_DIM", "384").parse().unwrap_or(0),
             action_gateway_enabled: concierge_core::pydantic::parse_bool(&json!(get(
                 "ACTION_GATEWAY_ENABLED",
                 "false"
@@ -84,6 +87,24 @@ impl State {
             config,
             pool: Some(pool),
         })))
+    }
+
+    /// Apply the shared, idempotent schema without starting a Python service.
+    /// A transaction-scoped advisory lock serializes competing migration commands.
+    pub async fn migrate(&self) -> Result<(), String> {
+        let pool = self.0.pool.as_ref().ok_or("database unavailable")?;
+        let mut client = pool.get().await.map_err(|e| e.to_string())?;
+        let tx = client.transaction().await.map_err(|e| e.to_string())?;
+        tx.execute("SELECT pg_advisory_xact_lock(732687231019)", &[])
+            .await
+            .map_err(|e| e.to_string())?;
+        if self.0.config.embed_dim == 0 || self.0.config.embed_dim > 16000 {
+            return Err("EMBED_DIM must be between 1 and 16000".into());
+        }
+        let schema = include_str!("../../../api/app/schema.sql")
+            .replace("__DIM__", &self.0.config.embed_dim.to_string());
+        tx.batch_execute(&schema).await.map_err(|e| e.to_string())?;
+        tx.commit().await.map_err(|e| e.to_string())
     }
 
     /// A state with no database (for tests of routes that never reach it).
@@ -1142,6 +1163,16 @@ pub fn app(state: State) -> Router {
                 .fallback(|| async { method_not_allowed("POST") }),
         )
         .route("/owner/revenue", get_only(owner::revenue_report))
+        .route(
+            "/owner/tasks",
+            get_allow(tasks::listing, "GET").post(tasks::create),
+        )
+        .route(
+            "/owner/tasks/:task_id",
+            axum::routing::patch(tasks::update)
+                .delete(tasks::delete)
+                .fallback(|| async { method_not_allowed("PATCH") }),
+        )
         .route(
             "/owner/products",
             get_allow(products::listing, "GET").post(products::create),
