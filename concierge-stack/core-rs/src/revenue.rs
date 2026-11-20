@@ -42,7 +42,7 @@ pub fn per_enquiry(cents: i64, enquiries: i64) -> i64 {
     if enquiries <= 0 {
         0
     } else {
-        (cents as f64 / enquiries as f64).round_ties_even() as i64
+        (integer_ratio(cents.into(), enquiries.into())).round_ties_even() as i64
     }
 }
 
@@ -58,7 +58,7 @@ pub fn convert_rate(numerator: i64, denominator: i64) -> f64 {
 }
 
 fn money(cents: i128) -> f64 {
-    format!("{:.2}", cents as f64 / 100.0).parse().unwrap()
+    format!("{:.2}", integer_ratio(cents, 100)).parse().unwrap()
 }
 
 pub fn build(current: &Period, previous: &Period) -> Value {
@@ -95,12 +95,64 @@ fn wide_percent_change(current: i128, previous: i128) -> Option<i128> {
     if previous <= 0 {
         return (current > 0).then_some(100);
     }
-    Some(((((current - previous) as f64) / previous as f64) * 100.0).round_ties_even() as i128)
+    Some((integer_ratio(current - previous, previous) * 100.0).round_ties_even() as i128)
 }
 fn wide_per_enquiry(cents: i128, enquiries: i64) -> i128 {
     if enquiries <= 0 {
         0
     } else {
-        (cents as f64 / enquiries as f64).round_ties_even() as i128
+        (integer_ratio(cents, enquiries.into())).round_ties_even() as i128
     }
+}
+
+// Python divides integer operands before rounding to binary64. Casting the
+// operands first introduces a second rounding for aggregates above 2^53.
+fn integer_ratio(n: i128, d: i128) -> f64 {
+    if n == 0 {
+        return 0.0;
+    }
+    let negative = (n < 0) != (d < 0);
+    let n = n.unsigned_abs();
+    let d = d.unsigned_abs();
+    let q = n / d;
+    let mut rem = n % d;
+    let mut bits = 128 - q.leading_zeros() as i32;
+    let (mut sig, exp) = if bits > 53 {
+        let shift = bits - 53;
+        let mut sig = q >> shift;
+        let tail = q - (sig << shift);
+        let half = 1u128 << (shift - 1);
+        if tail > half || (tail == half && (rem > 0 || sig & 1 == 1)) {
+            sig += 1
+        }
+        return (if negative { -1.0 } else { 1.0 }) * sig as f64 * 2f64.powi(shift);
+    } else if bits > 0 {
+        (q, bits - 1)
+    } else {
+        let mut exp = -1;
+        loop {
+            rem *= 2;
+            if rem >= d {
+                rem -= d;
+                break;
+            }
+            exp -= 1
+        }
+        bits = 1;
+        (1, exp)
+    };
+    while bits < 53 {
+        rem *= 2;
+        sig *= 2;
+        if rem >= d {
+            rem -= d;
+            sig += 1
+        }
+        bits += 1
+    }
+    rem *= 2;
+    if rem > d || (rem == d && sig & 1 == 1) {
+        sig += 1
+    }
+    (if negative { -1.0 } else { 1.0 }) * sig as f64 * 2f64.powi(exp - 52)
 }

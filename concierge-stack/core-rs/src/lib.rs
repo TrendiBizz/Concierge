@@ -112,3 +112,5 @@ pub mod revenue;
 pub mod shell;
 
 pub mod identity;
+
+pub mod request_errors;

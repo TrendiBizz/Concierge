@@ -34,7 +34,7 @@ for name,model in models.items():
         except ValidationError as e:
             errors=[[".".join(map(str,error["loc"])),error["type"]] for error in e.errors()]
             # Pydantic's top-level model location is empty like the Rust port.
-            fixtures.append({"model":name,"body":body,"errors":errors,"friendly":plain_validation_message(e.errors())})
+            fixtures.append({"model":name,"body":body,"errors":errors,"friendly":plain_validation_message(e.errors()),"full_errors":e.errors(include_url=False)})
 out=root/"concierge-stack/core-rs/parity/owner_model_vectors.json"
 out.write_text(json.dumps(fixtures,ensure_ascii=False,indent=2)+"\n")
 print(f"{len(fixtures)} canonical request model vectors")

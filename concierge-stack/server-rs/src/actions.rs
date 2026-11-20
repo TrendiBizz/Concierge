@@ -624,6 +624,22 @@ async fn execute_inner(state: &State, lid: Uuid, b: Bundle) -> Result<Value> {
 fn parse_request(bytes: &[u8], model: &str) -> std::result::Result<Value, Box<Response>> {
     let original: Value =
         serde_json::from_slice(bytes).map_err(|_| Box::new(detail(422, "Invalid JSON")))?;
-    concierge_core::requests::validate(model, &original)
-        .map_err(|_| Box::new(detail(422, "Invalid action request")))
+    if original.is_null() {
+        return Err(Box::new((axum::http::StatusCode::UNPROCESSABLE_ENTITY,Json(json!({"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}))).into_response()));
+    }
+    concierge_core::requests::validate(model, &original).map_err(|error| {
+        let errors = match error {
+            concierge_core::requests::Outcome::Errors(errors) => {
+                concierge_core::request_errors::format_errors(model, &original, &errors, true)
+            }
+            _ => json!([]),
+        };
+        Box::new(
+            (
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"detail":errors})),
+            )
+                .into_response(),
+        )
+    })
 }

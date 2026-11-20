@@ -21,3 +21,29 @@ fn current_owner_and_action_models() {
         }
     }
 }
+
+#[test]
+fn structured_action_errors_match_python() {
+    let cases: Value =
+        serde_json::from_str(include_str!("../parity/owner_model_vectors.json")).unwrap();
+    for c in cases.as_array().unwrap() {
+        let m = c["model"].as_str().unwrap();
+        if ![
+            "CaseBundle",
+            "CaseAction",
+            "CaseDelivery",
+            "ActionAutomation",
+        ]
+        .contains(&m)
+        {
+            continue;
+        }
+        if let Err(requests::Outcome::Errors(errors)) = requests::validate(m, &c["body"]) {
+            assert_eq!(
+                concierge_core::request_errors::format_errors(m, &c["body"], &errors, false),
+                c["full_errors"],
+                "{c}"
+            );
+        }
+    }
+}
