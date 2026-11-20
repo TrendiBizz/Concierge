@@ -13,7 +13,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HOST="${VPS_HOST:-root@152.42.239.240}"
 RELEASE="${VPS_RELEASE:-/opt/trendi/releases/20261108-vps}"
 KEY="${KEY:-$REPO_ROOT/Concierge}"
-SITE_MIRROR="${SITE_MIRROR:-/Users/jo/work-staging/trendibizz-live/site}"
+# The site is compared against the repo's own website/ folder, the same tree deploy-site.sh ships.
+# The old default was the retired loose copy /Users/jo/work-staging/trendibizz-live/site, which no
+# longer matches production, so parity failed on every deploy (Omega Boss, 2026-11-20).
+SITE_MIRROR="${SITE_MIRROR:-${SITE_SRC:-$REPO_ROOT/website}}"
 SSH=(ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY")
 drift=0
 
@@ -28,7 +31,9 @@ compare() { # local_dir remote_dir label
   if [ -z "$remote_list" ]; then
     echo "  $label: remote directory unreadable ($remote_dir)"; drift=1; return
   fi
-  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5 -r {} + 2>/dev/null | sed 's/  */ /' | LC_ALL=C sort -k2)"
+  # md5sum on Linux, md5 -r on macOS: both are normalised to "<md5> <path>" by the sed below.
+  local hasher="md5 -r"; command -v md5sum >/dev/null 2>&1 && hasher="md5sum"
+  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec $hasher {} + 2>/dev/null | sed 's/  */ /' | LC_ALL=C sort -k2)"
   local diffout
   diffout="$(diff <(echo "$local_list") <(echo "$remote_list"))"
   if [ -n "$diffout" ]; then
