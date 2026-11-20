@@ -118,6 +118,9 @@ VERIFY_SUBJECT_PHRASES = (
 )
 
 
+_DIGIT_CODE = re.compile(r"\b\d{4,8}\s+is\s+your\s+(?:\d+-digit\s+)?(?:[a-z-]+\s+)?code\b")
+
+
 def verification_reason(subject: str = "", body: str = "") -> str | None:
     """Account-security / verify-your-email copy, or None if this looks like a person."""
     subj = (subject or "").strip().lower()
@@ -130,6 +133,9 @@ def verification_reason(subject: str = "", body: str = "") -> str | None:
     for phrase in VERIFY_SUBJECT_PHRASES:
         if phrase in subj:
             return "subject:verify"
+    # "574158 is your 6-digit code" (TikTok, 2026-11-20): a code with no "verification" wording.
+    if _DIGIT_CODE.search(subj) or _DIGIT_CODE.search(text_body[:300]):
+        return "body:verify"
     return None
 
 
@@ -159,6 +165,27 @@ def solicitation_reason(body: str = "") -> str | None:
     for phrase in SOLICITATION_PHRASES:
         if phrase in text:
             return "body:solicitation"
+    return None
+
+
+# Vendors that answer an enquiry Jo sent them (Thryv / Yellow "Listing inquiry"). Not spam and not
+# provably a robot, so the mail is still shown to the owner -- but by email only.
+VENDOR_DOMAINS = ("yellow.co.nz", "thryv.com", "thryv.co.nz")
+VENDOR_PHRASES = ("thank you for contacting", "your ticket", "ticket number", "case number",
+                  "this is an automated", "do not reply to this", "we have received your")
+
+
+def vendor_reason(sender: str = "", subject: str = "", body: str = "") -> str | None:
+    """Reason this looks like a vendor's reply or ticket notice, or None. Softer than classify()."""
+    reason = domain_reason(sender)
+    if reason:
+        return reason
+    _, domain = _address(sender)
+    if any(domain == d or domain.endswith("." + d) for d in VENDOR_DOMAINS):
+        return "vendor:domain"
+    text = (body or "")[:2000].lower()
+    if any(phrase in text for phrase in VENDOR_PHRASES) and "?" not in (subject or ""):
+        return "vendor:phrase"
     return None
 
 
@@ -222,7 +249,7 @@ _CODE_AFTER_LABEL = re.compile(
 )
 _CODE_BEFORE_LABEL = re.compile(
     r"(?i)\b(\d{4,8})\b(\s*(?:is\s+your\s+)?"
-    r"(?:security\s+|verification\s+|one[-\s]time\s+)?(?:code|otp)\b)"
+    r"(?:\d+-digit\s+)?(?:security\s+|verification\s+|one[-\s]time\s+)?(?:code|otp)\b)"
 )
 _CODE_TO_VERIFY = re.compile(
     r"(?i)\b(\d{4,8})\b(\s+(?:to\s+)?(?:verify|sign\s+in|log\s+in))"

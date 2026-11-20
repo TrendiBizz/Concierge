@@ -146,7 +146,12 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         notice = ""
         if "automated_sender" in (flags or []):
             notice = "(Automated message — not a customer enquiry.)\n\n"
+        vendor = automated_mail.vendor_reason(draft["sender"], subject, text_body)
+        if vendor:
+            notice = "(Automated or vendor message — not a customer enquiry.)\n\n"
+            flags.append("automated_sender")
         await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + text_body,
+                                automated=bool(vendor or "automated_sender" in (flags or [])),
                                 conversation_id=conversation_id, email=draft["sender"],
                                 name=signature["name"], company=signature["company"],
                                 phone=signature["phone"])
