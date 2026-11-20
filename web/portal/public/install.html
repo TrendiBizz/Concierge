@@ -6,7 +6,7 @@
 <title>Install Concierge</title>
 <meta name="description" content="Install the Concierge workspace on this phone.">
 <meta name="robots" content="noindex, nofollow, noai, noimageai">
-<meta name="theme-color" content="#c8f560">
+<meta name="theme-color" content="#7142d6">
 <link rel="manifest" href="/studio/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
 <link rel="apple-touch-icon" href="/studio/apple-touch-icon.png">
@@ -22,7 +22,7 @@
   cannot fall through to login: there is no router and no auth here, only the install offer.
 -->
 <style>
-  :root { color-scheme: dark; --ink:#f5f3ff; --muted:#b9b2cd; --accent:#c8f560; --line:#332c47; }
+  :root { color-scheme: dark; --ink:#f5f3ff; --muted:#b9b2cd; --accent:#7142d6; --line:#332c47; }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; padding: 28px 18px 40px;
@@ -38,8 +38,7 @@
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
   .mark {
     width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
-    background: linear-gradient(135deg, var(--accent), #7c5cff 70%, #22d3ee);
-    color: #101014; font-weight: 800; font-size: 18px;
+    background: var(--accent);
   }
   .brand strong { font-size: 17px; letter-spacing: -.01em; }
   h1 { font-size: clamp(27px, 7vw, 34px); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 12px; }
@@ -54,7 +53,7 @@
   .button, button {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     min-height: 52px; padding: 0 24px; border: 0; border-radius: 999px;
-    background: var(--accent); color: #101014; font: inherit; font-weight: 750; font-size: 16px;
+    background: var(--accent); color: #fff; font: inherit; font-weight: 750; font-size: 16px;
     cursor: pointer; text-decoration: none;
   }
   .button.secondary, button.secondary {
@@ -74,7 +73,7 @@
 </head>
 <body>
 <main>
-  <div class="brand"><span class="mark" aria-hidden="true">C</span><strong>Concierge</strong></div>
+  <div class="brand"><span class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 48 48"><path d="M14 34l20-20m-16 0h16v16" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong>Concierge</strong></div>
   <h1>Put Concierge on this phone</h1>
   <p>The whole workspace — enquiries, quotations, calls, marketing — as an app icon that opens full screen. This is not the chat bubble that sits on your website.</p>
   <p class="fine">Already have an account? You can install first — the app signs you in with a six-digit code emailed to you, no password and no link to follow.</p>
