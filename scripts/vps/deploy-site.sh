@@ -77,7 +77,7 @@ print('manifest written:', len(files), 'files')
 PY"
 
 echo "--- verifying parity"
-KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"
+KEY="$KEY" SITE_MIRROR="$SRC" "$REPO_ROOT/scripts/vps/verify-deploy.sh"
 
 # 3b. website.mjs reads _headers and the worker once at start (it re-reads _redirects itself), so a
 #     file sync alone leaves a long-running process on the old tables. Restart only the website
