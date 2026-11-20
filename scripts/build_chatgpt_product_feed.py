@@ -47,6 +47,12 @@ CONCIERGE_CORE = (
     "Trendi does not promise leads or sales."
 )
 
+# Brand assets are cached 30 days immutable at Cloudflare: a restyled image needs a new query string.
+IMAGE_QUERY = {
+    "trendi-concierge-monthly": "?v=20261120b",
+    "trendi-seo-ai-visibility-monthly": "?v=20261120b",
+}
+
 PRODUCTS = [
     {
         "item_id": "trendi-concierge-monthly",
@@ -96,7 +102,7 @@ def row(p: dict) -> dict:
     return {
         "item_id": p["item_id"], "title": p["title"], "description": p["description"], "url": p["url"],
         "brand": "Trendi", "seller_name": "Trendi",
-        "image_url": f"{BASE}/brand/products/{p['item_id']}.png",
+        "image_url": f"{BASE}/brand/products/{p['item_id']}.png{IMAGE_QUERY.get(p['item_id'], '')}",
         "availability": "in_stock", "price": p["price"], "condition": "new",
         "product_category": "Software", "is_digital": "true", "seller_url": BASE,
         "seller_tos": f"{BASE}/terms", "seller_privacy_policy": f"{BASE}/privacy",
@@ -125,7 +131,7 @@ def validate(rows: list[dict]) -> list[str]:
         for col in ("url", "image_url", "seller_url", "seller_tos", "seller_privacy_policy"):
             if r.get(col) and not r[col].startswith("https://"):
                 problems.append(f"{who}: {col} is not an https link")
-        if not r["image_url"].lower().endswith((".png", ".jpg", ".jpeg")):
+        if not r["image_url"].split("?", 1)[0].lower().endswith((".png", ".jpg", ".jpeg")):
             problems.append(f"{who}: image_url must be a direct JPEG or PNG")
         for col, val in r.items():
             if (val or "").strip().lower() in {"n/a", "na", "none", "tbd", "null"}:
@@ -146,15 +152,32 @@ def write_images() -> None:
                 continue
         return ImageFont.load_default()
 
+    # Refresh palette (website/brand/BRAND.md): Page #FCFBFF, Purple #7142D6, Purple Deep #5830AE,
+    # Aubergine Ink #30243E, Muted #71657E. The tile is website/brand/mark-refresh.svg drawn in Pillow.
+    def tile(img, x, y, size):
+        u = size / 48
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([x, y, x + size, y + size], radius=15 * u, fill="#7142d6")
+        w = round(4 * u)
+        for (x1, y1), (x2, y2) in (((14, 34), (34, 14)), ((18, 14), (34, 14)), ((34, 14), (34, 30))):
+            d.line([(x + x1 * u, y + y1 * u), (x + x2 * u, y + y2 * u)], fill="#ffffff", width=w)
+            for cx, cy in ((x1, y1), (x2, y2)):
+                d.ellipse([x + cx * u - w / 2, y + cy * u - w / 2, x + cx * u + w / 2, y + cy * u + w / 2],
+                          fill="#ffffff")
+
     IMG_DIR.mkdir(parents=True, exist_ok=True)
     for p in PRODUCTS:
-        img = Image.new("RGB", (1200, 1200), "#0b0f0c")
+        img = Image.new("RGB", (1200, 1200), "#fcfbff")
         d = ImageDraw.Draw(img)
-        d.rectangle([80, 80, 1120, 1120], outline="#c8f560", width=6)
-        d.text((140, 150), "TRENDI", font=font(64, True), fill="#c8f560")
-        d.text((140, 430), p["headline"], font=font(120, True), fill="#ffffff")
-        d.text((140, 600), p["sub"], font=font(58), fill="#cfd8c8")
-        d.text((140, 960), p["price_label"], font=font(76, True), fill="#c8f560")
+        d.rectangle([80, 80, 1120, 1120], outline="#7142d6", width=6)
+        d.text((140, 150), "TRENDI", font=font(64, True), fill="#7142d6")
+        tile(img, 940, 140, 120)
+        size = 120
+        while d.textlength(p["headline"], font=font(size, True)) > 940 and size > 60:
+            size -= 4  # keep the headline inside the border (inner text width 140..1080)
+        d.text((140, 430 + (120 - size) // 2), p["headline"], font=font(size, True), fill="#30243e")
+        d.text((140, 600), p["sub"], font=font(58), fill="#71657e")
+        d.text((140, 960), p["price_label"], font=font(76, True), fill="#5830ae")
         img.save(IMG_DIR / f"{p['item_id']}.png", "PNG", optimize=True)
 
 

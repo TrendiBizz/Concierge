@@ -212,14 +212,15 @@ def test_an_installed_app_signs_in_with_a_code_not_a_pasted_link():
 
 def test_the_icon_is_visible_on_a_dark_home_screen():
     """The icon was a near-black tile with a lime C: on a dark wallpaper (and under iOS's dark
-    icon treatment) it read as a black blob (reported 2026-11-16). The tile is now lime."""
+    icon treatment) it read as a black blob (reported 2026-11-16). The tile is now the brand purple
+    #7142d6 (mean channel 131), so the floor is 100: purple passes, a near-black tile (~16) fails."""
     for name in ("apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"):
         data = (PUBLIC / name).read_bytes()
-        # corner pixel of an RGB PNG, via PIL: the tile colour must be bright, not near-black
+        # corner pixel of an RGB PNG, via PIL: the tile colour must not be near-black
         from PIL import Image
         import io
         corner = Image.open(io.BytesIO(data)).convert("RGB").getpixel((2, 2))
-        assert sum(corner) / 3 > 140, f"{name} corner {corner} is dark — invisible on a dark screen"
+        assert sum(corner) / 3 > 100, f"{name} corner {corner} is dark — invisible on a dark screen"
 
 
 def test_the_manifest_route_carries_a_ticket_into_the_installed_apps_start_url(tmp_path, monkeypatch):
