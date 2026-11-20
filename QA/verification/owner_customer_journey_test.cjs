@@ -32,19 +32,35 @@ function portal(hash='',fetcher){
     history:{replaceState(_a,_b,url){location.hash='';location.replaced=url;}},
     navigator:{},confirm:()=>true,
     fetch:async(url,options)=>{
-      requests.push({url,options});
+      requests.push({url,options,hashAtRequest:location.hash,replacedAtRequest:location.replaced});
       const data=fetcher?await fetcher(url,options):{};
       return {ok:true,status:200,json:async()=>data};
     }});
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   return {nodes,context,location,requests,run:code=>vm.runInContext(code,context)};
 }
-test('invitation fragment is consumed locally and removed from history',()=>{
+test('invitation fragment is removed from the address bar before any HTTP request and never left in a form field',async()=>{
   const token='synthetic_invitation_'+'a'.repeat(32);
   const p=portal('#invite='+token);
-  assert.equal(p.nodes['redeem-token'].value,token);
   assert.equal(p.location.hash,'');
-  assert.equal(p.requests.length,0);
+  assert.equal(p.location.replaced,'/owner-ui');
+  const first=p.requests[0];
+  assert.equal(first.url,'/owner/auth/invite');
+  assert.equal(first.hashAtRequest,'','fragment must be gone before the first request leaves');
+  assert.equal(first.replacedAtRequest,'/owner-ui');
+  assert.equal(JSON.parse(first.options.body).token,token);
+  assert.equal(p.nodes['redeem-token'].value,'');
+});
+test('a malformed invitation fragment is removed and never sent to the server',async()=>{
+  const p=portal('#invite=short');
+  assert.equal(p.location.hash,'');
+  assert.equal(p.requests.some(r=>r.url==='/owner/auth/invite'),false);
+});
+test('an expired or used invitation link returns to sign-in with guidance',async()=>{
+  const p=portal('#invite=synthetic_invitation_'+'c'.repeat(32),url=>{if(url==='/owner/auth/invite')throw new Error('Invitation expired');return [];});
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(p.nodes['login-form'].hidden,false);
+  assert.match(p.nodes['login-help'].textContent,/expired or has already been used/);
 });
 test('sign-out clears private draft, invitation and identity fields before another customer enters',async()=>{
   const p=portal();
@@ -87,19 +103,22 @@ test('an invitation opens the correct workspace after password setup without re-
   assert.equal(JSON.parse(login.options.body).slug,'synthetic-a');
   assert.equal(p.nodes['new-password'].value,'');assert.equal(p.nodes['redeem-token'].value,'');
 });
-test('mismatching passwords do not consume the invitation or contact the server',async()=>{
-  const p=portal('#invite=synthetic_invitation_'+ 'b'.repeat(32));
+test('mismatching passwords do not consume the recovery token or contact the server',async()=>{
+  const p=portal();
+  const before=p.requests.length;
+  p.nodes['redeem-token'].value='synthetic_recovery_'+'b'.repeat(32);
   p.nodes['new-password'].value='SyntheticPassword123!';p.nodes['confirm-password'].value='DifferentPassword123!';
   await p.nodes['redeem-form'].handlers.submit({preventDefault(){}});
-  assert.equal(p.requests.length,0);assert.ok(p.nodes['redeem-token'].value);
+  assert.equal(p.requests.length,before);assert.ok(p.nodes['redeem-token'].value);
 });
 test('a business file is reviewed locally before a customer chooses to save',async()=>{
   const p=portal();p.run('bearer="synthetic-session-a";currentRole="owner";');
+  const before=p.requests.length;
   p.nodes['knowledge-file'].files=[{name:'Opening hours.md',size:45,text:async()=>'Synthetic business hours\n<script>data only</script>'}];
   await p.nodes['knowledge-file'].handlers.change();
   assert.equal(p.nodes['knowledge-title'].value,'Opening hours');
   assert.match(p.nodes['knowledge-text'].value,/<script>data only<\/script>/);
-  assert.equal(p.requests.length,0);
+  assert.equal(p.requests.length,before);
 });
 test('an in-flight file read from A cannot populate B’s workspace after sign-out',async()=>{
   let release;
