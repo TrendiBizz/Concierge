@@ -78,7 +78,7 @@ pub fn check_record(a: &Authorization) -> Result<(), &'static str> {
 /// The value `record_authorization` returns once the row is stored.
 pub fn record_response(channel: &str, stored_authorized: bool, updated_at: Value) -> Value {
     json!({"channel": channel, "authorized": stored_authorized, "updated_at": updated_at,
-           "provider_verified": false, "active": false})
+           "actor_kind": "owner", "provider_verified": false, "active": false})
 }
 
 /// `is_authorized` fails closed for a channel that is not on the list, whatever is stored.

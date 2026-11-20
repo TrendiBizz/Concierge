@@ -75,7 +75,7 @@ pub fn request(
     let recipient = if channel == "email" {
         Some(raw.to_lowercase())
     } else {
-        normalize_phone(raw, "1")
+        normalize_phone(raw, "")
     };
     let recipient = match recipient {
         Some(r) if !r.is_empty() && (channel != "email" || is_email(&r)) => r,

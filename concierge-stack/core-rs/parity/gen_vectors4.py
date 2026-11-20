@@ -42,6 +42,7 @@ async def _noop(*a, **k):
 
 tools.db.pool = lambda: FakePool()
 tools.automation.on_lead_created = _noop
+tools.casetimeline.reconcile = _noop
 VALS = ["", "  Ann  ", "Ann Lee", "x" * 150, "é" * 130, "a@b.co", " a@b.co ", "bad", "+64 21 123 4567", "021 123 4567", "5551234567",
         "(555) 123-4567", "12345", "m" * 1200, "line\nbreak", None, True, False, 0, 5, "日本語"]
 capture_cases = []
@@ -54,6 +55,7 @@ for _ in range(400):
     sms = rng.choice([True, False])
     cc = rng.choice(["1", "64"])
     tools.get_settings = lambda cc=cc: SimpleNamespace(default_country_code=cc)
+    tools.casetimeline.get_settings = tools.get_settings
     ctx = {"channel": "chat", "sms_inbound": sms}
     if sender is not None:
         ctx["sender_phone"] = sender
@@ -65,6 +67,10 @@ for _ in range(400):
     else:
         out = {"err": res["error"]}
     capture_cases.append({"args": args, "sender": sender, "sms": sms, "cc": cc, "out": out})
+
+if "--capture-only" in sys.argv:
+    print(json.dumps(capture_cases, ensure_ascii=False))
+    raise SystemExit(0)
 
 # ---- search_knowledge query clamp -------------------------------------------------------------
 seen = []

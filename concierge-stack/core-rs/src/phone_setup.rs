@@ -94,7 +94,18 @@ pub fn validate_mobile(body: &Value) -> Result<Value, Vec<FieldErr>> {
     };
     let mut errors = Vec::new();
     let destination = number(map, "destination", &mut errors);
-    let carrier = choice(map, "carrier", &["spark_nz", "other"], "other", &mut errors);
+    let carrier = match map.get("carrier") {
+        None => Some("other".to_owned()),
+        Some(Value::String(s)) if s.chars().count() <= 40 => Some(s.clone()),
+        Some(Value::String(_)) => {
+            errors.push(err("carrier", "string_too_long"));
+            None
+        }
+        Some(_) => {
+            errors.push(err("carrier", "string_type"));
+            None
+        }
+    };
     errors.extend(extras(map, &["destination", "carrier"]));
     match (destination, carrier) {
         (Some(d), Some(c)) if errors.is_empty() => Ok(json!({"destination": d, "carrier": c})),

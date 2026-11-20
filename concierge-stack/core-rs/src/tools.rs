@@ -89,8 +89,8 @@ pub fn normalise_capture(
         let v = str_or_empty(args.get(k)).ok_or("unsupported argument type")?;
         Ok(truncate_chars(py_strip(&v), n))
     };
-    let name = s("name", 120)?;
-    let email = s("email", 200)?;
+    let mut name = s("name", 120)?;
+    let mut email = s("email", 200)?;
     let phone_raw = match str_or_empty(args.get("phone")).ok_or("unsupported argument type")? {
         p if !p.is_empty() => truncate_chars(py_strip(&p), 40),
         _ => truncate_chars(py_strip(sender_phone.unwrap_or("")), 40),
@@ -98,10 +98,25 @@ pub fn normalise_capture(
     let message = s("message", 1000)?;
     let consent = truthy(args.get("consent_to_contact")) || sms_inbound;
     let marketing = truthy(args.get("consent_to_marketing"));
-    let phone = normalize_phone(&phone_raw, default_cc).unwrap_or_default();
-    let email_ok = is_email(&email);
-    if !(email_ok || !phone.is_empty()) {
-        return Err("Need a valid phone number or email address. Ask the visitor for one.".into());
+    let mut phone = normalize_phone(&phone_raw, default_cc).unwrap_or_default();
+    let mut email_ok = is_email(&email);
+    if !(email_ok || !phone.is_empty() || !name.is_empty()) {
+        let message_raw = str_or_empty(args.get("message")).ok_or("unsupported argument type")?;
+        let found = crate::identity::extract_details(&(message_raw + "\n"), default_cc, true);
+        name = found["name"].as_str().unwrap().into();
+        if found["email"] != "" {
+            if email.is_empty() {
+                email = found["email"].as_str().unwrap().into();
+            }
+            email_ok = true;
+        }
+        phone = found["phone"].as_str().unwrap().into();
+    }
+    if !(email_ok || !phone.is_empty() || !name.is_empty()) {
+        return Err(
+            "Need a name, a valid phone number or an email address. Ask the visitor for one."
+                .into(),
+        );
     }
     // The database stores an empty string when the email is not a valid address.
     let email = if email_ok { email } else { String::new() };
