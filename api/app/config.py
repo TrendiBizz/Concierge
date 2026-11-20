@@ -44,9 +44,9 @@ class Settings(BaseSettings):
     social_service_url: str = "http://127.0.0.1:4390"
     social_concierge_key: str = ""
 
-    # Hermes gateway operations (app/hermes_ops.py). Dark by default: the routes answer 404 unless both are set.
-    hermes_gateway_enabled: bool = False
-    hermes_gateway_key: str = ""
+    # Concierge gateway operations (app/action_ops.py). Dark by default: the routes answer 404 unless both are set.
+    action_gateway_enabled: bool = False
+    action_gateway_key: str = ""
 
     # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.
     case_planner: str = ""
@@ -154,12 +154,14 @@ class Settings(BaseSettings):
     campaign_email_per_hour: int = 60
     campaign_sms_per_hour: int = 20     # keep low: a phone-SIM gateway is not built for bulk
 
-    # Owner-alert throttle. A conversation produces one alert per turn, because the dedupe key
-    # includes the message text so that genuinely distinct enquiries are not collapsed. Without a
-    # limit a normal back-and-forth texts the owner once per exchange -- one test enquiry produced 54
-    # alerts, which reached the owner's phone as a stream of near-identical texts. This coalesces
-    # rapid alerts for the same lead, per channel, while leaving distinct enquiries alone.
-    owner_alert_min_interval_seconds: int = 300
+    # One owner alert per enquiry: later turns of a conversation join the alert while it waits to go out.
+    # A thread quiet for this many hours that writes again is a NEW enquiry and gets its own alert.
+    owner_alert_reopen_hours: int = 24
+    # Owner is told ("ACTION NEEDED") when a genuine enquiry has had no reply this long. A tenant's own
+    # sla_minutes overrides it. 0 = off.
+    owner_issue_unanswered_minutes: int = 120
+    # A new owner alert waits this long so the rest of a quick conversation joins it (0 = send at once).
+    owner_alert_debounce_seconds: int = 45
 
     # Response-time alerts
     sla_poll_seconds: int = 60

@@ -13,7 +13,7 @@ from pathlib import Path
 import asyncpg
 import pytest
 
-from app import channel_health, channel_authorization, db, outbox, owner_notifications as on
+from app import channel_authorization, db, enquiry_alerts as ea, outbox, owner_issues, owner_notifications as on
 
 PORT = os.environ.get("CONCIERGE_TEST_POSTGRES_PORT", "55432")
 SCHEMA = Path(__file__).resolve().parent.parent / "app" / "schema.sql"
@@ -60,14 +60,14 @@ def run(dbname, monkeypatch, scenario):
     async def go():
         conn = await asyncpg.connect(_dsn(dbname))
         try:
-            await conn.execute("TRUNCATE outbox, leads, tenants CASCADE")
+            await conn.execute("TRUNCATE outbox, leads, conversations, tenants CASCADE")
             tid = await conn.fetchval(
                 "INSERT INTO tenants(slug,name,public_key,notify_email,notify_phone,sms_enabled,sms_transport) "
                 "VALUES('t','Harbour Dental','pk','owner@example.co.nz','+64210000001',true,'device') RETURNING id")
             tenant = dict(await conn.fetchrow("SELECT * FROM tenants WHERE id=$1", tid))
             monkeypatch.setattr(db, "pool", lambda: conn)
             monkeypatch.setattr(channel_authorization, "is_authorized", _true)
-            monkeypatch.setattr(on, "_spawn_push", lambda *a, **k: None)
+            monkeypatch.setattr(on, "spawn_push", lambda *a, **k: None)
             await scenario(conn, tenant)
         finally:
             await conn.close()
@@ -78,154 +78,263 @@ async def _true(*a, **k):
     return True
 
 
-async def _lead(conn, tenant, message="hello", channel="chat"):
+async def _lead(conn, tenant, message="hello", channel="chat", **kw):
     return await conn.fetchval(
-        "INSERT INTO leads(tenant_id,message,channel) VALUES($1,$2,$3) RETURNING id", tenant["id"], message, channel)
+        "INSERT INTO leads(tenant_id,message,channel,name,email,phone) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+        tenant["id"], message, channel, kw.get("name", ""), kw.get("email", ""), kw.get("phone", ""))
 
 
-async def _rows(conn, order="id"):
-    return await conn.fetch("SELECT * FROM outbox WHERE kind='owner_alert' ORDER BY " + order)
+async def _conv(conn, tenant):
+    return await conn.fetchval(
+        "INSERT INTO conversations(tenant_id,session_id,channel) VALUES($1,$2,'chat') RETURNING id",
+        tenant["id"], uuid.uuid4().hex)
 
 
-def test_thirty_turns_of_one_conversation_make_one_email_and_one_text(dbname, monkeypatch):
+async def _rows(conn, kind="owner_alert"):
+    return await conn.fetch("SELECT * FROM outbox WHERE kind=$1 ORDER BY id", kind)
+
+
+# ---- one alert per enquiry, worded per channel --------------------------------------------------
+
+CASES = [  # channel, text, contact, subject lead-in, body phrase
+    ("email", "Subject: quote\n\nCan you fit a deck in March?", {"email": "sam@gmail.com", "name": "Sam"},
+     "Email enquiry for Harbour Dental from Sam", "Reply to them by email."),
+    ("sms", "Hi do you do weekends", {"phone": "+64211234567"},
+     "Text message for Harbour Dental from +64211234567", "Reply to them by text."),
+    ("phone", "I need a quote for a deck.", {"phone": "+64211234567"},
+     "Phone call for Harbour Dental from +64211234567", "Ring them back."),
+    ("chat", "Enquirer: How much?\n\nConcierge: $250", {},
+     "Web chat for Harbour Dental", "website chat"),
+]
+
+
+@pytest.mark.parametrize("channel,text,contact,subject,phrase", CASES)
+def test_each_channel_gets_one_alert_with_its_own_template(dbname, monkeypatch, channel, text, contact, subject, phrase):
     async def scenario(conn, t):
+        lead = await _lead(conn, t, text, channel, **contact)
+        for _ in range(3):                                   # the same enquiry noticed three times
+            await ea.notify(t, channel, text, lead_id=lead, contact=contact, connection=conn)
+        rows = await _rows(conn)
+        assert len(rows) == 1                                # ONE alert, ONE channel (email)
+        assert rows[0]["channel"] == "email" and rows[0]["to_addr"] == "owner@example.co.nz"
+        assert rows[0]["subject"].startswith(subject)
+        assert phrase in rows[0]["body"]
+        assert await conn.fetchval("SELECT count(*) FROM outbox WHERE channel='sms'") == 0   # no SMS copy
+    run(dbname, monkeypatch, scenario)
+
+
+def test_subjects_differ_per_channel_and_per_enquiry(dbname, monkeypatch):
+    async def scenario(conn, t):
+        for i, (channel, text, contact, *_rest) in enumerate(CASES * 2):
+            text = f"#{i} " + text
+            lead = await _lead(conn, t, text, channel, **contact)
+            await ea.notify(t, channel, text, lead_id=lead, contact=contact, connection=conn)
+        subjects = [r["subject"] for r in await _rows(conn)]
+        assert len(subjects) == 8 and len(set(subjects)) == 8
+    run(dbname, monkeypatch, scenario)
+
+
+def test_thirty_chat_turns_make_exactly_one_alert_holding_the_whole_conversation(dbname, monkeypatch):
+    async def scenario(conn, t):
+        conv = await _conv(conn, t)
         lead = await _lead(conn, t)
+        await conn.execute("UPDATE leads SET conversation_id=$1", conv)
         for turn in range(30):
-            await on.queue(t, "Chat conversation for Harbour Dental", f"Enquirer: question {turn}",
-                           f"dialogue:{t['id']}:k{turn}", lead_id=lead, connection=conn)
+            await ea.notify(t, "chat", f"Enquirer: question {turn}", lead_id=lead, connection=conn)
         rows = await _rows(conn)
-        assert sorted(r["channel"] for r in rows) == ["email", "sms"]
-        assert all("question 29" in r["body"] for r in rows)          # latest words, whole conversation
-        assert all(r["status"] == "pending" and r["send_at"] > r["created_at"] for r in rows)  # debounced
+        assert len(rows) == 1 and "question 29" in rows[0]["body"]
+        assert rows[0]["send_at"] > rows[0]["created_at"]                  # debounced while it merges
     run(dbname, monkeypatch, scenario)
 
 
-def test_the_enquiry_alert_and_the_dialogue_alert_seconds_apart_merge(dbname, monkeypatch):
-    """Prod 21 Nov: 6153 (enquiry) and 6155 (dialogue) for one conversation, 7 s apart."""
+def test_enquiry_capture_and_dialogue_for_one_conversation_are_one_alert(dbname, monkeypatch):
+    """Prod 21 Nov: two emails 7 s apart for one conversation. Lead found by lead id OR by conversation id."""
     async def scenario(conn, t):
-        lead = await _lead(conn, t, "How much does Concierge cost?")
-        await on.queue(t, "Chat enquiry for Harbour Dental", "Channel: chat\nEmail: \nPhone: \n\nHow much does Concierge cost?",
-                       "enquiry-original:x", lead_id=lead, connection=conn)
-        await on.queue(t, "Chat conversation for Harbour Dental", "Enquirer: How much does Concierge cost?\n\nConcierge: $250",
-                       "dialogue:x", lead_id=lead, connection=conn)
-        email = [r for r in await _rows(conn) if r["channel"] == "email"]
-        assert len(email) == 1 and "$250" in email[0]["body"]
+        conv = await _conv(conn, t)
+        lead = await _lead(conn, t, "How much?")
+        await conn.execute("UPDATE leads SET conversation_id=$1", conv)
+        await ea.notify(t, "chat", "How much?", lead_id=lead, conversation_id=conv, connection=conn)
+        await ea.notify(t, "chat", "Enquirer: How much?\n\nConcierge: $250", conversation_id=conv, connection=conn)
+        rows = await _rows(conn)
+        assert len(rows) == 1 and "$250" in rows[0]["body"]
     run(dbname, monkeypatch, scenario)
 
 
-def test_after_an_alert_is_sent_the_next_turn_waits_for_the_window_and_is_not_dropped(dbname, monkeypatch):
+def test_after_the_alert_is_sent_later_turns_make_no_second_alert(dbname, monkeypatch):
     async def scenario(conn, t):
         lead = await _lead(conn, t)
-        await on.queue(t, "Chat enquiry", "Enquirer: first", "d1", lead_id=lead, connection=conn)
+        await ea.notify(t, "chat", "Enquirer: first", lead_id=lead, connection=conn)
         await conn.execute("UPDATE outbox SET status='sent', sent_at=now()")
-        await on.queue(t, "Chat enquiry", "Enquirer: second", "d2", lead_id=lead, connection=conn)
-        await on.queue(t, "Chat enquiry", "Enquirer: third", "d3", lead_id=lead, connection=conn)
-        pending = await conn.fetch("SELECT * FROM outbox WHERE status='pending' AND channel='email'")
-        assert len(pending) == 1 and "third" in pending[0]["body"]       # second+third merged, nothing lost
-        wait = await conn.fetchval("SELECT extract(epoch FROM send_at - now()) FROM outbox WHERE id=$1", pending[0]["id"])
-        assert 240 < wait <= 300                                          # at most one alert per 300 s window
+        await ea.notify(t, "chat", "Enquirer: first\n\nEnquirer: second", lead_id=lead, connection=conn)
+        assert len(await _rows(conn)) == 1
+        await conn.execute("UPDATE outbox SET created_at = now() - interval '25 hours'")   # a day later: new enquiry
+        await ea.notify(t, "chat", "Enquirer: back again", lead_id=lead, connection=conn)
+        assert len(await _rows(conn)) == 2
     run(dbname, monkeypatch, scenario)
 
 
-def test_different_conversations_stay_separate_with_distinct_subjects(dbname, monkeypatch):
+def test_different_conversations_are_different_enquiries(dbname, monkeypatch):
     async def scenario(conn, t):
-        a, b = await _lead(conn, t, "How much does Concierge cost?"), await _lead(conn, t, "Is there a yearly plan?")
-        await on.queue(t, "Chat enquiry for Harbour Dental", "Channel: chat\nEmail: \nPhone: \n\nHow much does Concierge cost?",
-                       "e1", lead_id=a, connection=conn)
-        await on.queue(t, "Chat enquiry for Harbour Dental", "Channel: chat\nEmail: \nPhone: \n\nIs there a yearly plan?",
-                       "e2", lead_id=b, connection=conn)
-        email = [r for r in await _rows(conn) if r["channel"] == "email"]
-        assert len(email) == 2
-        assert len({r["subject"] for r in email}) == 2
-        assert all("How much" in r["subject"] or "yearly plan" in r["subject"] for r in email)
+        a, b = await _lead(conn, t, "How much?"), await _lead(conn, t, "Yearly plan?")
+        await ea.notify(t, "chat", "How much?", lead_id=a, connection=conn)
+        await ea.notify(t, "chat", "Yearly plan?", lead_id=b, connection=conn)
+        assert len(await _rows(conn)) == 2
     run(dbname, monkeypatch, scenario)
 
 
-def test_automated_mail_is_email_only_and_never_falls_back(dbname, monkeypatch):
+def test_a_phone_calls_start_and_end_are_one_alert_and_a_silent_call_still_alerts(dbname, monkeypatch):
     async def scenario(conn, t):
-        lead = await _lead(conn, t, channel="email")
-        await on.queue(t, "Email enquiry for Harbour Dental", "Channel: email\nEmail: care@yellow.co.nz\nPhone: \n\nListing inquiry",
-                       "enquiry-original:y", lead_id=lead, connection=conn, automated=True)
+        conv = await _conv(conn, t)
+        lead = await _lead(conn, t, "Inbound telephone enquiry", "phone", phone="+64211234567")
+        await conn.execute("UPDATE leads SET conversation_id=$1", conv)
+        await ea.notify(t, "phone", "Inbound telephone enquiry", lead_id=lead, connection=conn, hold_seconds=300)
+        held = await conn.fetchval("SELECT extract(epoch FROM send_at - now()) FROM outbox")
+        assert 250 < held <= 300                                          # waits for the call to end
+        await ea.notify(t, "phone", "I need a quote for a deck.", lead_id=lead, conversation_id=conv,
+                        connection=conn, finalize=True)
         rows = await _rows(conn)
-        assert [r["channel"] for r in rows] == ["email"] and rows[0]["dedupe_key"].endswith(":auto")
-        await conn.execute("UPDATE outbox SET status='failed'")   # even a failed one is not re-sent by SMS
-        assert await channel_health.escalate_failed_owner_alerts() == 0
+        assert len(rows) == 1 and "quote for a deck" in rows[0]["body"]
+        assert await conn.fetchval("SELECT extract(epoch FROM send_at - now()) FROM outbox") <= 45
+        await conn.execute("DELETE FROM outbox")                         # a call with no message: still alerts
+        await ea.notify(t, "phone", "Inbound telephone enquiry", lead_id=lead, connection=conn, hold_seconds=300)
+        await conn.execute("UPDATE outbox SET send_at = now()")
+        assert await conn.fetchval("SELECT count(*) FROM outbox WHERE status='pending' AND send_at <= now()") == 1
+    run(dbname, monkeypatch, scenario)
+
+
+# ---- genuine vs not -----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("channel,text,contact", [
+    ("email", "Listing inquiry\n\nSomeone viewed your listing", {"email": "care@yellow.co.nz"}),
+    ("email", "Thank you for contacting us. Your ticket number is 4411.", {"email": "help@somevendor.com"}),
+    ("email", "Your code", {"email": "noreply@tiktok.com"}),
+    ("sms", "Your verification code is 482913", {"phone": "+64270000000"}),
+    ("email", "Hello", {"email": "x@y.com"}),       # flagged automated by the ingest layer
+])
+def test_vendor_otp_and_robot_messages_make_no_owner_alert(dbname, monkeypatch, channel, text, contact):
+    async def scenario(conn, t):
+        lead = await _lead(conn, t, text, channel, **contact)
+        flagged = text == "Hello"
+        assert await ea.notify(t, channel, text, lead_id=lead, contact=contact, connection=conn, automated=flagged) is None
+        assert await conn.fetchval("SELECT count(*) FROM outbox") == 0
+    run(dbname, monkeypatch, scenario)
+
+
+def test_a_real_customer_email_is_not_mistaken_for_a_vendor(dbname, monkeypatch):
+    async def scenario(conn, t):
+        lead = await _lead(conn, t, channel="email", email="sam@gmail.com")
+        assert await ea.notify(t, "email", "Hi, can you quote a deck?", lead_id=lead,
+                               contact={"email": "sam@gmail.com"}, connection=conn)
+    run(dbname, monkeypatch, scenario)
+
+
+# ---- delivery channel chosen once ---------------------------------------------------------------
+
+def test_email_is_primary_and_sms_is_only_used_when_there_is_no_email_and_it_is_reliable(dbname, monkeypatch):
+    async def scenario(conn, t):
+        assert await on.delivery_route(conn, t) == ("email", "owner@example.co.nz")
+        no_email = {**t, "notify_email": ""}
+        assert await on.delivery_route(conn, no_email) == ("sms", "+64210000001")
+        for i in range(3):                                                # three unconfirmed texts: not reliable
+            await conn.execute(
+                "INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,status,last_error) VALUES"
+                "($1,'owner_alert','sms','+64210000001','b','failed','Phone did not confirm send')", t["id"])
+        assert await on.delivery_route(conn, no_email) is None
+        assert await on.delivery_route(conn, t) == ("email", "owner@example.co.nz")
+    run(dbname, monkeypatch, scenario)
+
+
+def test_one_off_owner_notices_use_one_channel_and_dedupe(dbname, monkeypatch):
+    async def scenario(conn, t):
+        for _ in range(2):
+            assert await on.queue(t, "Payment received", "Paid", "pay:1", connection=conn) == ["email"]
         assert len(await _rows(conn)) == 1
     run(dbname, monkeypatch, scenario)
 
 
-def test_failed_sms_falls_back_to_email_only_when_the_twin_email_was_not_sent(dbname, monkeypatch):
+def test_there_is_no_sms_to_email_fallback_any_more():
+    from app import channel_health
+    assert not hasattr(channel_health, "escalate_failed_owner_alerts") and not hasattr(channel_health, "_fallback")
+
+
+# ---- issue notices ------------------------------------------------------------------------------
+
+def test_failed_owner_sms_makes_one_action_needed_email_and_never_a_copy(dbname, monkeypatch):
     async def scenario(conn, t):
-        monkeypatch.setattr(channel_health, "db", db)
-        for n, email_status in (("a", "sent"), ("b", "failed")):
-            key = f"enquiry-original:{n}"
-            await conn.execute(
-                "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key,status) VALUES"
-                "($1,'owner_alert','email','owner@example.co.nz','S','body',$2,$3),"
-                "($1,'owner_alert','sms','+64210000001','','body',$4,'failed')",
-                t["id"], key, email_status, key + ":sms")
-        await channel_health.escalate_failed_owner_alerts()
-        fb = await conn.fetch("SELECT dedupe_key FROM outbox WHERE dedupe_key LIKE 'fb:%'")
-        # twin "a" was delivered -> no duplicate; twin "b" never arrived -> its email IS re-sent (via the failed
-        # email's own SMS fallback and the failed SMS's email fallback); nothing is produced for "a".
-        sms_ids = {r["id"]: r["dedupe_key"] for r in await conn.fetch("SELECT id,dedupe_key FROM outbox WHERE channel='sms'")}
-        fb_sources = {int(r["dedupe_key"].split(":")[1]) for r in fb}
-        assert not any(sms_ids.get(i, "").startswith("enquiry-original:a") for i in fb_sources)
-        assert any(sms_ids.get(i, "").startswith("enquiry-original:b") for i in fb_sources)
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        no_email = {**t, "notify_email": ""}
+        await conn.execute("UPDATE tenants SET notify_email=''")
+        lead = await _lead(conn, t, "Hi", "sms", phone="+64211234567")
+        await ea.notify(no_email, "sms", "Secret customer words", lead_id=lead, contact={"phone": "+64211234567"}, connection=conn)
+        await conn.execute("UPDATE outbox SET status='failed', last_error='Phone did not confirm send'")
+        await conn.execute("UPDATE tenants SET notify_email='owner@example.co.nz'")
+        for _ in range(3):
+            await owner_issues.sweep_undelivered()
+        issues = await _rows(conn, "owner_issue")
+        assert len(issues) == 1 and issues[0]["channel"] == "email"
+        assert issues[0]["subject"].startswith("ACTION NEEDED")
+        assert "Secret customer words" not in issues[0]["body"] and "did not confirm" in issues[0]["body"]
+        assert len(await _rows(conn)) == 1                                # still just the one (failed) alert
     run(dbname, monkeypatch, scenario)
 
 
-def test_three_unconfirmed_texts_in_a_row_stop_texting_until_the_probe_interval(dbname, monkeypatch):
+def test_failed_email_alert_issue_goes_by_sms_only_if_reliable_else_logged(dbname, monkeypatch):
     async def scenario(conn, t):
-        async def texts(*ages_hours_and_status):
-            await conn.execute("DELETE FROM outbox")
-            for i, (hours, status) in enumerate(ages_hours_and_status):
-                await conn.execute(
-                    "INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,status,last_error,created_at) VALUES"
-                    "($1,'owner_alert','sms','+64210000001','b',$2,$3, now() - make_interval(hours => $4))",
-                    t["id"], status, "Phone did not confirm send; reconcile before retry" if status == "failed" else "", hours)
-        await texts((0.1, "failed"), (0.5, "failed"), (1, "failed"))
-        assert await on.sms_unconfirmable(conn, t["id"])
-        await texts((3, "failed"), (4, "failed"), (5, "failed"))            # probe interval passed
-        assert not await on.sms_unconfirmable(conn, t["id"])
-        await texts((0.1, "failed"), (0.5, "sent"), (1, "failed"))           # one got through
-        assert not await on.sms_unconfirmable(conn, t["id"])
-        await texts((0.1, "failed"), (0.5, "failed"), (1, "failed"))
-        await on.queue(t, "S", "Channel: chat\nEmail: \nPhone: \n\nhi", "k1", lead_id=await _lead(conn, t), connection=conn)
-        assert await conn.fetchval("SELECT count(*) FROM outbox WHERE dedupe_key='k1'") == 1   # only the email
-        assert await conn.fetchval("SELECT count(*) FROM outbox WHERE dedupe_key='k1:sms'") == 0
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        lead = await _lead(conn, t, "Hi", "email", email="sam@gmail.com")
+        await ea.notify(t, "email", "Hi there", lead_id=lead, contact={"email": "sam@gmail.com"}, connection=conn)
+        await conn.execute("UPDATE outbox SET status='failed', last_error='blocklisted'")
+        await owner_issues.sweep_undelivered(); await owner_issues.sweep_undelivered()
+        issues = await _rows(conn, "owner_issue")
+        assert [i["channel"] for i in issues] == ["sms"] and "Hi there" not in issues[0]["body"]
     run(dbname, monkeypatch, scenario)
 
 
-def test_a_phone_calls_start_and_end_alerts_become_one(dbname, monkeypatch):
+def test_unanswered_enquiry_makes_one_notice_only_for_genuine_enquiries(dbname, monkeypatch):
     async def scenario(conn, t):
-        lead = await _lead(conn, t, "Inbound telephone enquiry", channel="phone")
-        await on.queue(t, "Phone enquiry for Harbour Dental", "Channel: phone\nEmail: \nPhone: \n\nInbound telephone enquiry",
-                       "enquiry-original:call", lead_id=lead, connection=conn, hold_seconds=300)
-        held = await conn.fetchval("SELECT extract(epoch FROM send_at - now()) FROM outbox WHERE channel='email'")
-        assert 250 < held <= 300                                          # waits for the call to end
-        await on.queue(t, "Phone message for Harbour Dental", "I need a quote for a deck.\n\nThe complete enquiry is saved in your CRM.",
-                       "call-1:owner", lead_id=lead, connection=conn, finalize=True)
-        rows = await conn.fetch("SELECT * FROM outbox WHERE channel='email'")
-        assert len(rows) == 1 and "quote for a deck" in rows[0]["body"]
-        assert await conn.fetchval("SELECT extract(epoch FROM send_at - now()) FROM outbox WHERE channel='email'") <= 45
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        monkeypatch.setattr(owner_issues.outbox, "next_allowed_send", lambda tz, when: when)
+        real = await _lead(conn, t, "Quote please", "email", email="sam@gmail.com", name="Sam")
+        vendor = await _lead(conn, t, "Listing inquiry", "email", email="care@yellow.co.nz")
+        await ea.notify(t, "email", "Quote please", lead_id=real, contact={"email": "sam@gmail.com"}, connection=conn)
+        await ea.notify(t, "email", "Listing inquiry", lead_id=vendor, contact={"email": "care@yellow.co.nz"}, connection=conn)
+        await conn.execute("UPDATE leads SET created_at = now() - interval '3 hours'")
+        assert await owner_issues.sweep_unanswered() == 1
+        assert await owner_issues.sweep_unanswered() == 0                 # deduped per enquiry + issue type
+        issues = await _rows(conn, "owner_issue")
+        assert len(issues) == 1 and "Sam" in issues[0]["subject"] and "Quote please" not in issues[0]["body"]
+        await conn.execute("UPDATE leads SET status='contacted'")
+        await conn.execute("DELETE FROM outbox WHERE kind='owner_issue'")
+        assert await owner_issues.sweep_unanswered() == 0                 # replied to: nothing to chase
     run(dbname, monkeypatch, scenario)
 
 
-def test_a_call_that_leaves_no_message_still_alerts(dbname, monkeypatch):
+def test_unanswered_notice_is_not_raised_before_the_threshold(dbname, monkeypatch):
     async def scenario(conn, t):
-        lead = await _lead(conn, t, "Inbound telephone enquiry", channel="phone")
-        await on.queue(t, "Phone enquiry for Harbour Dental", "Channel: phone\nEmail: \nPhone: \n\nInbound telephone enquiry",
-                       "enquiry-original:call", lead_id=lead, connection=conn, hold_seconds=300)
-        await conn.execute("UPDATE outbox SET send_at = now()")
-        due = await conn.fetch("SELECT id FROM outbox WHERE status='pending' AND send_at <= now()")  # outbox worker's query
-        assert len(due) == 2
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        lead = await _lead(conn, t, "Hi", "sms", phone="+64211234567")
+        await ea.notify(t, "sms", "Hi", lead_id=lead, contact={"phone": "+64211234567"}, connection=conn)
+        await conn.execute("UPDATE leads SET created_at = now() - interval '30 minutes'")
+        assert await owner_issues.sweep_unanswered() == 0
     run(dbname, monkeypatch, scenario)
 
 
-def test_distinct_subject_is_unique_per_enquiry_and_tenant_local():
+def test_failed_reply_to_customer_makes_one_notice(dbname, monkeypatch):
+    async def scenario(conn, t):
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        lead = await _lead(conn, t, "Hi", "email", email="sam@gmail.com", name="Sam")
+        await conn.execute(
+            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,status,last_error,lead_id) VALUES"
+            "($1,'email_secretary_reply','email','sam@gmail.com','reply','failed','mailbox full',$2)", t["id"], lead)
+        assert await owner_issues.sweep_reply_failed() == 1
+        assert await owner_issues.sweep_reply_failed() == 0
+        issues = await _rows(conn, "owner_issue")
+        assert len(issues) == 1 and "mailbox full" in issues[0]["body"] and issues[0]["subject"].startswith("ACTION NEEDED")
+    run(dbname, monkeypatch, scenario)
+
+
+def test_subject_is_tenant_local_time():
     from datetime import datetime, timezone
-    t = {"timezone": "Pacific/Auckland"}
     now = datetime(2026, 11, 20, 8, 57, tzinfo=timezone.utc)         # 21:57 NZDT
-    s = on.distinct_subject(t, "Chat enquiry for X", "Channel: chat\nEmail: \nPhone: \n\nHow much?", now)
-    assert s == "Chat enquiry for X: How much? (Fri 9:57pm)"
+    s = ea.subject_for({"name": "X", "timezone": "Pacific/Auckland"}, "chat", "", "Enquirer: How much?", now)
+    assert s == "Web chat for X: How much? (Fri 9:57pm)"

@@ -208,27 +208,23 @@ def _notify_tenant():
 
 
 def test_owner_alert_for_verification_mail_is_suppressed(monkeypatch):
-    from app import owner_notifications
+    from app import enquiry_alerts
     executed = []
 
     class Pool:
-        async def fetchval(self, *args, **kwargs):
-            return None
+        async def fetchrow(self, *args, **kwargs):
+            executed.append(args)
 
         async def execute(self, *args):
             executed.append(args)
 
-    monkeypatch.setattr(owner_notifications, "db", SimpleNamespace(pool=lambda: Pool()))
-    monkeypatch.setattr(owner_notifications.channel_authorization, "is_authorized",
-                        AsyncMock(return_value=True))
-    sent = asyncio.run(owner_notifications.queue(
-        _notify_tenant(),
-        "Email enquiry for Trendi Concierge",
-        "Name: \nPhone: \nEmail: account-security-noreply@accountprotection.microsoft.com\n"
-        "Channel: email\nPage: -\n\nVerify your email address\n\nYour security code is 123456\n",
-        "lead:x:owner",
+    sent = asyncio.run(enquiry_alerts.notify(
+        _notify_tenant(), "email",
+        "Verify your email address\n\nYour security code is 123456\n",
+        lead_id=None, conversation_id="c1", connection=Pool(),
+        contact={"email": "account-security-noreply@accountprotection.microsoft.com"},
     ))
-    assert sent == []
+    assert sent is None
     assert executed == []
 
 
@@ -238,6 +234,12 @@ def test_owner_sms_redacts_a_code_in_an_otherwise_human_enquiry(monkeypatch):
 
     class Pool:
         async def fetchval(self, *args, **kwargs):
+            return None
+
+        async def fetch(self, *args, **kwargs):
+            return []
+
+        async def fetchrow(self, *args, **kwargs):
             return None
 
         async def execute(self, *args):
@@ -253,8 +255,8 @@ def test_owner_sms_redacts_a_code_in_an_otherwise_human_enquiry(monkeypatch):
         "Channel: email\nPage: -\n\nThe gate code 445566 is on the letterbox.\n",
         "lead:y:owner",
     ))
-    assert sent == ["email", "sms"]
-    bodies = [args[5] for args in executed]
+    assert sent == ["email"]
+    bodies = [args[5] for args in executed]  # (sql, tenant, channel, to, subject, body, ...)
     assert bodies, executed
     assert all("445566" not in body for body in bodies)
     assert any("[redacted]" in body for body in bodies)

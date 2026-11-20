@@ -7,6 +7,12 @@ and a person must click **Send**. No click, a locked/asleep Mac, or a Cancel mak
 `send cancelled by user or timed out (60s dialog limit)`; the connector reports `failed`; the server records
 "Phone did not confirm send; reconcile before retry".
 
-Consequences handled in the API: after 3 unconfirmed owner texts in a row the API stops queueing owner SMS
-(`owner_notifications.sms_unconfirmable`) and lets one probe text through every 2 hours. Robot/vendor mail is
-email only. Do not weaken the bridge's dialog to "fix" this; use email/web push, or pick an unattended route deliberately.
+Consequences handled in the API: owner SMS is used only when the tenant has no usable alert email AND the connector is
+confirming texts (`owner_notifications.delivery_route`; after 3 unconfirmed texts in a row it is not reliable until a
+2 hour probe interval passes). There is no SMS->email fallback copy: a failed alert becomes ONE "ACTION NEEDED" notice
+(`owner_issues`). Robot/vendor mail produces no alert. Do not weaken the bridge's dialog to "fix" this.
+
+## Alert design (2026-11-21)
+`enquiry_alerts.notify` = the one alert per enquiry, per-channel template. `owner_issues` = at most one ACTION NEEDED
+notice per enquiry per problem (alert_undelivered, unanswered, reply_failed). `owner_notifications.queue` = one-off
+notices (payment, take-over), one channel.

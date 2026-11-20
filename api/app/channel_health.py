@@ -4,13 +4,10 @@ Why this exists (2026-11-12 audit): the SMS phone device went silent for ~45 hou
 owner-alert address was blocklisted by the mail provider. Every alert for those channels was
 recorded as failed and then simply dropped, so a real enquiry would have reached nobody.
 
-Two jobs, both read-mostly and safe to run repeatedly:
-
-* ``escalate_failed_owner_alerts`` - an owner alert that ended ``failed`` / ``held`` /
-  ``suppressed`` on one channel is re-queued once on the other channel. The fallback row carries
-  a ``fb:`` dedupe key, so it is created at most once and is never itself escalated (no loops).
-* ``channel_report`` - a plain status for each of email, SMS and voice that the owner portal and
-  the healthcheck can show, so "the phone is offline" is visible instead of silent.
+``channel_report`` gives a plain status for each of email, SMS and voice that the owner portal and the
+healthcheck can show, so "the phone is offline" is visible instead of silent. There is NO failover that
+re-sends an owner alert on another channel (it produced duplicate alerts); a failed enquiry alert becomes
+one "ACTION NEEDED" notice instead -- see ``owner_issues``.
 """
 
 import logging
@@ -22,80 +19,6 @@ log = logging.getLogger("concierge.channel_health")
 
 # The phone polls constantly while the app is open. Beyond this it is treated as offline.
 DEVICE_OFFLINE_AFTER = timedelta(minutes=15)
-# Only recent alerts are worth escalating; older ones are history, not live enquiries.
-ESCALATION_WINDOW_HOURS = 24
-FAILED_STATES = ("failed", "held", "suppressed")
-# Escalation must never amplify a storm: newest alerts first, few per sweep, and a hard hourly cap
-# per business (2026-11-13: an uncapped sweep re-queued dozens of alerts during a mail loop).
-MAX_PER_SWEEP = 10
-MAX_ESCALATIONS_PER_TENANT_HOUR = 3
-
-
-def _fallback(row: dict) -> tuple[str, str, str, str] | None:
-    """Return (channel, to_addr, subject, body) for the other channel, or None if unavailable."""
-    subject = row.get("subject") or "New enquiry"
-    body = row["body"]
-    if row["channel"] == "sms":
-        target = (row.get("notify_email") or "").strip()
-        if not target or target == row.get("to_addr"):
-            return None
-        note = "(Sent by email because the text message could not be confirmed.)\n\n"
-        return "email", target, subject, note + body
-    if row["channel"] == "email":
-        target = (row.get("notify_phone") or "").strip()
-        if not target or target == row.get("to_addr"):
-            return None
-        # SMS is short: keep the first 300 characters of the alert.
-        return "sms", target, "", body[:300]
-    return None
-
-
-async def escalate_failed_owner_alerts() -> int:
-    """Re-queue recent failed owner alerts on the other channel. Returns rows newly queued."""
-    rows = await db.pool().fetch(
-        """
-        SELECT o.id, o.tenant_id, o.channel, o.to_addr, o.subject, o.body,
-               t.notify_phone, t.notify_email
-        FROM outbox o JOIN tenants t ON t.id = o.tenant_id
-        WHERE o.kind = 'owner_alert'
-          AND o.status = ANY($1::text[])
-          AND o.created_at > now() - make_interval(hours => $2)
-          AND COALESCE(o.dedupe_key, '') NOT LIKE 'fb:%'
-        ORDER BY o.id DESC
-        LIMIT $3
-        """,
-        list(FAILED_STATES), ESCALATION_WINDOW_HOURS, MAX_PER_SWEEP,
-    )
-    queued = 0
-    recent: dict[str, int] = {}
-    for record in rows:
-        row = dict(record)
-        tenant_key = str(row["tenant_id"])
-        if tenant_key not in recent:
-            recent[tenant_key] = int(await db.pool().fetchval(
-                """SELECT count(*) FROM outbox WHERE tenant_id = $1
-                   AND dedupe_key LIKE 'fb:%' AND created_at > now() - interval '1 hour'""",
-                row["tenant_id"]) or 0)
-        if recent[tenant_key] >= MAX_ESCALATIONS_PER_TENANT_HOUR:
-            continue
-        fallback = _fallback(row)
-        if fallback is None:
-            continue
-        channel, to_addr, subject, body = fallback
-        try:
-            created = await outbox.enqueue(
-                row["tenant_id"], "owner_alert", channel, to_addr, body, subject=subject,
-                dedupe_key=f"fb:{row['id']}:{channel}",
-            )
-        except Exception:  # noqa: BLE001 - one bad row must not stop the sweep
-            log.exception("could not escalate outbox row %s", row["id"])
-            continue
-        if created:
-            queued += 1
-            recent[tenant_key] += 1
-            log.warning("owner alert %s failed on %s; re-queued on %s", row["id"], row["channel"], channel)
-    return queued
-
 
 async def sms_device_health(tenant_id) -> dict:
     """Status of the tenant's SMS phone device: paired, verified, and recently seen."""

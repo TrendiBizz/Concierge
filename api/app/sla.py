@@ -99,24 +99,9 @@ def _alert_text(tenant: dict, lead: dict) -> tuple[str, str]:
 
 
 async def check_once() -> int:
-    """Raise the alerts that are due. Returns how many were queued."""
-    tenant_rows = await db.pool().fetch(
-        "SELECT * FROM tenants WHERE sla_minutes > 0 AND notify_email IS NOT NULL AND notify_email <> ''")
-    queued = 0
-    for row in tenant_rows:
-        tenant = dict(row)
-        if not is_email(tenant["notify_email"]):
-            continue
-        send_at = next_allowed_send(ZoneInfo(tenant["timezone"]), datetime.now(timezone.utc))
-        for lead in await overdue(tenant, only_unalerted=True, max_age_days=ALERT_MAX_AGE_DAYS):
-            subject, body = _alert_text(tenant, lead)
-            await outbox.enqueue(
-                tenant["id"], "owner_alert", "email", tenant["notify_email"], body, subject=subject,
-                send_at=send_at, dedupe_key=f"lead:{lead['id']}:sla", lead_id=lead["id"],
-            )
-            await db.pool().execute("UPDATE leads SET sla_alerted_at = now() WHERE id = $1", lead["id"])
-            queued += 1
-    return queued
+    """Raise the "no reply yet" ACTION NEEDED notices that are due (one per enquiry). Returns how many."""
+    from . import owner_issues  # imported here: owner_issues imports this module
+    return await owner_issues.sweep_unanswered()
 
 
 async def run_forever(stop: asyncio.Event) -> None:

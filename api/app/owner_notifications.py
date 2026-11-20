@@ -1,4 +1,7 @@
-"""Business-specific operational notices, atomically queued with CRM changes."""
+"""Owner notices: the delivery-channel policy, plus one-off operational notices (payment, take-over, ...).
+
+Customer ENQUIRY alerts live in ``enquiry_alerts``; problems with them live in ``owner_issues``.
+"""
 import asyncio
 from . import automated_mail, channel_authorization, db, webpush
 from .contact import is_email, normalize_phone
@@ -18,61 +21,70 @@ def sms_body(subject, body):
     return subject[:160] + "\n" + body[:max(0, 1400-len(suffix)-162)] + suffix
 
 
-def _sender_from_alert_body(body: str) -> str:
-    match = re.search(r"(?im)^Email:\s*(\S+@\S+)", body or "")
-    return match.group(1).strip() if match else ""
+# Owner SMS goes through a Mac that needs a human to press Send within 60 seconds (see
+# docs/OWNER_ALERT_SMS.md). After this many unconfirmed texts in a row, owner SMS is not "reliably
+# deliverable" until the probe interval has passed.
+SMS_BREAKER_FAILURES = 3
+SMS_BREAKER_PROBE_HOURS = 2
 
 
-async def queue(tenant, subject, body, dedupe, *, lead_id=None, connection=None):
+async def sms_unconfirmable(runner, tenant_id) -> bool:
+    """True when the last few owner texts all went unconfirmed and the probe interval has not passed."""
+    rows = await runner.fetch(
+        "SELECT status,last_error,created_at > now() - make_interval(hours => $3) AS recent "
+        "FROM outbox WHERE tenant_id=$1 AND kind IN ('owner_alert','owner_issue') AND channel='sms' "
+        "AND status IN ('sent','failed','cancelled') ORDER BY id DESC LIMIT $2",
+        tenant_id, SMS_BREAKER_FAILURES, SMS_BREAKER_PROBE_HOURS)
+    return (len(rows) == SMS_BREAKER_FAILURES and rows[0]["recent"]
+            and all(r["status"] != "sent" and "did not confirm" in (r["last_error"] or "") for r in rows))
+
+
+async def sms_reliable(runner, tenant, phone=None) -> tuple | None:
+    phone = normalize_phone(phone or tenant.get("notify_phone", ""))
+    if (phone and tenant.get("sms_enabled")
+            and await channel_authorization.is_authorized(tenant["id"], "sms_send")
+            and not await sms_unconfirmable(runner, tenant["id"])):
+        return ("sms", phone)
+    return None
+
+
+async def delivery_route(runner, tenant, owner_phone=None, *, avoid=None) -> tuple | None:
+    """Choose the ONE channel an owner notice goes out on. Email is primary. Owner SMS is used only when
+    there is no usable email address and the phone connector is currently confirming texts.
+    ``avoid`` excludes a channel that just failed (used by issue notices)."""
+    if avoid != "email" and is_email(tenant.get("notify_email", "")):
+        return ("email", tenant["notify_email"])
+    if avoid != "sms":
+        return await sms_reliable(runner, tenant, owner_phone)
+    return None
+
+
+async def queue(tenant, subject, body, dedupe, *, connection=None, **_ignored):
+    """A one-off operational notice to the owner (payment received, take-over, appointment booked...).
+
+    One channel, chosen by ``delivery_route``; never a copy on a second channel; deduped on ``dedupe``.
+    Customer enquiries do NOT use this: see ``enquiry_alerts.notify``.
+    """
     subject = automated_mail.redact_security_codes(subject or "")
     body = automated_mail.redact_security_codes(body or "")
-    # Automated / verification mail must never alert the owner, even if a lead slipped through.
-    if automated_mail.classify(_sender_from_alert_body(body), subject, body=body):
-        return []
     runner = connection or db.pool()
-    destinations = []
-    if is_email(tenant.get('notify_email', '')):
-        destinations.append(('email', tenant['notify_email']))
-    phone = normalize_phone(tenant.get('notify_phone', ''))
-    if phone and tenant.get('sms_enabled') and await channel_authorization.is_authorized(tenant['id'], 'sms_send'):
-        destinations.append(('sms', phone))
-    for channel, recipient in destinations:
-        # Coalesce rapid alerts for the same lead on the same channel.
-        #
-        # Deduplication alone cannot do this: the caller's key includes the message text, so that two
-        # genuinely different enquiries are not collapsed. The consequence is one alert per
-        # conversation turn -- a 30-turn enquiry produced 54 texts to the owner. Suppressing a recent
-        # UNDELIVERED alert for the same lead keeps the owner informed without turning a conversation
-        # into a stream of messages. The earlier row still goes out, carrying the dialogue as it stood;
-        # anything after the interval is queued normally, so no enquiry is ever silently dropped.
-        if lead_id is not None:
-            interval = get_settings().owner_alert_min_interval_seconds
-            if interval > 0:
-                # The initial outbox status is the schema default 'pending' (not 'queued').
-                # A first version of this guard matched only ('queued','sending'), so it never
-                # fired in production and a 30-turn conversation still queued 30 alerts per
-                # channel. Treat every undelivered state as in-flight.
-                recent = await runner.fetchval(
-                    "SELECT 1 FROM outbox WHERE tenant_id=$1 AND kind='owner_alert' AND channel=$2 "
-                    "AND lead_id=$3 AND created_at > now() - make_interval(secs => $4) "
-                    "AND status IN ('pending','sending','awaiting_receipt') LIMIT 1",
-                    tenant['id'], channel, lead_id, interval)
-                if recent:
-                    continue
-        await runner.execute(
-            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key,lead_id) "
-            "VALUES($1,'owner_alert',$2,$3,$4,$5,$6,$7) "
-            "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-            tenant['id'], channel, recipient, subject, sms_body(subject, body) if channel == "sms" else body,
-            dedupe + (':sms' if channel == 'sms' else ''), lead_id)
-    _spawn_push(tenant, subject, body, dedupe)
-    return [channel for channel, _ in destinations]
+    route = await delivery_route(runner, tenant)
+    if route is None:
+        return []
+    channel, recipient = route
+    text = sms_body(subject, body) if channel == "sms" else body
+    await runner.execute(
+        "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) "
+        "VALUES($1,'owner_alert',$2,$3,$4,$5,$6) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+        tenant["id"], channel, recipient, subject, text, dedupe)
+    spawn_push(tenant, subject, body, dedupe)
+    return [channel]
 
 
 _push_tasks: set = set()
 
 
-def _spawn_push(tenant, subject, body, dedupe) -> None:
+def spawn_push(tenant, subject, body, dedupe) -> None:
     """Also push the alert to the owner's devices, in the background so it never delays or fails the alert."""
     try:
         task = asyncio.get_running_loop().create_task(webpush.notify(tenant, subject, body, dedupe))

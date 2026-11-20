@@ -128,7 +128,7 @@ async def _finish_enquiry(c, session, tenant):
             "INSERT INTO leads(tenant_id,conversation_id,channel,source_key,message) VALUES($1,$2,'voice',$3,$4) RETURNING *",
             tenant['id'], session['conversation_id'], 'voice:'+str(session['id']), caller[:1000])
     transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+(clean_speech(r['content']) if r['role']=='user' else r['content']) for r in turns)
-    from . import owner_notifications
+    from . import enquiry_alerts
     recording = await c.fetchval(
         'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
         tenant['id'], session['id'], session['conversation_id'])
@@ -139,8 +139,8 @@ async def _finish_enquiry(c, session, tenant):
                         digest(token), session['id'], tenant['id'])
         body += '\n\nRecording (private link expires in 24 hours): ' + get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
     body += '\n\nThe complete enquiry is saved in your Concierge CRM.'
-    await owner_notifications.queue(tenant, 'Voice enquiry for ' + tenant['name'], body,
-                                    'voice-finished:' + str(session['id']), lead_id=lead['id'], connection=c)
+    await enquiry_alerts.notify(tenant, 'voice', body, lead_id=lead['id'], conversation_id=session['conversation_id'],
+                                connection=c, finalize=True)
     await c.execute('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1', session['id'])
     return {'ok': True, 'lead_id': str(lead['id'])}
 
