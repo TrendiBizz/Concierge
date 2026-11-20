@@ -69,6 +69,9 @@ with TestClient(app) as client:
     check("injection remains inert untrusted text",row["inbound_body"]==payload["text"] and row["reply_body"].startswith("REVIEW REQUIRED") and row["status"]=="draft")
     check("cross-tenant mismapping rejected",send({**payload,"recipient":"elsewhere@example.test"}).status_code==404)
     check("oversized event rejected",send({**payload,"text":"X"*40000}).status_code==413)
+    css_heavy="<style>"+"a{color:red}\n"*3000+"</style><p>Please call me back about the quote.</p>"
+    check("stylesheet-heavy HTML mail is cleaned, then accepted",
+          len(css_heavy)>20000 and send({**payload,"message_id":"sample-css","text":css_heavy}).status_code==200)
     check("malformed sender rejected",send({**payload,"message_id":"sample-002","sender":"not-an-email"}).status_code==400)
     check("no outbound emails created",client.portal.call(lambda:pool.fetchval("SELECT count(*) FROM outbox WHERE kind='approved_reply'"))==0)
 print(f"{count}/{count} Cloudflare ingress checks passed")

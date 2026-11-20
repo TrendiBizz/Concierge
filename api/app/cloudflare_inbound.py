@@ -167,7 +167,9 @@ async def handle(request: Request) -> dict:
             raise ValueError("Invalid fields")
         # The Worker's HTML fallback leaves stylesheet text and quoted-printable escapes in `text`.
         # Cleaning here fixes the stored draft, the enquiry and the owner's notification at once.
-        payload["text"] = inbound_text.clean_inbound_text(payload["text"])
+        # limit=20001, not the default 20000: the cleaner truncates, so with the default the size
+        # check below could never see an oversized body and it was silently cut and accepted.
+        payload["text"] = inbound_text.clean_inbound_text(payload["text"], limit=20001)
         envelope_from = payload.get("envelope_from")
         if envelope_from is not None and (not isinstance(envelope_from, str)
                                           or len(envelope_from) > 320):

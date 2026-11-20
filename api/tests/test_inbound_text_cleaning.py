@@ -72,7 +72,8 @@ def test_cleaning_is_wired_into_the_inbound_path_and_the_enquiry():
     import pathlib
     app = pathlib.Path(__file__).resolve().parents[1] / "app"
     inbound = (app / "cloudflare_inbound.py").read_text()
-    assert 'payload["text"] = inbound_text.clean_inbound_text(payload["text"])' in inbound
+    # limit=20001 so the 413 size check that follows can still see an oversized body
+    assert 'payload["text"] = inbound_text.clean_inbound_text(payload["text"], limit=20001)' in inbound
     stored = (app / "inbound_email.py").read_text()
     assert "text_body = inbound_text.clean_inbound_text(text_body)" in stored
     # an automated message must not be presented as a customer enquiry
