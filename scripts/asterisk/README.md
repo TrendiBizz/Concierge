@@ -105,29 +105,33 @@ Ops gotchas learned the hard way:
 - `ChanSpy` needs `app_chanspy.so`, which the Debian/Ubuntu `asterisk` package loads by default.
   Verify with `asterisk -rx "module show like chanspy"`.
 
-## Rust telephone shell (optional, Python is the default and the fallback)
+## Rust telephone shell (live container; Python bridge is the fallback)
 
-`concierge-stack/core-rs` builds `asterisk_shell`, which owns the AudioSocket listeners, 20 ms pacing and the Grok
-websocket. The database, permissions, recordings, CRM and tools stay in Python, reached over `/internal/voice/*`
-(`api/app/voice_internal.py`). Why: steady frame pacing with no interpreter pauses during a call.
+The `shell` service in `scripts/vps/compose.yml` runs `asterisk_shell` (`concierge-stack/core-rs`) at
+172.30.91.3 on the phone network. It owns the AudioSocket listeners, 20 ms pacing and the Grok websocket; the
+database, permissions, recordings, CRM and tools stay in Python, reached over `/internal/voice/*`
+(`api/app/voice_internal.py`). The Python bridge keeps running at .4 the whole time. Which one answers calls is
+decided by one thing only: the host in the dialplan's `AudioSocket(...)` line.
 
-1. Set `INTERNAL_TOKEN` in the private API env file and redeploy the API (the internal API answers 503 while it is unset).
-   Block `/internal/` at the public proxy; it is for the private compose network only.
-2. Export the same value as `INTERNAL_TOKEN`, plus `XAI_API_KEY`, for the compose command.
-3. Swap only the bridge:
-
-```
-docker compose -f scripts/asterisk/compose.yml -f scripts/asterisk/compose.rust.yml up -d --build bridge
-```
-
-Rollback (restores the Python bridge on the same ports):
+Switch a line to the Rust shell, on the VPS as root (changes only `generated/extensions.conf` and reloads the
+dialplan; no restart, no data change; refuses if a call is in progress):
 
 ```
-docker compose -f scripts/asterisk/compose.yml up -d --force-recreate bridge
+bash scripts/asterisk/cutover_to_rust_shell.sh
 ```
 
-Run one bridge per route port, never both. Before switching a real business, place a softphone call and check: audio
-both ways, transcript saved, consent-gated recording, recording withdrawal, `end_call`, and the owner SMS queued once.
+Undo (restores the backup the apply printed, reloads the dialplan; the Python bridge is still running):
+
+```
+bash scripts/asterisk/cutover_to_rust_shell.sh --rollback /opt/trendi/backups/rust-shell-cutover-<timestamp>
+```
+
+After switching, place one call and check: the greeting, audio both ways, a transcript in the CRM, recording only after
+explicit consent, `end_call`, and the owner SMS queued once.
+
+Proof that the shell and the real Python API agree: `QA/verification/asterisk_rust_shell_integration.py` runs the
+compiled shell against the real FastAPI app and a real PostgreSQL database with a fake Grok and fake callers
+(see its docstring for how to run it).
 
 ## Behavior
 
