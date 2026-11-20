@@ -107,7 +107,7 @@ fn wide_per_enquiry(cents: i128, enquiries: i64) -> i128 {
 
 // Python divides integer operands before rounding to binary64. Casting the
 // operands first introduces a second rounding for aggregates above 2^53.
-fn integer_ratio(n: i128, d: i128) -> f64 {
+pub(crate) fn integer_ratio(n: i128, d: i128) -> f64 {
     if n == 0 {
         return 0.0;
     }

@@ -1,4 +1,4 @@
-//! Acceptance tests mapped to the framework's test table (HERMES_CONCIERGE_FRAMEWORK §11). Each asserts a decision or a
+//! Acceptance tests mapped to the action gateway framework's test table. Each asserts a decision or a
 //! ledger state, not merely "no panic".
 use action_gateway::capability::{mint, verify, CapError, Capability, MAX_TTL_SECS};
 use action_gateway::ledger::{

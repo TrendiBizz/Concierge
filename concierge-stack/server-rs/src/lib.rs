@@ -31,6 +31,7 @@ mod portability;
 mod products;
 mod releases;
 mod reports;
+pub mod sla;
 mod tasks;
 mod templates;
 mod timeline;

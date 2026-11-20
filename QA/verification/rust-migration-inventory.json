@@ -3,10 +3,10 @@
   "cutover_ready": false,
   "counts": {
     "mounted_python_routes": 342,
-    "registered_rust_matches": 54,
-    "missing_rust_routes": 288,
+    "registered_rust_matches": 64,
+    "missing_rust_routes": 278,
     "python_background_task_sites": 18,
-    "unverified_worker_replacements": 17,
+    "unverified_worker_replacements": 16,
     "python_voice_modules": 7
   },
   "routes": [
@@ -1430,13 +1430,13 @@
       "method": "POST",
       "path": "/owner/install-request",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/install-requests",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
@@ -1454,25 +1454,25 @@
       "method": "GET",
       "path": "/owner/version",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/version",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/release",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/release/seen",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
@@ -1550,7 +1550,7 @@
       "method": "GET",
       "path": "/owner/export/contacts",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
@@ -1562,19 +1562,19 @@
       "method": "GET",
       "path": "/owner/webhooks",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/webhooks",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "DELETE",
       "path": "/owner/webhooks",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
@@ -2070,6 +2070,30 @@
     },
     {
       "method": "GET",
+      "path": "/owner/install-requests"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/install-request"
+    },
+    {
+      "method": "GET",
+      "path": "/version"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/version"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/release"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/release/seen"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/widget-config"
     },
     {
@@ -2242,6 +2266,22 @@
     },
     {
       "method": "GET",
+      "path": "/owner/export/contacts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/webhooks"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/webhooks"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/webhooks"
+    },
+    {
+      "method": "GET",
       "path": "/owner/revenue"
     },
     {
@@ -2367,8 +2407,8 @@
       "source": "api/app/main.py",
       "line": 84,
       "call": "asyncio.create_task(sla.run_forever(stop))",
-      "verified_rust_replacement": false,
-      "evidence": null
+      "verified_rust_replacement": true,
+      "evidence": "QA/verification/rust_sla_scenarios.py"
     },
     {
       "source": "api/app/main.py",

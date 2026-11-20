@@ -7,10 +7,12 @@ async fn main() {
     if !args.is_empty()
         && !matches!(
             args.first().map(String::as_str),
-            Some("--migrate-only" | "--purge-voice-once" | "--prune-owner-auth")
+            Some(
+                "--migrate-only" | "--purge-voice-once" | "--check-sla-once" | "--prune-owner-auth"
+            )
         )
     {
-        eprintln!("usage: concierge-server [--migrate-only | --purge-voice-once | --prune-owner-auth [--apply] [--batch-size N]]");
+        eprintln!("usage: concierge-server [--migrate-only | --purge-voice-once | --check-sla-once | --prune-owner-auth [--apply] [--batch-size N]]");
         std::process::exit(2);
     }
     if args.first().is_some_and(|a| a == "--prune-owner-auth") {
@@ -69,6 +71,16 @@ async fn main() {
         eprintln!("schema migration complete");
         return;
     }
+    if args == ["--check-sla-once"] {
+        match concierge_server::sla::check_once(&state).await {
+            Ok(queued) => println!("{queued}"),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     if args == ["--purge-voice-once"] {
         if let Err(e) = concierge_server::maintenance::purge_voice(&state).await {
             eprintln!("{e}");
@@ -79,9 +91,27 @@ async fn main() {
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let worker = tokio::spawn(concierge_server::maintenance::voice_worker(
         state.clone(),
-        stop_rx,
+        stop_rx.clone(),
         std::time::Duration::from_secs(3600),
     ));
+    let sla_worker = if concierge_core::pydantic::parse_bool(&serde_json::json!(std::env::var(
+        "OUTBOX_ENABLED"
+    )
+    .unwrap_or_else(|_| "true".into())))
+    .unwrap_or(false)
+    {
+        let interval = std::env::var("SLA_POLL_SECONDS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(60);
+        Some(tokio::spawn(concierge_server::sla::worker(
+            state.clone(),
+            stop_rx,
+            std::time::Duration::from_secs(interval),
+        )))
+    } else {
+        None
+    };
     let listener = tokio::net::TcpListener::bind(&bind).await.expect("bind");
     eprintln!("concierge-server listening on {bind}");
     axum::serve(
@@ -105,4 +135,7 @@ async fn main() {
     .await
     .expect("serve");
     worker.await.expect("retention worker");
+    if let Some(worker) = sla_worker {
+        worker.await.expect("SLA worker");
+    }
 }

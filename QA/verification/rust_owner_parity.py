@@ -295,6 +295,8 @@ def main():
                     sql(DB,f"DELETE FROM products WHERE id='{pid}'")
                 assert normalised[0]==normalised[1],normalised
                 print("PASS: product validation/CRUD, tenant and role isolation, owner-only costs, concurrent stock updates and audit records")
+                from rust_install_scenarios import verify as verify_installs
+                verify_installs(py,rs,DB,sql,request)
                 from rust_release_scenarios import verify as verify_releases
                 verify_releases(py,rs,DB,sql,request)
                 from rust_assignment_scenarios import verify as verify_assignments
@@ -317,6 +319,8 @@ def main():
                 verify_tasks(py,rs,DB,sql,request)
                 from rust_action_scenarios import verify
                 verify(py,rs,DB,sql,request)
+                from rust_sla_scenarios import verify as verify_sla
+                verify_sla(DB,sql,environment,BIN,work)
                 from rust_maintenance_scenarios import verify as verify_maintenance
                 verify_maintenance(DB,sql,environment,BIN,work)
                 for path in ("/owner/me","/owner/revenue"):

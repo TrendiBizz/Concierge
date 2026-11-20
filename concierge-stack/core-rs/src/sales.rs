@@ -38,7 +38,7 @@ pub fn effective_value(lead: &Value, average_cents: Option<i64>) -> i64 {
 
 pub fn forecast(rows: &[Value], average_cents: Option<i64>, per_stage: usize) -> Value {
     let mut counts = [0i64; 5];
-    let mut values = [0i64; 5];
+    let mut values = [0i128; 5];
     let mut leads: Vec<Vec<Value>> = vec![Vec::new(); 5];
     for lead in rows {
         let status = lead
@@ -49,7 +49,7 @@ pub fn forecast(rows: &[Value], average_cents: Option<i64>, per_stage: usize) ->
         let idx = STAGES.iter().position(|s| *s == status).unwrap();
         let value = effective_value(lead, average_cents);
         counts[idx] += 1;
-        values[idx] += value;
+        values[idx] += i128::from(value);
         if leads[idx].len() < per_stage {
             let mut m = lead.as_object().cloned().unwrap_or_default();
             m.insert("effective_value_cents".into(), json!(value));
@@ -63,7 +63,7 @@ pub fn forecast(rows: &[Value], average_cents: Option<i64>, per_stage: usize) ->
             json!({"count": counts[i], "value_cents": values[i], "leads": leads[i]}),
         );
     }
-    let open_value: i64 = OPEN_STAGES
+    let open_value: i128 = OPEN_STAGES
         .iter()
         .map(|s| values[STAGES.iter().position(|x| x == s).unwrap()])
         .sum();
@@ -75,14 +75,18 @@ pub fn forecast(rows: &[Value], average_cents: Option<i64>, per_stage: usize) ->
         odds_map.insert(k.into(), json!(v));
     }
     json!({
-        "stages": stages, "open_value_cents": open_value, "weighted_value_cents": weighted_f.round_ties_even() as i64,
+        "stages": stages, "open_value_cents": open_value, "weighted_value_cents": weighted_f.round_ties_even() as i128,
         "won_value_cents": values[3], "odds": odds_map,
     })
 }
 
 /// `f"${cents / 100:,.0f}"`.
 pub fn money(cents: i64) -> String {
-    let rounded = format!("{:.0}", cents as f64 / 100.0);
+    money_wide(i128::from(cents))
+}
+
+pub fn money_wide(cents: i128) -> String {
+    let rounded = format!("{:.0}", crate::revenue::integer_ratio(cents, 100));
     let (neg, digits) = match rounded.strip_prefix('-') {
         Some(d) => (true, d),
         None => (false, rounded.as_str()),
@@ -104,9 +108,9 @@ pub struct Summary {
     pub booked: i64,
     pub won: i64,
     pub lost: i64,
-    pub won_value_cents: i64,
-    pub open_value_cents: i64,
-    pub weighted_value_cents: i64,
+    pub won_value_cents: i128,
+    pub open_value_cents: i128,
+    pub weighted_value_cents: i128,
     pub overdue_todos: i64,
     pub leads_waiting: Option<i64>,
 }
@@ -124,13 +128,13 @@ pub fn digest_text(business: &str, s: &Summary) -> (String, String) {
         format!(
             "Won: {} ({})   Lost: {}",
             s.won,
-            money(s.won_value_cents),
+            money_wide(s.won_value_cents),
             s.lost
         ),
         format!(
             "Open pipeline: {}   Weighted: {}",
-            money(s.open_value_cents),
-            money(s.weighted_value_cents)
+            money_wide(s.open_value_cents),
+            money_wide(s.weighted_value_cents)
         ),
         format!("To-dos overdue: {}", s.overdue_todos),
     ];

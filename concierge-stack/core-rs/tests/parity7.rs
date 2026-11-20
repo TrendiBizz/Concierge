@@ -155,9 +155,9 @@ fn sales_forecast_money_and_digest_match_python() {
             booked: s.booked,
             won: s.won,
             lost: s.lost,
-            won_value_cents: s.won_value_cents,
-            open_value_cents: s.open_value_cents,
-            weighted_value_cents: s.weighted_value_cents,
+            won_value_cents: s.won_value_cents.into(),
+            open_value_cents: s.open_value_cents.into(),
+            weighted_value_cents: s.weighted_value_cents.into(),
             overdue_todos: s.overdue_todos,
             leads_waiting: s.leads_waiting,
         };
