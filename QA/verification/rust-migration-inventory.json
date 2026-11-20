@@ -3,8 +3,8 @@
   "cutover_ready": false,
   "counts": {
     "mounted_python_routes": 342,
-    "registered_rust_matches": 30,
-    "missing_rust_routes": 312,
+    "registered_rust_matches": 47,
+    "missing_rust_routes": 295,
     "python_background_task_sites": 18,
     "python_voice_modules": 7
   },
@@ -1285,79 +1285,79 @@
       "method": "GET",
       "path": "/owner/companies",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/companies",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PATCH",
       "path": "/owner/companies/{company_id}",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "DELETE",
       "path": "/owner/companies/{company_id}",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/company",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/assignee",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/crm/leads/{lead_id}/assignee",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/contacts/bulk-assign",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/reports/export.csv",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/email-templates",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/email-templates",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PATCH",
       "path": "/owner/email-templates/{template_id}",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "DELETE",
       "path": "/owner/email-templates/{template_id}",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PATCH",
@@ -1489,25 +1489,25 @@
       "method": "GET",
       "path": "/owner/business",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/business",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/payment-settings",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/payment-settings",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
@@ -2142,6 +2142,74 @@
     {
       "method": "POST",
       "path": "/owner/auth/code/verify"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/companies"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/companies"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/companies/:company_id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/companies/:company_id"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/:case_key/company"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/:case_key/assignee"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/crm/leads/:lead_id/assignee"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/contacts/bulk-assign"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-templates"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-templates"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/email-templates/:template_id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/email-templates/:template_id"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/reports/export.csv"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/business"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/business"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/payment-settings"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/payment-settings"
     },
     {
       "method": "GET",

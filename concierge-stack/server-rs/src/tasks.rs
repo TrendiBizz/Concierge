@@ -13,8 +13,7 @@ fn can_edit(u: &owner::User) -> bool {
     matches!(u.role.as_str(), "owner" | "editor")
 }
 fn id(raw: &str) -> Result<i64, &'static str> {
-    raw.parse()
-        .map_err(|_| "Task id is not valid.")
+    raw.parse().map_err(|_| "Task id is not valid.")
 }
 fn date(v: &Value) -> Option<chrono::DateTime<chrono::Utc>> {
     v.as_str()

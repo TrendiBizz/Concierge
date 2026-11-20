@@ -19,11 +19,15 @@ use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 mod actions;
 mod assignments;
+mod business;
 mod companies;
+mod contacts;
+pub mod maintenance;
 mod owner;
 mod owner_sessions;
 mod owner_validation;
 mod products;
+mod reports;
 mod tasks;
 mod templates;
 
@@ -1204,6 +1208,24 @@ pub fn app(state: State) -> Router {
             axum::routing::patch(templates::update)
                 .delete(templates::delete)
                 .fallback(|| async { method_not_allowed("PATCH") }),
+        )
+        .route("/owner/reports/export.csv", get_only(reports::export))
+        .route(
+            "/owner/business",
+            get_only(business::get).put(business::put),
+        )
+        .route(
+            "/owner/payment-settings",
+            get_only(business::payment_get).put(business::payment_put),
+        )
+        .route("/owner/contacts", get_only(contacts::listing))
+        .route(
+            "/owner/contacts/:case_key/addresses",
+            get_only(contacts::addresses).post(contacts::add),
+        )
+        .route(
+            "/owner/contacts/:case_key/addresses/:address_id",
+            axum::routing::delete(contacts::remove),
         )
         .route("/owner/revenue", get_only(owner::revenue_report))
         .route(

@@ -299,6 +299,12 @@ def main():
                 verify_assignments(py,rs,DB,sql,request)
                 from rust_company_scenarios import verify as verify_companies
                 verify_companies(py,rs,DB,sql,request)
+                from rust_contact_scenarios import verify as verify_contacts
+                verify_contacts(py,rs,DB,sql,request)
+                from rust_business_scenarios import verify as verify_business
+                verify_business(py,rs,DB,sql,request)
+                from rust_report_scenarios import verify as verify_reports
+                verify_reports(py,rs,DB,sql,request)
                 from rust_template_scenarios import verify as verify_templates
                 verify_templates(py,rs,DB,sql,request)
                 from rust_task_scenarios import verify as verify_tasks

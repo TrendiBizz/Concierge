@@ -44,8 +44,7 @@ pub(crate) fn validate(value: &Value, model: &str) -> Result<Value, String> {
                 let field = e
                     .loc
                     .rsplit('.')
-                    .next()
-                    .filter(|s| !s.is_empty())
+                    .find(|s| !s.is_empty() && !["body", "query", "path"].contains(s))
                     .unwrap_or("value");
                 let label = match field {
                     "token" => "Invitation link".into(),
@@ -68,7 +67,11 @@ pub(crate) fn validate(value: &Value, model: &str) -> Result<Value, String> {
                     match e.ty {
                         "missing" => format!("{label} is required."),
                         "string_too_short" | "string_too_long" => {
-                            match fields.iter().find(|f| f.name == field).map(|f| &f.ty) {
+                            match fields
+                                .iter()
+                                .find(|f| f.name == e.loc.rsplit('.').next().unwrap_or(field))
+                                .map(|f| &f.ty)
+                            {
                                 Some(Ty::Str { min, .. }) if e.ty == "string_too_short" => {
                                     format!("{label} must be at least {min} characters.")
                                 }

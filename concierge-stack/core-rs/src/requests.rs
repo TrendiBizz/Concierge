@@ -292,6 +292,33 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             false,
         ),
         "MarketingConsent" => (vec![b("consent"), s("basis").len(5, 300)], false),
+        "BusinessDetails" => (
+            vec![
+                s("name").len(1, 160),
+                s("gst_number").len(0, 32).dflt(json!("")),
+                s("nzbn").len(0, 32).dflt(json!("")),
+                s("business_address").len(0, 500).dflt(json!("")),
+                s("business_phone").len(0, 64).dflt(json!("")),
+                s("quote_terms").len(0, 4000).dflt(json!("")),
+                Fd::int("quote_valid_days", 1, 365).dflt(json!(30)),
+                b("allow_deposit").dflt(json!(true)),
+                Fd::int("deposit_percent", 0, 100).dflt(json!(50)),
+                Fd::int("invoice_payment_terms_days", 0, 120).dflt(json!(7)),
+            ],
+            true,
+        ),
+        "PaymentSettings" => (
+            vec![s("instructions").dflt(json!("")), s("url").dflt(json!(""))],
+            false,
+        ),
+        "AddressIn" => (
+            vec![
+                lit("kind", &["phone", "email"]),
+                s("value").len(1, 200),
+                s("label").len(0, 60).dflt(json!("")),
+            ],
+            false,
+        ),
         "TemplateBody" => (
             vec![
                 s("name").len(1, 120),
