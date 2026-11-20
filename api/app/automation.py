@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import casetimeline, events, outbox, sales, scoring, tasks
+from . import casetimeline, enquiry_alerts, events, outbox, sales, scoring, tasks
 from .config import get_settings
 from .contact import is_email, normalize_phone
 
@@ -82,7 +82,9 @@ async def on_lead_created(tenant: dict, lead: dict, *, message_key: str | None =
         if automated_mail.classify(lead.get("email") or "", alert_subject, body=alert_body):
             log.info("suppressed owner alert for automated lead %s", lead.get("id"))
         else:
-            await _owner_alert(tenant, alert_subject, alert_body, f"lead:{lead['id']}:owner")
+            await enquiry_alerts.notify(
+                tenant, lead["channel"] or "", lead["message"] or "", lead_id=lead["id"],
+                contact={"name": lead["name"], "email": lead["email"], "phone": lead["phone"]})
 
     await lead_followup(tenant, lead)
 

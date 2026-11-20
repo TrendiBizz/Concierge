@@ -18,7 +18,7 @@ import uuid
 
 import websockets
 
-from . import (asterisk_ami, call_control, channel_authorization, convo, db, enquiries, events, tenants, voice,
+from . import (asterisk_ami, call_control, channel_authorization, convo, db, enquiries, enquiry_alerts, events, tenants, voice,
                voice_records)
 from .config import get_settings
 from .rag import build_system_prompt
@@ -542,12 +542,11 @@ async def finish(tenant, call_id, conversation, status, record_session=None, rea
                 # The managed-setup row is optional; without this fallback a real
                 # call would notify only by email and silently skip the owner SMS.
                 owner = owner or tenant.get('notify_phone')
-                if owner:
-                    await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,dedupe_key) VALUES($1,'owner_alert','sms',$2,$3,$4) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], owner, f"{tenant['name']} — new phone message:\n{text[:1100]}{tail}", call_id+':owner')
-                if tenant.get('notify_email'):
-                    await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'owner_alert','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000] + tail, call_id+':owner-email')
+                # Same path as every other owner alert: it joins the call's start alert (one alert per
+                # call, held until now), gets a distinct subject and honours the SMS breaker.
+                await enquiry_alerts.notify(
+                    tenant, 'phone', text[:24000] + tail, lead_id=lead['id'] if lead else None,
+                    conversation_id=conversation, connection=c, finalize=True, owner_phone=owner)
             await c.execute('UPDATE phone_calls SET status=$3,ended_at=now(),failure_reason=$4 WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status, reason[:500])
 
 

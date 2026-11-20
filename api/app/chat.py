@@ -5,7 +5,7 @@ import json
 import logging
 from types import SimpleNamespace
 
-from . import casetimeline, convo, db, guard, llm, enquiries, owner_notifications, tenant_pause
+from . import casetimeline, convo, db, guard, llm, enquiries, enquiry_alerts, tenant_pause
 import hashlib
 from .rag import build_system_prompt, retrieve
 from .tools import chat_tools, run_tool
@@ -211,8 +211,7 @@ async def run_turn(
         dialogue = '\n\n'.join(('Enquirer' if row['role']=='user' else 'Concierge') + ': ' + row['content'] for row in rows)
         lead = await db.pool().fetchval('SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], conversation_id)
         key = hashlib.sha256((str(conversation_id) + message + reply).encode()).hexdigest()
-        await owner_notifications.queue(tenant, channel.title() + ' conversation for ' + tenant['name'], dialogue,
-                                        f"dialogue:{tenant['id']}:{key}", lead_id=lead)
+        await enquiry_alerts.notify(tenant, channel, dialogue, lead_id=lead, conversation_id=conversation_id)
     return {
         "reply": reply,
         "lead_captured": bool(ctx.get("lead_captured")),
@@ -366,9 +365,7 @@ async def run_turn_stream(
         "SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1",
         tenant["id"], conversation_id)
     key = hashlib.sha256((str(conversation_id) + message + reply).encode()).hexdigest()
-    await owner_notifications.queue(
-        tenant, channel.title() + " conversation for " + tenant["name"], dialogue,
-        f"dialogue:{tenant['id']}:{key}", lead_id=lead)
+    await enquiry_alerts.notify(tenant, channel, dialogue, lead_id=lead, conversation_id=conversation_id)
     yield {
         "type": "done",
         "conversation_id": conversation_id,

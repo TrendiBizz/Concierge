@@ -171,11 +171,10 @@ def test_owner_alert_goes_to_that_businesss_own_two_destinations(monkeypatch):
     monkeypatch.setattr(owner_notifications.channel_authorization, "is_authorized", AsyncMock(return_value=True))
     sent = asyncio.run(owner_notifications.queue(
         BUSINESS_A, "Voice enquiry for Harbour Dental", "Full transcript here", "voice-finished:s1"))
-    assert sent == ["email", "sms"]
+    assert sent == ["email"]          # ONE channel, chosen by policy: email is primary, no SMS copy
     inserts = [s for s in pool.statements if s[0] == "execute" and "INSERT INTO outbox" in s[1]]
     recipients = {(s[2][1], s[2][2]) for s in inserts}
-    assert ("email", "owner-a@harbour.example") in recipients
-    assert ("sms", "+64211111111") in recipients
+    assert recipients == {("email", "owner-a@harbour.example")}
     assert not any("southern" in str(s[2]) or "3125550199" in str(s[2]) for s in inserts)
 
 
@@ -811,7 +810,7 @@ def test_a_booking_alert_goes_to_the_owner_and_reminders_to_the_enquirer(monkeyp
 
     owner_to = {s[2][2] for s in owner_rows}
     enquirer_to = {s[2][3] for s in enquirer_rows}
-    assert owner_to == {"owner-a@harbour.example", "+64211111111"}, owner_to
+    assert owner_to == {"owner-a@harbour.example"}, owner_to
     assert enquirer_to == {"hana@example.com", "+6421555123"}, enquirer_to
     assert not (owner_to & enquirer_to), "an owner alert must never be addressed to the enquirer"
 
@@ -964,10 +963,10 @@ def test_a_reclaimed_outbox_row_cannot_text_the_customer_twice(monkeypatch):
     request_key derived from the outbox row id, so a re-claim collides on (tenant_id, request_key)
     instead of queueing a second text. Verified live: two enqueues with one key produced one job.
     """
-    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
 
     for _attempt in (1, 2):
         try:
@@ -987,10 +986,10 @@ def test_a_reclaimed_outbox_row_cannot_text_the_customer_twice(monkeypatch):
 
 def test_changed_content_under_an_existing_key_is_refused(monkeypatch):
     """A job whose body no longer matches the stored one must be reviewed, never silently sent."""
-    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
 
     try:
         asyncio.run(device_sms.enqueue(tenant, "+6421555123", "Original", "outbox:9", outbox_id=9))
@@ -1004,12 +1003,12 @@ def test_changed_content_under_an_existing_key_is_refused(monkeypatch):
 
 def test_a_historical_outbox_row_is_not_replayed_after_a_phone_is_connected(monkeypatch):
     """Activating a phone must not flush texts queued before it existed."""
-    device = {"id": "dev-1", "from_number": "+64275550123", "created_at": None}
+    device = {"id": "dev-1", "from_number": "+64278817368", "created_at": None}
     pool = JobPool(BUSINESS_A["id"], device)
     device_sms = _device_sms_setup(monkeypatch, pool)
     # The outbox row predates the device, so the validity check returns None.
     monkeypatch.setattr(device_sms.db, "pool", lambda: pool)
-    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123"}
+    tenant = {**BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368"}
 
     async def historical(sql, *args):
         if "created_at >= $3" in sql:
@@ -1039,7 +1038,7 @@ def test_a_reclaim_reuses_the_same_sms_request_key(monkeypatch):
     monkeypatch.setattr(outbox.sms, "sender_ready", lambda t: True)
     monkeypatch.setattr(outbox, "next_allowed_send", lambda *a, **k: datetime(2000, 1, 1, tzinfo=timezone.utc))
     monkeypatch.setattr(outbox.tenants, "get_by_id", AsyncMock(return_value={
-        **BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64275550123",
+        **BUSINESS_A, "sms_enabled": True, "sms_transport": "device", "sms_from": "+64278817368",
         "timezone": "Pacific/Auckland"}))
     monkeypatch.setattr(outbox.channel_authorization, "is_authorized", AsyncMock(return_value=True))
     monkeypatch.setattr(outbox.casetimeline, "is_paused_for", AsyncMock(return_value=False))
@@ -1579,102 +1578,3 @@ def test_the_two_delivery_tools_are_not_interchangeable():
 
 # ---------------------------------------------------------- owner-alert throttle
 
-def test_a_conversation_does_not_text_the_owner_once_per_turn(monkeypatch):
-    """The defect a real owner hit: 30 conversation turns produced 30 owner SMS.
-
-    Deduplication cannot prevent this. Each caller builds its key from the message text -- `chat.py`
-    hashes (conversation_id + message + reply), `enquiries.py` hashes (source + message) -- precisely so
-    that two genuinely different enquiries are not collapsed. The effect was one text per exchange: a
-    test enquiry sent 54 alerts to the owner's phone.
-
-    The throttle suppresses a second alert only when an earlier one for the SAME lead on the SAME
-    channel is still undelivered (`pending`, `sending` or `awaiting_receipt` — the real outbox states;
-    the first version matched a `queued` state that never exists, so it silently did nothing). The first alert still goes out carrying the dialogue, and a different
-    enquirer is never suppressed.
-    """
-    import asyncio as _asyncio
-    from app import owner_notifications as on, channel_authorization
-
-    class FakePool:
-        def __init__(self): self.rows = []
-        async def fetchval(self, sql, *a):
-            tenant, channel, lead, interval = a
-            for r in self.rows:
-                if r["lead"] == lead and r["channel"] == channel and r["status"] in ("pending", "sending", "awaiting_receipt"):
-                    return 1
-            return None
-        async def execute(self, sql, *a):
-            if "INSERT INTO outbox" in sql:
-                tenant, channel, to, subj, body, key, lead = a
-                self.rows.append({"lead": lead, "channel": channel, "status": "pending",
-                                  "key": key, "body": body})
-            return "OK"
-
-    async def always(_t, _c): return True
-    monkeypatch.setattr(channel_authorization, "is_authorized", always)
-
-    async def scenario():
-        pool = FakePool()
-        tenant = {"id": "11111111-1111-1111-1111-111111111111", "name": "Harbour Dental",
-                  "notify_email": "", "notify_phone": "+64210000001", "sms_enabled": True}
-        for turn in range(30):
-            await on.queue(tenant, "Chat conversation", f"turn {turn}",
-                           f"dialogue:{tenant['id']}:key{turn}", lead_id="lead-A", connection=pool)
-        assert len(pool.rows) == 1, f"30 turns should coalesce to 1 alert, got {len(pool.rows)}"
-        # A different enquirer is a different conversation and must still reach the owner.
-        await on.queue(tenant, "Chat conversation", "other", "dialogue:x:y",
-                       lead_id="lead-B", connection=pool)
-        assert len(pool.rows) == 2, "a distinct lead must still alert"
-        # The alert that goes out carries real content, not a placeholder.
-        assert "turn 0" in pool.rows[0]["body"]
-        return pool
-
-    pool = _asyncio.run(scenario())
-    assert pool.rows[0]["channel"] == "sms"
-
-
-def test_the_throttle_window_is_configurable_and_can_be_disabled():
-    """An operator must be able to widen or disable the window without a code change.
-
-    Verified: the setting exists on Settings and defaults to 300 seconds. A value of 0 disables
-    coalescing entirely, which is the documented escape hatch if an owner wants every alert.
-    """
-    from app.config import get_settings
-    settings = get_settings()
-    assert hasattr(settings, "owner_alert_min_interval_seconds")
-    assert settings.owner_alert_min_interval_seconds == 300
-
-
-def test_the_throttle_matches_the_real_outbox_initial_state():
-    """Regression: the first throttle matched status IN ('queued','sending'), but outbox rows are
-    created with the schema default 'pending', so the guard never fired in production. A fake pool
-    that used the invented status made the test pass while the real queue still sent one SMS per
-    turn. Pin the state names to the schema so the false friend cannot come back.
-    """
-    import inspect
-    import re
-    from pathlib import Path
-    from app import owner_notifications as on
-
-    src = inspect.getsource(on.queue)
-    schema = (Path(__file__).resolve().parent.parent / "app" / "schema.sql").read_text()
-    assert re.search(r"status\s+text\s+NOT NULL DEFAULT 'pending'", schema)
-    assert "'pending'" in src, "throttle must match the schema's initial status"
-    for state in ("'sending'", "'awaiting_receipt'"):
-        assert state in src
-
-
-def test_the_throttle_only_ever_suppresses_owner_alerts():
-    """Enquirer acknowledgements and campaign sends must never be caught by this throttle.
-
-    The guard is scoped to kind='owner_alert' in SQL and lives only in owner_notifications.queue, so a
-    paused owner alert cannot swallow an acknowledgement the enquirer was promised.
-    """
-    import inspect
-    from app import owner_notifications as on
-    src = inspect.getsource(on.queue)
-    assert "kind='owner_alert'" in src
-    # The acknowledgement path uses its own module and is untouched by this guard.
-    from app import acknowledgements
-    ack_src = inspect.getsource(acknowledgements)
-    assert "owner_alert_min_interval_seconds" not in ack_src

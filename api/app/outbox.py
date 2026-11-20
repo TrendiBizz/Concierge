@@ -16,11 +16,11 @@ log = logging.getLogger("concierge.outbox")
 
 MAX_ATTEMPTS = 3
 # Kinds that go to the business owner, not a visitor: never blocked by opt-outs.
-OWNER_KINDS = {"owner_alert"}
+OWNER_KINDS = {"owner_alert", "owner_issue"}
 # Transactional mail the customer has already paid for or asked for. It is not marketing, so the
 # opt-out, pause and channel-authorisation gates do not apply to it — an invoice must not be
 # silently "skipped" because the business had not authorised email sending yet.
-TRANSACTIONAL_KINDS = {"owner_alert", "customer_invoice"}
+TRANSACTIONAL_KINDS = {"owner_alert", "owner_issue", "customer_invoice"}
 
 
 def next_allowed_send(tz: ZoneInfo, when: datetime, start_hour: int = 8, end_hour: int = 21) -> datetime:
@@ -353,10 +353,11 @@ async def run_forever(stop: asyncio.Event) -> None:
                 log.exception("sms receipt reconciliation error")
             try:
                 # Imported here: channel_health imports this module.
-                from . import channel_health
-                await channel_health.escalate_failed_owner_alerts()
+                from . import owner_issues
+                await owner_issues.sweep_undelivered()
+                await owner_issues.sweep_reply_failed()
             except Exception:
-                log.exception("owner alert escalation error")
+                log.exception("owner issue sweep error")
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
         except asyncio.TimeoutError:

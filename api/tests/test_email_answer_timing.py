@@ -17,7 +17,7 @@ def test_email_generation_keeps_the_message_unanswered(monkeypatch):
     monkeypatch.setattr(chat, "build_system_prompt", lambda *a: "Fixture")
     monkeypatch.setattr(chat.convo, "get_or_create", AsyncMock(return_value="conversation"))
     monkeypatch.setattr(chat.convo, "save_message", AsyncMock())
-    monkeypatch.setattr(chat.owner_notifications, "queue", AsyncMock())
+    monkeypatch.setattr(chat.enquiry_alerts, "notify", AsyncMock())
     monkeypatch.setattr(chat.db, "pool", lambda: SimpleNamespace(
         fetch=AsyncMock(return_value=[]), fetchval=AsyncMock(return_value=None)))
     stamp = AsyncMock()
