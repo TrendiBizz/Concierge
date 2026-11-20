@@ -292,6 +292,45 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             false,
         ),
         "MarketingConsent" => (vec![b("consent"), s("basis").len(5, 300)], false),
+        "TemplateBody" => (
+            vec![
+                s("name").len(1, 120),
+                s("subject").len(0, 300).dflt(json!("")),
+                s("body").len(1, 8000),
+            ],
+            false,
+        ),
+        "CompanyBody" => (
+            vec![
+                s("name").len(1, 200),
+                s("domain").len(0, 200).dflt(json!("")),
+                s("notes").len(0, 1000).dflt(json!("")),
+            ],
+            false,
+        ),
+        "CompanyUpdate" => (
+            vec![
+                s("name").len(1, 200).opt(),
+                s("domain").len(0, 200).opt(),
+                s("notes").len(0, 1000).opt(),
+                s("parent_id").opt(),
+            ],
+            false,
+        ),
+        "Assignee" => (vec![s("user_id").opt()], false),
+        "BulkAssign" => (
+            vec![
+                Fd::of(
+                    "case_keys",
+                    Ty::ListStr {
+                        min: 1,
+                        max: Some(200),
+                    },
+                ),
+                s("user_id").opt(),
+            ],
+            false,
+        ),
         "TaskCreate" => (
             vec![
                 s("title").len(1, 200),

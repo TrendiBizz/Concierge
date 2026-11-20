@@ -20,6 +20,10 @@ def verify(py, rs, database, sql, request):
     def call(server, suffix, method="GET", data=None, auth=key):
         return request(server, path + suffix, method=method, data=data, extra_headers=auth)
 
+    invalid_bundles=[{},[],False,{"task_id":"","tenant_id":"bad"},{"task_id":"valid","tenant_id":tid,"actions":[{}]},{"task_id":"valid","tenant_id":tid,"delivery":{"channel":"fax"}},{"task_id":"valid","tenant_id":tid,"unexpected":True}]
+    for payload in invalid_bundles:
+        a,b=call(py,"/execute","POST",payload),call(rs,"/execute","POST",payload)
+        assert a==b,(payload,a,b)
     ctx_path = f"/policy-context?tenant_id={tid}"
     for suffix in (ctx_path, f"/brief?tenant_id={tid}", f"/policy-context?tenant_id={foreign}"):
         a, b = call(py, suffix), call(rs, suffix)

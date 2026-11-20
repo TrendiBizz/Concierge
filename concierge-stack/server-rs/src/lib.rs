@@ -18,11 +18,14 @@ use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 mod actions;
+mod assignments;
+mod companies;
 mod owner;
 mod owner_sessions;
 mod owner_validation;
 mod products;
 mod tasks;
+mod templates;
 
 #[derive(Clone)]
 pub struct Config {
@@ -1161,6 +1164,46 @@ pub fn app(state: State) -> Router {
             "/owner/auth/code/verify",
             axum::routing::post(owner_sessions::verify_code)
                 .fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/companies",
+            get_allow(companies::listing, "GET").post(companies::create),
+        )
+        .route(
+            "/owner/companies/:company_id",
+            axum::routing::patch(companies::update)
+                .delete(companies::delete)
+                .fallback(|| async { method_not_allowed("PATCH") }),
+        )
+        .route(
+            "/owner/contacts/:case_key/company",
+            axum::routing::put(assignments::contact_company)
+                .fallback(|| async { method_not_allowed("PUT") }),
+        )
+        .route(
+            "/owner/contacts/:case_key/assignee",
+            axum::routing::put(assignments::contact_assignee)
+                .fallback(|| async { method_not_allowed("PUT") }),
+        )
+        .route(
+            "/owner/crm/leads/:lead_id/assignee",
+            axum::routing::put(assignments::lead_assignee)
+                .fallback(|| async { method_not_allowed("PUT") }),
+        )
+        .route(
+            "/owner/contacts/bulk-assign",
+            axum::routing::post(assignments::bulk)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/email-templates",
+            get_allow(templates::listing, "GET").post(templates::create),
+        )
+        .route(
+            "/owner/email-templates/:template_id",
+            axum::routing::patch(templates::update)
+                .delete(templates::delete)
+                .fallback(|| async { method_not_allowed("PATCH") }),
         )
         .route("/owner/revenue", get_only(owner::revenue_report))
         .route(

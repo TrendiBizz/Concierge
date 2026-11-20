@@ -12,9 +12,9 @@ use std::collections::HashMap;
 fn can_edit(u: &owner::User) -> bool {
     matches!(u.role.as_str(), "owner" | "editor")
 }
-fn id(raw: &str) -> Result<i64, Response> {
+fn id(raw: &str) -> Result<i64, &'static str> {
     raw.parse()
-        .map_err(|_| detail(422, "Task id is not valid."))
+        .map_err(|_| "Task id is not valid.")
 }
 fn date(v: &Value) -> Option<chrono::DateTime<chrono::Utc>> {
     v.as_str()
@@ -119,7 +119,7 @@ pub(crate) async fn update(
     };
     let id = match id(&raw) {
         Ok(i) => i,
-        Err(r) => return r,
+        Err(r) => return detail(422, r),
     };
     let v = match owner_validation::parse(&bytes, &headers, "TaskUpdate") {
         Ok(v) => v,
@@ -179,7 +179,7 @@ pub(crate) async fn delete(
     };
     let id = match id(&raw) {
         Ok(i) => i,
-        Err(r) => return r,
+        Err(r) => return detail(422, r),
     };
     if !can_edit(&u) {
         return detail(403, "Insufficient permissions");

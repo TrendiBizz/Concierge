@@ -290,6 +290,17 @@ impl Bridge {
             ));
         }
         let parsed: Value = serde_json::from_str(text).map_err(|_| BridgeError::Json)?;
+        fn finite(value: &Value) -> bool {
+            match value {
+                Value::Number(n) => n.as_f64().is_some_and(f64::is_finite),
+                Value::Array(items) => items.iter().all(finite),
+                Value::Object(fields) => fields.values().all(finite),
+                _ => true,
+            }
+        }
+        if !finite(&parsed) {
+            return Err(BridgeError::Unsupported("non-finite JSON number"));
+        }
         let event = parsed.as_object().ok_or(BridgeError::NotObject)?;
         let mut actions = Vec::new();
         let Some(kind) = event.get("type").and_then(Value::as_str) else {
