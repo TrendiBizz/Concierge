@@ -135,6 +135,35 @@
           "item": "https://trendibizz.com/research/ai-crawler-blocking-2026"
         }
       ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does this show that AI crawlers can reach these sites?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. It shows what each site's robots.txt states at the root. Many sites also use a WAF or CDN that can block bots regardless of robots.txt, and this method cannot see that. 6 of the 100 sites refused or challenged even our labelled request."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why are there 94 sites in the robots.txt figures, not 100?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "6 sites answered our request with a 403, a 429 or a bot challenge, so we could not read their robots.txt. We report them separately and never count them as allowing or blocking."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does publishing an llms.txt affect AI mentions, traffic or rankings?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This study does not test that, and we make no claim about it. 35 of 100 sites publish an llms.txt, and having one is a signal of intent, not evidence of any effect."
+          }
+        }
+      ]
     }
   ]
 }</script>
