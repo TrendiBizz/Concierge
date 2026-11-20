@@ -26,10 +26,12 @@ pub mod maintenance;
 mod owner;
 mod owner_sessions;
 mod owner_validation;
+mod portability;
 mod products;
 mod reports;
 mod tasks;
 mod templates;
+mod timeline;
 
 #[derive(Clone)]
 pub struct Config {
@@ -1226,6 +1228,25 @@ pub fn app(state: State) -> Router {
         .route(
             "/owner/contacts/:case_key/addresses/:address_id",
             axum::routing::delete(contacts::remove),
+        )
+        .route(
+            "/owner/contacts/:case_key/timeline",
+            get_only(timeline::get),
+        )
+        .route(
+            "/owner/contacts/:case_key/takeover",
+            axum::routing::put(timeline::contact_takeover),
+        )
+        .route(
+            "/owner/crm/leads/:lead_id/takeover",
+            axum::routing::post(timeline::lead_takeover),
+        )
+        .route("/owner/export/contacts", get_only(portability::export))
+        .route(
+            "/owner/webhooks",
+            get_only(portability::webhook_get)
+                .post(portability::webhook_set)
+                .delete(portability::webhook_delete),
         )
         .route("/owner/revenue", get_only(owner::revenue_report))
         .route(

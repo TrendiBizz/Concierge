@@ -1,4 +1,4 @@
-//! Port of the guard and table list in `owner_maintenance.py`. The bounded DELETE itself runs in Python/SQL.
+//! Port of the guard and table list in `owner_maintenance.py`. The bounded DELETE is implemented by server-rs using the same predicates.
 
 /// The tables pruned, in order, with the constant predicate used for each (never user supplied).
 pub const TABLES: [(&str, &str); 3] = [

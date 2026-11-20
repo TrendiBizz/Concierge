@@ -299,6 +299,10 @@ def main():
                 verify_assignments(py,rs,DB,sql,request)
                 from rust_company_scenarios import verify as verify_companies
                 verify_companies(py,rs,DB,sql,request)
+                from rust_portability_scenarios import verify as verify_portability
+                verify_portability(py,rs,DB,sql,request)
+                from rust_timeline_scenarios import verify as verify_timeline
+                verify_timeline(py,rs,DB,sql,request)
                 from rust_contact_scenarios import verify as verify_contacts
                 verify_contacts(py,rs,DB,sql,request)
                 from rust_business_scenarios import verify as verify_business
@@ -311,6 +315,8 @@ def main():
                 verify_tasks(py,rs,DB,sql,request)
                 from rust_action_scenarios import verify
                 verify(py,rs,DB,sql,request)
+                from rust_maintenance_scenarios import verify as verify_maintenance
+                verify_maintenance(DB,sql,environment,BIN,work)
                 for path in ("/owner/me","/owner/revenue"):
                     for method in ("HEAD","POST","PUT","DELETE"):
                         same("method boundary", path, "Bearer empty", method)

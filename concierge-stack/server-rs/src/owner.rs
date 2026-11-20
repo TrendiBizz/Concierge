@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use tokio_postgres::GenericClient;
 
 pub(crate) struct User {
+    pub(crate) id: uuid::Uuid,
     pub(crate) tenant_id: uuid::Uuid,
     pub(crate) email: String,
     pub(crate) role: String,
@@ -51,7 +52,7 @@ pub(crate) async fn current_user(state: &State, headers: &HeaderMap) -> Result<U
     let client = pool.get().await.map_err(|_| OwnerError::Database)?;
     let row = client
         .query_opt(
-            "SELECT u.tenant_id,u.email,u.role,t.slug FROM tenant_sessions s \
+            "SELECT u.tenant_id,u.email,u.role,t.slug,u.id FROM tenant_sessions s \
          JOIN tenant_users u ON u.id=s.user_id JOIN tenants t ON t.id=u.tenant_id \
          WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active",
             &[&owner_auth::digest(token)],
@@ -60,6 +61,7 @@ pub(crate) async fn current_user(state: &State, headers: &HeaderMap) -> Result<U
         .map_err(|_| OwnerError::Database)?
         .ok_or(OwnerError::Authentication("Session expired or invalid"))?;
     Ok(User {
+        id: row.get(4),
         tenant_id: row.get(0),
         email: row.get(1),
         role: row.get(2),

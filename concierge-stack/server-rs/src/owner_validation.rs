@@ -92,3 +92,27 @@ pub(crate) fn validate(value: &Value, model: &str) -> Result<Value, String> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn canonical_friendly_validation_errors() {
+        let cases: Vec<Value> = serde_json::from_str(include_str!(
+            "../../core-rs/parity/owner_model_vectors.json"
+        ))
+        .unwrap();
+        for case in cases {
+            if let Some(expected) = case.get("friendly") {
+                let got = validate(&case["body"], case["model"].as_str().unwrap()).unwrap_err();
+                assert_eq!(
+                    got,
+                    expected.as_str().unwrap(),
+                    "model={} body={}",
+                    case["model"],
+                    case["body"]
+                );
+            }
+        }
+    }
+}

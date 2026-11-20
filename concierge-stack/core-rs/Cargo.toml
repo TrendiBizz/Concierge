@@ -29,6 +29,7 @@ uuid = { version = "1", features = ["v4"] }
 ipnet = "2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+speedate = "0.18"
 
 [dev-dependencies]
 axum = "0.8"

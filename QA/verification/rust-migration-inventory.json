@@ -3,9 +3,10 @@
   "cutover_ready": false,
   "counts": {
     "mounted_python_routes": 342,
-    "registered_rust_matches": 47,
-    "missing_rust_routes": 295,
+    "registered_rust_matches": 54,
+    "missing_rust_routes": 288,
     "python_background_task_sites": 18,
+    "unverified_worker_replacements": 17,
     "python_voice_modules": 7
   },
   "routes": [
@@ -1525,25 +1526,25 @@
       "method": "GET",
       "path": "/owner/contacts",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
       "path": "/owner/contacts/{case_key}/addresses",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/contacts/{case_key}/addresses",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "DELETE",
       "path": "/owner/contacts/{case_key}/addresses/{address_id}",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
@@ -1585,19 +1586,19 @@
       "method": "GET",
       "path": "/owner/contacts/{case_key}/timeline",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/takeover",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "POST",
       "path": "/owner/crm/leads/{lead_id}/takeover",
       "source": "app.main",
-      "registered_in_rust": false
+      "registered_in_rust": true
     },
     {
       "method": "GET",
@@ -2213,6 +2214,34 @@
     },
     {
       "method": "GET",
+      "path": "/owner/contacts"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/contacts/:case_key/addresses"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/contacts/:case_key/addresses"
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/contacts/:case_key/addresses/:address_id"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/contacts/:case_key/timeline"
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/contacts/:case_key/takeover"
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/leads/:lead_id/takeover"
+    },
+    {
+      "method": "GET",
       "path": "/owner/revenue"
     },
     {
@@ -2261,109 +2290,127 @@
       "source": "api/app/asterisk_bridge.py",
       "line": 199,
       "call": "asyncio.create_task(packet(self.reader))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/asterisk_bridge.py",
       "line": 385,
       "call": "asyncio.create_task(f())",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/asterisk_bridge.py",
       "line": 596,
       "call": "asyncio.create_task(MediaBridge(reader, writer, ws, session, transcript, tool, recording).run())",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/asterisk_bridge.py",
       "line": 597,
       "call": "asyncio.create_task(monitor())",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/asterisk_bridge.py",
       "line": 218,
       "call": "asyncio.create_task(packet(self.reader))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/asterisk_bridge.py",
       "line": 214,
       "call": "asyncio.create_task(packet(self.reader))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/events.py",
       "line": 18,
       "call": "asyncio.create_task(coro)",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 82,
       "call": "asyncio.create_task(maintain_voice_records())",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": true,
+      "evidence": "QA/verification/rust_maintenance_scenarios.py"
     },
     {
       "source": "api/app/main.py",
       "line": 88,
       "call": "asyncio.create_task(email_secretary.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 89,
       "call": "asyncio.create_task(calendar_connection.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 83,
       "call": "asyncio.create_task(outbox.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 84,
       "call": "asyncio.create_task(sla.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 85,
       "call": "asyncio.create_task(sales.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 86,
       "call": "asyncio.create_task(missed_calls.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/main.py",
       "line": 87,
       "call": "asyncio.create_task(call_insights.run_forever(stop))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/owner_notifications.py",
       "line": 78,
       "call": "asyncio.get_running_loop().create_task(webpush.notify(tenant, subject, body, dedupe))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/phone_relay.py",
       "line": 379,
       "call": "asyncio.create_task(respond(prompt))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     },
     {
       "source": "api/app/portability.py",
       "line": 175,
       "call": "asyncio.create_task(deliver_pending(tenant_id))",
-      "verified_rust_replacement": false
+      "verified_rust_replacement": false,
+      "evidence": null
     }
   ],
   "voice_modules": [

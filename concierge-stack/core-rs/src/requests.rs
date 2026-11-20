@@ -292,6 +292,9 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             false,
         ),
         "MarketingConsent" => (vec![b("consent"), s("basis").len(5, 300)], false),
+        "WebhookIn" => (vec![s("url").len(8, 500), s("secret").len(16, 200)], false),
+        "ContactTakeover" => (vec![b("paused"), s("reason").dflt(json!(""))], false),
+        "CaseTakeoverRequest" => (vec![b("paused")], false),
         "BusinessDetails" => (
             vec![
                 s("name").len(1, 160),
@@ -538,56 +541,57 @@ pub enum Outcome {
 }
 
 fn dt(v: &Value) -> Result<Value, Result<&'static str, Outcome>> {
-    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2}))?(Z|[+-]\d{2}:\d{2})?$")
-            .unwrap()
-    });
-    match v {
-        Value::String(t) => {
-            let Some(c) = re.captures(t) else {
-                return Err(Err(Outcome::Unsupported("datetime text")));
-            };
-            let n = |i: usize| c.get(i).map_or(0u32, |m| m.as_str().parse().unwrap());
-            let (y, mo, d, h, mi, se) = (n(1), n(2), n(3), n(4), n(5), n(6));
-            let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-            let dim = [
-                31,
-                if leap { 29 } else { 28 },
-                31,
-                30,
-                31,
-                30,
-                31,
-                31,
-                30,
-                31,
-                30,
-                31,
-            ];
-            if !(1..=12).contains(&mo)
-                || d < 1
-                || d > dim[(mo - 1) as usize]
-                || h > 23
-                || mi > 59
-                || se > 59
-            {
-                return Err(Err(Outcome::Unsupported("datetime range error type")));
-            }
-            let tz = match c.get(7).map(|m| m.as_str()) {
-                None | Some("Z") | Some("+00:00") | Some("-00:00") => "Z".to_string(),
-                Some(o) => o.to_string(),
-            };
-            if c.get(4).is_none() && c.get(7).is_some() {
-                return Err(Err(Outcome::Unsupported("datetime text")));
-            }
-            Ok(json!(format!(
-                "{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{se:02}{tz}"
-            )))
-        }
-        Value::Number(_) => Err(Err(Outcome::Unsupported("numeric timestamp"))),
-        _ => Err(Ok("datetime_type")),
+    use speedate::{
+        Date, DateTime, DateTimeConfig, MicrosecondsPrecisionOverflowBehavior, Time, TimeConfig,
+    };
+    let cfg = DateTimeConfig::builder()
+        .time_config(
+            TimeConfig::builder()
+                .microseconds_precision_overflow_behavior(
+                    MicrosecondsPrecisionOverflowBehavior::Truncate,
+                )
+                .unix_timestamp_offset(Some(0))
+                .build(),
+        )
+        .build();
+    let (mut parsed, kind) = match v {
+        Value::String(s) => (
+            DateTime::parse_str_with_config(s, &cfg).or_else(|_| {
+                Date::parse_str_rfc3339(s).map(|date| DateTime {
+                    date,
+                    time: Time {
+                        hour: 0,
+                        minute: 0,
+                        second: 0,
+                        microsecond: 0,
+                        tz_offset: Some(0),
+                    },
+                })
+            }),
+            "datetime_from_date_parsing",
+        ),
+        Value::Number(n) => (
+            if let Some(i) = n.as_i64() {
+                DateTime::from_timestamp_with_config(i, 0, &cfg)
+            } else {
+                DateTime::from_float_with_config(n.as_f64().unwrap_or(f64::INFINITY), &cfg)
+            },
+            "datetime_parsing",
+        ),
+        _ => return Err(Ok("datetime_type")),
+    };
+    let d = parsed.as_mut().map_err(|_| Ok(kind))?;
+    if d.date.year == 0 {
+        return Err(Ok(if v.is_string() {
+            "datetime_parsing"
+        } else {
+            kind
+        }));
     }
+    if d.time.tz_offset.is_none() {
+        d.time.tz_offset = Some(0);
+    }
+    Ok(json!(d.to_string()))
 }
 
 fn uuid(v: &Value) -> Result<Value, &'static str> {

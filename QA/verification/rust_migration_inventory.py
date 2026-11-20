@@ -61,10 +61,12 @@ def main():
         tree=ast.parse(path.read_text())
         for n in ast.walk(tree):
             if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=='create_task':
-                workers.append({'source':str(path.relative_to(ROOT)),'line':n.lineno,'call':ast.unparse(n),'verified_rust_replacement':False})
+                call=ast.unparse(n)
+                verified=path.name=='main.py' and call=='asyncio.create_task(maintain_voice_records())'
+                workers.append({'source':str(path.relative_to(ROOT)),'line':n.lineno,'call':call,'verified_rust_replacement':verified,'evidence':'QA/verification/rust_maintenance_scenarios.py' if verified else None})
     voice=list((ROOT/'concierge-stack/agent').glob('*.py'))
     missing=[r for r in mounted if not r['registered_in_rust']]
-    result={'scope':'Concierge-owned Python services; Hermes removed','cutover_ready':not missing and not workers and not voice,'counts':{'mounted_python_routes':len(mounted),'registered_rust_matches':len(mounted)-len(missing),'missing_rust_routes':len(missing),'python_background_task_sites':len(workers),'python_voice_modules':len(voice)},'routes':mounted,'rust_registrations':rust,'background_tasks':workers,'voice_modules':[str(p.relative_to(ROOT)) for p in voice],'limitation':'Registration is not verification. HTTP differential evidence and worker lifecycle verification are required before deployment.'}
+    result={'scope':'Concierge-owned Python services; Hermes removed','cutover_ready':not missing and all(w['verified_rust_replacement'] for w in workers) and not voice,'counts':{'mounted_python_routes':len(mounted),'registered_rust_matches':len(mounted)-len(missing),'missing_rust_routes':len(missing),'python_background_task_sites':len(workers),'unverified_worker_replacements':sum(not w['verified_rust_replacement'] for w in workers),'python_voice_modules':len(voice)},'routes':mounted,'rust_registrations':rust,'background_tasks':workers,'voice_modules':[str(p.relative_to(ROOT)) for p in voice],'limitation':'Registration is not verification. HTTP differential evidence and worker lifecycle verification are required before deployment.'}
     args.output.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result['counts']));print('cutover_ready='+str(result['cutover_ready']).lower())
     if args.require_complete and not result['cutover_ready']:raise SystemExit(1)
