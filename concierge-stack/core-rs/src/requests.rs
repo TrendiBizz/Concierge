@@ -292,6 +292,16 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             false,
         ),
         "MarketingConsent" => (vec![b("consent"), s("basis").len(5, 300)], false),
+        "InstallRequest" => (
+            vec![
+                s("website").len(0, 300).dflt(json!("")),
+                s("platform").len(0, 30).dflt(json!("unsure")),
+                s("contact_name").len(0, 120).dflt(json!("")),
+                s("contact_phone").len(0, 40).dflt(json!("")),
+                s("note").len(0, 1000).dflt(json!("")),
+            ],
+            false,
+        ),
         "WebhookIn" => (vec![s("url").len(8, 500), s("secret").len(16, 200)], false),
         "ContactTakeover" => (vec![b("paused"), s("reason").dflt(json!(""))], false),
         "CaseTakeoverRequest" => (vec![b("paused")], false),

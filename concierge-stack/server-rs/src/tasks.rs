@@ -69,10 +69,6 @@ pub(crate) async fn create(
     if !can_edit(&u) {
         return detail(403, "Insufficient permissions");
     }
-    let title = concierge_core::py_strip(v["title"].as_str().unwrap());
-    if title.is_empty() {
-        return detail(400, "A to-do needs a title");
-    }
     let Some(pool) = &state.0.pool else {
         return server_error();
     };
@@ -98,6 +94,10 @@ pub(crate) async fn create(
             Ok(None) => return detail(404, "Unknown lead"),
             Err(_) => return server_error(),
         }
+    }
+    let title = concierge_core::py_strip(v["title"].as_str().unwrap());
+    if title.is_empty() {
+        return detail(400, "A to-do needs a title");
     }
     let due = date(&v["due_at"]);
     let notes = v["notes"].as_str().unwrap_or("");

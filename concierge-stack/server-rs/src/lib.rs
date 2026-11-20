@@ -22,12 +22,14 @@ mod assignments;
 mod business;
 mod companies;
 mod contacts;
+mod install;
 pub mod maintenance;
 mod owner;
 mod owner_sessions;
 mod owner_validation;
 mod portability;
 mod products;
+mod releases;
 mod reports;
 mod tasks;
 mod templates;
@@ -1120,6 +1122,18 @@ pub fn app(state: State) -> Router {
     // method handler inside axum's `MethodRouter`, which then appends its own `Allow: GET,HEAD` to a CORS preflight.
     let routes = Router::new()
         .route("/healthz", get_only(healthz))
+        .route("/owner/install-requests", get_only(install::listing))
+        .route(
+            "/owner/install-request",
+            axum::routing::post(install::create).fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route("/version", get_only(releases::public_version))
+        .route("/owner/version", get_only(releases::public_version))
+        .route("/owner/release", get_only(releases::notice))
+        .route(
+            "/owner/release/seen",
+            axum::routing::post(releases::seen).fallback(|| async { method_not_allowed("POST") }),
+        )
         .route("/api/v1/widget-config", get_only(widget_config))
         .route("/admin/tenants", get_allow(admin_list, "POST"))
         .route("/admin/tenants/:slug", get_only(admin_get))

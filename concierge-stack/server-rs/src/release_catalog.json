@@ -1,0 +1,12 @@
+{
+  "1": {
+    "released": "2026-11-17",
+    "title": "Version 1",
+    "summary": "The first numbered release of Trendi Concierge.",
+    "notes": [
+      "A 7am \"what needs you today\" email, if you switch it on in Business setup.",
+      "Replies prepared for you appear under \"Needs you\" to approve, edit or discard. Nothing is sent to your customers until you approve it.",
+      "Ask Concierge: a read-only box that answers questions about your business from the information you have added."
+    ]
+  }
+}
