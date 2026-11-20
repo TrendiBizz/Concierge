@@ -20,19 +20,30 @@ pub struct Period {
     pub currency: String,
 }
 
-pub fn clamp_days(days: i64) -> i64 {
-    if days == 0 { 30 } else { days.clamp(1, 365) }
+pub fn clamp_days(days: i128) -> i64 {
+    if days == 0 {
+        30
+    } else {
+        days.clamp(1, 365) as i64
+    }
 }
 
 pub fn percent_change(current: i64, previous: i64) -> Option<i64> {
     if previous <= 0 {
         return (current > 0).then_some(100);
     }
-    Some((((i128::from(current) - i128::from(previous)) as f64 / previous as f64) * 100.0).round_ties_even() as i64)
+    Some(
+        (((i128::from(current) - i128::from(previous)) as f64 / previous as f64) * 100.0)
+            .round_ties_even() as i64,
+    )
 }
 
 pub fn per_enquiry(cents: i64, enquiries: i64) -> i64 {
-    if enquiries <= 0 { 0 } else { (cents as f64 / enquiries as f64).round_ties_even() as i64 }
+    if enquiries <= 0 {
+        0
+    } else {
+        (cents as f64 / enquiries as f64).round_ties_even() as i64
+    }
 }
 
 pub fn convert_rate(numerator: i64, denominator: i64) -> f64 {
@@ -41,7 +52,9 @@ pub fn convert_rate(numerator: i64, denominator: i64) -> f64 {
     }
     // Fixed decimal formatting rounds the binary float itself, as Python's
     // round(x, 1) does; multiplying by ten first loses half-way information.
-    format!("{:.1}", numerator as f64 / denominator as f64 * 100.0).parse().unwrap()
+    format!("{:.1}", numerator as f64 / denominator as f64 * 100.0)
+        .parse()
+        .unwrap()
 }
 
 fn money(cents: i64) -> f64 {

@@ -1,0 +1,22 @@
+# Optional first-party Rust action gateway. No agent runtime or implicit model endpoint.
+# Build/start only after configuring a protected action-gateway.env with distinct
+# ACTION_* keys and explicit PLANNER_BASE_URL, PLANNER_MODEL, PLANNER_API_KEY.
+# Uses host networking solely for the loopback Concierge backend and listener.
+name: trendi-action-gateway
+services:
+  action-gateway:
+    build:
+      context: ../..
+      dockerfile: scripts/vps/Dockerfile.gateway
+    image: trendi-action-gateway:vps
+    container_name: action-gateway
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - {path: /opt/trendi/shared/action-gateway.env, format: raw}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128

@@ -3,7 +3,7 @@
 The audit asks for human takeover and for one durable customer history. Before this, an owner could
 not see a customer's cross-channel history in the portal, and could not stop the assistant replying
 to someone they had started answering themselves -- takeover existed only behind the gateway-only
-`hermes_ops` router, which answers 404 unless a gateway integration is configured.
+`action_ops` router, which answers 404 unless a gateway integration is configured.
 
 These drive the real routes through FastAPI's TestClient. The subject is tenant isolation and the
 effect of the pause, so the database is substituted at the pool boundary.

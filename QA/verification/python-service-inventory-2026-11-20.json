@@ -3,1563 +3,2397 @@
   "routes": [
     {
       "method": "GET",
+      "path": "/owner/crm/quotations",
+      "source": "api/app/quotations.py",
+      "handler": "listing",
+      "line": 232
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/quotations/{quote_id}",
+      "source": "api/app/quotations.py",
+      "handler": "one",
+      "line": 240
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations",
+      "source": "api/app/quotations.py",
+      "handler": "create",
+      "line": 249
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/crm/quotations/{quote_id}",
+      "source": "api/app/quotations.py",
+      "handler": "revise",
+      "line": 274
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/duplicate",
+      "source": "api/app/quotations.py",
+      "handler": "duplicate",
+      "line": 307
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/status",
+      "source": "api/app/quotations.py",
+      "handler": "change_status",
+      "line": 344
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/draft",
+      "source": "api/app/quotations.py",
+      "handler": "draft_quotation",
+      "line": 458
+    },
+    {
+      "method": "GET",
+      "path": "/owner/crm/quotations/{quote_id}/print",
+      "source": "api/app/quotations.py",
+      "handler": "print_view",
+      "line": 783
+    },
+    {
+      "method": "GET",
+      "path": "/quote/{token}",
+      "source": "api/app/quotations.py",
+      "handler": "public_quote",
+      "line": 799
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/accept",
+      "source": "api/app/quotations.py",
+      "handler": "public_accept",
+      "line": 924
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/decline",
+      "source": "api/app/quotations.py",
+      "handler": "public_decline",
+      "line": 947
+    },
+    {
+      "method": "POST",
+      "path": "/quote/{token}/payment-declared",
+      "source": "api/app/quotations.py",
+      "handler": "public_payment_declared",
+      "line": 952
+    },
+    {
+      "method": "POST",
+      "path": "/owner/crm/quotations/{quote_id}/send",
+      "source": "api/app/quotations.py",
+      "handler": "send_quote",
+      "line": 982
+    },
+    {
+      "method": "GET",
+      "path": "/guide/bonsai-cladding",
+      "source": "api/app/guides.py",
+      "handler": "bonsai_cladding_guide",
+      "line": 34
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/xai/{connection_id}",
+      "source": "api/app/phone_sip.py",
+      "handler": "incoming",
+      "line": 230
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/stripe",
+      "source": "api/app/platform_billing.py",
+      "handler": "stripe_webhook",
+      "line": 235
+    },
+    {
+      "method": "POST",
+      "path": "/admin/billing/charge",
+      "source": "api/app/platform_billing.py",
+      "handler": "manual_charge",
+      "line": 264
+    },
+    {
+      "method": "GET",
+      "path": "/receipt/{token}",
+      "source": "api/app/platform_billing.py",
+      "handler": "receipt",
+      "line": 283
+    },
+    {
+      "method": "GET",
+      "path": "/owner/billing/invoices",
+      "source": "api/app/platform_billing.py",
+      "handler": "platform_list",
+      "line": 291
+    },
+    {
+      "method": "GET",
+      "path": "/owner/email-secretary/jobs",
+      "source": "api/app/email_secretary.py",
+      "handler": "jobs",
+      "line": 75
+    },
+    {
+      "method": "POST",
+      "path": "/owner/email-secretary/jobs/{job_id}/retry",
+      "source": "api/app/email_secretary.py",
+      "handler": "retry",
+      "line": 81
+    },
+    {
+      "method": "GET",
+      "path": "/owner/designs",
+      "source": "api/app/designs.py",
+      "handler": "listing",
+      "line": 47
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs",
+      "source": "api/app/designs.py",
+      "handler": "upload",
+      "line": 86
+    },
+    {
+      "method": "GET",
+      "path": "/owner/designs/{design_id}/file",
+      "source": "api/app/designs.py",
+      "handler": "download",
+      "line": 93
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/designs/{design_id}",
+      "source": "api/app/designs.py",
+      "handler": "remove",
+      "line": 104
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/{design_id}/takeoff",
+      "source": "api/app/designs.py",
+      "handler": "takeoff",
+      "line": 144
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/link",
+      "source": "api/app/designs.py",
+      "handler": "customer_link",
+      "line": 166
+    },
+    {
+      "method": "GET",
+      "path": "/upload/{token}",
+      "source": "api/app/designs.py",
+      "handler": "upload_page",
+      "line": 176
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/public-design/{token}",
+      "source": "api/app/designs.py",
+      "handler": "public_upload",
+      "line": 197
+    },
+    {
+      "method": "POST",
+      "path": "/owner/designs/{design_id}/quote",
+      "source": "api/app/designs.py",
+      "handler": "quote_from_design",
+      "line": 212
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sms/inbox",
+      "source": "api/app/sms_inbox.py",
+      "handler": "inbox",
+      "line": 65
+    },
+    {
+      "method": "GET",
+      "path": "/owner/sms/conversations/{conversation_id}",
+      "source": "api/app/sms_inbox.py",
+      "handler": "thread",
+      "line": 95
+    },
+    {
+      "method": "POST",
+      "path": "/owner/sms/conversations/{conversation_id}/takeover",
+      "source": "api/app/sms_inbox.py",
+      "handler": "takeover",
+      "line": 125
+    },
+    {
+      "method": "POST",
+      "path": "/owner/sms/conversations/{conversation_id}/reply",
+      "source": "api/app/sms_inbox.py",
+      "handler": "reply",
+      "line": 140
+    },
+    {
+      "method": "GET",
+      "path": "/owner/products",
+      "source": "api/app/products.py",
+      "handler": "listing",
+      "line": 39
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products",
+      "source": "api/app/products.py",
+      "handler": "create",
+      "line": 48
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/products/{product_id}",
+      "source": "api/app/products.py",
+      "handler": "update",
+      "line": 61
+    },
+    {
+      "method": "POST",
+      "path": "/owner/products/{product_id}/stock",
+      "source": "api/app/products.py",
+      "handler": "adjust_stock",
+      "line": 76
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/products/{product_id}",
+      "source": "api/app/products.py",
+      "handler": "deactivate",
+      "line": 98
+    },
+    {
+      "method": "GET",
+      "path": "/internal/hermes/cases/{lead_id}/policy-context",
+      "source": "api/app/hermes_ops.py",
+      "handler": "policy_context",
+      "line": 86
+    },
+    {
+      "method": "GET",
+      "path": "/internal/hermes/cases/{lead_id}/brief",
+      "source": "api/app/hermes_ops.py",
+      "handler": "brief",
+      "line": 110
+    },
+    {
+      "method": "PUT",
+      "path": "/internal/hermes/cases/{lead_id}/automation",
+      "source": "api/app/hermes_ops.py",
+      "handler": "set_automation",
+      "line": 136
+    },
+    {
+      "method": "POST",
+      "path": "/internal/hermes/cases/{lead_id}/execute",
+      "source": "api/app/hermes_ops.py",
+      "handler": "execute",
+      "line": 215
+    },
+    {
+      "method": "GET",
+      "path": "/owner/calendar",
+      "source": "api/app/calendar_connection.py",
+      "handler": "overview",
+      "line": 99
+    },
+    {
+      "method": "POST",
+      "path": "/owner/calendar/start",
+      "source": "api/app/calendar_connection.py",
+      "handler": "start",
+      "line": 111
+    },
+    {
+      "method": "POST",
+      "path": "/owner/calendar/finish",
+      "source": "api/app/calendar_connection.py",
+      "handler": "finish",
+      "line": 132
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/calendar",
+      "source": "api/app/calendar_connection.py",
+      "handler": "disconnect",
+      "line": 158
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/tenants/{slug}/mobile-connection",
+      "source": "api/app/mobile_connections.py",
+      "handler": "bind_mobile_connection",
+      "line": 48
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/mobile-connection",
+      "source": "api/app/mobile_connections.py",
+      "handler": "save_mobile_preferences",
+      "line": 71
+    },
+    {
+      "method": "GET",
+      "path": "/owner/mobile-connection",
+      "source": "api/app/mobile_connections.py",
+      "handler": "mobile_connection",
+      "line": 89
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/phone/managed/twilio/{connection_id}",
+      "source": "api/app/managed_phone.py",
+      "handler": "carrier_incoming",
+      "line": 43
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/start",
+      "source": "api/app/voice_internal.py",
+      "handler": "start",
+      "line": 69
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/transcript",
+      "source": "api/app/voice_internal.py",
+      "handler": "transcript",
+      "line": 85
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/tool",
+      "source": "api/app/voice_internal.py",
+      "handler": "tool",
+      "line": 103
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/monitor",
+      "source": "api/app/voice_internal.py",
+      "handler": "monitor",
+      "line": 122
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/finish",
+      "source": "api/app/voice_internal.py",
+      "handler": "finish",
+      "line": 131
+    },
+    {
+      "method": "POST",
+      "path": "/internal/voice/recording",
+      "source": "api/app/voice_internal.py",
+      "handler": "recording",
+      "line": 153
+    },
+    {
+      "method": "GET",
+      "path": "/invoice/{token}",
+      "source": "api/app/invoices.py",
+      "handler": "public_invoice",
+      "line": 192
+    },
+    {
+      "method": "POST",
+      "path": "/owner/invoices/{invoice_id}/payment-link",
+      "source": "api/app/invoices.py",
+      "handler": "set_payment_link",
+      "line": 201
+    },
+    {
+      "method": "GET",
+      "path": "/owner/invoices",
+      "source": "api/app/invoices.py",
+      "handler": "list_invoices",
+      "line": 217
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/poll",
+      "source": "api/app/device_sms.py",
+      "handler": "poll",
+      "line": 91
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/receipt",
+      "source": "api/app/device_sms.py",
+      "handler": "receipt",
+      "line": 142
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/device-sms/inbound",
+      "source": "api/app/device_sms.py",
+      "handler": "inbound",
+      "line": 196
+    },
+    {
+      "method": "GET",
       "path": "/healthz",
+      "source": "api/app/main.py",
       "handler": "healthz",
       "line": 192
     },
     {
       "method": "GET",
       "path": "/widget.js",
+      "source": "api/app/main.py",
       "handler": "widget_js",
       "line": 198
     },
     {
       "method": "POST",
       "path": "/api/v1/translate",
+      "source": "api/app/main.py",
       "handler": "public_translate",
       "line": 234
     },
     {
       "method": "GET",
       "path": "/api/v1/widget-logo",
+      "source": "api/app/main.py",
       "handler": "widget_logo",
       "line": 314
     },
     {
       "method": "GET",
       "path": "/api/v1/widget-config",
+      "source": "api/app/main.py",
       "handler": "widget_config",
       "line": 327
     },
     {
       "method": "POST",
       "path": "/api/v1/chat",
+      "source": "api/app/main.py",
       "handler": "chat",
       "line": 346
     },
     {
       "method": "POST",
       "path": "/api/v1/chat/stream",
+      "source": "api/app/main.py",
       "handler": "chat_stream",
       "line": 370
     },
     {
       "method": "POST",
       "path": "/api/v1/sms/{public_key}",
+      "source": "api/app/main.py",
       "handler": "sms_inbound",
       "line": 403
     },
     {
       "method": "POST",
       "path": "/api/v1/smsgate/{public_key}",
+      "source": "api/app/main.py",
       "handler": "smsgate_inbound",
       "line": 428
     },
     {
       "method": "POST",
       "path": "/api/v1/voice/token",
+      "source": "api/app/main.py",
       "handler": "voice_token",
       "line": 509
     },
     {
       "method": "POST",
       "path": "/api/v1/tools/{name}",
+      "source": "api/app/main.py",
       "handler": "tool_endpoint",
       "line": 534
     },
     {
       "method": "POST",
       "path": "/api/v1/voice/log",
+      "source": "api/app/main.py",
       "handler": "voice_log",
       "line": 564
     },
     {
       "method": "POST",
       "path": "/api/v1/voice/sessions/{session_id}/recording",
+      "source": "api/app/main.py",
       "handler": "voice_recording_upload",
       "line": 574
     },
     {
       "method": "POST",
       "path": "/api/v1/voice/sessions/{session_id}/finish",
+      "source": "api/app/main.py",
       "handler": "voice_session_finish",
       "line": 585
     },
     {
       "method": "GET",
       "path": "/api/v1/voice/recordings/shared/{token}",
+      "source": "api/app/main.py",
       "handler": "shared_voice_recording",
       "line": 602
     },
     {
       "method": "GET",
       "path": "/demo/{slug}",
+      "source": "api/app/main.py",
       "handler": "demo_page",
       "line": 609
     },
     {
       "method": "GET",
       "path": "/report/{token}",
+      "source": "api/app/main.py",
       "handler": "client_report",
       "line": 723
     },
     {
       "method": "GET",
       "path": "/admin-ui",
+      "source": "api/app/main.py",
       "handler": "admin_ui",
       "line": 790
     },
     {
       "method": "POST",
       "path": "/admin/tenants",
+      "source": "api/app/main.py",
       "handler": "admin_create_tenant",
       "line": 935
     },
     {
       "method": "GET",
       "path": "/admin/tenants",
+      "source": "api/app/main.py",
       "handler": "admin_list_tenants",
       "line": 946
     },
     {
       "method": "GET",
       "path": "/admin/status",
+      "source": "api/app/main.py",
       "handler": "admin_status",
       "line": 951
     },
     {
       "method": "GET",
       "path": "/admin/outbound/status",
+      "source": "api/app/main.py",
       "handler": "admin_outbound_status",
       "line": 969
     },
     {
       "method": "POST",
       "path": "/admin/outbound/pause",
+      "source": "api/app/main.py",
       "handler": "admin_outbound_pause",
       "line": 975
     },
     {
       "method": "POST",
       "path": "/admin/outbound/resume",
+      "source": "api/app/main.py",
       "handler": "admin_outbound_resume",
       "line": 982
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/rotate-key",
+      "source": "api/app/main.py",
       "handler": "admin_rotate_key",
       "line": 988
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}",
+      "source": "api/app/main.py",
       "handler": "admin_get_tenant",
       "line": 1004
     },
     {
       "method": "PATCH",
       "path": "/admin/tenants/{slug}",
+      "source": "api/app/main.py",
       "handler": "admin_update_tenant",
       "line": 1011
     },
     {
       "method": "DELETE",
       "path": "/admin/tenants/{slug}",
+      "source": "api/app/main.py",
       "handler": "admin_delete_tenant",
       "line": 1030
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/clone",
+      "source": "api/app/main.py",
       "handler": "admin_clone_tenant",
       "line": 1037
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/crawl",
+      "source": "api/app/main.py",
       "handler": "admin_crawl",
       "line": 1055
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/ingest-text",
+      "source": "api/app/main.py",
       "handler": "admin_ingest_text",
       "line": 1070
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/demo-questions",
+      "source": "api/app/main.py",
       "handler": "admin_demo_questions",
       "line": 1076
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/leads",
+      "source": "api/app/main.py",
       "handler": "admin_leads",
       "line": 1085
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/campaigns",
+      "source": "api/app/main.py",
       "handler": "admin_create_campaign",
       "line": 1129
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/campaigns",
+      "source": "api/app/main.py",
       "handler": "admin_list_campaigns",
       "line": 1143
     },
     {
       "method": "GET",
       "path": "/admin/campaigns/{campaign_id}/preview",
+      "source": "api/app/main.py",
       "handler": "admin_preview_campaign",
       "line": 1151
     },
     {
       "method": "POST",
       "path": "/admin/campaigns/{campaign_id}/send",
+      "source": "api/app/main.py",
       "handler": "admin_send_campaign",
       "line": 1157
     },
     {
       "method": "POST",
       "path": "/admin/campaigns/{campaign_id}/cancel",
+      "source": "api/app/main.py",
       "handler": "admin_cancel_campaign",
       "line": 1167
     },
     {
       "method": "GET",
       "path": "/admin/campaigns/{campaign_id}",
+      "source": "api/app/main.py",
       "handler": "admin_get_campaign",
       "line": 1173
     },
     {
       "method": "PATCH",
       "path": "/admin/leads/{lead_id}/marketing-consent",
+      "source": "api/app/main.py",
       "handler": "admin_marketing_consent",
       "line": 1179
     },
     {
       "method": "GET",
       "path": "/api/v1/unsubscribe/{token}",
+      "source": "api/app/main.py",
       "handler": "unsubscribe_page",
       "line": 1208
     },
     {
       "method": "POST",
       "path": "/api/v1/unsubscribe/{token}",
+      "source": "api/app/main.py",
       "handler": "unsubscribe_do",
       "line": 1219
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/scoring",
+      "source": "api/app/main.py",
       "handler": "admin_scoring",
       "line": 1231
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/rescore",
+      "source": "api/app/main.py",
       "handler": "admin_rescore",
       "line": 1238
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/sla",
+      "source": "api/app/main.py",
       "handler": "admin_sla",
       "line": 1245
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/tasks",
+      "source": "api/app/main.py",
       "handler": "admin_list_tasks",
       "line": 1297
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/tasks",
+      "source": "api/app/main.py",
       "handler": "admin_create_task",
       "line": 1303
     },
     {
       "method": "PATCH",
       "path": "/admin/tasks/{task_id}",
+      "source": "api/app/main.py",
       "handler": "admin_update_task",
       "line": 1319
     },
     {
       "method": "DELETE",
       "path": "/admin/tasks/{task_id}",
+      "source": "api/app/main.py",
       "handler": "admin_delete_task",
       "line": 1330
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/pipeline",
+      "source": "api/app/main.py",
       "handler": "admin_pipeline",
       "line": 1337
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/sales-summary",
+      "source": "api/app/main.py",
       "handler": "admin_sales_summary",
       "line": 1342
     },
     {
       "method": "GET",
       "path": "/api/v1/calendar/{token}.ics",
+      "source": "api/app/main.py",
       "handler": "calendar_feed",
       "line": 1347
     },
     {
       "method": "PATCH",
       "path": "/admin/leads/{lead_id}",
+      "source": "api/app/main.py",
       "handler": "admin_update_lead",
       "line": 1364
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/appointments",
+      "source": "api/app/main.py",
       "handler": "admin_appointments",
       "line": 1397
     },
     {
       "method": "PATCH",
       "path": "/admin/appointments/{appointment_id}",
+      "source": "api/app/main.py",
       "handler": "admin_update_appointment",
       "line": 1408
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/outbox",
+      "source": "api/app/main.py",
       "handler": "admin_outbox",
       "line": 1426
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/conversations",
+      "source": "api/app/main.py",
       "handler": "admin_conversations",
       "line": 1437
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/stats",
+      "source": "api/app/main.py",
       "handler": "admin_stats",
       "line": 1455
     },
     {
       "method": "GET",
       "path": "/admin/capabilities",
+      "source": "api/app/main.py",
       "handler": "admin_capabilities",
       "line": 1461
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/email-drafts",
+      "source": "api/app/main.py",
       "handler": "admin_email_drafts",
       "line": 1490
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/email-drafts",
+      "source": "api/app/main.py",
       "handler": "admin_email_draft_create",
       "line": 1497
     },
     {
       "method": "PATCH",
       "path": "/admin/tenants/{slug}/email-drafts/{draft_id}",
+      "source": "api/app/main.py",
       "handler": "admin_email_draft_revise",
       "line": 1520
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/email-drafts/{draft_id}/discard",
+      "source": "api/app/main.py",
       "handler": "admin_email_draft_discard",
       "line": 1533
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/email-drafts/{draft_id}/approve",
+      "source": "api/app/main.py",
       "handler": "admin_email_draft_approve",
       "line": 1543
     },
     {
       "method": "POST",
       "path": "/api/v1/phone/twilio/inbound",
+      "source": "api/app/main.py",
       "handler": "twilio_phone_inbound",
       "line": 1574
     },
     {
       "method": "POST",
       "path": "/api/v1/phone/twilio/ended",
+      "source": "api/app/main.py",
       "handler": "twilio_phone_ended",
       "line": 1589
     },
     {
       "method": "POST",
       "path": "/api/v1/phone/twilio/recording",
+      "source": "api/app/main.py",
       "handler": "twilio_phone_recording_receipt",
       "line": 1605
     },
     {
       "method": "WEBSOCKET",
       "path": "/api/v1/phone/relay",
+      "source": "api/app/main.py",
       "handler": "twilio_phone_relay",
       "line": 1620
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/phone-setup",
+      "source": "api/app/main.py",
       "handler": "admin_phone_setup",
       "line": 1633
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/phone-numbers",
+      "source": "api/app/main.py",
       "handler": "admin_phone_numbers",
       "line": 1642
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/phone-numbers",
+      "source": "api/app/main.py",
       "handler": "admin_phone_number_create",
       "line": 1652
     },
     {
       "method": "PATCH",
       "path": "/admin/tenants/{slug}/phone-numbers/{number}",
+      "source": "api/app/main.py",
       "handler": "admin_phone_number_enable",
       "line": 1665
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/phone-calls",
+      "source": "api/app/main.py",
       "handler": "admin_phone_call_history",
       "line": 1677
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/inbound-mailboxes",
+      "source": "api/app/main.py",
       "handler": "register_inbound_mailbox",
       "line": 1693
     },
     {
       "method": "POST",
       "path": "/api/v1/inbound/cloudflare",
+      "source": "api/app/main.py",
       "handler": "cloudflare_email_webhook",
       "line": 1703
     },
     {
       "method": "GET",
       "path": "/l/{token}",
+      "source": "api/app/main.py",
       "handler": "tracked_link",
       "line": 1709
     },
     {
       "method": "GET",
       "path": "/studio/l/{token}",
+      "source": "api/app/main.py",
       "handler": "tracked_link",
       "line": 1709
     },
     {
       "method": "GET",
       "path": "/webhooks/brevo",
+      "source": "api/app/main.py",
       "handler": "brevo_email_webhook_status",
       "line": 1730
     },
     {
       "method": "POST",
       "path": "/webhooks/brevo",
+      "source": "api/app/main.py",
       "handler": "brevo_email_webhook",
       "line": 1743
     },
     {
       "method": "GET",
       "path": "/owner/email-suppressions",
+      "source": "api/app/main.py",
       "handler": "owner_suppressions",
       "line": 1805
     },
     {
       "method": "POST",
       "path": "/owner/email-suppressions",
+      "source": "api/app/main.py",
       "handler": "owner_add_suppression",
       "line": 1811
     },
     {
       "method": "DELETE",
       "path": "/owner/email-suppressions/{address}",
+      "source": "api/app/main.py",
       "handler": "owner_remove_suppression",
       "line": 1824
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/email-suppressions",
+      "source": "api/app/main.py",
       "handler": "admin_suppressions",
       "line": 1839
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/owner-invitations",
+      "source": "api/app/main.py",
       "handler": "admin_invite_owner",
       "line": 1877
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/owner-recovery",
+      "source": "api/app/main.py",
       "handler": "admin_owner_recovery",
       "line": 1910
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/owner-invite",
+      "source": "api/app/main.py",
       "handler": "admin_owner_invite",
       "line": 1921
     },
     {
       "method": "GET",
       "path": "/",
+      "source": "api/app/main.py",
       "handler": "owner_root",
       "line": 1935
     },
     {
       "method": "GET",
       "path": "/favicon.ico",
+      "source": "api/app/main.py",
       "handler": "owner_favicon",
       "line": 1946
     },
     {
       "method": "GET",
       "path": "/favicon.svg",
+      "source": "api/app/main.py",
       "handler": "owner_favicon",
       "line": 1946
     },
     {
       "method": "GET",
       "path": "/owner-ui",
+      "source": "api/app/main.py",
       "handler": "owner_ui",
       "line": 1956
     },
     {
       "method": "GET",
       "path": "/owner/qrcode.js",
+      "source": "api/app/main.py",
       "handler": "owner_qr_library",
       "line": 1965
     },
     {
       "method": "GET",
       "path": "/studio",
+      "source": "api/app/main.py",
       "handler": "studio_page",
       "line": 1981
     },
     {
       "method": "GET",
       "path": "/studio/",
+      "source": "api/app/main.py",
       "handler": "studio_page",
       "line": 1981
     },
     {
       "method": "GET",
       "path": "/studio/assets/{path:path}",
+      "source": "api/app/main.py",
       "handler": "studio_asset",
       "line": 1986
     },
     {
       "method": "GET",
       "path": "/studio/install",
+      "source": "api/app/main.py",
       "handler": "studio_install",
       "line": 2033
     },
     {
       "method": "GET",
       "path": "/studio/install/",
+      "source": "api/app/main.py",
       "handler": "studio_install",
       "line": 2033
     },
     {
       "method": "GET",
       "path": "/studio/manifest.webmanifest",
+      "source": "api/app/main.py",
       "handler": "studio_manifest",
       "line": 2054
     },
     {
       "method": "POST",
       "path": "/owner/auth/install-ticket",
+      "source": "api/app/main.py",
       "handler": "owner_install_ticket",
       "line": 2073
     },
     {
       "method": "GET",
       "path": "/studio/{path:path}",
+      "source": "api/app/main.py",
       "handler": "studio_file",
       "line": 2082
     },
     {
       "method": "GET",
       "path": "/robots.txt",
+      "source": "api/app/main.py",
       "handler": "robots_txt",
       "line": 2106
     },
     {
       "method": "GET",
       "path": "/onboarding",
+      "source": "api/app/main.py",
       "handler": "onboarding_page",
       "line": 2112
     },
     {
       "method": "GET",
       "path": "/owner/social/oauth/callback",
+      "source": "api/app/main.py",
       "handler": "owner_social_oauth_callback",
       "line": 2121
     },
     {
       "method": "POST",
       "path": "/owner/auth/redeem",
+      "source": "api/app/main.py",
       "handler": "owner_redeem",
       "line": 2133
     },
     {
       "method": "POST",
       "path": "/owner/auth/invite",
+      "source": "api/app/main.py",
       "handler": "owner_accept_invite",
       "line": 2141
     },
     {
       "method": "POST",
       "path": "/owner/auth/code",
+      "source": "api/app/main.py",
       "handler": "owner_email_code",
       "line": 2167
     },
     {
       "method": "POST",
       "path": "/owner/auth/code/verify",
+      "source": "api/app/main.py",
       "handler": "owner_verify_code",
       "line": 2211
     },
     {
       "method": "POST",
       "path": "/owner/auth/link",
+      "source": "api/app/main.py",
       "handler": "owner_email_link",
       "line": 2227
     },
     {
       "method": "POST",
       "path": "/owner/auth/login",
+      "source": "api/app/main.py",
       "handler": "owner_login",
       "line": 2258
     },
     {
       "method": "GET",
       "path": "/owner/locale",
+      "source": "api/app/main.py",
       "handler": "owner_locale",
       "line": 2286
     },
     {
       "method": "GET",
       "path": "/owner/me",
+      "source": "api/app/main.py",
       "handler": "owner_me",
       "line": 2293
     },
     {
       "method": "GET",
       "path": "/owner/sw.js",
+      "source": "api/app/main.py",
       "handler": "owner_service_worker",
       "line": 2316
     },
     {
       "method": "GET",
       "path": "/owner/push/key",
+      "source": "api/app/main.py",
       "handler": "owner_push_key",
       "line": 2373
     },
     {
       "method": "POST",
       "path": "/owner/push/subscribe",
+      "source": "api/app/main.py",
       "handler": "owner_push_subscribe",
       "line": 2380
     },
     {
       "method": "POST",
       "path": "/owner/push/unsubscribe",
+      "source": "api/app/main.py",
       "handler": "owner_push_unsubscribe",
       "line": 2389
     },
     {
       "method": "POST",
       "path": "/owner/push/test",
+      "source": "api/app/main.py",
       "handler": "owner_push_test",
       "line": 2395
     },
     {
       "method": "GET",
       "path": "/owner/channel-health",
+      "source": "api/app/main.py",
       "handler": "owner_channel_health",
       "line": 2401
     },
     {
       "method": "POST",
       "path": "/owner/alerts/test",
+      "source": "api/app/main.py",
       "handler": "owner_test_alert",
       "line": 2407
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/test-alert",
+      "source": "api/app/main.py",
       "handler": "admin_test_alert",
       "line": 2415
     },
     {
       "method": "GET",
       "path": "/owner/crm",
+      "source": "api/app/main.py",
       "handler": "owner_crm",
       "line": 2422
     },
     {
       "method": "GET",
       "path": "/owner/crm/pipeline",
+      "source": "api/app/main.py",
       "handler": "owner_crm_pipeline",
       "line": 2432
     },
     {
       "method": "POST",
       "path": "/owner/crm/leads",
+      "source": "api/app/main.py",
       "handler": "owner_create_opportunity",
       "line": 2452
     },
     {
       "method": "GET",
       "path": "/owner/crm/leads/{lead_id}/transcript",
+      "source": "api/app/main.py",
       "handler": "owner_crm_transcript",
       "line": 2466
     },
     {
       "method": "GET",
       "path": "/owner/crm/leads/{lead_id}/recordings",
+      "source": "api/app/main.py",
       "handler": "owner_crm_recordings",
       "line": 2483
     },
     {
       "method": "GET",
       "path": "/owner/voice-recordings/{session_id}",
+      "source": "api/app/main.py",
       "handler": "owner_voice_recording",
       "line": 2488
     },
     {
       "method": "POST",
       "path": "/owner/voice-recordings/{session_id}/share",
+      "source": "api/app/main.py",
       "handler": "owner_share_voice_recording",
       "line": 2494
     },
     {
       "method": "POST",
       "path": "/owner/crm/leads/{lead_id}/deliver",
+      "source": "api/app/main.py",
       "handler": "owner_deliver_voice_copy",
       "line": 2509
     },
     {
       "method": "GET",
       "path": "/owner/tasks",
+      "source": "api/app/main.py",
       "handler": "owner_tasks",
       "line": 2520
     },
     {
       "method": "POST",
       "path": "/owner/tasks",
+      "source": "api/app/main.py",
       "handler": "owner_task_create",
       "line": 2528
     },
     {
       "method": "PATCH",
       "path": "/owner/tasks/{task_id}",
+      "source": "api/app/main.py",
       "handler": "owner_task_update",
       "line": 2546
     },
     {
       "method": "DELETE",
       "path": "/owner/tasks/{task_id}",
+      "source": "api/app/main.py",
       "handler": "owner_task_delete",
       "line": 2562
     },
     {
       "method": "GET",
       "path": "/owner/companies",
+      "source": "api/app/main.py",
       "handler": "owner_companies",
       "line": 2614
     },
     {
       "method": "POST",
       "path": "/owner/companies",
+      "source": "api/app/main.py",
       "handler": "owner_company_create",
       "line": 2630
     },
     {
       "method": "PATCH",
       "path": "/owner/companies/{company_id}",
+      "source": "api/app/main.py",
       "handler": "owner_company_update",
       "line": 2642
     },
     {
       "method": "DELETE",
       "path": "/owner/companies/{company_id}",
+      "source": "api/app/main.py",
       "handler": "owner_company_delete",
       "line": 2666
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/company",
+      "source": "api/app/main.py",
       "handler": "owner_contact_company",
       "line": 2677
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/assignee",
+      "source": "api/app/main.py",
       "handler": "owner_contact_assignee",
       "line": 2692
     },
     {
       "method": "PUT",
       "path": "/owner/crm/leads/{lead_id}/assignee",
+      "source": "api/app/main.py",
       "handler": "owner_lead_assignee",
       "line": 2706
     },
     {
       "method": "POST",
       "path": "/owner/contacts/bulk-assign",
+      "source": "api/app/main.py",
       "handler": "owner_contacts_bulk_assign",
       "line": 2729
     },
     {
       "method": "GET",
       "path": "/owner/reports/export.csv",
+      "source": "api/app/main.py",
       "handler": "owner_reports_export",
       "line": 2745
     },
     {
       "method": "GET",
       "path": "/owner/email-templates",
+      "source": "api/app/main.py",
       "handler": "owner_templates",
       "line": 2792
     },
     {
       "method": "POST",
       "path": "/owner/email-templates",
+      "source": "api/app/main.py",
       "handler": "owner_template_create",
       "line": 2800
     },
     {
       "method": "PATCH",
       "path": "/owner/email-templates/{template_id}",
+      "source": "api/app/main.py",
       "handler": "owner_template_update",
       "line": 2812
     },
     {
       "method": "DELETE",
       "path": "/owner/email-templates/{template_id}",
+      "source": "api/app/main.py",
       "handler": "owner_template_delete",
       "line": 2828
     },
     {
       "method": "PATCH",
       "path": "/owner/crm/leads/{lead_id}",
+      "source": "api/app/main.py",
       "handler": "owner_crm_update",
       "line": 2838
     },
     {
       "method": "GET",
       "path": "/owner/crm/leads/{lead_id}/case",
+      "source": "api/app/main.py",
       "handler": "owner_lead_case",
       "line": 2861
     },
     {
       "method": "GET",
       "path": "/owner/live-calls",
+      "source": "api/app/main.py",
       "handler": "owner_live_calls",
       "line": 2923
     },
     {
       "method": "GET",
       "path": "/owner/live-calls/{call_sid}",
+      "source": "api/app/main.py",
       "handler": "owner_live_call",
       "line": 2936
     },
     {
       "method": "POST",
       "path": "/owner/live-calls/{call_sid}/supervise",
+      "source": "api/app/main.py",
       "handler": "owner_live_supervise",
       "line": 2944
     },
     {
       "method": "POST",
       "path": "/owner/live-calls/{call_sid}/supervise/stop",
+      "source": "api/app/main.py",
       "handler": "owner_live_supervise_stop",
       "line": 2973
     },
     {
       "method": "GET",
       "path": "/owner/supervision",
+      "source": "api/app/main.py",
       "handler": "owner_supervision",
       "line": 2992
     },
     {
       "method": "POST",
       "path": "/owner/live-calls/{call_sid}/takeover",
+      "source": "api/app/main.py",
       "handler": "owner_live_takeover",
       "line": 3004
     },
     {
       "method": "GET",
       "path": "/owner/revenue",
+      "source": "api/app/main.py",
       "handler": "owner_revenue",
       "line": 3035
     },
     {
       "method": "POST",
       "path": "/api/enquiry",
+      "source": "api/app/main.py",
       "handler": "website_enquiry",
       "line": 3054
     },
     {
       "method": "GET",
       "path": "/admin/site-enquiries",
+      "source": "api/app/main.py",
       "handler": "admin_site_enquiries",
       "line": 3066
     },
     {
       "method": "POST",
       "path": "/owner/install-request",
+      "source": "api/app/main.py",
       "handler": "owner_install_request",
       "line": 3096
     },
     {
       "method": "GET",
       "path": "/owner/install-requests",
+      "source": "api/app/main.py",
       "handler": "owner_install_requests",
       "line": 3104
     },
     {
       "method": "GET",
       "path": "/admin/install-requests",
+      "source": "api/app/main.py",
       "handler": "admin_install_requests",
       "line": 3109
     },
     {
       "method": "POST",
       "path": "/admin/install-requests/{request_id}/status",
+      "source": "api/app/main.py",
       "handler": "admin_install_request_status",
       "line": 3114
     },
     {
       "method": "GET",
       "path": "/version",
+      "source": "api/app/main.py",
       "handler": "public_version",
       "line": 3128
     },
     {
       "method": "GET",
       "path": "/owner/version",
+      "source": "api/app/main.py",
       "handler": "public_version",
       "line": 3128
     },
     {
       "method": "GET",
       "path": "/owner/release",
+      "source": "api/app/main.py",
       "handler": "owner_release",
       "line": 3134
     },
     {
       "method": "POST",
       "path": "/owner/release/seen",
+      "source": "api/app/main.py",
       "handler": "owner_release_seen",
       "line": 3140
     },
     {
       "method": "POST",
       "path": "/admin/releases/announce",
+      "source": "api/app/main.py",
       "handler": "admin_release_announce",
       "line": 3146
     },
     {
       "method": "POST",
       "path": "/owner/ask",
+      "source": "api/app/main.py",
       "handler": "owner_ask_route",
       "line": 3155
     },
     {
       "method": "GET",
       "path": "/owner/business",
+      "source": "api/app/main.py",
       "handler": "owner_business",
       "line": 3165
     },
     {
       "method": "PUT",
       "path": "/owner/business",
+      "source": "api/app/main.py",
       "handler": "owner_business_update",
       "line": 3174
     },
     {
       "method": "GET",
       "path": "/owner/payment-settings",
+      "source": "api/app/main.py",
       "handler": "owner_payment_settings",
       "line": 3191
     },
     {
       "method": "PUT",
       "path": "/owner/payment-settings",
+      "source": "api/app/main.py",
       "handler": "owner_set_payment_settings",
       "line": 3203
     },
     {
       "method": "POST",
       "path": "/owner/crm/quotations/{quote_id}/payment",
+      "source": "api/app/main.py",
       "handler": "owner_quote_payment",
       "line": 3217
     },
     {
       "method": "GET",
       "path": "/owner/call-insights",
+      "source": "api/app/main.py",
       "handler": "owner_call_insights",
       "line": 3238
     },
     {
       "method": "GET",
       "path": "/owner/contacts",
+      "source": "api/app/main.py",
       "handler": "owner_contacts",
       "line": 3248
     },
     {
       "method": "GET",
       "path": "/owner/contacts/{case_key}/addresses",
+      "source": "api/app/main.py",
       "handler": "owner_addresses",
       "line": 3321
     },
     {
       "method": "POST",
       "path": "/owner/contacts/{case_key}/addresses",
+      "source": "api/app/main.py",
       "handler": "owner_add_address",
       "line": 3327
     },
     {
       "method": "DELETE",
       "path": "/owner/contacts/{case_key}/addresses/{address_id}",
+      "source": "api/app/main.py",
       "handler": "owner_remove_address",
       "line": 3342
     },
     {
       "method": "GET",
       "path": "/owner/export/contacts",
+      "source": "api/app/main.py",
       "handler": "owner_export_contacts",
       "line": 3356
     },
     {
       "method": "POST",
       "path": "/owner/import/contacts",
+      "source": "api/app/main.py",
       "handler": "owner_import_contacts",
       "line": 3371
     },
     {
       "method": "GET",
       "path": "/owner/webhooks",
+      "source": "api/app/main.py",
       "handler": "owner_get_webhook",
       "line": 3391
     },
     {
       "method": "POST",
       "path": "/owner/webhooks",
+      "source": "api/app/main.py",
       "handler": "owner_set_webhook",
       "line": 3397
     },
     {
       "method": "DELETE",
       "path": "/owner/webhooks",
+      "source": "api/app/main.py",
       "handler": "owner_delete_webhook",
       "line": 3405
     },
     {
       "method": "POST",
       "path": "/owner/webhooks/deliver",
+      "source": "api/app/main.py",
       "handler": "owner_deliver_webhook",
       "line": 3412
     },
     {
       "method": "GET",
       "path": "/owner/contacts/{case_key}/timeline",
+      "source": "api/app/main.py",
       "handler": "owner_contact_timeline",
       "line": 3419
     },
     {
       "method": "PUT",
       "path": "/owner/contacts/{case_key}/takeover",
+      "source": "api/app/main.py",
       "handler": "owner_contact_takeover",
       "line": 3476
     },
     {
       "method": "POST",
       "path": "/owner/crm/leads/{lead_id}/takeover",
+      "source": "api/app/main.py",
       "handler": "owner_lead_takeover",
       "line": 3496
     },
     {
       "method": "GET",
       "path": "/owner/provider-readiness",
+      "source": "api/app/main.py",
       "handler": "owner_provider_readiness",
       "line": 3526
     },
     {
       "method": "POST",
       "path": "/owner/auth/logout",
+      "source": "api/app/main.py",
       "handler": "owner_logout",
       "line": 3538
     },
     {
       "method": "GET",
       "path": "/owner/onboarding",
+      "source": "api/app/main.py",
       "handler": "owner_onboarding_overview",
       "line": 3544
     },
     {
       "method": "PATCH",
       "path": "/owner/onboarding/profile",
+      "source": "api/app/main.py",
       "handler": "owner_onboarding_update",
       "line": 3552
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/authorizations",
+      "source": "api/app/main.py",
       "handler": "owner_channel_authorizations",
       "line": 3564
     },
     {
       "method": "POST",
       "path": "/owner/knowledge/import-website",
+      "source": "api/app/main.py",
       "handler": "owner_import_website",
       "line": 3569
     },
     {
       "method": "GET",
       "path": "/owner/knowledge",
+      "source": "api/app/main.py",
       "handler": "owner_knowledge_list",
       "line": 3585
     },
     {
       "method": "POST",
       "path": "/owner/knowledge",
+      "source": "api/app/main.py",
       "handler": "owner_knowledge_save",
       "line": 3590
     },
     {
       "method": "DELETE",
       "path": "/owner/knowledge/{document_id}",
+      "source": "api/app/main.py",
       "handler": "owner_knowledge_delete",
       "line": 3603
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/brand-suggestion",
+      "source": "api/app/main.py",
       "handler": "owner_brand_suggestion",
       "line": 3612
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/install-check",
+      "source": "api/app/main.py",
       "handler": "owner_install_check",
       "line": 3637
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/inbound-readiness",
+      "source": "api/app/main.py",
       "handler": "owner_inbound_readiness",
       "line": 3656
     },
     {
       "method": "GET",
       "path": "/admin/inbound-readiness",
+      "source": "api/app/main.py",
       "handler": "admin_inbound_readiness",
       "line": 3663
     },
     {
       "method": "GET",
       "path": "/owner/inbound-audit",
+      "source": "api/app/main.py",
       "handler": "owner_inbound_audit",
       "line": 3669
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/inbound-audit",
+      "source": "api/app/main.py",
       "handler": "admin_inbound_audit",
       "line": 3679
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/authorization-audit",
+      "source": "api/app/main.py",
       "handler": "owner_authorization_audit",
       "line": 3685
     },
     {
       "method": "POST",
       "path": "/admin/tenants/{slug}/channel-authorizations",
+      "source": "api/app/main.py",
       "handler": "admin_channel_authorization",
       "line": 3698
     },
     {
       "method": "GET",
       "path": "/admin/tenants/{slug}/authorization-audit",
+      "source": "api/app/main.py",
       "handler": "admin_authorization_audit",
       "line": 3722
     },
     {
       "method": "GET",
       "path": "/owner/pause",
+      "source": "api/app/main.py",
       "handler": "owner_pause_state",
       "line": 3732
     },
     {
       "method": "POST",
       "path": "/owner/pause",
+      "source": "api/app/main.py",
       "handler": "owner_set_pause",
       "line": 3738
     },
     {
       "method": "POST",
       "path": "/owner/onboarding/authorizations",
+      "source": "api/app/main.py",
       "handler": "owner_channel_authorization_update",
       "line": 3750
     },
     {
       "method": "POST",
       "path": "/owner/onboarding/email-auto-reply",
+      "source": "api/app/main.py",
       "handler": "owner_set_email_auto_reply",
       "line": 3782
     },
     {
       "method": "POST",
       "path": "/owner/onboarding/native-booking",
+      "source": "api/app/main.py",
       "handler": "owner_set_native_booking",
       "line": 3810
     },
     {
       "method": "GET",
       "path": "/owner/onboarding/readiness",
+      "source": "api/app/main.py",
       "handler": "owner_channel_readiness",
       "line": 3833
     },
     {
       "method": "POST",
       "path": "/owner/invitations",
+      "source": "api/app/main.py",
       "handler": "owner_invite",
       "line": 3857
     },
     {
       "method": "GET",
       "path": "/owner/team",
+      "source": "api/app/main.py",
       "handler": "owner_team",
       "line": 3887
     },
     {
       "method": "PATCH",
       "path": "/owner/team/{user_id}",
+      "source": "api/app/main.py",
       "handler": "owner_team_role",
       "line": 3911
     },
     {
       "method": "POST",
       "path": "/owner/team/{user_id}/deactivate",
+      "source": "api/app/main.py",
       "handler": "owner_team_deactivate",
       "line": 3925
     },
     {
       "method": "POST",
       "path": "/owner/team/{user_id}/reactivate",
+      "source": "api/app/main.py",
       "handler": "owner_team_reactivate",
       "line": 3942
     },
     {
       "method": "GET",
       "path": "/owner/email-drafts",
+      "source": "api/app/main.py",
       "handler": "owner_drafts",
       "line": 3952
     },
     {
       "method": "PATCH",
       "path": "/owner/email-drafts/{draft_id}",
+      "source": "api/app/main.py",
       "handler": "owner_edit_draft",
       "line": 3961
     },
     {
       "method": "POST",
       "path": "/owner/email-drafts/{draft_id}/discard",
+      "source": "api/app/main.py",
       "handler": "owner_discard_draft",
       "line": 3977
     },
     {
       "method": "POST",
       "path": "/owner/email-drafts/{draft_id}/approve",
+      "source": "api/app/main.py",
       "handler": "owner_approve_draft",
       "line": 3988
     },
     {
       "method": "POST",
       "path": "/owner/email-drafts/{draft_id}/release",
+      "source": "api/app/main.py",
       "handler": "owner_release_draft",
       "line": 4002
     },
     {
       "method": "GET",
       "path": "/owner/email-sender-rules",
+      "source": "api/app/main.py",
       "handler": "owner_sender_rules",
       "line": 4014
     },
     {
       "method": "POST",
       "path": "/owner/email-sender-rules",
+      "source": "api/app/main.py",
       "handler": "owner_add_sender_rule",
       "line": 4020
     },
     {
       "method": "DELETE",
       "path": "/owner/email-sender-rules/{rule_id}",
+      "source": "api/app/main.py",
       "handler": "owner_remove_sender_rule",
       "line": 4034
     },
     {
       "method": "GET",
       "path": "/owner/phone-setup",
+      "source": "api/app/main.py",
       "handler": "owner_phone_setup",
       "line": 4045
     },
     {
       "method": "PUT",
       "path": "/owner/phone-setup",
+      "source": "api/app/main.py",
       "handler": "owner_save_phone_setup",
       "line": 4053
     },
     {
       "method": "GET",
       "path": "/owner/phone-numbers",
+      "source": "api/app/main.py",
       "handler": "owner_phone_numbers",
       "line": 4059
     },
     {
       "method": "GET",
       "path": "/owner/sms-phone",
+      "source": "api/app/main.py",
       "handler": "owner_sms_phone",
       "line": 4068
     },
     {
       "method": "GET",
       "path": "/owner/missed-calls",
+      "source": "api/app/main.py",
       "handler": "owner_missed_calls",
       "line": 4095
     },
     {
       "method": "PUT",
       "path": "/owner/missed-calls/textback",
+      "source": "api/app/main.py",
       "handler": "owner_set_missed_textback",
       "line": 4110
     },
     {
       "method": "POST",
       "path": "/owner/sms-phone/test",
+      "source": "api/app/main.py",
       "handler": "owner_sms_phone_test",
       "line": 4120
     },
     {
       "method": "GET",
       "path": "/owner/phone-calls",
+      "source": "api/app/main.py",
       "handler": "owner_phone_calls",
       "line": 4141
     },
     {
       "method": "GET",
       "path": "/owner/phone-calls/{call_id}/transcript",
+      "source": "api/app/main.py",
       "handler": "owner_phone_transcript",
       "line": 4152
     },
     {
       "method": "POST",
       "path": "/owner/social/media",
+      "source": "api/app/main.py",
       "handler": "owner_social_media_upload",
       "line": 4181
     },
     {
       "method": "GET",
       "path": "/api/v1/social-media/{token}",
+      "source": "api/app/main.py",
       "handler": "social_media_download",
       "line": 4199
     },
     {
       "method": "POST",
       "path": "/owner/social/compose",
+      "source": "api/app/main.py",
       "handler": "owner_social_compose",
       "line": 4212
     },
     {
       "method": "GET",
       "path": "/owner/social/status",
+      "source": "api/app/main.py",
       "handler": "owner_social_status",
       "line": 4223
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/renew/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_oauth_renew",
       "line": 4240
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/tiktok/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_tiktok_start",
       "line": 4252
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/tiktok/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_tiktok_finish",
       "line": 4258
     },
     {
       "method": "DELETE",
       "path": "/owner/social/oauth/tiktok/accounts/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_tiktok_disconnect",
       "line": 4265
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/google/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_google_start",
       "line": 4272
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/google/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_google_finish",
       "line": 4278
     },
     {
       "method": "DELETE",
       "path": "/owner/social/oauth/google/accounts/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_google_disconnect",
       "line": 4285
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/x/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_x_start",
       "line": 4292
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/x/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_x_finish",
       "line": 4298
     },
     {
       "method": "DELETE",
       "path": "/owner/social/oauth/x/accounts/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_x_disconnect",
       "line": 4305
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/meta/{network}/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_meta_start",
       "line": 4312
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/meta/{network}/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_meta_finish",
       "line": 4321
     },
     {
       "method": "DELETE",
       "path": "/owner/social/oauth/meta/{network}/accounts/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_meta_disconnect",
       "line": 4330
     },
     {
       "method": "DELETE",
       "path": "/owner/social/oauth/linkedin/accounts/{account_id}",
+      "source": "api/app/main.py",
       "handler": "owner_social_linkedin_unlink",
       "line": 4339
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/linkedin_organization/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_linkedin_organization_start",
       "line": 4347
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/linkedin_organization/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_linkedin_organization_finish",
       "line": 4353
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/linkedin/start",
+      "source": "api/app/main.py",
       "handler": "owner_social_linkedin_start",
       "line": 4359
     },
     {
       "method": "POST",
       "path": "/owner/social/oauth/linkedin/finish",
+      "source": "api/app/main.py",
       "handler": "owner_social_linkedin_finish",
       "line": 4365
     },
     {
       "method": "GET",
       "path": "/owner/social/accounts",
+      "source": "api/app/main.py",
       "handler": "owner_social_accounts",
       "line": 4372
     },
     {
       "method": "GET",
       "path": "/owner/social/posts",
+      "source": "api/app/main.py",
       "handler": "owner_social_posts",
       "line": 4377
     },
     {
       "method": "POST",
       "path": "/owner/social/posts",
+      "source": "api/app/main.py",
       "handler": "owner_social_create",
       "line": 4382
     },
     {
       "method": "POST",
       "path": "/owner/social/posts/{post_id}/submit",
+      "source": "api/app/main.py",
       "handler": "owner_social_submit",
       "line": 4390
     },
     {
       "method": "POST",
       "path": "/owner/social/posts/{post_id}/approval-request",
+      "source": "api/app/main.py",
       "handler": "owner_social_request_approval",
       "line": 4396
     },
     {
       "method": "POST",
       "path": "/owner/social/approvals/{token}/approve",
+      "source": "api/app/main.py",
       "handler": "owner_social_approve",
       "line": 4403
     },
     {
       "method": "POST",
       "path": "/owner/social/approvals/{token}/reject",
+      "source": "api/app/main.py",
       "handler": "owner_social_reject",
       "line": 4409
     },
     {
       "method": "GET",
       "path": "/owner/email-engagement",
+      "source": "api/app/main.py",
       "handler": "owner_email_engagement",
       "line": 4414
     },
     {
       "method": "GET",
       "path": "/admin/pending-invites",
+      "source": "api/app/main.py",
       "handler": "admin_pending_invites",
       "line": 4420
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/brand",
+      "source": "api/app/media_studio.py",
+      "handler": "get_brand",
+      "line": 75
+    },
+    {
+      "method": "PUT",
+      "path": "/owner/media/brand",
+      "source": "api/app/media_studio.py",
+      "handler": "put_brand",
+      "line": 81
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/upload",
+      "source": "api/app/media_studio.py",
+      "handler": "upload",
+      "line": 103
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/usage",
+      "source": "api/app/media_studio.py",
+      "handler": "usage",
+      "line": 142
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/assets",
+      "source": "api/app/media_studio.py",
+      "handler": "assets",
+      "line": 156
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/assets/{asset_id}/to-social",
+      "source": "api/app/media_studio.py",
+      "handler": "to_social",
+      "line": 165
+    },
+    {
+      "method": "GET",
+      "path": "/owner/media/assets/{asset_id}/file",
+      "source": "api/app/media_studio.py",
+      "handler": "asset_file",
+      "line": 188
+    },
+    {
+      "method": "POST",
+      "path": "/owner/media/assets/delete",
+      "source": "api/app/media_studio.py",
+      "handler": "delete_assets",
+      "line": 203
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/media/assets/{asset_id}",
+      "source": "api/app/media_studio.py",
+      "handler": "delete_asset",
+      "line": 223
+    },
+    {
+      "method": "GET",
+      "path": "/privacy",
+      "source": "api/app/privacy.py",
+      "handler": "privacy_page",
+      "line": 56
+    },
+    {
+      "method": "POST",
+      "path": "/privacy/request",
+      "source": "api/app/privacy.py",
+      "handler": "privacy_request",
+      "line": 81
+    },
+    {
+      "method": "GET",
+      "path": "/owner/privacy/requests",
+      "source": "api/app/privacy.py",
+      "handler": "list_requests",
+      "line": 125
+    },
+    {
+      "method": "POST",
+      "path": "/owner/privacy/requests/{request_id}/erase",
+      "source": "api/app/privacy.py",
+      "handler": "erase",
+      "line": 133
+    },
+    {
+      "method": "POST",
+      "path": "/owner/privacy/contacts/{contact_key}/consent",
+      "source": "api/app/privacy.py",
+      "handler": "record_consent",
+      "line": 209
+    },
+    {
+      "method": "GET",
+      "path": "/owner/privacy/contacts/{contact_key}/consent",
+      "source": "api/app/privacy.py",
+      "handler": "consents",
+      "line": 222
+    },
+    {
+      "method": "GET",
+      "path": "/owner/quote-profiles",
+      "source": "api/app/quote_profiles.py",
+      "handler": "listing",
+      "line": 107
+    },
+    {
+      "method": "POST",
+      "path": "/owner/quote-profiles",
+      "source": "api/app/quote_profiles.py",
+      "handler": "create",
+      "line": 122
+    },
+    {
+      "method": "PATCH",
+      "path": "/owner/quote-profiles/{profile_id}",
+      "source": "api/app/quote_profiles.py",
+      "handler": "update",
+      "line": 138
+    },
+    {
+      "method": "DELETE",
+      "path": "/owner/quote-profiles/{profile_id}",
+      "source": "api/app/quote_profiles.py",
+      "handler": "remove",
+      "line": 156
     }
   ],
   "background_tasks": [
@@ -1572,5 +2406,6 @@
     "missed_calls.run_forever(stop)",
     "call_insights.run_forever(stop)"
   ],
-  "python_modules": 111
+  "python_modules": 111,
+  "scope": "Static app and APIRouter declarations; inclusion/mount reachability requires verification"
 }

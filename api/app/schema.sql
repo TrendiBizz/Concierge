@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS email_drafts (
     updated_at    timestamptz NOT NULL DEFAULT now(),
     approved_at   timestamptz
 );
-ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS origin text;  -- 'hermes' when Hermes prepared it
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS origin text;  -- 'concierge' when Concierge prepared it
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS auth jsonb;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS risk text;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS flags jsonb;
@@ -597,21 +597,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS tasks_lead_message_follow_up_idx
 CREATE UNIQUE INDEX IF NOT EXISTS tasks_message_follow_up_idx
     ON tasks (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
 
--- Hermes gateway support (see app/hermes_ops.py). All additive; everything stays off until HERMES_GATEWAY_ENABLED.
-CREATE TABLE IF NOT EXISTS hermes_tenant_settings (
+-- Concierge gateway support (see app/action_ops.py). All additive; everything stays off until ACTION_GATEWAY_ENABLED.
+-- Preserve existing approval/audit data while removing retired agent naming.
+-- If both names exist, stop rather than silently ignore either data set.
+DO $$
+DECLARE pair text[];
+BEGIN
+  FOREACH pair SLICE 1 IN ARRAY ARRAY[
+    ['hermes_tenant_settings','case_action_settings'],
+    ['hermes_case_state','case_action_state'],
+    ['hermes_actions','case_actions']
+  ] LOOP
+    IF to_regclass('public.' || pair[1]) IS NOT NULL THEN
+      IF to_regclass('public.' || pair[2]) IS NOT NULL THEN
+        RAISE EXCEPTION 'Both legacy and current action tables exist; reconciliation required';
+      END IF;
+      EXECUTE format('ALTER TABLE public.%I RENAME TO %I',pair[1],pair[2]);
+    END IF;
+  END LOOP;
+END $$;
+UPDATE email_drafts SET origin='concierge' WHERE origin='hermes';
+CREATE TABLE IF NOT EXISTS case_action_settings (
     tenant_id      uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
     autonomy       text NOT NULL DEFAULT 'shadow' CHECK (autonomy IN ('shadow', 'draft_review', 'auto_routine')),
     min_confidence real NOT NULL DEFAULT 0.8 CHECK (min_confidence BETWEEN 0 AND 1),
     updated_at     timestamptz NOT NULL DEFAULT now()
 );
-CREATE TABLE IF NOT EXISTS hermes_case_state (
+CREATE TABLE IF NOT EXISTS case_action_state (
     tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     lead_id           uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
     automation_paused boolean NOT NULL DEFAULT false,
     updated_at        timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, lead_id)
 );
-CREATE TABLE IF NOT EXISTS hermes_actions (
+CREATE TABLE IF NOT EXISTS case_actions (
     tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     idempotency_key text NOT NULL,
     lead_id         uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,

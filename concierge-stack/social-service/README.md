@@ -19,7 +19,7 @@ Implemented and tested:
 - Scheduler with defence-in-depth approval check and mock connector tests.
 - Bluesky AT Protocol password-session posting connector for a private pilot.
   This is not an OAuth connect flow and is not ready for customer onboarding.
-- REST API isolation: the Hermes key cannot approve customer posts.
+- REST API isolation: the Concierge key cannot approve customer posts.
 - Explicit off-by-default network publishing, automated encrypted SQLite backup
   when the scheduled restic backup runs.
 

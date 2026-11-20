@@ -4,7 +4,7 @@
 One report, three sources:
   * Omega live desk, read over SSH (service, mode, positions, closed trades).
   * Concierge, read from this repo + the deployed VPS.
-  * Hermes lane reports, read from ~/.workwatch/reports/hermes.
+  * Concierge lane reports, read from ~/.workwatch/reports/concierge.
 
 The report is deterministic: every number carries its basis. If a source cannot be
 read it is reported as UNANSWERED, never guessed.
@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-REPORT_DIR = Path.home() / ".workwatch" / "reports" / "hermes" / "trendi-master"
+REPORT_DIR = Path.home() / ".workwatch" / "reports" / "concierge" / "trendi-master"
 OMEGA_HOST = os.environ.get("OMEGA_HOST", "omega-new")
 VPS_KEY = REPO / "Concierge"
 VPS_HOST = "root@152.42.239.240"
@@ -198,7 +198,7 @@ def concierge_health() -> str:
 def lane_reports() -> list[dict]:
     out = []
     for lane in LANES:
-        path = Path.home() / ".workwatch/reports/hermes" / lane / "latest.md"
+        path = Path.home() / ".workwatch/reports/concierge" / lane / "latest.md"
         if not path.exists():
             out.append({"lane": lane, "status": "UNANSWERED (no report)", "head": "", "summary": ""})
             continue

@@ -2,6 +2,6 @@
 !concierge-stack/core-rs/src/**
 !concierge-stack/core-rs/Cargo.toml
 !concierge-stack/core-rs/Cargo.lock
-!concierge-stack/hermes-gateway/src/**
-!concierge-stack/hermes-gateway/Cargo.toml
-!concierge-stack/hermes-gateway/Cargo.lock
+!concierge-stack/action-gateway/src/**
+!concierge-stack/action-gateway/Cargo.toml
+!concierge-stack/action-gateway/Cargo.lock

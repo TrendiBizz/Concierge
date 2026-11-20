@@ -982,7 +982,7 @@ def check_tls() -> list[dict]:
 
 
 def check_local_services() -> list[dict]:
-    # Uptime Kuma was removed on 2026-11-12. The Hermes containers (auxiliary planner,
+    # Uptime Kuma was removed on 2026-11-12. The retired agent containers (auxiliary planner,
     # trendi-support planner, gateway) were stopped on 2026-11-19. Concierge handles
     # drafts, tasks and the daily note itself. Nothing here is probed.
     return []
@@ -1217,7 +1217,7 @@ def main(argv: list[str] | None = None) -> int:
         lines += [f"Summary: {report['counts']}",
                   f"Detail: {STATUS_FILE}",
                   "Checks cover: containers, public URLs, API, Postgres, disk/memory, TLS, Cloudflare "
-                  "token/routing/worker, inbound chain + rejections, email-auth sidecar, Hermes, Kuma."]
+                  "token/routing/worker, inbound chain + rejections, email-auth sidecar."]
         # The label must describe the worst problem in the mail, not just whether anything failed.
         # A warning-only mail used to arrive as "[Concierge FAIL]", which reads as an outage.
         if report["counts"]["fail"]:

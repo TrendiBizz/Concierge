@@ -1,7 +1,0 @@
-# Verified 2026-11-17 on Hermes v0.23.0: `hermes tools list --platform api_server` shows ONLY these three enabled.
-# No terminal, file, browser, code execution, delegation, cron, web or computer use. Hermes plans; Concierge executes.
-platform_toolsets:
-  api_server:
-    - memory
-    - session_search
-    - todo

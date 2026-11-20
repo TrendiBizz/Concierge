@@ -1,4 +1,4 @@
-//! Loopback JSON API. Concierge key can approve; Hermes agent key cannot.
+//! Loopback JSON API. Concierge key can approve; Concierge agent key cannot.
 use crate::{
     guardrails::{check_post, PostInput, Rules},
     model::{NewPost, Post},
@@ -196,7 +196,7 @@ fn role(
     if constant_time(auth, &s.agent_key) {
         return Err(err(
             StatusCode::FORBIDDEN,
-            "Global Hermes key has no tenant permissions; use a tenant agent key",
+            "Global Concierge key has no tenant permissions; use a tenant agent key",
         ));
     }
     if !owner && customer.is_some_and(|c| s.store.verify_agent_key(c, auth)) {

@@ -1,7 +1,6 @@
 # Working agreement — Trendi Concierge
 
-Every session reads `docs/AGENT_WORKING_ORDER.md` and `hermes/README.md` first. Commit Hermes lane briefs
-under `docs/`; the container reads this repo at `/opt/data/work`. Full text of every rule, incident and
+Every session reads `docs/AGENT_WORKING_ORDER.md` first. Full text of every rule, incident and
 command below: `docs/AGENTS_DETAIL.md` (read the section you need). Startup files have a size budget:
 `scripts/dev/startup-budget.sh` (keep this file, `HANDOFF.md` and the handoff small; history goes to `docs/archive/`).
 

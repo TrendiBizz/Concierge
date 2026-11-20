@@ -4,8 +4,8 @@
 #   scripts/install-morning-brief-macos.sh              install (or update)
 #   scripts/install-morning-brief-macos.sh --uninstall  remove
 #
-# The report is written to ~/.workwatch/reports/hermes/trendi-master/morning-latest.md
-# (and a dated copy). The Hermes dashboard reads that tree from its Files page.
+# The report is written to ~/.workwatch/reports/concierge/trendi-master/morning-latest.md
+# (and a dated copy). The Concierge dashboard reads that tree from its Files page.
 # Logs: ~/Library/Logs/trendi-morning-brief.log
 set -euo pipefail
 
@@ -58,6 +58,6 @@ EOF
 launchctl bootout "${DOMAIN}/${LABEL}" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
 echo "Installed. The morning report runs daily at 07:45."
-echo "  Report: ~/.workwatch/reports/hermes/trendi-master/morning-latest.md"
+echo "  Report: ~/.workwatch/reports/concierge/trendi-master/morning-latest.md"
 echo "  Log:    $LOG"
 echo "  Remove: scripts/install-morning-brief-macos.sh --uninstall"

@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres::Row;
+mod owner;
 
 #[derive(Clone)]
 pub struct Config {
@@ -1084,6 +1085,8 @@ pub fn app(state: State) -> Router {
         .route("/widget.js", get_only(widget_js))
         .route("/admin-ui", get_only(admin_ui))
         .route("/owner-ui", get_only(owner_ui))
+        .route("/owner/me", get_only(owner::me))
+        .route("/owner/revenue", get_only(owner::revenue_report))
         .route(
             "/owner/social/oauth/callback",
             get_only(social_oauth_callback),

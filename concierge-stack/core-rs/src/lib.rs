@@ -108,5 +108,5 @@ pub(crate) fn py_splitlines(s: &str) -> Vec<&str> {
     out
 }
 
-pub mod shell;
 pub mod revenue;
+pub mod shell;

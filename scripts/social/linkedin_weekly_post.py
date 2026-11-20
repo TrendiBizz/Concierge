@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Post the latest Trendi LinkedIn draft to the Trendi company page.
 
-Drafts come from Hermes `trendi-linkedin-weekly`:
-  ~/.workwatch/reports/hermes/trendi-desk/linkedin/<YYYY-MM-DD>.md
+Drafts come from Concierge `trendi-linkedin-weekly`:
+  ~/.workwatch/reports/concierge/trendi-desk/linkedin/<YYYY-MM-DD>.md
 
 The first run needs a one-time login in the dedicated browser profile:
   scripts/social/linkedin-login.sh
@@ -30,10 +30,10 @@ from playwright.sync_api import sync_playwright
 
 HOME = Path.home()
 PROFILE = HOME / ".trendi-linkedin-profile"
-DRAFT_DIR = HOME / ".workwatch/reports/hermes/trendi-desk/linkedin"
+DRAFT_DIR = HOME / ".workwatch/reports/concierge/trendi-desk/linkedin"
 COMPANY_ID = "146891966"
 ADMIN_URL = f"https://www.linkedin.com/company/{COMPANY_ID}/admin/feed/posts?share=true"
-LOG_DIR = HOME / ".workwatch/reports/hermes/trendi-desk/linkedin"
+LOG_DIR = HOME / ".workwatch/reports/concierge/trendi-desk/linkedin"
 FORBIDDEN = ("free", "guaranteed", "rank #1", "number one", "best in the world")
 POSTED = LOG_DIR / ".posted.json"
 
