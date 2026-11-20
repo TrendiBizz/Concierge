@@ -63,7 +63,7 @@ pub(crate) fn is_py_space(c: char) -> bool {
 }
 
 /// Python `str.strip()`.
-pub(crate) fn py_strip(s: &str) -> &str {
+pub fn py_strip(s: &str) -> &str {
     s.trim_matches(is_py_space)
 }
 

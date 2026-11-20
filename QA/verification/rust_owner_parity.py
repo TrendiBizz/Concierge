@@ -41,9 +41,11 @@ def port():
         return sock.getsockname()[1]
 
 
-def request(port_number, path, token=None, method="GET"):
+def request(port_number, path, token=None, method="GET", data=None):
     headers = {} if token is None else {"Authorization": token}
-    req = urllib.request.Request(f"http://127.0.0.1:{port_number}{path}", headers=headers, method=method)
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"http://127.0.0.1:{port_number}{path}", headers=headers, method=method, data=None if data is None else json.dumps(data).encode())
     try:
         response = urllib.request.urlopen(req, timeout=10)
     except urllib.error.HTTPError as error:
@@ -180,6 +182,108 @@ def main():
                         assert sql(DB, f"SELECT row_to_json(t)::text FROM {new} t ORDER BY tenant_id") == snapshots[new]
                         assert sql(DB, f"SELECT to_regclass('public.{old}') IS NULL") == "t"
                 print("PASS: legacy action state/audit data preserved; full schema reapplied twice")
+                # Credential exchanges run against the real DB, with independent
+                # fixtures per implementation because they deliberately mutate state.
+                for endpoint, payload in (
+                    ("login", {}), ("login", {"slug":1,"email":None,"password":False}),
+                    ("invite", {}), ("invite", {"token":"short"}),
+                    ("invite", {"token":None}),
+                    ("redeem", {"token":"short","password":"tiny"}),
+                    ("code/verify", {"email":"a@example.test","code":"invalid"}),
+                ):
+                    a=request(py,"/owner/auth/"+endpoint,method="POST",data=payload)
+                    b=request(rs,"/owner/auth/"+endpoint,method="POST",data=payload)
+                    assert a==b,(endpoint,payload,a,b)
+                    comparisons+=1
+                for server in (py,rs):
+                    sql(DB,"TRUNCATE owner_login_limits")
+                    raw="invitation-"+uuid.uuid4().hex
+                    hashed=hashlib.sha256(raw.encode()).hexdigest()
+                    sql(DB,f"INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) SELECT id,'alpha@example.test','owner','recovery','{hashed}',now()+interval '1 hour' FROM tenants WHERE slug='alpha'")
+                    first=request(server,"/owner/auth/invite",method="POST",data={"token":raw})
+                    assert first[0]==200,first
+                    session=first[1]["access_token"]
+                    assert len(session)==43 and first[1]["expires_in"]==2592000
+                    assert session not in sql(DB,"SELECT token_hash FROM tenant_sessions")
+                    assert request(server,"/owner/me","Bearer "+session)[0]==200
+                    again=request(server,"/owner/auth/invite",method="POST",data={"token":raw})
+                    assert again[0]==200,again
+                    assert request(server,"/owner/me","Bearer "+session)[0]==200,"link reuse revoked existing session"
+                    assert request(server,"/owner/auth/logout","Bearer "+session,"POST")[0]==200
+                    assert request(server,"/owner/me","Bearer "+session)[0]==401
+                    assert request(server,"/owner/me","Bearer "+again[1]["access_token"])[0]==200
+                    sql(DB,f"UPDATE tenant_invites SET used_at=now()-interval '31 minutes' WHERE token_hash='{hashed}'")
+                    assert request(server,"/owner/auth/invite",method="POST",data={"token":raw})[0]==400
+                    # Redeeming a password invitation invalidates old sessions.
+                    raw="password-"+uuid.uuid4().hex
+                    hashed=hashlib.sha256(raw.encode()).hexdigest()
+                    sql(DB,f"INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) SELECT id,'alpha@example.test','owner','recovery','{hashed}',now()+interval '1 hour' FROM tenants WHERE slug='alpha'")
+                    pwd="a local test password only"
+                    redeemed=request(server,"/owner/auth/redeem",method="POST",data={"token":raw,"password":pwd})
+                    assert redeemed[0]==200,redeemed
+                    assert request(server,"/owner/me","Bearer "+again[1]["access_token"])[0]==401
+                    assert request(server,"/owner/auth/redeem",method="POST",data={"token":raw,"password":pwd})[0]==400
+                    valid=request(server,"/owner/auth/login",method="POST",data={"slug":"alpha","email":" ALPHA@example.test ","password":pwd})
+                    assert valid[0]==200 and valid[1]["expires_in"]==43200,valid
+                    assert request(server,"/owner/me","Bearer "+valid[1]["access_token"])[0]==200
+                    for n in range(8):
+                        fail=request(server,"/owner/auth/login",method="POST",data={"slug":"beta","email":"alpha@example.test","password":pwd})
+                        assert fail[0]==(429 if n==7 else 401),fail
+                    # Single-use codes serialize concurrent consumers.
+                    sql(DB,"TRUNCATE owner_login_limits")
+                    code="654321"
+                    hashed=hashlib.sha256(code.encode()).hexdigest()
+                    sql(DB,f"DELETE FROM tenant_invites WHERE token_hash='{hashed}'; INSERT INTO tenant_invites(tenant_id,email,role,purpose,token_hash,expires_at) SELECT id,'alpha@example.test','owner','code','{hashed}',now()+interval '10 minutes' FROM tenants WHERE slug='alpha'")
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        replies=list(executor.map(lambda _:request(server,"/owner/auth/code/verify",method="POST",data={"email":"alpha@example.test","code":code}),range(2)))
+                    assert sorted(reply[0] for reply in replies)==[200,400],replies
+                print("PASS: owner credential validation, invite grace, session isolation/revocation, password login, shared throttle and concurrent single-use codes")
+                # Restore deterministic sessions after revocation tests and give
+                # the same tenant an editor to prove private-cost filtering.
+                for account, role, tenant in (("product-owner","owner","alpha"),("product-editor","editor","alpha"),("product-viewer","viewer","alpha"),("product-foreign","owner","beta")):
+                    hashed=hashlib.sha256(account.encode()).hexdigest()
+                    sql(DB,f"INSERT INTO tenant_users(tenant_id,email,role,password_hash) SELECT id,'{account}@example.test','{role}','no-password' FROM tenants WHERE slug='{tenant}'")
+                    sql(DB,f"INSERT INTO tenant_sessions(user_id,token_hash,expires_at) SELECT id,'{hashed}',now()+interval '1 hour' FROM tenant_users WHERE email='{account}@example.test'")
+                base_product={"sku":" LOCAL-SKU ","name":" Local product ","sale_price_cents":1200,"cost_price_cents":"300","stock_quantity":5}
+                for invalid in ({}, {**base_product,"sale_price_cents":True}, {**base_product,"sale_price_cents":1200.0}, {**base_product,"sale_price_cents":"1200"}, {**base_product,"sku":""}, {**base_product,"untrusted":"x"}, {**base_product,"cost_price_cents":-1}):
+                    a=request(py,"/owner/products","Bearer product-owner","POST",invalid)
+                    b=request(rs,"/owner/products","Bearer product-owner","POST",invalid)
+                    assert a==b,(invalid,a,b)
+                    comparisons+=1
+                normalised=[]
+                for server in (py,rs):
+                    created=request(server,"/owner/products","Bearer product-owner","POST",base_product)
+                    assert created[0]==201,created
+                    item=created[1];pid=item["id"]
+                    assert item["sku"]=="LOCAL-SKU" and item["cost_price_cents"]==300
+                    for role,status in (("viewer",403),("editor",200),("owner",200)):
+                        listed=request(server,"/owner/products","Bearer product-"+role)
+                        assert listed[0]==status,listed
+                        if status==200:
+                            assert ("cost_price_cents" in listed[1][0])==(role=="owner")
+                    assert request(server,"/owner/products","Bearer product-editor","POST",base_product)[0]==403
+                    assert request(server,"/owner/products/"+pid,"Bearer product-foreign","PUT",base_product)[0]==404
+                    assert request(server,"/owner/products/"+pid+"/stock","Bearer product-foreign","POST",{"delta":1})[0]==404
+                    assert request(server,"/owner/products/"+pid,"Bearer product-editor","DELETE")[0]==403
+                    updated=request(server,"/owner/products/"+pid,"Bearer product-owner","PUT",{**base_product,"name":"Changed"})
+                    assert updated[0]==200 and updated[1]["name"]=="Changed",updated
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=4) as executor:
+                        replies=list(executor.map(lambda _:request(server,"/owner/products/"+pid+"/stock","Bearer product-editor","POST",{"delta":2,"reason":" restock "}),range(4)))
+                    assert all(r[0]==200 and "cost_price_cents" not in r[1] for r in replies),replies
+                    assert sql(DB,f"SELECT stock_quantity FROM products WHERE id='{pid}'")=="13"
+                    assert sql(DB,f"SELECT count(*) FROM product_stock_movements WHERE product_id='{pid}' AND reason='restock' AND actor='product-editor@example.test'")=="4"
+                    deleted=request(server,"/owner/products/"+pid,"Bearer product-owner","DELETE")
+                    assert deleted[0]==200 and deleted[1]["active"] is False
+                    result=deleted[1]
+                    for field in ("created_at","updated_at"):
+                        assert datetime.fromisoformat(result.pop(field)).tzinfo is not None
+                    result.pop("id")
+                    normalised.append(result)
+                    sql(DB,f"DELETE FROM products WHERE id='{pid}'")
+                assert normalised[0]==normalised[1],normalised
+                print("PASS: product validation/CRUD, tenant and role isolation, owner-only costs, concurrent stock updates and audit records")
                 for path in ("/owner/me","/owner/revenue"):
                     for method in ("HEAD","POST","PUT","DELETE"):
                         same("method boundary", path, "Bearer empty", method)

@@ -18,6 +18,10 @@ pub enum Ty {
         ge: Option<i64>,
         le: Option<i64>,
     },
+    StrictInt {
+        ge: i64,
+        le: i64,
+    },
     Bool,
     Lit(&'static [&'static str]),
     True,
@@ -331,6 +335,50 @@ pub fn model(name: &str) -> Option<(Vec<Fd>, bool)> {
             vec![s("token").len(20, 256), s("password").len(12, 256)],
             false,
         ),
+        "OwnerLinkAccept" => (vec![s("token").len(20, 256)], false),
+        "OwnerCodeVerify" => (
+            vec![s("email").len(0, 320), s("code").pat(r"^\d{6}$")],
+            false,
+        ),
+        "ProductIn" => (
+            vec![
+                s("sku").len(1, 64),
+                s("name").len(1, 200),
+                s("description").len(0, 2000).dflt(json!("")),
+                s("unit").len(1, 20).dflt(json!("each")),
+                Fd::of(
+                    "sale_price_cents",
+                    Ty::StrictInt {
+                        ge: 0,
+                        le: 100_000_000,
+                    },
+                ),
+                Fd::int("cost_price_cents", 0, 100_000_000).opt(),
+                Fd::of(
+                    "stock_quantity",
+                    Ty::StrictInt {
+                        ge: -1_000_000,
+                        le: 1_000_000,
+                    },
+                )
+                .dflt(json!(0)),
+                b("active").dflt(json!(true)),
+            ],
+            true,
+        ),
+        "StockAdjust" => (
+            vec![
+                Fd::of(
+                    "delta",
+                    Ty::StrictInt {
+                        ge: -1_000_000,
+                        le: 1_000_000,
+                    },
+                ),
+                s("reason").len(0, 200).dflt(json!("")),
+            ],
+            true,
+        ),
         "OwnerLogin" => (vec![s("slug"), s("email"), s("password")], false),
         "VoiceCopyRequest" => (
             vec![
@@ -506,6 +554,18 @@ fn field(f: &Fd, v: &Value, errors: &mut Vec<FieldErr>) -> Result<Value, Outcome
             }
             _ => fail(n.into(), "string_type"),
         },
+        Ty::StrictInt { ge, le } => {
+            match v
+                .as_i64()
+                .map(i128::from)
+                .or_else(|| v.as_u64().map(i128::from))
+            {
+                None => fail(n.into(), "int_type"),
+                Some(i) if i < i128::from(*ge) => fail(n.into(), "greater_than_equal"),
+                Some(i) if i > i128::from(*le) => fail(n.into(), "less_than_equal"),
+                Some(i) => return Ok(json!(i as i64)),
+            }
+        }
         Ty::Int { ge, le } => match parse_int(v) {
             Ok(x) if ge.is_some_and(|g| x < g as i128) => fail(n.into(), "greater_than_equal"),
             Ok(x) if le.is_some_and(|l| x > l as i128) => fail(n.into(), "less_than_equal"),

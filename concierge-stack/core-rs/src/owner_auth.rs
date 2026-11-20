@@ -87,3 +87,10 @@ pub fn clean_email(email: &str) -> Result<String, &'static str> {
     }
     Ok(truncate_chars(&value, 320))
 }
+
+/// Python's anchored six Unicode decimal digits (the request schema uses \d).
+pub fn valid_code(value: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"^\d{6}$").unwrap())
+        .is_match(value)
+}

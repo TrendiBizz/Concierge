@@ -12,19 +12,19 @@ use std::collections::HashMap;
 use tokio_postgres::GenericClient;
 
 pub(crate) struct User {
-    tenant_id: uuid::Uuid,
-    email: String,
-    role: String,
+    pub(crate) tenant_id: uuid::Uuid,
+    pub(crate) email: String,
+    pub(crate) role: String,
     slug: String,
 }
 
-enum OwnerError {
+pub(crate) enum OwnerError {
     Authentication(&'static str),
     Database,
 }
 
 impl OwnerError {
-    fn response(self) -> Response {
+    pub(crate) fn response(self) -> Response {
         match self {
             Self::Authentication(message) => detail(401, message),
             Self::Database => server_error(),
@@ -45,7 +45,7 @@ fn bearer(headers: &HeaderMap) -> Result<&str, OwnerError> {
     Ok(token)
 }
 
-async fn current_user(state: &State, headers: &HeaderMap) -> Result<User, OwnerError> {
+pub(crate) async fn current_user(state: &State, headers: &HeaderMap) -> Result<User, OwnerError> {
     let token = bearer(headers)?;
     let pool = state.0.pool.as_ref().ok_or(OwnerError::Database)?;
     let client = pool.get().await.map_err(|_| OwnerError::Database)?;
@@ -156,4 +156,31 @@ pub(crate) async fn revenue_report(
     result["since"] = json!(iso(start));
     result["note"] = json!(revenue::NOTE);
     Json(result).into_response()
+}
+
+/// Only the authenticated session is revoked; other devices remain signed in.
+pub(crate) async fn logout(AxState(state): AxState<State>, headers: HeaderMap) -> Response {
+    if let Err(error) = current_user(&state, &headers).await {
+        return error.response();
+    }
+    let token = match bearer(&headers) {
+        Ok(t) => t,
+        Err(e) => return e.response(),
+    };
+    let Some(pool) = &state.0.pool else {
+        return server_error();
+    };
+    let Ok(client) = pool.get().await else {
+        return server_error();
+    };
+    match client
+        .execute(
+            "DELETE FROM tenant_sessions WHERE token_hash=$1",
+            &[&owner_auth::digest(token)],
+        )
+        .await
+    {
+        Ok(_) => Json(json!({"ok": true})).into_response(),
+        Err(_) => server_error(),
+    }
 }

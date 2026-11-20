@@ -8,5 +8,10 @@ async fn main() {
     let state = State::connect(config).await.expect("database connection");
     let listener = tokio::net::TcpListener::bind(&bind).await.expect("bind");
     eprintln!("concierge-server listening on {bind}");
-    axum::serve(listener, app(state)).await.expect("serve");
+    axum::serve(
+        listener,
+        app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("serve");
 }

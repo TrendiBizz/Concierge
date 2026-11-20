@@ -18,6 +18,9 @@ use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres::Row;
 mod owner;
+mod owner_sessions;
+mod owner_validation;
+mod products;
 
 #[derive(Clone)]
 pub struct Config {
@@ -1086,7 +1089,45 @@ pub fn app(state: State) -> Router {
         .route("/admin-ui", get_only(admin_ui))
         .route("/owner-ui", get_only(owner_ui))
         .route("/owner/me", get_only(owner::me))
+        .route(
+            "/owner/auth/login",
+            axum::routing::post(owner_sessions::login)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/auth/logout",
+            axum::routing::post(owner::logout).fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/auth/invite",
+            axum::routing::post(owner_sessions::invite)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/auth/redeem",
+            axum::routing::post(owner_sessions::redeem)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
+        .route(
+            "/owner/auth/code/verify",
+            axum::routing::post(owner_sessions::verify_code)
+                .fallback(|| async { method_not_allowed("POST") }),
+        )
         .route("/owner/revenue", get_only(owner::revenue_report))
+        .route(
+            "/owner/products",
+            get_allow(products::listing, "GET").post(products::create),
+        )
+        .route(
+            "/owner/products/:product_id",
+            axum::routing::put(products::update)
+                .delete(products::deactivate)
+                .fallback(|| async { method_not_allowed("PUT") }),
+        )
+        .route(
+            "/owner/products/:product_id/stock",
+            axum::routing::post(products::stock).fallback(|| async { method_not_allowed("POST") }),
+        )
         .route(
             "/owner/social/oauth/callback",
             get_only(social_oauth_callback),
