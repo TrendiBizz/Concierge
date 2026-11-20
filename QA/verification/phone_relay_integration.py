@@ -82,7 +82,15 @@ with TestClient(app) as client:
     check("unsigned voice webhook rejected", r.status_code == 403)
     r = client.post(hook, data=params, headers=signed_headers)
     check("inactive number rejects even signed webhook", r.status_code == 403)
+    # Go-live gate: a phone line cannot be switched on for a business whose owner alerts are unproven.
     r = client.patch("/admin/tenants/alpha", headers=H, json={"phone_enabled": True})
+    check("phone opt-in refused while owner alerts are unproven",
+          r.status_code == 409 and r.json()["detail"]["error"] == "alerts_not_proven"
+          and len(r.json()["detail"]["blockers"]) >= 1)
+    check("refused opt-in left the business off",
+          run(lambda: p.fetchval("SELECT phone_enabled FROM tenants WHERE id=$1", alpha)) is False)
+    # `?force=true` is the operator's explicit override of that gate.
+    r = client.patch("/admin/tenants/alpha?force=true", headers=H, json={"phone_enabled": True})
     check("operator can opt in one business", r.status_code == 200 and r.json()["phone_enabled"] is True)
     r = client.patch(create_url + "/" + TO, headers=H, json={"enabled": True})
     check("number activation requires explicit action", r.status_code == 200 and r.json()["enabled"] is True)
