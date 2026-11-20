@@ -156,6 +156,30 @@ def main():
                 same("expired session report", "/owner/revenue", "Bearer alpha")
                 sql(DB, "DELETE FROM tenant_sessions WHERE user_id=(SELECT id FROM tenant_users WHERE email='beta@example.test')")
                 same("deleted session", "/owner/me", "Bearer beta")
+                # ASGI retains trailing optional header whitespace; Hyper removes
+                # it before exposing HeaderMap. Record the intentional protocol
+                # difference instead of counting it as byte-identical parity.
+                assert request(py, "/owner/me", "Bearer empty ")[0] == 401
+                assert request(rs, "/owner/me", "Bearer empty ")[0] == 200
+                print("KNOWN DIFFERENCE: trailing HTTP header OWS is normalised by Hyper")
+
+                # Real upgrade fixture: audit/approval records survive the legacy
+                # table renames; rerunning the complete schema remains idempotent.
+                sql(DB, "INSERT INTO case_action_settings(tenant_id,autonomy) SELECT id,'draft_review' FROM tenants WHERE slug='alpha'")
+                sql(DB, "INSERT INTO case_action_state(tenant_id,lead_id,automation_paused) SELECT tenant_id,id,true FROM leads LIMIT 1")
+                sql(DB, "INSERT INTO case_actions(tenant_id,lead_id,idempotency_key,op,fingerprint,state,result) SELECT tenant_id,id,'upgrade-fixture','escalate_case','fingerprint','done','{\"ok\":true}' FROM leads LIMIT 1")
+                snapshots = {}
+                pairs = (("hermes_tenant_settings","case_action_settings"),("hermes_case_state","case_action_state"),("hermes_actions","case_actions"))
+                for old, new in pairs:
+                    snapshots[new] = sql(DB, f"SELECT row_to_json(t)::text FROM {new} t ORDER BY tenant_id")
+                    sql(DB, f"ALTER TABLE {new} RENAME TO {old}")
+                schema = (ROOT / "api/app/schema.sql").read_text().replace("__DIM__", "384")
+                for _ in range(2):
+                    sql(DB, schema)
+                    for old, new in pairs:
+                        assert sql(DB, f"SELECT row_to_json(t)::text FROM {new} t ORDER BY tenant_id") == snapshots[new]
+                        assert sql(DB, f"SELECT to_regclass('public.{old}') IS NULL") == "t"
+                print("PASS: legacy action state/audit data preserved; full schema reapplied twice")
                 for path in ("/owner/me","/owner/revenue"):
                     for method in ("HEAD","POST","PUT","DELETE"):
                         same("method boundary", path, "Bearer empty", method)

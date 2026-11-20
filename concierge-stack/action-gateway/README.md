@@ -1,55 +1,24 @@
-# action-gateway
+# Concierge action gateway
 
-The only path from Concierge's proposals to Concierge's executors. Design source:
-`QA/verification/HERMES_CONCIERGE_FRAMEWORK_2026-11-09.md` (§3, §5, §8, §11).
+First-party Rust policy and planning gateway. No third-party agent runtime is installed or required.
+It uses capability tokens, tenant/case binding, a closed operation allowlist and an action ledger.
+A model proposes text; Concierge retains permissions and execution. Default shadow mode executes nothing.
 
-**Trust model.** Concierge is an *untrusted planner*. It receives a short-lived, tenant-scoped capability and returns a typed
-plan. Concierge stays the record, the permission boundary and the executor. Nothing Concierge says is believed.
+Configure three distinct 32-character-or-longer secrets: `ACTION_CAPABILITY_SECRET`,
+`ACTION_MINT_KEY`, `ACTION_CONCIERGE_KEY`. Also set `PLANNER_BASE_URL`, `PLANNER_API_KEY`
+and `PLANNER_MODEL` explicitly. The model endpoint must use HTTPS or loopback HTTP.
+`CONCIERGE_BASE_URL` defaults to loopback port 8000; `ACTION_GATEWAY_BIND` defaults
+ to `127.0.0.1:4420` and refuses non-loopback listeners.
 
-## What is built (library, no deployment)
+The backend uses `/internal/actions` and `X-Action-Gateway-Key`. The compatibility
+Python API requires `ACTION_GATEWAY_ENABLED=true` and matching `ACTION_GATEWAY_KEY`.
+These routes remain off by default. The deployment descriptor is
+`scripts/vps/compose.action-gateway.yml`; the main production stack does not start it.
 
-| Module | Guarantees |
-|---|---|
-| `capability` | HMAC-SHA256 signed token (`tenant`, `case`, `run`, allowed ops, expiry, nonce). 15-minute maximum lifetime, constant-time verify, revocation by nonce, tampered or cross-tenant payloads rejected. The tenant is derived from the token, never from model output. |
-| `ops` | A closed set of ten operations. There is no shell, SQL, URL-fetch or send-mail operation: sending is a policy outcome, not a tool. |
-| `plan` | Strict typed plan (`deny_unknown_fields`, size/length/count limits, control characters refused, confidence in 0..1). A model cannot smuggle in a tenant, a capability or any extra field. |
-| `policy` | Fails closed; one rejected part rejects the whole plan. Recipient must already belong to the case; consent and opt-out re-checked at execution; channel must be authorized; quoted prices must appear in business evidence (`concierge-core` quote guard); mutations need an idempotency key and the current case version; a human takeover blocks customer effects but never escalation; approvals bind the *exact* tenant/case/channel/recipient/subject/body; autonomy levels (Shadow / DraftReview / AutoRoutine) with routine automation still stopping for sensitive, uncertain, priced or escalated cases; quiet hours via `concierge-core`. |
-| `ledger` | Action and case state machines and an idempotent, tenant-scoped ledger. A duplicate request creates nothing, a reused key with different content is a conflict, and an *uncertain* send can only be reconciled, never blindly retried. |
+Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`, and
+`cargo test --locked` here. Tests use fake models/backends only. `tests/model.rs`
+checks the direct model protocol on loopback without contacting a provider.
 
-`tests/acceptance.rs` (17 tests) and `tests/server.rs` (14 tests, including a prompt-injection scenario) maps to the framework's table: #1 duplicates, #3 malformed output, #11 capability
-escalation, #12 uncertain sends, #14 takeover, #15 revoked consent, #24 cross-tenant, #25 approval of a different
-revision, #26 quiet hours, #30 stale case. Each security rule was checked by deliberately removing it and confirming a test fails.
-
-## The server (`src/server.rs`, `src/main.rs`)
-
-Loopback-only HTTP service. It refuses to start without three **distinct** 32+ character keys (`ACTION_CAPABILITY_SECRET`,
-`ACTION_MINT_KEY`, `ACTION_CONCIERGE_KEY`), the same rule as the social service.
-
-| Route | Auth | Purpose |
-|---|---|---|
-| `POST /v1/capabilities` | mint key | Issue a tenant/case-scoped capability (TTL clamped to 15 minutes; unknown operations refused). |
-| `DELETE /v1/capabilities/{nonce}` | mint key | Revoke one. |
-| `POST /v1/runs` | mint key | Run Concierge on one case: the gateway mints the capability **itself and never shows it to Concierge**, builds a prompt (customer text wrapped in `<customer_data>`, tags neutralised), asks Concierge (`PLANNER_BASE_URL`, `PLANNER_API_KEY`), requires the reply to be exactly one JSON object, overwrites `task_id`, drops any `approval_ref`, then applies the same validation as `/v1/plans`. 502 Concierge down, 422 unusable reply. |
-| `POST /v1/plans` | capability | Parse, validate and (unless the business is in shadow mode) forward a plan. 400 unreadable, 401 bad capability, 404 unknown case, 409 Concierge refused, 422 policy rejected, 503 Concierge down. |
-
-It talks to Concierge only through `backend::Backend`; `HttpBackend` calls `/internal/actions/...` in `api/app/action_ops.py`,
-which is dark (404) unless `ACTION_GATEWAY_ENABLED` and `ACTION_GATEWAY_KEY` are set, re-verifies everything, and only ever creates
-human-reviewed drafts or to-dos. **Nothing sends.** `tests/fixtures/execute_bundle.json` is the exact JSON the gateway sends;
-both this crate's tests and `QA/verification/action_ops_integration.py` use it, so neither side can change the format alone.
-
-## Not built yet (do not assume)
-
-- **Nothing triggers a run yet.** `POST /v1/runs` exists, but no component calls it (no inbound-message hook, no scheduler, no owner-portal button).
-- **Never run against a real Concierge.** The planner is tested with a fake; the Concierge request/response shape follows `ask-concierge.sh`'s OpenAI-compatible call and is unverified here.
-- **The gateway's ledger is in memory** (advisory). Concierge's `case_actions` table is the durable, authoritative idempotency record.
-- **No owner-portal UI** for takeover, autonomy level or approving Concierge drafts beyond the existing email-draft screen.
-- **No booking or quote executor**: those requests become to-dos for a person.
-- **Auto-send does not exist**: `auto` is treated as "needs approval".
-- **Not deployed.** No Dockerfile or compose entry for the gateway yet; nothing in production calls any of this.
-- **Concierge tool restriction is not done.** See `scripts/vps/concierge.sh`: customer mode refuses to start without an operator-verified toolset file.
-
-## Run
-
-```sh
-cd concierge-stack/action-gateway && cargo test
-```
+Remaining limitations: the gateway backend still calls the Python compatibility
+API until those operations migrate; its in-memory action ledger is not durable
+across restarts. No new production cutover is claimed by these local changes.
