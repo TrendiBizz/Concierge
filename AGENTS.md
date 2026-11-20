@@ -9,6 +9,7 @@ command below: `docs/AGENTS_DETAIL.md` (read the section you need). Startup file
 box-only changes are lost or silently diverge. "It works" and "it is what we committed" are different questions.
 
 ## Where things live
+- Canonical local clone: `~/trendi-site` (TrendiBizz/Concierge `main`). Deploy from here: `cd ~/trendi-site && KEY=<path to deploy key> ./scripts/vps/deploy-site.sh`. The GitHub repo Trendiisales/trendi-site is stale (Cloudflare-era); do not use it.
 - Website source: `website/` (only source) → `scripts/vps/deploy-site.sh`
 - API: `api/app/`, `api/static/` → `scripts/vps/deploy-api.sh`
 - Host tooling: `scripts/vps/` → `scripts/vps/sync-tooling.sh`
