@@ -50,7 +50,8 @@ SILENCE_DURATION_MS = 700
 REPLY_NUDGE_SECONDS = 5.0
 
 
-from .speech_text import clean_speech
+from . import call_alert, call_insights
+from .speech_text import clean_speech, strip_control_tags
 
 
 # Say a number once. The test call of 2026-11-13 read the caller's number three times: the lead step,
@@ -455,13 +456,8 @@ async def prepare(route, call_id):
     Python bridge and the internal voice shell."""
     tenant = await register(route, call_id)
     conversation = await convo.get_or_create(tenant, call_id, 'phone', None, None)
-    # The number recorded at register() is the caller's; capture against it so the case is the
-    # person, not an anonymous call.
-    stored = await db.pool().fetchrow(
-        'SELECT from_number FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id)
-    caller = (stored['from_number'] if stored else '') or ''
-    await enquiries.capture(tenant, 'phone', call_id, 'Inbound telephone enquiry',
-                            conversation_id=conversation, phone=caller)
+    # No lead or owner alert is created here: a call that drops before anyone speaks must leave
+    # nothing blank behind. finish() creates the lead once there is real content.
     capability = await voice_records.start(tenant, call_id, channel='phone')
     record_session = await voice_records.authenticate(capability['id'], capability['token'])
     session = voice.build_session(tenant, website=True)
@@ -511,43 +507,81 @@ async def run_phone_tool(tenant, record_session, conversation, call_id, name, ar
                                               'channel':'phone', 'sender_phone':None})
 
 
+async def _split_sms(c, tenant, owner, call_id, body):
+    """One outbox row per SMS part, in order, summary first. Same dedupe keys on a re-run."""
+    for i, part in enumerate(call_alert.sms_parts(tenant['name'], body)):
+        await c.execute(
+            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,dedupe_key,send_at) "
+            "VALUES($1,'owner_alert','sms',$2,$3,$4,now()+make_interval(secs=>$5)) "
+            "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+            tenant['id'], owner, part, call_id+':owner'+(f':{i+1}' if i else ''), float(i*2))
+
+
+async def _summary_for(tenant, call, lead, text):
+    """The model's analysis, or a deterministic summary; never raises, never blocks the alert."""
+    sid = call['session_id'] or call['call_sid']
+    try:
+        await asyncio.wait_for(call_insights.analyse_call(tenant, call), 30)
+        insight = await call_insights.stored(tenant['id'], sid)
+        if insight:
+            return insight
+    except Exception:
+        log.warning('Call analysis unavailable for %s; using the captured fields', sid, exc_info=True)
+    return call_alert.fallback_summary(lead, text)
+
+
 async def finish(tenant, call_id, conversation, status, record_session=None, reason=''):
+    call = await db.pool().fetchrow('SELECT * FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id)
+    if not call or call['ended_at']:
+        return
+    call = dict(call)
+    turns = call_alert.turns_from(await db.pool().fetch(
+        "SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id", conversation))
+    text = call_alert.caller_text(turns)
+    summary = lead = None
+    if text:
+        # Lead, summary and transcript are prepared before the row lock: the model call is slow.
+        lead = await db.pool().fetchrow('UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *',
+                                        tenant['id'], conversation, text[-1000:])
+        lead = dict(lead) if lead else await enquiries.capture(
+            tenant, 'phone', call_id, text[-1000:], conversation_id=conversation,
+            phone=call['from_number'] or '', notify_owner=False)
+        summary = await _summary_for(tenant, call, lead, text)
     async with db.pool().acquire() as c:
         async with c.transaction():
             row = await c.fetchrow('SELECT ended_at FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2 FOR UPDATE', tenant['id'], call_id)
             if not row or row['ended_at']:
                 return
-            turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role='user' ORDER BY id", conversation)
-            text = '\n'.join(c for c in (clean_speech(r['content']) for r in turns) if c)
+            tail = ''
+            if text and record_session and record_session.get('recording_consent'):
+                # Forward the voicemail as a private recording link when consent and a recording exist.
+                has_recording = await c.fetchval(
+                    'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
+                    tenant['id'], record_session['id'], conversation)
+                if has_recording:
+                    token = secrets.token_urlsafe(32)
+                    await c.execute(
+                        'INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) VALUES($1,$2,$3)',
+                        voice_records.digest(token), record_session['id'], tenant['id'])
+                    tail += '\n\nRecording (private link expires in 24 hours): ' + \
+                        get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
+            tail += '\n\n' + call_alert.CRM_NOTE
             if text:
-                lead = await c.fetchrow('UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *', tenant['id'], conversation, text[-1000:])
-                # Forward the voicemail as a private recording link when consent and
-                # a recording exist, then close with the CRM note -- the same shape
-                # the website-voice path uses, so the owner receives the audio, not
-                # only the transcript.
-                tail = ''
-                if record_session and record_session.get('recording_consent'):
-                    has_recording = await c.fetchval(
-                        'SELECT 1 FROM voice_recordings WHERE tenant_id=$1 AND session_id=$2 AND conversation_id=$3',
-                        tenant['id'], record_session['id'], conversation)
-                    if has_recording:
-                        token = secrets.token_urlsafe(32)
-                        await c.execute(
-                            'INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) VALUES($1,$2,$3)',
-                            voice_records.digest(token), record_session['id'], tenant['id'])
-                        tail += '\n\nRecording (private link expires in 24 hours): ' + \
-                            get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
-                tail += '\n\nThe complete enquiry is saved in your Concierge CRM.'
+                subject, body = call_alert.conversation_alert(tenant, summary, lead, turns, tail)
+            elif call['from_number']:
+                subject, body = call_alert.missed_alert(tenant, call['from_number'], call['started_at'])
+            else:
+                subject = body = None
+            if body:
                 owner = await c.fetchval('SELECT owner_number FROM managed_phone_setups WHERE tenant_id=$1', tenant['id'])
                 # The managed-setup row is optional; without this fallback a real
                 # call would notify only by email and silently skip the owner SMS.
                 owner = owner or tenant.get('notify_phone')
                 if owner:
-                    await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,dedupe_key) VALUES($1,'owner_alert','sms',$2,$3,$4) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], owner, f"{tenant['name']} — new phone message:\n{text[:1100]}{tail}", call_id+':owner')
+                    await _split_sms(c, tenant, owner, call_id, body)
                 if tenant.get('notify_email'):
                     await c.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'owner_alert','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-                                    tenant['id'], tenant['notify_email'], 'Phone message for '+tenant['name'], text[:24000] + tail, call_id+':owner-email')
+                                    tenant['id'], tenant['notify_email'], subject, body, call_id+':owner-email')
             await c.execute('UPDATE phone_calls SET status=$3,ended_at=now(),failure_reason=$4 WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status, reason[:500])
 
 
@@ -571,6 +605,7 @@ async def handle(reader, writer, route, networks):
         session = prepared['session']
         message_ids = {}
         async def transcript(role, text, item_id):
+            text = strip_control_tags(text)
             key = (role, item_id)
             if item_id and key in message_ids:
                 await db.pool().execute('UPDATE messages SET content=$3 WHERE conversation_id=$1 AND id=$2',

@@ -23,6 +23,7 @@ import re
 from datetime import datetime, timezone
 
 from . import db, llm
+from .speech_text import strip_control_tags
 
 log = logging.getLogger("concierge.call_insights")
 
@@ -41,10 +42,14 @@ NEEDS_FOLLOW_UP = ("call_back", "unresolved")
 DAILY_CAP = 50          # per tenant, per day; a cap on spend, not on features
 SWEEP_HOURS = 6
 
+NO_SUMMARY = "Call ended; no automatic summary was available."
+
 SYSTEM = (
     "You analyse one finished phone call between an AI receptionist and a caller. "
     "Reply with JSON only, no prose and no code fences, exactly these keys: "
-    '{"summary": string (max 40 words, plain English, what the caller wanted and what happened), '
+    '{"summary": string (max 90 words, plain English: the caller\'s exact requirements and any specifics '
+    'they asked for, the name and contact details they gave, their preferred contact method if stated, '
+    'and what happened), '
     '"outcome": one of ' + ", ".join(OUTCOMES) + ", "
     '"sentiment": one of ' + ", ".join(SENTIMENTS) + ' (how the caller felt), '
     '"next_step": string (max 20 words, the one action the business should take; '
@@ -74,7 +79,7 @@ def parse_analysis(raw: str) -> dict | None:
         return None
     if not isinstance(data, dict):
         return None
-    summary = " ".join(str(data.get("summary") or "").split())[:400]
+    summary = " ".join(str(data.get("summary") or "").split())[:700]
     outcome = str(data.get("outcome") or "").strip().lower()
     sentiment = str(data.get("sentiment") or "").strip().lower()
     next_step = " ".join(str(data.get("next_step") or "").split())[:200]
@@ -182,6 +187,14 @@ async def _follow_up_task(tenant_id, lead, analysis: dict) -> None:
     )
 
 
+async def stored(tenant_id, session_id: str) -> dict | None:
+    """The persisted analysis, or None when there is none or it is only the no-summary placeholder."""
+    row = await db.pool().fetchrow(
+        "SELECT summary, outcome, next_step FROM call_insights WHERE tenant_id = $1 AND call_sid = $2",
+        tenant_id, session_id)
+    return dict(row) if row and row["summary"] != NO_SUMMARY else None
+
+
 async def analyse_call(tenant: dict, call: dict) -> dict | None:
     """Analyse one finished call. Idempotent on (tenant, call_sid)."""
     session_id = call.get("session_id") or call.get("call_sid")
@@ -199,7 +212,7 @@ async def analyse_call(tenant: dict, call: dict) -> dict | None:
         return None
     transcript = "\n".join(
         ("Customer: " if turn["role"] == "user" else "Receptionist: ")
-        + (turn["content"] or "")[:1500]
+        + strip_control_tags(turn["content"])[:1500]
         for turn in turns[-40:]
     )[:12000]
     analysis = None
@@ -207,7 +220,8 @@ async def analyse_call(tenant: dict, call: dict) -> dict | None:
     try:
         message = await llm.complete(
             [{"role": "system", "content": SYSTEM},
-             {"role": "user", "content": "Transcript:\n" + transcript}],
+             {"role": "user", "content": (
+                 f"Caller ID: {call['from_number']}\n" if call.get("from_number") else "") + "Transcript:\n" + transcript}],
             temperature=0.2, max_tokens=400,
         )
         analysis = parse_analysis(getattr(message, "content", "") or "")
@@ -217,7 +231,7 @@ async def analyse_call(tenant: dict, call: dict) -> dict | None:
         log.warning("call analysis model failed for %s: %s", session_id, type(error).__name__)
     if analysis is None:
         analysis = {
-            "summary": "Call ended; no automatic summary was available.",
+            "summary": NO_SUMMARY,
             "outcome": quick or "unresolved",
             "sentiment": "neutral",
             "next_step": "Listen to the recording or read the transcript.",

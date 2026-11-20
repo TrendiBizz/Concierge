@@ -52,3 +52,15 @@ def clean_speech(text: str | None) -> str:
     value = re.sub(r"[,;]\s*$", ".", value)
     # Only punctuation left means nothing real was said.
     return value.strip() if re.search(r"\w", value) else ""
+
+
+# Internal control markup a voice model can leak into a transcript, e.g. <response_segment_0_already_spoken>.
+_CONTROL_TAG = re.compile(r"</?[A-Za-z_][A-Za-z0-9_:\-]*(?:\s[^<>]*)?/?>")
+
+
+def strip_control_tags(text: str | None) -> str:
+    """Remove leaked angle-bracket control tags. Text without a tag is returned unchanged."""
+    value = text or ""
+    if not _CONTROL_TAG.search(value):
+        return value
+    return " ".join(_CONTROL_TAG.sub(" ", value).split())
