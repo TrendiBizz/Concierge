@@ -1028,7 +1028,6 @@ async function refresh(){
    const item=node("article","","item");
    item.appendChild(node("h3","#"+draft.id+" — "+draft.subject));
    item.appendChild(node("p","From: "+draft.sender));
-   if(draft.origin==="hermes")item.appendChild(node("p","Prepared by Hermes, Trendi's assistant. Check it before you approve.","muted"));
    if(draft.risk&&draft.risk!=="low"){
      const flags=Array.isArray(draft.flags)?draft.flags.filter(Boolean):[];
      item.appendChild(node("p","Security: "+draft.risk+" risk"+(flags.length?" — "+flags.join(", "):""),"muted"));

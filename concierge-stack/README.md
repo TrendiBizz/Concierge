@@ -66,18 +66,8 @@ internet. Do this after the Mac microphone test is happy. Your mobile can then b
 dials in, and `HUMAN_TRANSFER_NUMBER` for transfers.
 
 ## Backups
-Encrypted offsite backup of `data/` (bookings database, messages, outbox, transcripts) with restic to a
-Cloudflare R2 bucket (free tier). Scripts: `set-backup.sh` (hidden entry of the R2 keys; shows a generated
-backup password once, save it in a password manager), `backup.sh`, and `restore-test.sh` (restores the newest
-snapshot to a temporary folder, checks it, prints only counts). Tested end to end against a local repository
-with fake data, then against the real R2 bucket on 2026-11-07 (first backup uploaded, restore test passed; at that time it held only a couple of messages and the outbox, no bookings or transcripts yet). `BACKUP_KEEP_DAYS` (30 days) removes old backup snapshots. A transcript deleted from the Mac can still sit in
-older snapshots, so its longest life is the transcript retention plus the backup retention (about 60 days). Audio is not recorded, so none is backed up.
-
-**Schedule.** `install-backup-schedule.sh` installs two macOS launchd jobs: a backup daily at 03:15 and a restore
-test on the 1st of each month at 03:45 (`--uninstall` removes them). A job missed while the Mac was asleep runs when
-it wakes; if the Mac stays off there are no backups for those days. `scheduled-run.sh` runs each job, appends to
-`~/Library/Logs/trendi-concierge-backup.log` and shows a macOS notification on failure. Installed and triggered once
-by hand on 2026-11-07 (it uploaded a snapshot). The monthly restore test has not yet had its first scheduled run.
+The Mac restic/R2 backup scripts and their launchd jobs were removed on 2026-11-21 (they only worked with the retired Twenty CRM
+containers). Production backups are the box's own: `scripts/vps/backup.py`, `trendi-backup.timer`, `restore-test.py`.
 
 ## Scaling to more customers
 Design only, not built: see `docs/SCALING-AND-INTEGRATIONS.md` (one profile per customer, data folder per customer,

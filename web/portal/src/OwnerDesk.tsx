@@ -73,7 +73,7 @@ function NeedsYou({api}: {api: ReturnType<typeof createApi>}) {
         <section key={draft.id} className="c-row" style={{display: 'block'}}>
           <strong>{draft.subject || 'Reply'}</strong>
           <p style={{fontSize: 13, opacity: 0.8}}>
-            To {draft.sender}{draft.origin === 'hermes' ? ' · Prepared by Hermes, our assistant. Check it before you approve.' : ''}
+            To {draft.sender}
           </p>
           <p style={{fontSize: 13, opacity: 0.8}}>They wrote: {draft.inbound_body.slice(0, 300)}</p>
           <TextArea label="Your reply" value={edits[draft.id] ?? draft.reply_body}

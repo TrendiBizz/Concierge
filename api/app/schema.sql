@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS email_drafts (
     updated_at    timestamptz NOT NULL DEFAULT now(),
     approved_at   timestamptz
 );
-ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS origin text;  -- 'hermes' when Hermes prepared it
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS origin text;  -- historical: 'hermes' on old rows; nothing sets it now
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS auth jsonb;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS risk text;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS flags jsonb;
@@ -597,31 +597,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS tasks_lead_message_follow_up_idx
 CREATE UNIQUE INDEX IF NOT EXISTS tasks_message_follow_up_idx
     ON tasks (case_id, message_key) WHERE kind = 'follow_up' AND message_key IS NOT NULL;
 
--- Hermes gateway support (see app/hermes_ops.py). All additive; everything stays off until HERMES_GATEWAY_ENABLED.
-CREATE TABLE IF NOT EXISTS hermes_tenant_settings (
-    tenant_id      uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
-    autonomy       text NOT NULL DEFAULT 'shadow' CHECK (autonomy IN ('shadow', 'draft_review', 'auto_routine')),
-    min_confidence real NOT NULL DEFAULT 0.8 CHECK (min_confidence BETWEEN 0 AND 1),
-    updated_at     timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS hermes_case_state (
-    tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    lead_id           uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-    automation_paused boolean NOT NULL DEFAULT false,
-    updated_at        timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (tenant_id, lead_id)
-);
-CREATE TABLE IF NOT EXISTS hermes_actions (
-    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    idempotency_key text NOT NULL,
-    lead_id         uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-    op              text NOT NULL,
-    fingerprint     text NOT NULL,
-    state           text NOT NULL,
-    result          jsonb NOT NULL DEFAULT '{}'::jsonb,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (tenant_id, idempotency_key)
-);
+-- hermes_* tables were dropped by migration 0002 (2026-11-21); do not recreate them here.
 
 -- Inbound email safety (Phase 1): per-tenant sender policy and an audit trail.
 CREATE TABLE IF NOT EXISTS inbound_sender_rules (
