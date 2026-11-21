@@ -78,18 +78,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
-          existing=$(gh issue list --label uptime-down --state open --limit 1 --json number --jq 'length')
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label uptime-down --state open --limit 1 --json number --jq 'length')
           if [ "$existing" != "0" ]; then
             echo "An open uptime incident already exists; not opening another."
             exit 0
           fi
-          gh issue create \
+          gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Uptime check failed $(date -u '+%Y-%m-%d %H:%M UTC')" \
             --label uptime-down \
             --body "The scheduled outside-in uptime check failed. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
           Check the VPS deep checks too: \`/opt/trendi/monitoring/health.log\` and
-          \`/opt/trendi/monitoring/status.json\` on 152.42.239.240." || true
+          \`/opt/trendi/monitoring/status.json\` on 152.42.239.240."
 
       - name: Close the incident issue once healthy
         if: success() && steps.probe.outputs.FAILED == '0'
@@ -97,6 +97,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
-          for number in $(gh issue list --label uptime-down --state open --limit 20 --json number --jq '.[].number'); do
-            gh issue close "$number" --comment "Recovered: every probed endpoint answered correctly."
+          for number in $(gh issue list --repo "$GITHUB_REPOSITORY" --label uptime-down --state open --limit 20 --json number --jq '.[].number'); do
+            gh issue close --repo "$GITHUB_REPOSITORY" "$number" --comment "Recovered: every probed endpoint answered correctly."
           done
+
+      - name: Fail job when any endpoint is down
+        if: steps.probe.outputs.FAILED == '1'
+        run: |
+          echo "One or more public endpoints failed the uptime probe." >&2
+          exit 1

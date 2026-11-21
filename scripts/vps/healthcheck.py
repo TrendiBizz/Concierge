@@ -157,8 +157,11 @@ BACKUP_FAIL_AFTER_HOURS = 50
 
 
 def mailable(problems: dict) -> dict:
-    """Drop the checks that describe a gap outside this repo. They are reported, never mailed."""
-    return {k: v for k, v in problems.items() if k not in STATUS_ONLY_CHECKS}
+    """Drop warning-only checks that describe a gap outside this repo; failures still alert."""
+    return {
+        k: v for k, v in problems.items()
+        if not (k in STATUS_ONLY_CHECKS and (v.get("status") if isinstance(v, dict) else "warn") == "warn")
+    }
 
 
 def deploying() -> str:
@@ -512,7 +515,9 @@ def check_sms_inbound() -> list[dict]:
     sql = ("SELECT count(*) FILTER (WHERE d.enabled) AS enabled, "
            "count(*) FILTER (WHERE d.enabled AND d.inbound_verified_at IS NULL "
            "AND NOT EXISTS (SELECT 1 FROM device_sms_inbound i WHERE i.device_id = d.id)) AS never_verified "
-           "FROM sms_devices d")
+           "FROM sms_devices d "
+           "JOIN tenants t ON t.id = d.tenant_id "
+           "WHERE NOT COALESCE(t.is_test, false) AND t.sms_enabled AND t.sms_transport = 'device'")
     rc, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
                    "concierge", "-tAc", sql])
     if rc != 0:
@@ -1007,8 +1012,10 @@ def check_backups() -> list[dict]:
     state = out.strip().splitlines()[-1] if out.strip() else "unknown"
     if state == "failed":
         results.append(_fail("backup:service", "the last trendi-backup.service run failed"))
-    elif state in ("active", "inactive") and code == 0:
+    elif state in ("active", "inactive"):
         results.append(_ok("backup:service", f"last scheduled run: {state}"))
+    else:
+        results.append(_warn("backup:service", f"unexpected backup service state: {state} (rc={code})"))
     return results
 
 
@@ -1131,6 +1138,8 @@ def send_mail(env: dict, subject: str, body: str) -> str:
     message["From"] = sender
     message["To"] = ALERT_TO
     message["Subject"] = subject
+    message["X-Concierge-Mail"] = "1"
+    message["Auto-Submitted"] = "auto-generated"
     message.set_content(body)
     try:
         with smtplib.SMTP(host, int(env.get("SMTP_PORT") or 25), timeout=30) as smtp:
@@ -1298,8 +1307,10 @@ def main(argv: list[str] | None = None) -> int:
             status = "WARN"
         else:
             status = "OK"
-        subject = f"[Concierge {status}] " + ", ".join(
-            list(i["check"] for i in new_alerts) + [f"{len(recoveries)} recovered"])[:120]
+        parts = [i["check"] for i in new_alerts] + [f"{i['check']} (reminder)" for i in reminders]
+        if recoveries:
+            parts.append(f"{len(recoveries)} recovered")
+        subject = f"[Concierge {status}] " + ", ".join(parts)[:120]
         outcome = send_mail(env, subject, "\n".join(lines))
         print(f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')} alert: {subject} -> {outcome} ({len(new_alerts)} new, "
               f"{len(reminders)} reminders, {len(recoveries)} recovered)", file=sys.stderr)
