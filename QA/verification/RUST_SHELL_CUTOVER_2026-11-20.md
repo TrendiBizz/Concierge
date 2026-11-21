@@ -32,3 +32,16 @@ wrong mechanism: production already runs the shell as its own container (`shell`
 - No real softphone or carrier call through this exact path since the dialplan switch (a softphone call was recorded on
   11 November in HANDOFF_CURRENT_2026-11-11.md).
 - `asterisk_rust_shell_integration.py` is not in the CI matrix (it needs the compiled binary).
+
+## Addendum: found by looking at the real box (20 November 2026, evening)
+- The first version of the script checked `dialplan show concierge-ingress-1` for the AudioSocket lines after the reload.
+  On the real box those lines live in the per-business contexts (`[business-<slug>]`), so that check would have found
+  nothing and rolled the cut-over back every time. The test stand-in had been written to answer for the wrong context,
+  which hid it. Fixed: the script reads the whole dialplan, the stand-in now behaves like the real Asterisk, and
+  `--dry-run` was added so the real files can be checked without changing anything.
+- The live shell had been configured (compose.env, `ASTERISK_ROUTES`) for a stale staging route
+  (`trendi-oauth-staging`, port 9511) while the live line is `pukeko-construction` on 9510. The script's port check
+  correctly refused. compose.env was backed up and pointed at the live route and only the shell container was recreated;
+  the dialplan was untouched, so the Python bridge kept answering.
+- Verified on the box before any switch: shell and API internal tokens match (hash compare only), the PBX can reach
+  172.30.91.3, the internal API answers 401 to a bad token.

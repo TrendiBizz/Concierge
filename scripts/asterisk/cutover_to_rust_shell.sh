@@ -2,6 +2,7 @@
 # Point the phone line's dialplan at the Rust telephone shell instead of the Python bridge, safely and reversibly.
 # Run ON the VPS as root.
 #
+#   bash cutover_to_rust_shell.sh --dry-run          checks + shows the exact dialplan diff; changes NOTHING
 #   bash cutover_to_rust_shell.sh                    apply (refuses if a precondition fails)
 #   bash cutover_to_rust_shell.sh --rollback <dir>   undo using the directory the apply printed
 #
@@ -36,7 +37,9 @@ render_with_host() {                          # $1 host -> installs extensions.c
 reload_dialplan() { docker exec "$PBX" asterisk -rx 'dialplan reload' | tail -1; }
 
 audiosocket_targets() {
-  docker exec "$PBX" asterisk -rx 'dialplan show concierge-ingress-1' | grep -o 'AudioSocket([^)]*)' | sort -u
+  # The AudioSocket(...) lines are in the per-business contexts ([business-<slug>]), not in concierge-ingress-1,
+  # so read the whole dialplan.
+  docker exec "$PBX" asterisk -rx 'dialplan show' | grep -o 'AudioSocket([^)]*)' | sort -u
 }
 
 # ---------------------------------------------------------------- rollback
@@ -83,6 +86,19 @@ echo "   carrier registered"
 ACTIVE=$(docker exec "$PBX" asterisk -rx 'core show channels count' | grep -o '^[0-9]* active call' | grep -o '^[0-9]*' || echo 0)
 [ "${ACTIVE:-0}" = 0 ] || { echo "REFUSED: $ACTIVE call(s) in progress; try again when the line is quiet"; exit 2; }
 echo "   no calls in progress"
+
+if [ "${1:-}" = "--dry-run" ]; then
+  echo "== dry run: rendering the dialplan with the shell host, nothing is written or reloaded"
+  tmp=$(mktemp -d)
+  (cd "$REL" && python3 render_routes.py "$SHARED/asterisk-routes.json" "$tmp" "$SHELL_HOST" "$PUBLIC_IP")
+  if cmp -s "$tmp/pjsip.conf" "$GEN/pjsip.conf"; then echo "   pjsip.conf: byte-identical to live (carrier registration untouched)"
+  else echo "   pjsip.conf: DIFFERS from live: a real apply would ABORT"; fi
+  echo "   extensions.conf: live (<) vs would-be (>):"
+  diff "$GEN/extensions.conf" "$tmp/extensions.conf" || true
+  rm -rf "$tmp"
+  echo "dry run done; nothing changed"
+  exit 0
+fi
 
 echo "== 2. backup"
 BK=${BACKUPS:-/opt/trendi/backups}/rust-shell-cutover-$(date +%Y%m%d-%H%M%S)
