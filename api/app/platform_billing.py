@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from . import db, owner_auth, owner_invites, outbox, owner_notifications, tenants
+from . import db, owner_auth, owner_invites, outbox, owner_notifications, subscription, tenants
 from .config import get_settings
 
 router = APIRouter(tags=["billing"])
@@ -219,9 +219,10 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
             await provision(dict(invoice))
         except Exception as error:  # noqa: BLE001 - the sale stands; a person must fix the business
             provision_error = error
-            await db.pool().execute(
-                "INSERT INTO privacy_requests(email,kind,note) VALUES($1,'access',$2)",
-                invoice["customer_email"], f"Provisioning failed for {invoice['number']}: {error}"[:900])
+            await subscription.log_event(
+                None, "provision_failed", f"{invoice['number']} {invoice['customer_email']}: {error}")
+    if invoice.get("tenant_id"):
+        await subscription.link_checkout(invoice["tenant_id"], session)
     if not invoice.get("emailed_at"):
         await email_invoice(dict(invoice))
         await db.pool().execute(
@@ -254,6 +255,8 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(defaul
     data = (event.get("data") or {}).get("object") or {}
     if kind == "checkout.session.completed":
         await handle_checkout(data, event.get("id", ""))
+    else:
+        await subscription.handle_event(event)
     return {"received": True}
 
 

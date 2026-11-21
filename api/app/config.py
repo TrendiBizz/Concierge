@@ -158,6 +158,11 @@ class Settings(BaseSettings):
     # Reactivation campaigns
     # Stripe signs its webhooks with this; without it no purchase can be trusted as paid.
     stripe_webhook_secret: str = ""
+    # Needed only for the self-serve Stripe Customer Portal (Studio > Billing). Unset = portal link hidden.
+    stripe_secret_key: str = ""
+    stripe_portal_return_url: str = "https://concierge.trendibizz.com/studio/"
+    # Days a declined card keeps working before the business is paused.
+    billing_grace_days: int = 7
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window
