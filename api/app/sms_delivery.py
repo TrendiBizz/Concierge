@@ -52,6 +52,31 @@ async def twilio_receipt(outbox_id: int, params: dict[str, str]) -> bool:
         outbox_id, sid, params.get("To", "")))
 
 
+async def smsgate_receipt(tenant_id, event: str, payload: dict) -> bool:
+    """Apply signed smsgate delivery callbacks (sms:sent / sms:delivered / sms:failed)."""
+    msg_id = str(payload.get("messageId") or payload.get("id") or "").strip()
+    if not msg_id or len(msg_id) > 100:
+        return False
+    state_map = {"sms:sent": ("sent", "awaiting_receipt", 4),
+                 "sms:delivered": ("delivered", "sent", 5),
+                 "sms:failed": ("failed", "failed", 5)}
+    mapped = state_map.get(event)
+    if not mapped:
+        return False
+    state, final, rank = mapped
+    row = await db.pool().fetchrow(
+        "UPDATE outbox SET sms_delivery_status=$3, status=$4, "
+        "sent_at=CASE WHEN $3='delivered' THEN COALESCE(sent_at,now()) ELSE sent_at END, "
+        "last_error=CASE WHEN $4='failed' THEN 'SMS gateway reported delivery failure' ELSE '' END "
+        "WHERE tenant_id=$1 AND channel='sms' AND sms_provider='smsgate' AND sms_provider_id=$2 "
+        "AND status IN ('awaiting_receipt','held') "
+        "AND $5 >= CASE sms_delivery_status WHEN 'accepted' THEN 1 WHEN 'queued' THEN 2 "
+        "WHEN 'sending' THEN 3 WHEN 'sent' THEN 4 ELSE 0 END RETURNING id",
+        tenant_id, msg_id, state, final, rank,
+    )
+    return bool(row)
+
+
 async def reconcile() -> None:
     # Missing DLRs are unknown, never 'delivered' and never silently retried.
     await db.pool().execute(

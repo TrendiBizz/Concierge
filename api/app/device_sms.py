@@ -4,6 +4,7 @@ The device uses outbound HTTPS and a scoped token. Claiming is irreversible:
 lost/ambiguous sends need reconciliation, never an automatic second send.
 """
 import hashlib
+import logging
 import re
 import uuid
 
@@ -14,6 +15,7 @@ from typing import Literal
 from . import channel_authorization, db, tenants
 from .config import get_settings
 
+log = logging.getLogger("concierge.device_sms")
 router = APIRouter(prefix="/api/v1/device-sms")
 NUMBER = re.compile(r"^\+[1-9]\d{6,14}$")
 
@@ -147,6 +149,7 @@ async def receipt(body: Receipt, device: dict = Depends(device_auth)):
            WHERE id=$1 AND tenant_id=$2 AND device_id=$3 AND status='claimed' RETURNING outbox_id""",
         body.job_id, device["tenant_id"], device["id"], body.status, body.receipt,
     )
+    from_uncertain = False
     if not row:
         previous = await db.pool().fetchrow(
             "SELECT status,receipt FROM device_sms_jobs WHERE id=$1 AND tenant_id=$2 AND device_id=$3",
@@ -167,6 +170,7 @@ async def receipt(body: Receipt, device: dict = Depends(device_auth)):
                    WHERE id=$1 AND tenant_id=$2 AND device_id=$3 AND status='uncertain' RETURNING outbox_id""",
                 body.job_id, device["tenant_id"], device["id"], body.status, body.receipt,
             )
+            from_uncertain = bool(row)
         if not row:
             # Already finalised another way (cancelled, failed, a different verdict): keep the server's record
             # and tell the connector to stop retrying.
@@ -174,10 +178,14 @@ async def receipt(body: Receipt, device: dict = Depends(device_auth)):
     if row["outbox_id"]:
         await db.pool().execute(
             """UPDATE outbox SET status=$3,last_error=$4,
-               sent_at=CASE WHEN $3='sent' THEN now() ELSE sent_at END
-               WHERE id=$1 AND tenant_id=$2 AND status IN ('sending','awaiting_receipt')""",
+               sent_at=CASE WHEN $3='sent' THEN COALESCE(sent_at,now()) ELSE sent_at END
+               WHERE id=$1 AND tenant_id=$2 AND (
+                 status IN ('sending','awaiting_receipt')
+                 OR ($5 AND status='failed' AND last_error LIKE 'Phone%reconcile before retry')
+               )""",
             row["outbox_id"], device["tenant_id"], "sent" if body.status == "sent" else "failed",
             "" if body.status == "sent" else "Phone did not confirm send; reconcile before retry",
+            from_uncertain,
         )
     if body.status == "sent":
         await db.pool().execute("UPDATE sms_devices SET verified_at=now(),last_seen=now() WHERE id=$1", device["id"])
@@ -212,9 +220,17 @@ async def inbound(body: Incoming, device: dict = Depends(device_auth)):
     from .main import _sms_reply
     reply = await _sms_reply(tenant, body.sender, body.body, confirm_stop=True)
     if reply:
-        try:
-            await enqueue(tenant, body.sender, reply, "inbound:"+body.message_id,
-                          operational=body.body.strip().upper() in {"STOP","STOPALL","UNSUBSCRIBE","CANCEL","END","QUIT","START","UNSTOP","HELP"})
-        except AwaitingReceipt:
-            pass
+        is_compliance = body.body.strip().upper() in {
+            "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "START", "UNSTOP", "HELP"
+        }
+        if not is_compliance and not await channel_authorization.is_authorized(device["tenant_id"], "sms_send"):
+            log.info("Skipping inbound SMS reply for %s: sms_send not authorized", tenant["slug"])
+        else:
+            try:
+                await enqueue(tenant, body.sender, reply[:1500], "inbound:" + body.message_id,
+                              operational=is_compliance)
+            except AwaitingReceipt:
+                pass
+            except (ValueError, ReconciliationRequired) as exc:
+                log.warning("Could not enqueue inbound SMS reply for %s: %s", tenant["slug"], exc)
     return {"ok": True}

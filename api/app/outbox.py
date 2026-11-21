@@ -348,10 +348,16 @@ async def reconcile_stale_device_sms(breach: timedelta = STALE_SMS_INTERVAL) -> 
     """
     stalled = await db.pool().fetch(
         """UPDATE device_sms_jobs j SET status='uncertain', finished_at=now()
-           FROM outbox o
-           WHERE j.outbox_id=o.id AND j.status IN ('queued','claimed')
-             AND o.channel='sms' AND o.status IN ('sending','awaiting_receipt')
-             AND o.send_at < now() - $1::interval
+           WHERE j.status IN ('queued','claimed')
+             AND j.created_at < now() - $1::interval
+             AND (
+               j.outbox_id IS NULL
+               OR EXISTS (
+                 SELECT 1 FROM outbox o
+                 WHERE o.id=j.outbox_id AND o.channel='sms'
+                   AND o.status IN ('sending','awaiting_receipt')
+               )
+             )
            RETURNING j.outbox_id""",
         breach,
     )

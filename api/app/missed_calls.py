@@ -90,14 +90,15 @@ def compose_message(tenant: dict, booking_url: str) -> str:
     return template
 
 
-async def _caller_turns(tenant_id, session_id: str | None) -> int:
-    if not session_id:
+async def _caller_turns(tenant_id, session_id: str | None, call_sid: str | None = None) -> int:
+    ids = [s for s in dict.fromkeys((session_id, call_sid)) if s]
+    if not ids:
         return 0
     value = await db.pool().fetchval(
         """SELECT count(*) FROM messages m
            JOIN conversations c ON c.id = m.conversation_id
-           WHERE c.tenant_id = $1 AND c.session_id = $2 AND m.role = 'user'""",
-        tenant_id, session_id,
+           WHERE c.tenant_id = $1 AND c.session_id = ANY($2::text[]) AND m.role = 'user'""",
+        tenant_id, ids,
     )
     return int(value or 0)
 
@@ -127,7 +128,7 @@ async def _recovered_recently(tenant_id, contact: str) -> bool:
 async def _record(call: dict, contact: str, status: str, reason: str, outbox_id=None) -> None:
     await db.pool().execute(
         """INSERT INTO missed_call_recoveries(call_sid, tenant_id, contact, status, reason, outbox_id)
-           VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT (tenant_id, call_sid) DO NOTHING""",
+           VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING""",
         call["call_sid"], call["tenant_id"], contact, status, reason[:80], outbox_id,
     )
 
@@ -137,8 +138,8 @@ async def evaluate_call(tenant: dict, call: dict) -> dict:
     contact = normalize_phone(
         call.get("from_number") or "", casetimeline.tenant_country_code(tenant)
     ) or ""
-    turns = await _caller_turns(tenant["id"], call.get("session_id"))
-    authorized = await channel_authorization.is_authorized(tenant["id"], "sms")
+    turns = await _caller_turns(tenant["id"], call.get("session_id"), call.get("call_sid"))
+    authorized = await channel_authorization.is_authorized(tenant["id"], "sms_send")
     recovered = bool(contact) and await _recovered_recently(tenant["id"], contact)
     booked = bool(contact) and await _has_appointment(tenant["id"], call, contact)
     action, reason = decide(
@@ -211,11 +212,14 @@ async def sweep(limit: int = 100) -> int:
         """SELECT p.* FROM phone_calls p
            JOIN tenants t ON t.id = p.tenant_id
            WHERE t.missed_call_textback
-             AND p.ended_at IS NOT NULL
-             AND p.ended_at > now() - interval '1 hour' * $2
+             AND (
+               (p.ended_at IS NOT NULL AND p.ended_at > now() - interval '1 hour' * $2)
+               OR (p.ended_at IS NULL AND p.started_at < now() - interval '2 minutes'
+                   AND p.started_at > now() - interval '1 hour' * $2)
+             )
              AND NOT EXISTS (SELECT 1 FROM missed_call_recoveries r
                              WHERE r.tenant_id = p.tenant_id AND r.call_sid = p.call_sid)
-           ORDER BY p.ended_at DESC
+           ORDER BY COALESCE(p.ended_at, p.started_at) DESC
            LIMIT $1""",
         limit, int(SWEEP_WINDOW.total_seconds() // 3600),
     )

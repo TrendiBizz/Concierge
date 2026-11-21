@@ -444,8 +444,8 @@ async def register(route, call_id):
             if used >= tenant['phone_daily_limit']:
                 raise ValueError('Business call limit reached')
             # UNIQUE call_sid rejects replay, including cross-business reuse.
-            await c.execute('INSERT INTO phone_calls(tenant_id,call_sid,from_number,to_number,status) VALUES($1,$2,$3,$4,$5)',
-                            tenant['id'], call_id, await caller_number(call_id), route.number, 'in_progress')
+            await c.execute('INSERT INTO phone_calls(tenant_id,call_sid,session_id,from_number,to_number,status) VALUES($1,$2,$3,$4,$5,$6)',
+                            tenant['id'], call_id, call_id, await caller_number(call_id), route.number, 'in_progress')
     return tenant
 
 

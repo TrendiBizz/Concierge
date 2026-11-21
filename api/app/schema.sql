@@ -192,6 +192,10 @@ CREATE TABLE IF NOT EXISTS device_sms_inbound (
     received_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(device_id,message_id)
 );
+UPDATE sms_devices d
+SET inbound_verified_at = (SELECT max(received_at) FROM device_sms_inbound i WHERE i.device_id = d.id)
+WHERE d.inbound_verified_at IS NULL
+  AND EXISTS (SELECT 1 FROM device_sms_inbound i WHERE i.device_id = d.id);
 
 CREATE TABLE IF NOT EXISTS opt_outs (
     tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
