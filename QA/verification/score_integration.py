@@ -51,14 +51,28 @@ async def main():
         tid, conv)
     tenant = await tenants.get_by_id(tid)
 
-    # Real path: on_lead_created scores, stores and queues the owner alert.
+    # Real path: on_lead_created scores, stores and queues the single owner enquiry alert (v2).
     await automation.on_lead_created(tenant, dict(hot_row))
     stored = await p.fetchrow("SELECT score, score_label, score_reasons, scored_at FROM leads WHERE id=$1", hot_row["id"])
     check("hot lead stored as hot", stored["score_label"] == "hot" and stored["score"] >= 70, dict(stored))
     check("reasons stored as json list", isinstance(json.loads(stored["score_reasons"]), list) and stored["scored_at"] is not None)
-    alert = await p.fetchrow("SELECT subject, body FROM outbox WHERE dedupe_key=$1", f"lead:{hot_row['id']}:owner")
-    check("owner alert subject tagged [HOT]", alert is not None and alert["subject"].startswith("[HOT] "), alert and alert["subject"])
-    check("owner alert body shows score and why", alert is not None and "Score:" in alert["body"] and "Why:" in alert["body"])
+    alert = await p.fetchrow(
+        "SELECT channel, to_addr, subject, body FROM outbox WHERE dedupe_key=$1",
+        f"enq:{tid}:{conv}:1",
+    )
+    check("owner alert uses v2 channel subject for conversation",
+          alert is not None
+          and alert["channel"] == "email"
+          and alert["to_addr"] == "owner@example.com"
+          and alert["subject"].startswith("Web chat for Test Co from Pat Lee:"),
+          alert and dict(alert))
+    check("owner alert body carries contact details and enquiry",
+          alert is not None
+          and "Pat Lee" in alert["body"]
+          and "pat@example.com" in alert["body"]
+          and "+6421000000" in alert["body"]
+          and "full service" in alert["body"],
+          alert and alert["body"])
     turns_reason = [r for r in json.loads(stored["score_reasons"]) if "conversation" in r]
     check("turn count read from messages (4 user msgs)", len(turns_reason) == 1)
 
@@ -66,9 +80,18 @@ async def main():
         "INSERT INTO leads (tenant_id, name, email, message, channel) VALUES ($1,'','a@b.co','hi','chat') RETURNING *", tid)
     await automation.on_lead_created(tenant, dict(cold_row))
     cold = await p.fetchrow("SELECT score, score_label FROM leads WHERE id=$1", cold_row["id"])
-    alert2 = await p.fetchrow("SELECT subject FROM outbox WHERE dedupe_key=$1", f"lead:{cold_row['id']}:owner")
+    alert2 = await p.fetchrow(
+        "SELECT channel, to_addr, subject, body FROM outbox WHERE dedupe_key=$1",
+        f"enq:{tid}:lead-{cold_row['id']}:1",
+    )
     check("cold lead stored as cold", cold["score_label"] == "cold" and cold["score"] == 10, dict(cold))
-    check("cold alert has no tag", alert2 is not None and not alert2["subject"].startswith("["), alert2 and alert2["subject"])
+    check("cold lead queues lead-keyed v2 owner alert",
+          alert2 is not None
+          and alert2["channel"] == "email"
+          and alert2["to_addr"] == "owner@example.com"
+          and alert2["subject"].startswith("Web chat for Test Co from a@b.co:")
+          and "hi" in alert2["body"],
+          alert2 and dict(alert2))
 
     booked_src = await p.fetchrow(
         "INSERT INTO leads (tenant_id, name, phone, message, channel) VALUES ($1,'Sam','+6421111111','Booked appointment','chat') RETURNING *", tid)
