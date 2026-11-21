@@ -39,8 +39,13 @@ PROMPTS = [
 # response. Measuring `len(text)` therefore changed on every fetch: the 2026-11-15 and 2026-11-16
 # runs both reported *every* page as changed and re-pinged IndexNow for the whole site daily.
 SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>.*?</script>", re.S)
-CF_MARKERS = ("__CF$cv$params", "cdn-cgi/challenge-platform", "challenge-platform/scripts")
+CF_MARKERS = ("__CF$cv$params", "cdn-cgi/challenge-platform", "challenge-platform/scripts",
+              "cloudflareinsights.com/beacon")
 MODIFIED = re.compile(r'"dateModified"\s*:\s*"([^"]+)"')
+# Cloudflare also stamps a fresh CSP `nonce="..."` on its analytics beacon on every request. Left
+# in, it changed the digest on every fetch: the 2026-11-21 and 2026-11-22 runs both reported all
+# 44 pages changed and re-pinged IndexNow for the whole site. A nonce is never page content.
+NONCE = re.compile(r'\snonce="[^"]*"')
 
 
 def fingerprint(text: str) -> str:
@@ -50,6 +55,7 @@ def fingerprint(text: str) -> str:
     stable = "\n".join(
         line for line in stable.splitlines()
         if not any(marker in line for marker in CF_MARKERS))
+    stable = NONCE.sub("", stable)
     modified = MODIFIED.search(stable)
     digest = hashlib.sha256(stable.encode()).hexdigest()[:16]
     return digest + ":" + (modified.group(1) if modified else "")
