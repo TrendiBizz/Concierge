@@ -2,7 +2,7 @@
 
 Run inside the api container:
 
-    docker exec -i -e PYTHONPATH=/srv -w /srv trendi-api-1 python3 - < scripts/qa/capture_check.py
+    python3 - < scripts/qa/capture_check.py   (PYTHONPATH=/srv, working directory /srv)
 
 Two lessons are baked in, both learned the hard way:
 

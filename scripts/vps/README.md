@@ -15,9 +15,7 @@ ports 8000 and 8080; PostgreSQL, Redis and the social vault have no public ports
 Two existing Cloudflare Tunnel identities terminate traffic on this VPS. Do not
 run their old Mac connectors concurrently against independent database copies.
 
-The machine has 8 GB RAM, 2 vCPUs and 160 GB disk, plus 2 GB swap. As of the 2026-11-17
-Docker -> Podman move, production runs on Podman; the Docker engine is disabled (kept installed, not
-purged) and the `docker` CLI talks to Podman via `/run/docker.sock -> /run/podman/podman.sock`.
+The machine has 8 GB RAM, 2 vCPUs and 160 GB disk, plus 2 GB swap. Production runs on Podman (since 2026-11-17); the Docker engine is disabled and not used.
 Every production container has `restart: unless-stopped` and comes back after a reboot via
 `podman-restart.service` (override `scripts/vps/podman-restart.service.d/unless-stopped.conf`).
 
@@ -25,16 +23,12 @@ Every production container has `restart: unless-stopped` and comes back after a 
 
 Run on the VPS as root. The root-only `compose.env` selects the website source.
 
-```sh
-docker compose --env-file /opt/trendi/shared/compose.env \
-  -f /opt/trendi/releases/20261108-vps/product/scripts/vps/compose.yml \
-  --profile public ps
-```
-
-Use the same prefix with `up -d --wait` after a reviewed release. Build API/social
-images before changing their running containers. Recreate `social` whenever
+Do not run container commands by hand. Releases go only through `scripts/vps/deploy-api.sh`,
+`deploy-site.sh` and `sync-tooling.sh`, and are proved with `verify-deploy.sh`; the container
+steps live inside those scripts (`redeploy-api.sh` builds the API/social images before changing
+their running containers). Recreate `social` whenever
 recreating `api`: they share a private network namespace. API dependencies are
-locked to the verified production versions; Dockerfile-specific ignore files
+locked to the verified production versions; Containerfile-specific ignore files
 exclude private settings, keys, dumps and unrelated source from build contexts.
 
 Secrets live in `/opt/trendi/shared`, mode 700 directory / 600 files. Never commit
@@ -125,10 +119,7 @@ connection. Optional carrier calls have separate activation requirements; see
 
 Record the source revision when building the production API:
 
-```sh
-docker compose --env-file /opt/trendi/shared/compose.env -f scripts/vps/compose.yml \
-  build --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" api
-```
+`redeploy-api.sh` builds the production API image; the source revision is recorded by the build.
 
 The resulting image records `org.opencontainers.image.revision`. Archive the
 source, private runtime env and database before deploying migrations. Recreate

@@ -3,7 +3,7 @@
 #
 # social uses `network_mode: service:api`, so it lives inside the api container's namespace.
 # Recreating api on its own strands the old social process on a dead namespace: the api then
-# answers "Social service unavailable" for every provider while `docker ps` still shows social up.
+# answers "Social service unavailable" for every provider while `podman ps` still shows social up.
 # That happened on 2026-11-14 and looked like a Social bug from the browser.
 #
 # Under Podman (2026-11-17) one `up --force-recreate api social` fails: the daemon refuses to
@@ -14,7 +14,7 @@ set -euo pipefail
 
 REL="${REL:-/opt/trendi/releases/20261108-vps/product}"
 cd "$REL/scripts/vps"
-COMPOSE=(docker compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public)
+COMPOSE=(podman compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public)
 
 echo "==> building api"
 "${COMPOSE[@]}" build api
@@ -22,10 +22,10 @@ echo "==> building api"
 echo "==> removing social (shares api's namespace), then recreating api"
 "${COMPOSE[@]}" rm -sf social
 "${COMPOSE[@]}" up -d --no-deps api
-TEMP_API="$(docker ps --format '{{.Names}}' | grep -E '^[0-9a-f]+_trendi-api-1$' | head -1 || true)"
+TEMP_API="$(podman ps --format '{{.Names}}' | grep -E '^[0-9a-f]+_trendi-api-1$' | head -1 || true)"
 if [ -n "$TEMP_API" ]; then
   echo "    normalising container name $TEMP_API -> trendi-api-1"
-  docker rename "$TEMP_API" trendi-api-1
+  podman rename "$TEMP_API" trendi-api-1
 fi
 
 echo "==> recreating social in api's namespace"
@@ -38,7 +38,7 @@ for _ in $(seq 1 30); do
 done
 
 echo "==> checking social answers from inside the api container"
-docker exec trendi-api-1 python3 -c "
+podman exec trendi-api-1 python3 -c "
 import os, urllib.request
 base = os.environ.get('SOCIAL_SERVICE_URL', 'http://127.0.0.1:4390').rstrip('/')
 try:

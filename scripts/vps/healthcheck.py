@@ -176,7 +176,7 @@ def deploying() -> str:
 
 def recently_started(name: str, minutes: int = 10) -> bool:
     """True when the container began after `minutes` ago. Used to tell a deploy from an outage."""
-    code, out = run(["docker", "inspect", "-f", "{{.State.StartedAt}}", name], timeout=15)
+    code, out = run(["podman", "inspect", "-f", "{{.State.StartedAt}}", name], timeout=15)
     if code != 0:
         return False
     try:
@@ -188,9 +188,9 @@ def recently_started(name: str, minutes: int = 10) -> bool:
 
 def check_containers() -> list[dict]:
     results = []
-    code, out = run(["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"])
+    code, out = run(["podman", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"])
     if code != 0:
-        return [_fail("containers", f"docker ps failed: {out[:200]}")]
+        return [_fail("containers", f"podman ps failed: {out[:200]}")]
     status = {}
     for line in out.splitlines():
         name, _, rest = line.partition("\t")
@@ -200,11 +200,11 @@ def check_containers() -> list[dict]:
         if state is None:
             results.append(_fail(f"container:{name}", "container missing"))
         elif requirement == "healthy" and "healthy" not in state:
-            # Podman's compat API (`docker ps` through podman.sock) does not append "(healthy)" to the
+            # Podman's compat socket does not always append "(healthy)" to the
             # status, so a healthy container would page once it passed the 10-minute warmup. Ask the
             # daemon for the health status directly instead of trusting the ps string. A container
             # whose image defines no health check is "running", which is all that can be required.
-            code, health = run(["docker", "inspect", "-f",
+            code, health = run(["podman", "inspect", "-f",
                                 "{{.State.Running}}|{{.State.Health.Status}}", name], timeout=15)
             running, _, health_status = health.strip().partition("|") if code == 0 else ("", "", "")
             if code == 0 and health_status == "healthy":
@@ -248,12 +248,12 @@ def check_api_internal() -> list[dict]:
 
 
 def check_database() -> list[dict]:
-    code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
+    code, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select 1"])
     if code != 0 or out.strip() != "1":
         return [_fail("postgres:query", out[:200] or "no result")]
     results = [_ok("postgres:query", "ok")]
-    code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
+    code, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select count(*) from tenants"])
     if code == 0 and out.strip().isdigit() and int(out.strip()) > 0:
         results.append(_ok("postgres:tenants", f"{out.strip()} tenants"))
@@ -382,7 +382,7 @@ def check_inbound(api_env: dict) -> list[dict]:
         results.append(_warn("inbound:onboarding",
                              f"new tenant still onboarding (fails after the grace window): {detail}"[:400]))
 
-    code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
+    code, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d", "concierge",
                      "-tAc", "select count(*) from inbound_audit where action='inbound_rejected' "
                              "and created_at > now() - interval '1 hour' "
                              # Bounces are not customer mail: Brevo delivers DSNs to the tenant
@@ -412,7 +412,7 @@ def check_inbound(api_env: dict) -> list[dict]:
         # and Brevo could never deliver an event.
         results.append(_ok("email:bounce-webhook", "endpoint routed") if status == 200
                        else _fail("email:bounce-webhook", f"HTTP {status} (expected 200)"))
-        code, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres",
+        code, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres",
                          "-d", "concierge", "-tAc", "select count(*) from email_suppressions"])
         suppressed = int(out.strip()) if code == 0 and out.strip().isdigit() else None
         results.append(_ok("email:suppressions", f"{suppressed} address(es) suppressed")
@@ -424,7 +424,7 @@ def check_inbound(api_env: dict) -> list[dict]:
 def check_sidecar(api_env: dict) -> list[dict]:
     url = (api_env.get("EMAIL_AUTH_URL") or "http://email-auth:8090/verify").rstrip("/")
     health = url[: -len("/verify")] + "/healthz" if url.endswith("/verify") else url + "/healthz"
-    code, out = run(["docker", "exec", "trendi-api-1", "python", "-c",
+    code, out = run(["podman", "exec", "trendi-api-1", "python", "-c",
                      f"import urllib.request;print(urllib.request.urlopen('{health}',timeout=3).status)"], timeout=20)
     return [_ok("email-auth:health", "ok") if code == 0 and "200" in out
             else _fail("email-auth:health", out[:160] or "unreachable")]
@@ -440,7 +440,7 @@ def check_sms_inbound() -> list[dict]:
     sql = ("SELECT count(*) FILTER (WHERE enabled) AS enabled, "
            "count(*) FILTER (WHERE enabled AND inbound_verified_at IS NULL) AS never_verified "
            "FROM sms_devices")
-    rc, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
+    rc, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
                    "concierge", "-tAc", sql])
     if rc != 0:
         return [_fail("sms:inbound", f"could not read sms_devices: {out.strip()[:80]}")]
@@ -881,7 +881,7 @@ def check_sip_firewall() -> list[dict]:
 
     Found inactive on 2026-11-15: trendi-sip-firewall.service was enabled but dead, so the DROP
     rules existed only because the last boot had applied them. A rule flush or a reboot without the
-    service would have reopened UDP/5060 to the internet (Docker bypasses ufw).
+    service would have reopened UDP/5060 to the internet (published container ports bypass ufw).
     """
     code, out = run(["systemctl", "is-active", "trendi-sip-firewall.service"], timeout=15)
     state = out.strip()
@@ -948,7 +948,7 @@ def check_crm_capture() -> list[dict]:
     """
     sql = ("SELECT count(*) FROM leads WHERE case_id IS NULL "
            "AND (coalesce(phone,'')<>'' OR coalesce(email,'')<>'')")
-    rc, out = run(["docker", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
+    rc, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
                    "concierge", "-tAc", sql])
     if rc != 0:
         return [_fail("crm:capture", f"could not read leads: {out.strip()[:80]}")]
@@ -982,8 +982,7 @@ def check_tls() -> list[dict]:
 
 
 def check_local_services() -> list[dict]:
-    # Uptime Kuma was removed on 2026-11-12. The Hermes containers (auxiliary planner,
-    # trendi-support planner, gateway) were stopped on 2026-11-19. Concierge handles
+    # Uptime Kuma was removed on 2026-11-12. Concierge handles
     # drafts, tasks and the daily note itself. Nothing here is probed.
     return []
 
@@ -1217,7 +1216,7 @@ def main(argv: list[str] | None = None) -> int:
         lines += [f"Summary: {report['counts']}",
                   f"Detail: {STATUS_FILE}",
                   "Checks cover: containers, public URLs, API, Postgres, disk/memory, TLS, Cloudflare "
-                  "token/routing/worker, inbound chain + rejections, email-auth sidecar, Hermes, Kuma."]
+                  "token/routing/worker, inbound chain + rejections, email-auth sidecar."]
         # The label must describe the worst problem in the mail, not just whether anything failed.
         # A warning-only mail used to arrive as "[Concierge FAIL]", which reads as an outage.
         if report["counts"]["fail"]:

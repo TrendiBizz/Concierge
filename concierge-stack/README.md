@@ -4,7 +4,7 @@ A voice assistant for Trendi that runs on your Mac now and on a VPS later. It as
 the caller wants (Concierge, SEO and AI visibility, or penetration testing), answers from
 `PRODUCT.md`, books consultations, takes messages, and hangs up when finished.
 
-## Run it on your Mac (no server, Docker or phone number)
+## Run it on your Mac (no server or phone number)
 ```bash
 ./concierge-stack/set-key.sh      # type your xAI key, hidden. Saved to concierge-stack/.env only.
 ./concierge-stack/run-local.sh    # talk to Grok through your Mac mic and speakers
@@ -29,8 +29,7 @@ What it saves, in `concierge-stack/data/` (git-ignored, contains callers' detail
 | Message replies | `agent/acknowledge.py`, `save_message` in `agent/agent.py` | After taking a message the agent asks how the team should follow up (email or phone call), then whether the caller wants a quick acknowledgement by text, email or none, and only if they do, a short summary or a brief acknowledgement. Only the chosen reply is sent, and a summary containing a price, a promise or the word "free" is replaced by the brief one. |
 | Call transcripts | `agent/transcripts.py` | Text of every call, one line per turn, saved to `data/transcripts/` (owner-only, git-ignored, no phone number in the file name). Old files are deleted after `TRANSCRIPT_RETENTION_DAYS` (30 days). Messages, the outbox and bookings are never auto-deleted. **Text only: audio is not recorded.** |
 | Owner alerts | `agent/notify.py` | New bookings and messages are emailed to `OWNER_EMAIL` (sent through Brevo SMTP once `.env` is set; queued otherwise). |
-| Phone line (VPS later) | `docker-compose.voice.yml`, `livekit/` | LiveKit server and SIP bridge |
-| Ops tools (VPS later) | `docker-compose.ops.yml` | Uptime Kuma, Activepieces, Listmonk |
+| Phone line (VPS later) | `livekit/` | LiveKit server and SIP bridge |
 
 ## Tests
 ```bash

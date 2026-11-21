@@ -109,10 +109,6 @@ def test_occupancy_rejects_zero_window():
 @pytest.mark.parametrize(
     "path",
     [
-        "QA/verification/HERMES_CHANNEL_AUDIT_2026-11-09.json",
-        "QA/verification/HERMES_CONCIERGE_FRAMEWORK_2026-11-09.md",
-        "QA/verification/HERMES_ORCHESTRATION_RESEARCH_2026-11-09.md",
-        "QA/verification/HERMES_FRAMEWORK_2026-11-09.md",
         "office-shots/shot1.png",
         "tiktok-review/clip.mp4",
     ],
@@ -127,7 +123,7 @@ def test_ordinary_docs_are_not_excluded():
 
 
 def test_excluded_staged_path_is_refused(tmp_path, monkeypatch):
-    monkeypatch.setattr(mod, "staged_paths", lambda repo: ["QA/verification/HERMES_X.md"])
+    monkeypatch.setattr(mod, "staged_paths", lambda repo: ["office-shots/x.png"])
     with pytest.raises(mod.Refused, match="excluded path is staged"):
         mod.check_staged_are_expected(tmp_path)
 

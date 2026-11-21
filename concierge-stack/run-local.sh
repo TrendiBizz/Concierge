@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Grok Voice concierge on this Mac, talking through the Mac microphone and speakers.
-# No server, Docker or phone number needed. Usage:
+# No server or phone number needed. Usage:
 #   ./concierge-stack/run-local.sh            # talk to the agent in the terminal (console mode)
 set -euo pipefail
 

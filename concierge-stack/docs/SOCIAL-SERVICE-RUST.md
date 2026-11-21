@@ -49,15 +49,15 @@ No AI image or video generation. No queue server. Nothing the customer sees.
 | `store` | SQLite. Every query is scoped by customer. Audit log of every step. |
 | `connector` | One small trait per network (`publish`), honest errors: retryable, permanent, needs re-login |
 | `scheduler` | Publishes due posts, retries with back-off, never publishes anything that was not approved |
-| `api` | JSON API for Concierge and Hermes, two keys with different powers |
+| `api` | JSON API for Concierge and the agent, two keys with different powers |
 
 ## How "nothing posts until the customer says yes" is made structural
 
 1. A post can only reach `scheduled` through `approved`, and `approved` can only be reached by the approval step.
 2. The approval is tied to a **revision** number. Editing the text bumps the revision and sends the post back to draft, so
    what is published is exactly what the customer approved. The scheduler re-checks this before every publish.
-3. Two API keys. The **agent key** (Hermes) can read rules, check, create and edit drafts, and submit them. The **Concierge
-   key** can create customers, register accounts, request an approval token, and approve or reject. Hermes cannot publish,
+3. Two API keys. The **agent key** (the agent) can read rules, check, create and edit drafts, and submit them. The **Concierge
+   key** can create customers, register accounts, request an approval token, and approve or reject. the agent cannot publish,
    even with a token in hand.
 4. Approval tokens are random, single-use and expire.
 
@@ -65,7 +65,7 @@ No AI image or video generation. No queue server. Nothing the customer sees.
 
 - The customer never sees this service. They see Concierge: the phone assistant, text and email. Connect pages are served on
   Trendi's own domain, so the OAuth screens are the network's own, reached from a Concierge link.
-- Hermes drafts posts and calls the agent key. When a draft passes the guardrails it is submitted. Concierge's existing
+- the agent drafts posts and calls the agent key. When a draft passes the guardrails it is submitted. Concierge's existing
   notifier (`notify.py`, with its honest `sent / failed` statuses) sends the customer the draft text by their chosen channel
   (text or email), and a reply of YES calls the approval endpoint.
 - Customer data, tokens and the audit log are one SQLite file, included in the encrypted backups.
@@ -119,7 +119,7 @@ reason. AuthExpired: mark the account `needs_reauth`, Failed with a clear messag
 every 15 seconds.
 
 **`api.rs`** (axum 0.7, so path params are `/:id`). Two Bearer keys, constant-time compared:
-agent key (Hermes) and Concierge key. Routes: `GET /health` (no auth);
+agent key (the agent) and Concierge key. Routes: `GET /health` (no auth);
 agent or Concierge: `GET /v1/customers/:c/rules`, `POST /v1/customers/:c/check`, `POST|GET /v1/customers/:c/posts`, `PUT /v1/customers/:c/posts/:id`,
 `POST /v1/customers/:c/posts/:id/submit` (Draft to PendingApproval, only if the guardrail check has no errors), `GET /v1/customers/:c/accounts`;
 Concierge only: `POST /v1/customers`, `PUT /v1/customers/:c/rules`, `POST /v1/customers/:c/accounts`, `POST /v1/customers/:c/posts/:id/approval-request`

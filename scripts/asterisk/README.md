@@ -48,9 +48,8 @@ Grok credentials. Enable PHONE_RECEPTIONIST_ENABLED and the specific business's
 phone setting/telephone authorization. Register and enable its exact ingress
 in phone_numbers only after the operator has verified the connection.
 
-```
-docker compose -f scripts/asterisk/compose.yml up -d --build
-```
+The PBX is built from `scripts/asterisk/Containerfile` and started by the repo's Asterisk scripts
+(`scripts/asterisk/cutover_to_tenant.sh`); add any new one-off container step to a script there first.
 
 The default Compose exposes no SIP or media ports. Connect the PBX to the
 verified provider network using an explicit deployment override. If internet
@@ -60,7 +59,7 @@ internet SIP deployment. Never expose AudioSocket, ARI or the database publicly.
 The private PBX IP is fixed and the bridge accepts only that peer. Ensure the
 chosen private subnet doesn't overlap the deployment's other networks.
 
-Without Docker, run `PYTHONPATH=api python -m app.asterisk_bridge`; default bind
+Without a container, run `PYTHONPATH=api python -m app.asterisk_bridge`; default bind
 and allowed peers are loopback. One process owns these ports, not HTTP workers.
 
 ## Media server — take-over, listen-in, whisper (AMI)

@@ -83,7 +83,7 @@ KEY="$KEY" SITE_MIRROR="$SRC" "$REPO_ROOT/scripts/vps/verify-deploy.sh"
 #     file sync alone leaves a long-running process on the old tables. Restart only the website
 #     service: no postgres, api or volumes. Verify ran first because it checks the files on disk.
 echo "--- restarting the website service"
-"${SSH[@]}" "$HOST" "cd '$RELEASE/product/scripts/vps' && docker compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public restart website >/dev/null"
+"${SSH[@]}" "$HOST" "cd '$RELEASE/product/scripts/vps' && podman compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public restart website >/dev/null"
 sleep 5
 if ! curl -fsS -o /dev/null --max-time 15 "${SITE_URL:-https://trendibizz.com}/"; then
   echo "WARNING: the site did not answer after the website restart; check the box before leaving" >&2

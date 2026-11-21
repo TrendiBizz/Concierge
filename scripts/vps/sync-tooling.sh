@@ -41,5 +41,20 @@ rsync -a --exclude '._*' --exclude '__pycache__' --exclude '*.pyc' \
   -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY" \
   "$SRC/" "$HOST:$REMOTE/"
 
+# The container build files outside scripts/vps are published with it: compose.yml names them
+# (services/email-auth, the Rust shell, the Asterisk PBX), so the box needs the Containerfile names the
+# repo now uses. Additive only; the old Dockerfile names are moved aside by prune-removed.sh.
+EXTRA=(services/email-auth/Containerfile concierge-stack/core-rs/Containerfile.shell
+       scripts/asterisk/Containerfile scripts/asterisk/compose.yml scripts/asterisk/compose.public.yml)
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- "${EXTRA[@]}")" ]; then
+  echo "REFUSING: uncommitted changes in container build files" >&2; exit 1
+fi
+echo "syncing container build files"
+(cd "$REPO_ROOT" && rsync -a --relative -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY" \
+  "${EXTRA[@]}" "$HOST:$RELEASE/product/")
+
+echo "--- moving files removed from the repo aside on the box"
+KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/prune-removed.sh"
+
 echo "--- verifying parity"
 KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"

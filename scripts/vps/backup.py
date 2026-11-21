@@ -24,7 +24,7 @@ def run(args, **kwargs):
 
 def container_running(name):
     done = subprocess.run(
-        ['docker', 'inspect', '--format', '{{.State.Running}}', name],
+        ['podman', 'inspect', '--format', '{{.State.Running}}', name],
         capture_output=True, text=True)
     return done.returncode == 0 and done.stdout.strip() == 'true'
 
@@ -37,7 +37,7 @@ def dump_database(stage, container, database, required, skipped):
         skipped.append(f"database {database} skipped: {container} is not running")
         return
     with (stage / f"{database if database != 'default' else 'crm'}.dump").open('wb') as output:
-        run(['docker', 'exec', container, 'pg_dump', '-U', 'postgres', '-d', database,
+        run(['podman', 'exec', container, 'pg_dump', '-U', 'postgres', '-d', database,
              '--format=custom', '--no-owner', '--no-acl'], stdout=output)
     size = (stage / f"{database if database != 'default' else 'crm'}.dump").stat().st_size
     if size == 0:
@@ -66,7 +66,7 @@ def main():
     dump_database(stage, 'trendi-postgres-1', 'concierge', required=True, skipped=skipped)
 
     source = Path(subprocess.check_output(
-        ['docker', 'volume', 'inspect', '--format', '{{.Mountpoint}}', 'trendi_social'],
+        ['podman', 'volume', 'inspect', '--format', '{{.Mountpoint}}', 'trendi_social'],
         text=True).strip()) / 'social.db'
     media = source.parent / 'media'
     (stage / 'social-media').mkdir(mode=0o700, exist_ok=True)

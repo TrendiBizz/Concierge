@@ -21,7 +21,7 @@ API, SLUG = "http://127.0.0.1:8000", "trendi-meta-review"
 ROUTES = json.load(open("/tmp/owner_routes.json"))
 
 def psql(sql):
-    r = subprocess.run(["docker","exec","-i","trendi-postgres-1","sh","-c",
+    r = subprocess.run(["podman","exec","-i","trendi-postgres-1","sh","-c",
         'psql -U "$POSTGRES_USER" -d concierge -At'],
         input=sql, capture_output=True, text=True)
     return r.stdout.strip()

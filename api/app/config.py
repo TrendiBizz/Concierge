@@ -44,10 +44,6 @@ class Settings(BaseSettings):
     social_service_url: str = "http://127.0.0.1:4390"
     social_concierge_key: str = ""
 
-    # Hermes gateway operations (app/hermes_ops.py). Dark by default: the routes answer 404 unless both are set.
-    hermes_gateway_enabled: bool = False
-    hermes_gateway_key: str = ""
-
     # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.
     case_planner: str = ""
 
@@ -70,7 +66,7 @@ class Settings(BaseSettings):
     phone_verified_tenants: str = ""  # populated only after a genuine carrier call test
     # Asterisk Manager Interface — the control plane for take-over/listen-in/whisper.
     # Blank host or secret keeps every media-server action disabled.
-    ami_host: str = ""          # e.g. "pbx" (private Docker network, never published)
+    ami_host: str = ""          # e.g. "pbx" (private container network, never published)
     ami_port: int = 5038
     ami_user: str = ""
     ami_secret: str = ""

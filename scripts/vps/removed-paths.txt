@@ -1,0 +1,21 @@
+# Paths (relative to <release>/product) that no longer exist in the repo. See prune-removed.sh.
+# Hermes (removed 2026-11-21)
+api/app/hermes_ops.py
+api/app/hermes_orchestrator.py
+scripts/vps/hermes.sh
+scripts/vps/compose.hermes.yml
+scripts/vps/compose.hermes-gateway.yml
+scripts/vps/hermes.customer.toolsets.yaml
+scripts/vps/Dockerfile.gateway
+scripts/vps/Dockerfile.gateway.dockerignore
+# Docker file names, replaced by Containerfile* (2026-11-21)
+scripts/vps/Dockerfile.api
+scripts/vps/Dockerfile.api.dockerignore
+scripts/vps/Dockerfile.social
+scripts/vps/Dockerfile.social.dockerignore
+services/email-auth/Dockerfile
+concierge-stack/core-rs/Dockerfile.shell
+scripts/asterisk/Dockerfile
+# One-shot Docker -> Podman migration scripts (done 2026-11-17)
+scripts/vps/podman-migrate-prod.sh
+scripts/vps/podman-migrate-stack.sh

@@ -393,7 +393,7 @@ Never include a secret value, token, password, or OTP in this document, in chat,
 | Meta / Instagram 2FA | macOS login Keychain, generic-password service `jo-otp` (index in `jo-otp-index`). These are TOTP seeds, **not** Page tokens and not API keys. | See the OTP steps below. |
 | Anything else in Keychain | Named generic-password items, for example via `security find-generic-password -s <service> -w`. | Read in-process. Never print `-w` output. |
 
-The Hermes / global `SOCIAL_AGENT_KEY` cannot do tenant operations (it is rejected with "Global Hermes key has no tenant permissions"). Do not rotate or print it for this job.
+The global `SOCIAL_AGENT_KEY` cannot do tenant operations (it is rejected with "Global agent key has no tenant permissions"). Do not rotate or print it for this job.
 
 ### OTP (Ente Auth via `~/.local/bin/otp`)
 
@@ -447,7 +447,6 @@ Pause or resume the Monday draft job as in section 1 (`PAUSE`, or `launchctl boo
 Older jobs that are **not** this Concierge pipeline:
 
 - OpenBot Workwatch `~/OpenBot/Shared/workwatch/ops/bin/run_social.sh` used to write SEO/security drafts to `~/.workwatch/reports/social/`. That stopped after OpenBot ownership was revoked on 15 November 2026.
-- Hermes `trendi-social-drafts` in `hermes/schedules.yaml` is a different SEO/security draft job and does not publish.
 - The LinkedIn Playwright job `com.trendi.linkedin-weekly` and `scripts/social/linkedin_weekly_post.py` must not be pointed at Facebook or Instagram.
 - Before 17 November 2026, some live Page posts were made through a signed-in browser after Jo's ok. That path is not this runbook, and Grok routines remain paused. Do not go back to browser posting to work around a Meta API error.
 

@@ -2,9 +2,9 @@
 
 Run inside the api container so the real settings, code and database are used:
 
-    docker cp prove_supervision_pbx.py trendi-api-1:/tmp/
-    docker exec -u root trendi-api-1 chmod 644 /tmp/prove_supervision_pbx.py
-    docker exec -w /srv -e PYTHONPATH=/srv trendi-api-1 python /tmp/prove_supervision_pbx.py
+    podman cp prove_supervision_pbx.py trendi-api-1:/tmp/
+    podman exec -u root trendi-api-1 chmod 644 /tmp/prove_supervision_pbx.py
+    podman exec -w /srv -e PYTHONPATH=/srv trendi-api-1 python /tmp/prove_supervision_pbx.py
 
 No carrier traffic and no PSTN number is dialled. The caller and the supervisor's phone are
 stand-ins: two Local channels into a temporary ``[supervision-test]`` dialplan context that

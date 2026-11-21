@@ -5,7 +5,7 @@
 #   scripts/install-morning-brief-macos.sh --uninstall  remove
 #
 # The report is written to ~/.workwatch/reports/hermes/trendi-master/morning-latest.md
-# (and a dated copy). The Hermes dashboard reads that tree from its Files page.
+# (and a dated copy).
 # Logs: ~/Library/Logs/trendi-morning-brief.log
 set -euo pipefail
 

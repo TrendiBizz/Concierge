@@ -1,7 +1,7 @@
 """One planner call for a new case. The model proposes. Concierge decides.
 
 The call is a single `claude -p` in plan mode. Plan mode cannot edit files, and this is not a
-chat loop. The reply must be one JSON plan. `hermes_orchestrator` accepts or rejects it whole.
+chat loop. The reply must be one JSON plan. `case_policy` accepts or rejects it whole.
 A rejected plan is discarded. An accepted plan is written as a to-do for the owner. Nothing
 here sends email, SMS, or a quote.
 
@@ -15,10 +15,10 @@ import json
 import shutil
 import subprocess
 
-from . import hermes_orchestrator
+from . import case_policy
 from .config import get_settings
 
-OPERATIONS = ", ".join(sorted(hermes_orchestrator.OPERATIONS))
+OPERATIONS = ", ".join(sorted(case_policy.OPERATIONS))
 
 
 def prompt_for(lead: dict) -> str:
@@ -55,12 +55,12 @@ def decide(reply: str) -> dict | None:
     The to-do records what was proposed and why it was not executed.
     """
     plan = parse_plan(reply or "")
-    verdict = hermes_orchestrator.validate_plan(plan)
+    verdict = case_policy.validate_plan(plan)
     if not verdict["ok"]:
         return None
     lines = []
     for action in verdict["plan"]["actions"]:
-        decision = hermes_orchestrator.permit({"autonomy": "shadow"}, action["op"])
+        decision = case_policy.permit({"autonomy": "shadow"}, action["op"])
         lines.append(f"{action['op']}: {decision['reason']}")
     return {"title": "Planner suggestion", "notes": "\n".join(lines)[:2000]}
 

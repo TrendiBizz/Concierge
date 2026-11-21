@@ -52,7 +52,7 @@ the identity.
    SMSGATE_SEND_PATH=/3rdparty/v1/messages   # cloud mode; the private server uses /message
    SMSGATE_SIM_NUMBER=1
    ```
-   Then `docker restart trendi-api-1` (the settings are read at startup).
+   Then redeploy the API with `scripts/vps/deploy-api.sh` (the settings are read at startup).
 6. **The tenant.** `UPDATE tenants SET sms_transport='smsgate', sms_enabled=true, sms_from='+64...'`
    and grant the channel: `sms_read` and `sms_send` in `tenant_channel_authorizations` for that
    business. Without `sms_read` the webhook answers 403 "Business has not authorized incoming SMS".

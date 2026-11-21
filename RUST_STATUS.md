@@ -7,7 +7,7 @@ Decision by the user: **ignore the Rust code for now, use Python.** Revisit late
 The Rust work is **not a partial replacement** that can be merged into the Python app. It is a
 parallel *parity* implementation that was never wired in. Evidence from this repository:
 
-1. `QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md` states plainly:
+1. the 2026-11-09 Rust port handoff (removed; see git history) states plainly:
    > "Nothing is wired into `api/app`. The Python remains the only running implementation."
 
 2. The same document's "Not ported" list covers most of the application: `main.py`'s HTTP layer
@@ -30,7 +30,6 @@ the work the user is explicitly declining.
 | Path | What it is |
 | --- | --- |
 | `concierge-stack/core-rs/` | `concierge-core` parity crate (~3,400 lines), golden-vector tested |
-| `concierge-stack/hermes-gateway/` | `hermes-gateway` crate; loopback HTTP service, 17 acceptance tests |
 | `concierge-stack/server-rs/` | Rust HTTP server; its own README: "Not deployed, not wired in" |
 | `concierge-stack/social-service/` | **Part of the running product** — do not treat as flagged |
 | `scripts/rust-gate.sh` | fmt/clippy/test gate for the flagged crates |
@@ -47,8 +46,6 @@ Nothing here is deleted. The flagging is now complete, including CI.
 | Removed job | Crate | Why it was removed |
 | --- | --- | --- |
 | `rust-core-parity` | `core-rs` | parallel parity crate, never wired in |
-| `rust-hermes-gateway` | `hermes-gateway` | parallel parity crate, never wired in |
-| `hermes-gateway-e2e` | `hermes-gateway` | exercises the above |
 | `rust-server-parity` | `server-rs` | crate README: "Not deployed, not wired in" |
 
 They no longer burn CI minutes and can no longer drift red for reasons unrelated to the product.
@@ -67,11 +64,8 @@ service the product runs, and carries a Python QA suite with it.
 The Rust *source* is untouched and still present under `concierge-stack/`; only its CI jobs are gone.
 If the port resumes, re-add the four jobs from git history (`git show <sha>:<path>`).
 
-The one Python-relevant CI job to keep green is `hermes_ops_integration`
-(`.github/workflows/concierge-isolated.yml`), which exercises `api/app/hermes_ops.py`.
-
 ## If the port is resumed later
 
-Start from `QA/verification/HANDOFF_RUST_PORT_AND_HERMES_2026-11-09.md` and
+Start from
 `concierge-stack/core-rs/PORT_STATUS.md`, which is the authoritative per-module table. Re-read the
 "Rules that cost real time to learn" section before pushing — the gate must never be piped.

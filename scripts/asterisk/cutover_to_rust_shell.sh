@@ -33,10 +33,10 @@ render_with_host() {                          # $1 host -> installs extensions.c
   rm -rf "$tmp"
 }
 
-reload_dialplan() { docker exec "$PBX" asterisk -rx 'dialplan reload' | tail -1; }
+reload_dialplan() { podman exec "$PBX" asterisk -rx 'dialplan reload' | tail -1; }
 
 audiosocket_targets() {
-  docker exec "$PBX" asterisk -rx 'dialplan show concierge-ingress-1' | grep -o 'AudioSocket([^)]*)' | sort -u
+  podman exec "$PBX" asterisk -rx 'dialplan show concierge-ingress-1' | grep -o 'AudioSocket([^)]*)' | sort -u
 }
 
 # ---------------------------------------------------------------- rollback
@@ -55,7 +55,7 @@ fi
 
 # ---------------------------------------------------------------- apply
 echo "== 1. preconditions"
-[ "$(docker inspect -f '{{.State.Status}}' "$SHELL_CT" 2>/dev/null)" = running ] \
+[ "$(podman inspect -f '{{.State.Status}}' "$SHELL_CT" 2>/dev/null)" = running ] \
   || { echo "REFUSED: $SHELL_CT is not running"; exit 2; }
 echo "   shell container running"
 
@@ -65,7 +65,7 @@ for port in $PORTS; do
   # A socket in LISTEN state (0A) on this port, read from inside the shell container. No log scraping: old log
   # lines from an earlier start must not be able to satisfy this.
   HEX=$(printf '%04X' "$port")
-  docker exec "$SHELL_CT" sh -c "grep -qE ':$HEX [0-9A-F:]+ 0A ' /proc/net/tcp /proc/net/tcp6" \
+  podman exec "$SHELL_CT" sh -c "grep -qE ':$HEX [0-9A-F:]+ 0A ' /proc/net/tcp /proc/net/tcp6" \
     || { echo "REFUSED: the shell is not listening on route port $port (check ASTERISK_ROUTES in compose.env)"; exit 2; }
 done
 echo "   shell listening on route ports: $PORTS"
@@ -76,11 +76,11 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: applicat
 [ "$CODE" = 401 ] || { echo "REFUSED: internal voice API answered HTTP $CODE (expected 401). 503 = INTERNAL_TOKEN unset in api.env."; exit 2; }
 echo "   internal voice API enabled and rejecting a bad token"
 
-docker exec "$PBX" asterisk -rx 'pjsip show registrations' | grep -q Registered \
+podman exec "$PBX" asterisk -rx 'pjsip show registrations' | grep -q Registered \
   || { echo "REFUSED: the carrier registration is not Registered"; exit 2; }
 echo "   carrier registered"
 
-ACTIVE=$(docker exec "$PBX" asterisk -rx 'core show channels count' | grep -o '^[0-9]* active call' | grep -o '^[0-9]*' || echo 0)
+ACTIVE=$(podman exec "$PBX" asterisk -rx 'core show channels count' | grep -o '^[0-9]* active call' | grep -o '^[0-9]*' || echo 0)
 [ "${ACTIVE:-0}" = 0 ] || { echo "REFUSED: $ACTIVE call(s) in progress; try again when the line is quiet"; exit 2; }
 echo "   no calls in progress"
 

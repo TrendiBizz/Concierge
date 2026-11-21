@@ -2,7 +2,9 @@
 # Use Concierge's existing API image and DB configuration, not a second CRM.
 services:
   pbx:
-    build: .
+    build:
+      context: .
+      dockerfile: Containerfile
     restart: unless-stopped
     volumes:
       - ./generated/extensions.conf:/etc/asterisk/extensions.conf:ro

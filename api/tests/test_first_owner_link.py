@@ -4,7 +4,7 @@ Creating a tenant and asking for the owner's link returned "Active user not foun
 deliberately refuses to invent a user, which is right for a lost password and wrong for the operator's
 first step. Onboarding could not begin at all.
 
-    docker run -d --name pgaddr -e POSTGRES_PASSWORD=pw -p 55433:5432 pgvector/pgvector:pg16
+    scripts/dev/test-db.sh
     TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
       python3 -m pytest tests/test_first_owner_link.py -q
 """

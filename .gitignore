@@ -19,7 +19,7 @@ node_modules/
 .env.*
 !.env.example
 
-# Docker-internal credentials are exported locally from the Mac keychain.
+# Container-internal credentials are exported locally from the Mac keychain.
 .private/
 
 # Private, pre-cutover rollback archive; never commit.
@@ -28,8 +28,6 @@ node_modules/
 # Session scratch output that must never be committed. Enforced here rather
 # than by operator memory, because a handoff note is not a guardrail; the
 # auto-end tool refuses these paths as a second layer.
-QA/verification/HERMES_*
-QA/verification/HANDOFF_HERMES_*
 office-shots/
 tiktok-review/
 .geo-state.json

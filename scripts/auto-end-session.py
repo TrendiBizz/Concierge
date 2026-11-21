@@ -36,8 +36,6 @@ DEFAULT_THRESHOLD = 0.80
 # Paths that must never be committed. These are known-untracked scratch output;
 # the handoff records repeated instructions not to commit them.
 EXCLUDED_PREFIXES = (
-    "QA/verification/HERMES_",
-    "QA/verification/HANDOFF_HERMES_",
     "office-shots/",
     "tiktok-review/",
 )
@@ -64,7 +62,6 @@ ALLOWED_STAGED_FILES = {
     "README.md",
     "HANDOFF.md",
     "Caddyfile",
-    "docker-compose.yml",
     ".gitignore",
     ".env.example",
 }

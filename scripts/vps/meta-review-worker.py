@@ -13,11 +13,11 @@ CUSTOMER = "trendi-meta-review"
 
 
 def social_db_path() -> str:
-    """Host path of the live social.db, resolved through the docker CLI so it follows the
-    /run/docker.sock symlink to whichever engine owns the `trendi_social` volume. The old hardcoded
-    /var/lib/docker/volumes/... path went stale after the Docker -> Podman move (2026-11-17)."""
+    """Host path of the live social.db, resolved through the podman CLI so it follows the
+    engine that owns the `trendi_social` volume. The old hardcoded
+    /var/lib/docker/volumes/... path went stale after the move to Podman (2026-11-17)."""
     out = subprocess.check_output(
-        ["docker", "volume", "inspect", "trendi_social", "--format", "{{.Mountpoint}}"],
+        ["podman", "volume", "inspect", "trendi_social", "--format", "{{.Mountpoint}}"],
         timeout=15,
     )
     return out.decode().strip() + "/social.db"
@@ -52,7 +52,7 @@ def main():
         selected = select_due(connection, int(time.time()))
     for post_id in selected:
         result = subprocess.run([
-            "docker", "run", "--rm", "--env-file", "/opt/trendi/shared/social.env",
+            "podman", "run", "--rm", "--env-file", "/opt/trendi/shared/social.env",
             "-e", "SOCIAL_ENABLE_PUBLISH=true", "-e", "SOCIAL_DB=/data/social.db",
             "-e", "SOCIAL_MEDIA_DIR=/data/media", "-e",
             "SOCIAL_PUBLIC_MEDIA_BASE=https://concierge.trendibizz.com/api/v1/social-media",

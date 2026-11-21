@@ -56,10 +56,6 @@ redirect ruleset detail, so those are honestly reported as "could not check". Se
 cd /Users/jo/work-staging/concierge-integration
 bash scripts/security/tamper/run-snapshot.sh /tmp/cf.json
 bash scripts/security/tamper/daily-watch.sh --cf-snapshot /tmp/cf.json
-
-# Hermes container (mounted 0600 token copy, reports to the mounted dir)
-docker exec hermes-concierge bash /opt/data/concierge/scripts/security/tamper/run-snapshot.sh /tmp/cf.json
-docker exec hermes-concierge bash /opt/data/concierge/scripts/security/tamper/daily-watch.sh --cf-snapshot /tmp/cf.json
 ```
 
 `start-master.sh` sets `TRENDI_SITE_ROOT=/opt/data/concierge` and

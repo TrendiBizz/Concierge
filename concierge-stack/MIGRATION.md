@@ -9,7 +9,6 @@ The copied contents originated from **Trendiisales/trendi-site** branch
 - `agent/`, `livekit/`: LiveKit + Grok voice implementations and SIP templates.
 - `social-service/`: independent Rust social API, OAuth groundwork and tests.
 - `socialsync/`: legacy social user interface and supporting Node code.
-- `hermes/`: Concierge agent launch tooling.
 - `tests/`: voice and messaging verification.
 - `backup.sh`, `restore-test.sh`, associated scripts: encrypted backup tooling.
 - `platform-website/`: separate historical product website prototype, **not**
@@ -33,7 +32,7 @@ the canonical location, then restored successfully, including 121 Twenty
 tables. The voice Python 3.12 environment was independently rebuilt and all
 54 tests passed. Compose config was validated with the private local env.
 
-The running core platform, Twenty, Caddy and Hermes services were preserved,
+The running core platform, Twenty and Caddy services were preserved,
 not redeployed. Runtime production migration of individual voice/social
 providers, live social publishing, customer messaging, account OAuth,
 multi-customer SIP routing and authorized recording are **not** represented
@@ -50,10 +49,9 @@ python3 -m unittest discover -s concierge-stack/tests
 cd concierge-stack/social-service && cargo test --locked
 ```
 
-The strict ownership check now passes without any transitional allowance. Docker Compose needs
-customer/private runtime environment files that are never versioned; use
-`docker compose config` with appropriately provided secrets in the
-authorized runtime, not blank production substitutes.
+The strict ownership check now passes without any transitional allowance. The compose files need
+customer/private runtime environment files that are never versioned; validate them with appropriately
+provided secrets in the authorized runtime, not blank production substitutes.
 
 ## Outstanding integration checks
 

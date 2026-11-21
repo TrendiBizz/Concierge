@@ -1,7 +1,7 @@
 """Command-line helper for the demo workflow.
 
 Run inside the container:
-  docker compose exec api python -m app.cli demo --name "Acme Forklifts" --url https://acme.example
+  python -m app.cli demo --name "Acme Forklifts" --url https://acme.example
 
 or locally with DATABASE_URL / XAI_API_KEY set:
   python -m app.cli demo --name "Acme Forklifts" --url https://acme.example

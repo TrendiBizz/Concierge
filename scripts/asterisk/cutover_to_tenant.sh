@@ -22,8 +22,8 @@ set -euo pipefail
 SHARED=/opt/trendi/shared
 REL=/opt/trendi/releases/20261108-vps/product/scripts/asterisk
 GEN=$REL/generated
-PSQL='docker exec -i trendi-postgres-1 sh -c "psql -U \$POSTGRES_USER -d concierge -v ON_ERROR_STOP=1 -At"'
-compose() { (cd "$REL" && docker compose -f compose.yml -f compose.public.yml --env-file "$SHARED/phone.env" "$@"); }
+PSQL='podman exec -i trendi-postgres-1 sh -c "psql -U \$POSTGRES_USER -d concierge -v ON_ERROR_STOP=1 -At"'
+compose() { (cd "$REL" && podman compose -f compose.yml -f compose.public.yml --env-file "$SHARED/phone.env" "$@"); }
 sql() { eval "$PSQL"; }                       # reads SQL on stdin
 admin_patch() {                               # $1 slug  $2 json body  -> prints HTTP code
   local token; token=$(grep '^ADMIN_TOKEN=' "$SHARED/api.env" | cut -d= -f2-)
@@ -77,19 +77,19 @@ render_extensions() {                         # renders into a temp dir and inst
 }
 
 reload_and_restart_bridge() {
-  docker exec asterisk-pbx-1 asterisk -rx 'dialplan reload' | tail -1
+  podman exec asterisk-pbx-1 asterisk -rx 'dialplan reload' | tail -1
   compose up -d --force-recreate --no-deps bridge 2>&1 | tail -3
   for i in $(seq 1 20); do
-    docker logs asterisk-bridge-1 --since 40s 2>&1 | grep -q 'private phone listener ready' && break; sleep 2
+    podman logs asterisk-bridge-1 --since 40s 2>&1 | grep -q 'private phone listener ready' && break; sleep 2
   done
 }
 
 verify() {                                    # $1 expected slug
   echo "== verify"
-  docker logs asterisk-bridge-1 --since 90s 2>&1 | grep 'listener ready' | tail -2
-  docker exec asterisk-pbx-1 asterisk -rx 'pjsip show registrations' | grep concierge-reg
-  docker exec asterisk-pbx-1 asterisk -rx 'dialplan show concierge-ingress-1' | grep -m2 "business-$1" || { echo "!! dialplan does not point at $1"; return 1; }
-  echo -n "PBX container uptime: "; docker inspect -f '{{.State.StartedAt}}' asterisk-pbx-1
+  podman logs asterisk-bridge-1 --since 90s 2>&1 | grep 'listener ready' | tail -2
+  podman exec asterisk-pbx-1 asterisk -rx 'pjsip show registrations' | grep concierge-reg
+  podman exec asterisk-pbx-1 asterisk -rx 'dialplan show concierge-ingress-1' | grep -m2 "business-$1" || { echo "!! dialplan does not point at $1"; return 1; }
+  echo -n "PBX container uptime: "; podman inspect -f '{{.State.StartedAt}}' asterisk-pbx-1
   echo "OK: line now answers as $1"
 }
 
@@ -134,7 +134,7 @@ if [ "$AUTH" != "1" ]; then
   exit 2
 fi
 echo "   telephone consent present"
-docker exec asterisk-pbx-1 asterisk -rx 'pjsip show registrations' | grep -q Registered || { echo "REFUSED: Hero registration is not Registered"; exit 2; }
+podman exec asterisk-pbx-1 asterisk -rx 'pjsip show registrations' | grep -q Registered || { echo "REFUSED: Hero registration is not Registered"; exit 2; }
 echo "   Hero registered"
 
 echo "== 2. go-live gate (admin API, expects 200)"

@@ -14,7 +14,7 @@
 **/._*
 **/.DS_Store
 
-# See api/.dockerignore: the VPS deploy key was once copied to api/app/Concierge and baked into
+# The VPS deploy key was once copied to api/app/Concierge and baked into
 # the image (found 2026-11-15). Key material must never enter the build context.
 **/Concierge
 **/Concierge.*
