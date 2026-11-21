@@ -146,7 +146,7 @@ from . import asterisk_ami, call_control, call_insights, casetimeline, case_poli
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
-from .security import RateLimiter, require_admin
+from .security import RateLimiter, apply_security_headers, require_admin
 from .tools import run_tool
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -249,7 +249,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def owner_boundary(request: Request, call_next):
-    """Same-origin owner portal; no third-party browser access to owner APIs."""
+    """Same-origin owner portal; no third-party browser access to owner APIs; baseline security headers."""
     path = request.url.path
     if path == "/owner-ui" or path.startswith("/owner/") or path.startswith("/api/v1/device-sms/"):
         origin = request.headers.get("origin")
@@ -262,10 +262,11 @@ async def owner_boundary(request: Request, call_next):
                 return Response(status_code=403, headers={"Cache-Control": "no-store"})
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
+        apply_security_headers(path, response)
         return response
-    return await call_next(request)
+    response = await call_next(request)
+    apply_security_headers(path, response)
+    return response
 
 
 # ------------------------------------------------------------------ helpers

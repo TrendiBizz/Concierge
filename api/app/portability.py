@@ -21,7 +21,7 @@ import time
 
 import httpx
 
-from . import db
+from . import db, public_fetch
 
 log = logging.getLogger("concierge.portability")
 
@@ -133,13 +133,15 @@ async def import_contacts(tenant_id, rows: list[dict], default_cc: str = "1") ->
 
 # ---------------------------------------------------------------- push side
 async def set_webhook(tenant_id, url: str, secret: str) -> dict:
+    clean_url = url.strip()
+    public_fetch.validate_public_https_url(clean_url)
     await db.pool().execute(
         """
         INSERT INTO tenant_webhooks (tenant_id, url, secret, active) VALUES ($1,$2,$3,true)
         ON CONFLICT (tenant_id) DO UPDATE SET url=$2, secret=$3, active=true
         """,
-        tenant_id, url, secret)
-    return {"url": url, "active": True}
+        tenant_id, clean_url, secret)
+    return {"url": clean_url, "active": True}
 
 
 async def get_webhook(tenant_id) -> dict | None:
@@ -188,7 +190,7 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
         "WHERE tenant_id=$1 AND delivered_at IS NULL AND attempts < 5 "
         "ORDER BY created_at LIMIT $2", tenant_id, limit)
     sent = failed = 0
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
         for row in rows:
             # jsonb comes back as a JSON *string* from asyncpg. Nesting that string directly would
             # hand the customer's CRM `"data": "{...}"` -- a string where an object belongs -- so
@@ -199,11 +201,15 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
             body = json.dumps({"event": row["event"], "data": payload,
                                "sent_at": int(time.time())}).encode()
             try:
-                response = await client.post(
-                    hook["url"], content=body,
+                response = await public_fetch.post_public(
+                    hook["url"],
+                    content=body,
                     headers={"Content-Type": "application/json",
                              "X-Concierge-Event": row["event"],
-                             "X-Concierge-Signature": signature(hook["secret"], body)})
+                             "X-Concierge-Signature": signature(hook["secret"], body)},
+                    timeout=10.0,
+                    client=client,
+                )
                 if response.status_code >= 300:
                     raise RuntimeError(f"HTTP {response.status_code}")
                 await db.pool().execute(

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import secrets
 import time
@@ -112,12 +113,18 @@ def invoice_html(invoice: dict) -> str:
     gst = invoice["gst_cents"] / 100
     total = invoice["amount_cents"] / 100
     net = total - gst
-    paid = invoice["paid_at"].strftime("%d %b %Y") if invoice.get("paid_at") else ""
-    name = invoice.get("customer_name") or invoice["customer_email"]
-    business = invoice.get("business_name") or ""
+    paid = html.escape(invoice["paid_at"].strftime("%d %b %Y") if invoice.get("paid_at") else "")
+    issued_raw = invoice.get("issued_on")
+    issued = html.escape(f"{issued_raw:%d %b %Y}" if hasattr(issued_raw, "strftime") else str(issued_raw or ""))
+    number = html.escape(str(invoice.get("number") or ""))
+    email = html.escape(str(invoice.get("customer_email") or ""))
+    name = html.escape(str(invoice.get("customer_name") or invoice.get("customer_email") or ""))
+    business = html.escape(str(invoice.get("business_name") or ""))
+    description = html.escape(str(invoice.get("description") or ""))
+    currency = html.escape(str(invoice.get("currency") or ""))
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Invoice {invoice['number']} — Trendi Bizz</title>
+<title>Invoice {number} — Trendi Bizz</title>
 <style>body{{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#15191f;background:#f6f8fa}}
 .page{{max-width:760px;margin:32px auto;background:#fff;padding:40px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}}
 header{{display:flex;justify-content:space-between;border-bottom:6px solid #c8f560;padding-bottom:18px}}
@@ -126,13 +133,13 @@ table{{width:100%;border-collapse:collapse;margin-top:24px}} td,th{{padding:10px
 .num{{text-align:right}} .paid{{display:inline-block;background:#e7f8d0;color:#2b4a00;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px}}
 </style></head><body><div class="page">
 <header><div><div class="muted">Trendi Bizz Limited</div><h1>Tax invoice</h1>
-<div class="muted">{invoice['number']}</div></div>
-<div class="muted">{invoice['issued_on']:%d %b %Y}<br><span class="paid">PAID {paid}</span></div></header>
-<p><strong>{name}</strong>{('<br>' + business) if business else ''}<br>{invoice['customer_email']}</p>
+<div class="muted">{number}</div></div>
+<div class="muted">{issued}<br><span class="paid">PAID {paid}</span></div></header>
+<p><strong>{name}</strong>{('<br>' + business) if business else ''}<br>{email}</p>
 <table><thead><tr><th>Description</th><th class="num">Amount</th></tr></thead><tbody>
-<tr><td>{invoice['description']}</td><td class="num">{net:,.2f} {invoice['currency']}</td></tr>
-<tr><td>GST (15%)</td><td class="num">{gst:,.2f} {invoice['currency']}</td></tr>
-<tr><td><strong>Total paid</strong></td><td class="num"><strong>{total:,.2f} {invoice['currency']}</strong></td></tr>
+<tr><td>{description}</td><td class="num">{net:,.2f} {currency}</td></tr>
+<tr><td>GST (15%)</td><td class="num">{gst:,.2f} {currency}</td></tr>
+<tr><td><strong>Total paid</strong></td><td class="num"><strong>{total:,.2f} {currency}</strong></td></tr>
 </tbody></table>
 <p class="muted" style="margin-top:26px">Paid in full. This is your tax invoice — keep it for your records.</p>
 </div></body></html>"""
@@ -294,5 +301,7 @@ async def platform_list(user: dict = Depends(owner_auth.current_user)):
     rows = await db.pool().fetch(
         "SELECT id,number,customer_email,customer_name,business_name,plan,amount_cents,gst_cents,"
         "currency,status,source,issued_on,paid_at,public_token FROM platform_invoices "
-        "ORDER BY created_at DESC LIMIT 200")
+        "WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 200",
+        user["tenant_id"],
+    )
     return [dict(row) for row in rows]

@@ -1686,6 +1686,21 @@ function Shell() {
     if (value) localStorage.setItem('concierge.token', value);
     else localStorage.removeItem('concierge.token');
   }
+  async function signOut() {
+    const current = token;
+    setToken('');
+    if (!current) return;
+    try {
+      await fetch('/owner/auth/logout', {
+        method: 'POST',
+        headers: {Accept: 'application/json', Authorization: 'Bearer ' + current},
+        cache: 'no-store',
+        keepalive: true,
+      });
+    } catch {
+      /* Local token is already cleared; ignore network errors during sign-out. */
+    }
+  }
   // Someone arriving from an invitation has no business details yet: start them on Setup.
   const [tab, setTab] = useState(() => {
     const newcomer = sessionStorage.getItem('concierge.startAtSetup') === '1';
@@ -1939,7 +1954,7 @@ function Shell() {
           if (canInstall) void promptInstall();
           else location.href = '/studio/install';
         }} />
-        <Button label={tr('Sign out')} variant="ghost" onClick={() => setToken('')} />
+        <Button label={tr('Sign out')} variant="ghost" onClick={() => void signOut()} />
       </header>
 
       <nav className="c-nav" aria-label="Sections">

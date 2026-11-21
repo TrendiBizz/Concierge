@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from .. import (
     channel_authorization, channel_health, db, flood_guard, inbound_policy,
     inbound_readiness, ingest, install_requests, llm, mailer, owner_auth,
-    owner_invites, releases, reply_address, scoring, site_enquiry, tenants,
+    owner_invites, public_fetch, releases, reply_address, scoring, site_enquiry, tenants,
 )
 from ..booking import DAYS
 from ..security import require_admin
@@ -42,6 +42,15 @@ class TenantCreate(BaseModel):
     lead_webhook_url: str | None = None
     incentive: str = ""
     allowed_origins: list[str] = []
+
+    @field_validator("lead_webhook_url")
+    @classmethod
+    def _lead_webhook(cls, value):
+        if value is None or not value.strip():
+            return value
+        cleaned = value.strip()
+        public_fetch.validate_public_https_url(cleaned)
+        return cleaned
 
 
 class TenantUpdate(BaseModel):
@@ -83,6 +92,15 @@ class TenantUpdate(BaseModel):
     weekly_digest: bool | None = None                                  # Monday summary email to notify_email
     daily_summary: bool | None = None                                  # 7am "what needs you today" email to notify_email
     scoring: dict[str, int] | None = None                              # {} resets to the defaults
+
+    @field_validator("lead_webhook_url")
+    @classmethod
+    def _lead_webhook(cls, value):
+        if value is None or not value.strip():
+            return value
+        cleaned = value.strip()
+        public_fetch.validate_public_https_url(cleaned)
+        return cleaned
 
     @field_validator("scoring")
     @classmethod

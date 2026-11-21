@@ -135,30 +135,35 @@ def test_a_bad_row_does_not_abandon_the_rest_of_the_file():
 
 
 @needs_db
-def test_new_customer_is_pushed_to_the_customers_own_crm():
+def test_new_customer_is_pushed_to_the_customers_own_crm(monkeypatch):
     """The whole point of the push side: their CRM hears about a new enquiry, with a signature."""
+    from unittest.mock import AsyncMock
+    import httpx
+    from app import public_fetch
+
     received = []
+    monkeypatch.setattr(public_fetch, "public_addresses", AsyncMock(return_value=["93.184.216.34"]))
 
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            received.append({
-                "event": self.headers.get("X-Concierge-Event"),
-                "signature": self.headers.get("X-Concierge-Signature"),
-                "raw": body,
-                "body": json.loads(body),
-            })
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
+    def transport(request: httpx.Request) -> httpx.Response:
+        body = request.content
+        received.append({
+            "event": request.headers.get("X-Concierge-Event"),
+            "signature": request.headers.get("X-Concierge-Signature"),
+            "host": request.headers.get("Host"),
+            "url_host": request.url.host,
+            "sni": request.extensions.get("sni_hostname"),
+            "raw": body,
+            "body": json.loads(body),
+        })
+        return httpx.Response(200, content=b"ok")
 
-        def log_message(self, *_args):
-            pass
-
-    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{server.server_port}/hook"
+    real_async_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        portability.httpx,
+        "AsyncClient",
+        lambda *a, **kw: real_async_client(*a, transport=httpx.MockTransport(transport), **kw),
+    )
+    url = "https://crm.customer.example/hook"
 
     async def run():
         pool = await _fresh_pool()
@@ -179,6 +184,9 @@ def test_new_customer_is_pushed_to_the_customers_own_crm():
             assert received, "the customer's CRM was never told about the new customer"
             event = received[0]
             assert event["event"] == "customer.created"
+            assert event["url_host"] == "93.184.216.34"
+            assert event["host"] == "crm.customer.example"
+            assert event["sni"] == "crm.customer.example"
             # The body must carry an object, not a stringified one.
             assert isinstance(event["body"]["data"], dict)
             assert event["body"]["data"]["name"] == "Hana"
@@ -189,7 +197,6 @@ def test_new_customer_is_pushed_to_the_customers_own_crm():
                 "SELECT count(*) FROM webhook_events WHERE tenant_id=$1 AND delivered_at IS NULL", t)
             assert pending == 0, "a delivered event was left queued"
         finally:
-            server.shutdown()
             await pool.close()
             db._pool = None
     asyncio.run(run())

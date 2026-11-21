@@ -123,12 +123,17 @@ async def owner_email_code(body: OwnerCodeRequest, request: Request):
 
 @router.post("/owner/auth/code/verify")
 async def owner_verify_code(body: OwnerCodeVerify, request: Request):
-    """Redeem the six-digit code for a session. Rate-limited, single use, ten minutes."""
+    """Redeem the six-digit code for a session. Rate-limited, email-bound, single use, ten minutes."""
     ip = request.client.host if request.client else "unknown"
-    if not await owner_auth.allow_login_attempt(ip, "code", body.email):
+    raw_email = body.email.strip().lower()
+    if not await owner_auth.allow_login_attempt(ip, "code", raw_email):
         raise HTTPException(429, "Too many attempts. Please try again in a few minutes.")
     try:
-        return await owner_auth.accept_invite(body.code)
+        email = owner_auth.clean_email(body.email)
+    except ValueError:
+        raise HTTPException(400, "That code is not right. Check the email and try again.") from None
+    try:
+        return await owner_auth.accept_invite(body.code, expected_email=email, expected_purpose="code")
     except ValueError as error:
         friendly = {
             "Link not recognised": "That code is not right. Check the email and try again.",

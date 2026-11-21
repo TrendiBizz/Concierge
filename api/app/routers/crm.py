@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import (
     automation, calendar_connection, casetimeline, db, case_policy, ical, llm,
-    owner_ask, owner_auth, portability, quotations, quote_payments, revenue, sales, scoring,
+    owner_ask, owner_auth, portability, public_fetch, quotations, quote_payments, revenue, sales, scoring,
     sla, tasks, tenants, voice_records,
 )
 from ..security import require_admin
@@ -953,9 +953,12 @@ async def owner_get_webhook(user: dict = Depends(owner_auth.current_user)):
 @router.post("/owner/webhooks")
 async def owner_set_webhook(body: WebhookIn, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
-    if not body.url.startswith("https://"):
-        raise HTTPException(400, "Use an https address for your CRM endpoint")
-    return await portability.set_webhook(user["tenant_id"], body.url.strip(), body.secret)
+    url = body.url.strip()
+    try:
+        await public_fetch.validate_webhook_url(url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return await portability.set_webhook(user["tenant_id"], url, body.secret)
 
 
 @router.delete("/owner/webhooks")

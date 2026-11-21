@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from . import db, scoring
+from . import db, public_fetch, scoring
 
 log = logging.getLogger("concierge.events")
 
@@ -31,13 +31,18 @@ async def _post(tenant: dict, event: str, sections: dict, lead_id=None) -> None:
     payload = {"event": event, "tenant": {"slug": tenant["slug"], "name": tenant["name"]}, **sections}
     status = "error"
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=False) as client:
+            resp = await public_fetch.post_public(
                 url,
                 content=json.dumps(payload, default=str),
                 headers={"Content-Type": "application/json"},
+                timeout=8.0,
+                client=client,
             )
             status = f"ok:{resp.status_code}" if resp.is_success else f"http:{resp.status_code}"
+    except ValueError as exc:
+        status = "blocked"
+        log.warning("webhook %s blocked for %s: %s", event, tenant["slug"], exc)
     except httpx.HTTPError as exc:
         log.warning("webhook %s failed for %s: %s", event, tenant["slug"], exc)
     if lead_id is not None and event == "lead.created":

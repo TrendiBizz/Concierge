@@ -214,23 +214,50 @@ def code_already_used(purpose: str, used_at) -> bool:
     return purpose == "code" and used_at is not None
 
 
-async def accept_invite(token: str) -> dict:
-    """Sign someone in from their one-click link; no password is created or asked for.
+async def accept_invite(token: str, *, expected_email: str | None = None,
+                        expected_purpose: str | None = None) -> dict:
+    """Sign someone in from their one-click link or six-digit code; no password is created or asked for.
 
     The link is single use and expires in 24 hours. It arrives in the URL *fragment*, so a mail
     scanner that pre-fetches the message cannot consume it: only the browser's JavaScript POST
     redeems it, and the token never appears in a server access log.
+
+    When redeeming a six-digit code, callers MUST pass both `expected_email` and
+    `expected_purpose="code"` so a code can never be redeemed across accounts or through link paths.
     """
+    bound_email = clean_email(expected_email) if expected_email is not None else None
     async with db.pool().acquire() as conn:
         async with conn.transaction():
-            invitation = await conn.fetchrow(
-                "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
-                "JOIN tenants t ON t.id=i.tenant_id "
-                "WHERE i.token_hash=$1 FOR UPDATE OF i", digest(token),
-            )
+            if bound_email is not None or expected_purpose is not None:
+                clauses = ["i.token_hash=$1"]
+                params: list = [digest(token)]
+                if bound_email is not None:
+                    params.append(bound_email)
+                    clauses.append(f"i.email=${len(params)}")
+                if expected_purpose is not None:
+                    params.append(expected_purpose)
+                    clauses.append(f"i.purpose=${len(params)}")
+                invitation = await conn.fetchrow(
+                    "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
+                    "JOIN tenants t ON t.id=i.tenant_id "
+                    f"WHERE {' AND '.join(clauses)} ORDER BY i.created_at DESC LIMIT 1 FOR UPDATE OF i",
+                    *params,
+                )
+            else:
+                invitation = await conn.fetchrow(
+                    "SELECT i.*,t.slug AS tenant_slug FROM tenant_invites i "
+                    "JOIN tenants t ON t.id=i.tenant_id "
+                    "WHERE i.token_hash=$1 FOR UPDATE OF i", digest(token),
+                )
             if not invitation:
                 # Mail clients wrap long URLs, and people paste half a link. Saying "expired" to a
                 # clipped link sends them to ask for a replacement that will be clipped the same way.
+                raise ValueError("Link not recognised")
+            if expected_purpose is not None and invitation["purpose"] != expected_purpose:
+                raise ValueError("Link not recognised")
+            if expected_purpose is None and invitation["purpose"] == "code":
+                raise ValueError("Link not recognised")
+            if bound_email is not None and (invitation["email"] or "").strip().lower() != bound_email:
                 raise ValueError("Link not recognised")
             expires_at = invitation["expires_at"] if "expires_at" in invitation.keys() else None
             if expires_at is not None and expires_at <= datetime.now(timezone.utc):
