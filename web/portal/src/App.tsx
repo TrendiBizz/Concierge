@@ -1634,7 +1634,7 @@ function Admin() {
     <div>
       <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
         <Heading level={1}>Trendi admin</Heading>
-        <Button label="Refresh" variant="secondary" onClick={load} />
+        <Button label="Refresh" variant="secondary" onClick={() => load()} />
         <Button label="Sign out" variant="ghost" onClick={() => { sessionStorage.removeItem('adminToken'); setToken(''); }} />
       </div>
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 24}}>
