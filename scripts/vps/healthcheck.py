@@ -509,9 +509,10 @@ def check_sms_inbound() -> list[dict]:
     device whose `inbound_verified_at` is empty has never once delivered a text to us, so a customer
     replying to a message would be talking to nobody — and that is invisible unless we say so.
     """
-    sql = ("SELECT count(*) FILTER (WHERE enabled) AS enabled, "
-           "count(*) FILTER (WHERE enabled AND inbound_verified_at IS NULL) AS never_verified "
-           "FROM sms_devices")
+    sql = ("SELECT count(*) FILTER (WHERE d.enabled) AS enabled, "
+           "count(*) FILTER (WHERE d.enabled AND d.inbound_verified_at IS NULL "
+           "AND NOT EXISTS (SELECT 1 FROM device_sms_inbound i WHERE i.device_id = d.id)) AS never_verified "
+           "FROM sms_devices d")
     rc, out = run(["podman", "exec", "trendi-postgres-1", "psql", "-U", "postgres", "-d",
                    "concierge", "-tAc", sql])
     if rc != 0:

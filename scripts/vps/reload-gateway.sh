@@ -10,6 +10,14 @@ KEY="${KEY:-$REPO_ROOT/Concierge}"
 
 ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY" "$HOST" "set -e
 podman exec trendi-gateway-1 caddy validate --config /etc/caddy/Caddyfile
-podman exec trendi-gateway-1 caddy reload --config /etc/caddy/Caddyfile --force
+# Caddyfile intentionally sets 'admin off' (no localhost:2019 admin socket),
+# so reload via container restart after config validation.
+podman restart trendi-gateway-1 >/dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    state=\$(podman inspect -f '{{.State.Running}}' trendi-gateway-1 2>/dev/null || true)
+    [ \"\$state\" = 'true' ] && break
+    sleep 1
+done
+[ \"\$(podman inspect -f '{{.State.Running}}' trendi-gateway-1)\" = 'true' ]
 echo 'gateway reloaded'
 "
