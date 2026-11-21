@@ -42,7 +42,8 @@ own rates, a booking, and an invoice — and you approve anything before it reac
 YOUR FIRST TEN MINUTES
 
 1. Click the sign-in link above.
-2. Open "Business" and check your name, GST number and contact details.
+2. Open "Setup" and check your name, GST number and contact details. Then open "What Concierge
+   knows" and press "Read my website now" so the assistant can answer from your own site.
 3. Set your rates and your minimum charge, then save. These are your numbers — Concierge will never
    invent a price.
 4. Open "Quotes". Anything that arrives from the chat window is here, ready to review and send.

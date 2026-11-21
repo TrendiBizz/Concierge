@@ -241,9 +241,16 @@ async def sync_one(appointment_id):
                 await conn.execute("UPDATE appointments SET calendar_state='retry',calendar_error='Calendar synchronization pending; retry scheduled',calendar_attempts=calendar_attempts+1,calendar_retry_at=now()+interval '2 minutes' WHERE id=$1", appointment_id)
 
 
+# A booking must trigger confirmations and reminders whether or not the business uses a calendar.
+# Waiting only for 'synced' meant a tenant with no Google Calendar never sent a confirmation, a
+# reminder, a stage update or a webhook. 'pending'/'retry' still wait: a connected calendar that is
+# mid-sync will settle, and the notice goes out then (or once its attempts are used up).
+NOTICE_READY = ("(calendar_state IN ('synced','unconnected','needs_contact') OR calendar_attempts>=10)")
+
+
 async def notify_synced(appointment_id):
     from . import automation, tenants
-    row = await db.pool().fetchrow("SELECT * FROM appointments WHERE id=$1 AND calendar_state='synced' AND status='booked' AND NOT calendar_notice_done", appointment_id)
+    row = await db.pool().fetchrow(f"SELECT * FROM appointments WHERE id=$1 AND {NOTICE_READY} AND status='booked' AND NOT calendar_notice_done", appointment_id)
     if not row:
         return
     tenant = await tenants.get_by_id(row['tenant_id'])
@@ -257,7 +264,7 @@ async def process_once():
     for row in rows:
         await sync_one(row['id'])
         await notify_synced(row['id'])
-    notices = await db.pool().fetch("SELECT id FROM appointments WHERE calendar_state='synced' AND status='booked' AND NOT calendar_notice_done AND calendar_sync_requested LIMIT 10")
+    notices = await db.pool().fetch(f"SELECT id FROM appointments WHERE {NOTICE_READY} AND status='booked' AND NOT calendar_notice_done AND calendar_sync_requested AND ends_at>now() LIMIT 10")
     for row in notices:
         await notify_synced(row['id'])
 

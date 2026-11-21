@@ -129,7 +129,17 @@ async def run_turn(
         except Exception:  # noqa: BLE001 - a lookup failure must not silence the assistant
             log.exception("takeover lookup failed for tenant %s", tenant.get("slug"))
             paused = False
+        if not paused and channel == "chat":
+            try:
+                paused = await casetimeline.is_paused_for_session(tenant["id"], session_id, channel)
+            except Exception:  # noqa: BLE001
+                log.exception("session takeover lookup failed for tenant %s", tenant.get("slug"))
         if paused:
+            if channel == "chat":
+                conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
+                await convo.save_message(conversation_id, "user", message)
+                await enquiries.capture(tenant, "chat", str(conversation_id), message,
+                                        conversation_id=conversation_id)
             return suppressed("human_takeover")
 
     # The business owner may have switched Concierge off entirely. Take the message, answer
@@ -237,15 +247,19 @@ async def run_turn_stream(
     stored message always matches what the visitor ends up seeing.
     """
     try:
-        paused = await casetimeline.is_paused_for(
-            tenant["id"], phone="", email="",
-            default_cc=casetimeline.tenant_country_code(tenant),
-        )
+        paused = await casetimeline.is_paused_for_session(tenant["id"], session_id, channel)
     except Exception:  # noqa: BLE001 - a lookup failure must not silence the assistant
         log.exception("takeover lookup failed for tenant %s", tenant.get("slug"))
         paused = False
     if paused:
-        yield {"type": "done", "reply": "", "suppressed": True, "reason": "human_takeover"}
+        # The visitor is still talking: keep their message so the owner sees it, answer nothing.
+        conversation_id = await convo.get_or_create(tenant, session_id, channel, page_url, utm)
+        await convo.save_message(conversation_id, "user", message)
+        if channel == "chat":
+            await enquiries.capture(tenant, "chat", str(conversation_id), message,
+                                    conversation_id=conversation_id)
+        yield {"type": "done", "reply": "", "suppressed": True, "reason": "human_takeover",
+               "conversation_id": conversation_id}
         return
 
     # The streaming path is a separate implementation, so the owner's pause has to be honoured
