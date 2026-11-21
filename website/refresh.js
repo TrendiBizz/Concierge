@@ -10,7 +10,7 @@ var all=[
 ['Answer on your website','“Do you do weekend call-outs?”','The chat window on your website answers from the information you have approved.','Website chat','Chat'],
 ['Answer the phone','A customer rings while you are with a client.','Concierge answers the call and captures who called and why for your team. Phone is enabled after provider setup and testing.','Phone calls','Phone'],
 ['Reply to email','“Could you send me a quote for next week?”','The email becomes an enquiry in your CRM, and Concierge answers from your approved information.','Email','Email'],
-['Reply by text','“Running ten minutes late, sorry.”','The text is added to Jamie’s record in your CRM so your team sees it with the booking. SMS is enabled after provider setup and testing.','SMS','SMS'],
+['Reply by text','“Running ten minutes late, sorry.”','The text is added to Jamie’s record in your CRM so your team sees it with the booking. SMS runs through your paired business smartphone after setup and testing.','SMS','SMS'],
 ['Approve social posts','A post is drafted for this week.','Social posts wait for your approval before anything is published to your connected accounts.','Social post approvals','Social']];
 var n=Math.min(all.length,Number(demo.getAttribute('data-steps'))||10),stages=all.slice(0,n);
 var rail=demo.querySelector('.walkthrough-steps');function pad(i){return(i<10?'0':'')+i}

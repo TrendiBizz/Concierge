@@ -1,14 +1,6 @@
-/* deploy: audit this-week fixes 2026-10-27 */
 /*
-  TRENDI — SITE SETTINGS (edit this file for prices, payment links and contact details)
-
-  How to change things:
-    - Price:            change "price" on a plan
-    - Stripe checkout:  paste your Stripe Payment Link into "stripeLink" on a plan
-    - Contact email:    change business.email
-    - What is included: edit the "includes" list
-
-  Live Stripe Payment Links (acct_1UUZfyRoqx25tip0), USD prices since 2026-10-31. previewMode false = buy buttons go to Stripe.
+  TRENDI — SITE SETTINGS (prices, checkout links and contact details)
+  previewMode: false means buy buttons go directly to checkout.
 */
 window.TRENDI = {
   previewMode: false,
@@ -54,16 +46,8 @@ window.TRENDI = {
     }
   ],
 
-  // Concierge (USD 250 a month, 3-month minimum). Paste each Stripe Payment Link
-  // below, for example "https://buy.stripe.com/abc123". While a link is empty the /concierge button stays
-  // "Email to start" (it opens an email). Once a link is here the button goes to Stripe and says "Start ...".
-  // 2026-11-15 (Jo: "add the buy button where required"): monthly Concierge link is
-  // plink_1Ube9yJVm2iwIxUdbzwHgJhD on the Concierge Stripe account (price_1Ube9aJVm2iwIxUd0IcWNhGm, USD 250/month),
-  // checked live that day. Every Concierge monthly buy button carries data-concierge-plan="monthly" and goes there.
-  // 2026-11-19, Jo: monthly only. Yearly billing is available on request (email admin@trendibizz.com); the public
-  // yearly payment link is to be deactivated (Omega Boss will deactivate it).
-  // checkout is the one switch: false sends every button back to /concierge-start (the setup request form)
-  // without deleting the link, e.g. if Stripe pauses the link again.
+  // Concierge monthly plan (USD 250/month, 3-month minimum). Yearly billing available on request.
+  // checkout: false routes buttons back to /concierge-start without removing the checkout link.
   concierge: {
     checkout: true,
     monthly: { price: 250, stripeLink: "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" }
