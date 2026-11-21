@@ -22,8 +22,9 @@ URL="${URL:-https://concierge.trendibizz.com/studio}"
 
 [ -f "$DIST/index.html" ] || { echo "no built portal at $DIST/index.html — run pnpm run build" >&2; exit 1; }
 
-SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY $HOST"
-RSSH="rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates --delete-delay -e 'ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY'"
+SSH=(ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY" "$HOST")
+RSSH=(rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates --delete-delay
+      -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i $KEY")
 
 echo "==> stamping the service-worker cache name with this build"
 # The worker's cache is named after the build, so a new build starts from an empty cache instead of
@@ -34,17 +35,17 @@ sed -i.bak "s/__BUILD__/$BUILD_ID/" "$DIST/sw-v2.js" && rm -f "$DIST/sw-v2.js.ba
 echo "    build $BUILD_ID"
 
 echo "==> staging $DIST to $DEST.staging"
-$SSH "rm -rf $DEST.staging && mkdir -p $DEST.staging"
-eval $RSSH "$DIST/" "$HOST:$DEST.staging/"
+"${SSH[@]}" "rm -rf '$DEST.staging' && mkdir -p '$DEST.staging'"
+"${RSSH[@]}" "$DIST/" "$HOST:$DEST.staging/"
 
 echo "==> permissions in staging, before anything goes live"
-$SSH "chmod -R a+rX $DEST.staging"
+"${SSH[@]}" "chmod -R a+rX '$DEST.staging'"
 
 echo "==> swapping staging into place"
 # rsync from staging into the live tree: every file lands world-readable, deletions are deferred
 # to the end so a browser mid-session does not lose an asset it is about to fetch.
-$SSH "rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates --delete-delay $DEST.staging/ $DEST/ \
-      && chmod -R a+rX $DEST && rm -rf $DEST.staging"
+"${SSH[@]}" "rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates --delete-delay '$DEST.staging/' '$DEST/' \
+      && chmod -R a+rX '$DEST' && rm -rf '$DEST.staging'"
 
 echo "==> verifying the page serves"
 for attempt in 1 2 3; do

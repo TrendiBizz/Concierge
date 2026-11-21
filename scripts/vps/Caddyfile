@@ -86,12 +86,5 @@
             header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
         }
     }
-    @crm host crm.trendibizz.com
-    handle @crm {
-        reverse_proxy crm:3000 {
-            header_up X-Forwarded-Proto https
-            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
-        }
-    }
     respond 404
 }

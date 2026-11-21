@@ -26,12 +26,15 @@ def _archive(directory, name, age_hours):
 def _status(monkeypatch, tmp_path, age_hours, service="inactive"):
     _archive(tmp_path, "trendi-backup-20260101-000000.tar.gz", age_hours)
     monkeypatch.setattr(healthcheck, "BACKUPS_DIR", str(tmp_path))
-    monkeypatch.setattr(healthcheck, "run", lambda *a, **k: (0, service + "\n"))
+    rc = 0 if service == "failed" else 1
+    monkeypatch.setattr(healthcheck, "run", lambda *a, **k: (rc, service + "\n"))
     return {item["check"]: item["status"] for item in healthcheck.check_backups()}
 
 
 def test_a_fresh_backup_is_ok(monkeypatch, tmp_path):
-    assert _status(monkeypatch, tmp_path, age_hours=3)["backup:age"] == "ok"
+    statuses = _status(monkeypatch, tmp_path, age_hours=3)
+    assert statuses["backup:age"] == "ok"
+    assert statuses["backup:service"] == "ok"
 
 
 def test_a_missed_daily_run_warns(monkeypatch, tmp_path):

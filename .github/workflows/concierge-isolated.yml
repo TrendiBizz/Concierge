@@ -79,10 +79,8 @@ jobs:
             # and on CPython 3.12 it wedges the interpreter with no output at all (verified: it
             # passes in 0.17s on 3.13, three runs). Excluding it is a documented concession, not a
             # silent skip -- it still runs locally on 3.13 and should be fixed, not forgotten.
-            python -m pytest api/tests -q -m "not hangs_on_py312"
-            # N4 receipt ordering/cross-tenant guards must also run against real Postgres.
             TEST_DATABASE_URL="postgresql://postgres:test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres" \
-              python -m pytest api/tests/test_n4_carrier_sms.py -q
+              python -m pytest api/tests -q -m "not hangs_on_py312"
           else
             # *_integration.py scripts live in api/tests (not collected by pytest: no test_ prefix);
             # the remaining *_check / *_test scripts are still in QA/verification.
@@ -101,9 +99,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate Python syntax and git hygiene
+      - name: Validate Python syntax, SEO contract and git hygiene
         run: |
-          python3 -m compileall -q api/app QA/verification
+          python3 -m compileall -q api/app QA/verification scripts/vps scripts/seo
+          python3 scripts/seo/site_seo.py check
           git diff --check
       - name: Trivy secret and config scan
         uses: aquasecurity/trivy-action@v0.36.0

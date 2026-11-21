@@ -45,6 +45,8 @@ def send(env: dict, subject: str, body: str) -> str:
     message["From"] = env.get("ALERT_FROM") or env.get("SMTP_USER", "alerts@trendibizz.com")
     message["To"] = env.get("ALERT_TO", "")
     message["Subject"] = subject
+    message["X-Concierge-Mail"] = "1"
+    message["Auto-Submitted"] = "auto-generated"
     message.set_content(body)
     context = ssl.create_default_context()
     with smtplib.SMTP(host, int(env.get("SMTP_PORT", "587")), timeout=20) as server:
@@ -68,6 +70,11 @@ def main() -> int:
     checked = last_checked()
     age = (now - checked).total_seconds() / 60 if checked else None
     if age is not None and age <= STALE_MINUTES:
+        try:
+            if STATE.exists():
+                STATE.unlink()
+        except OSError:
+            pass
         print(f"{now.isoformat()} watchdog: healthy ({age:.0f} min since last check)")
         return 0
 
@@ -82,7 +89,26 @@ def main() -> int:
         print(f"{now.isoformat()} watchdog: STALE - mail suppressed: {message}")
         return 1
     try:
-        print(f"{now.isoformat()} watchdog: STALE -> {send(load_env(), '[Concierge FAIL] health check has stopped running', message)}")
+        prev = json.loads(STATE.read_text()) if STATE.exists() else {}
+    except (OSError, ValueError):
+        prev = {}
+    last_sent = prev.get("alerted_at")
+    if last_sent:
+        try:
+            since = (now - datetime.fromisoformat(last_sent)).total_seconds()
+            if since < 3600:
+                print(f"{now.isoformat()} watchdog: STALE (already alerted {since/60:.0f}m ago)")
+                return 1
+        except ValueError:
+            pass
+    try:
+        outcome = send(load_env(), '[Concierge FAIL] health check has stopped running', message)
+        print(f"{now.isoformat()} watchdog: STALE -> {outcome}")
+        if outcome == "sent":
+            try:
+                STATE.write_text(json.dumps({"alerted_at": now.isoformat()}))
+            except OSError:
+                pass
     except Exception as exc:  # noqa: BLE001 - report, never crash the watchdog
         print(f"{now.isoformat()} watchdog: STALE but could not send: {exc}")
         return 1

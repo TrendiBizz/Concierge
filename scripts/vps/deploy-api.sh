@@ -24,6 +24,15 @@ RSSH=(rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates
 [ -f "$REPO_ROOT/api/alembic.ini" ] || { echo "no api/alembic.ini in $REPO_ROOT" >&2; exit 1; }
 [ -d "$REPO_ROOT/api/migrations" ] || { echo "no api/migrations in $REPO_ROOT" >&2; exit 1; }
 
+if [ "${ALLOW_DIRTY:-0}" != "1" ] && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  dirty="$(env -u GIT_CONFIG_COUNT git -C "$REPO_ROOT" status --porcelain -- api/app api/static api/alembic.ini api/migrations scripts/vps/api-requirements.lock)"
+  if [ -n "$dirty" ]; then
+    echo "Refusing to deploy uncommitted changes (commit first, or set ALLOW_DIRTY=1):" >&2
+    echo "$dirty" >&2
+    exit 1
+  fi
+fi
+
 echo "==> syncing api/app, api/static, api/alembic.ini, and api/migrations to $HOST:$PRODUCT/api"
 "${RSSH[@]}" "$REPO_ROOT/api/app/" "$HOST:$PRODUCT/api/app/"
 "${RSSH[@]}" "$REPO_ROOT/api/static/" "$HOST:$PRODUCT/api/static/"

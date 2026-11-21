@@ -515,7 +515,7 @@ def ping_indexnow(urls: list[str], endpoint: str = "https://api.indexnow.org/ind
         status = error.code
     except OSError as error:
         print(f"IndexNow: network failure ({type(error).__name__}); the deploy still stands")
-        return 1
+        return 599
     print(f"IndexNow: HTTP {status} for {len(urls)} URL(s): {', '.join(urls[:5])}"
           + (" …" if len(urls) > 5 else ""))
     return status
@@ -561,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("ping needs --all or --changed-in <git-ref>", file=sys.stderr)
             return 2
-        return 0 if ping_indexnow(urls) < 300 else 1
+        return 0 if (not urls or 200 <= ping_indexnow(urls) < 300) else 1
     return 2
 
 
