@@ -292,6 +292,11 @@ def test_the_tracked_link_path_is_the_one_the_edge_proxy_forwards():
     edge with an empty 404, which is why the redirect lives at /studio/l/<token>."""
     assert engagement.TRACKED_PATH == "/studio/l"
     from app import main as app_main
-    paths = {getattr(route, "path", "") for route in app_main.app.routes}
+    paths = set()
+    for route in app_main.app.routes:
+        if hasattr(route, "original_router"):
+            paths.update(getattr(r, "path", "") for r in route.original_router.routes)
+        else:
+            paths.add(getattr(route, "path", ""))
     assert "/studio/l/{token}" in paths
     assert "/l/{token}" in paths, "the internal route stays so the box can be tested locally"
