@@ -24,7 +24,7 @@ test('host open event displays the assistant without starting chat or voice',asy
   window.crypto=webcrypto;
   let ready=0;window.addEventListener('concierge:ready',()=>ready++);
   vm.runInNewContext(fs.readFileSync('api/static/widget.js','utf8'),{
-    window,Event,URL,URLSearchParams,crypto:webcrypto,navigator:{},
+    window,Event,URL,URLSearchParams,crypto:webcrypto,navigator:{},setInterval:()=>0,setTimeout:()=>0,
     location:{href:'https://trendibizz.com/',search:''},
     localStorage:{getItem(){return null;},setItem(){}},
     document:{currentScript:script,body,createElement:element,createTextNode:text=>({textContent:text})},

@@ -317,6 +317,7 @@
       var text = input.value.trim();
       if (!text || busy) return;
       input.value = "";
+      chatStarted = true;
       busy = true;
       sendBtn.disabled = true;
       addMsg("user", text);
@@ -362,6 +363,11 @@
                 typing.textContent = event.text; wrote = true;
               } else if (event.type === "done") {
                 if (event.reply && !wrote) typing.textContent = event.reply;
+                else if (event.suppressed && !wrote && !event.reply) {
+                  // A person on the team has taken over: no AI reply is coming, so drop the dots.
+                  typing.remove();
+                  addMsg("note", "A team member is reading this and will reply here.");
+                }
                 if (event.appointment) addMsg("note", "✓ " + event.appointment);
                 else if (event.lead_captured) addMsg("note", "✓ Your details were sent to the team.");
               } else if (event.type === "error" && !wrote) {
@@ -379,6 +385,24 @@
         input.focus();
       }
     }
+    // A person on the team can reply live. Poll for those replies while the panel is open.
+    var lastOwnerId = 0;
+    var pollTimer = null;
+    var chatStarted = false;  // only poll once the visitor has written something
+    async function pollOwner() {
+      if (!chatStarted || !panel.classList.contains("open") || document.hidden) return;
+      try {
+        var res = await fetch(API + "/api/v1/chat/poll?key=" + encodeURIComponent(KEY) +
+          "&session_id=" + encodeURIComponent(SID) + "&after=" + lastOwnerId);
+        if (!res.ok) return;
+        var data = await res.json();
+        (data.messages || []).forEach(function (m) {
+          if (m.id > lastOwnerId) lastOwnerId = m.id;
+          addMsg("assistant", m.text);
+        });
+      } catch (e) { /* the next tick tries again */ }
+    }
+    pollTimer = setInterval(pollOwner, 5000);
     sendBtn.addEventListener("click", sendText);
     input.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter" && !ev.shiftKey) {

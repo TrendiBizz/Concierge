@@ -1845,7 +1845,7 @@ function Shell() {
     ]},
     {group: 'Customers', colour: '#22d3ee', items: [
       {tab: 'crm', label: 'Enquiries', glyph: 'chat'},
-      {tab: 'texts', label: 'Texts', glyph: 'chat'},
+      {tab: 'texts', label: 'Inbox', glyph: 'chat'},
       {tab: 'contacts', label: 'Contacts', glyph: 'users'},
       {tab: 'companies', label: 'Companies', glyph: 'box'},
       {tab: 'bookings', label: 'Bookings', glyph: 'calendar'},
@@ -1878,7 +1878,7 @@ function Shell() {
   const HERO: Record<string, {title: string; line: string}> = {
     home: {title: (brand.name || 'Your business') + ' — ' + greeting(), line: 'Here is what is happening: the enquiries that came in, the quotes waiting on you, and the money on its way.'},
     pipeline: {title: 'Pipeline', line: 'Every deal by the stage it has reached, with the value on the table and the forecast it supports.'},
-    texts: {title: 'Texts', line: 'Every text conversation, with what Concierge said and what you said. Take over any customer, reply yourself, then hand back.'},
+    texts: {title: 'Inbox', line: 'Every text and website chat, with what Concierge said and what you said. Take over any customer, reply yourself, then hand back.'},
     crm: {title: 'Enquiries', line: 'Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step.'},
     contacts: {title: 'Contacts', line: 'Everyone you have ever dealt with, in one place.'},
     companies: {title: 'Companies', line: 'The businesses behind your contacts, with the work and the value that belongs to each one.'},
