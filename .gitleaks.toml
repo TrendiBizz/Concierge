@@ -1,0 +1,136 @@
+title = "Trendi Concierge gitleaks config"
+
+[extend]
+useDefault = true
+
+# Every allowlist below uses condition = "AND" so both the narrow path and
+# either the exact historical commit or non-secret match pattern must hold.
+# Blanket path or rule exclusions are intentionally avoided.
+
+[[allowlists]]
+description = "Synthetic parity test vectors generated from dummy secrets (parity-secret-not-real, parity-unsub-secret, sequential bytes)"
+condition = "AND"
+paths = [
+  '''^concierge-stack/core-rs/parity/vectors(11|40)?\.json$''',
+]
+regexTarget = "match"
+regexes = [
+  '''^(secret|token)":\s*"''',
+]
+
+[[allowlists]]
+description = "Public Concierge widget embed key (pk_...) in public HTML, widget loader, local nginx sub_filter, and demo install proof"
+condition = "AND"
+paths = [
+  '''^website/.*\.html$''',
+  '''^concierge-stack/platform-website/site\.js$''',
+  '''^scripts/local/nginx\.conf$''',
+  '''^QA/verification/INSTALL_PROOF_2026-11-14\.md$''',
+]
+regexTarget = "match"
+regexes = [
+  '''data-key["']?[,=\s]+["']pk_[A-Za-z0-9_-]{20,32}["']''',
+]
+
+[[allowlists]]
+description = "Public IndexNow domain-ownership verification key published at https://trendibizz.com/indexnow-key.json and /<key>.txt"
+condition = "AND"
+paths = [
+  '''^website/indexnow-key\.json$''',
+]
+regexTarget = "match"
+regexes = [
+  '''^key":\s*"[0-9a-f]{32}"$''',
+]
+
+[[allowlists]]
+description = "Synthetic test secrets in isolated Cloudflare inbound integration test (historical commit)"
+condition = "AND"
+paths = [
+  '''^(QA/verification|api/tests)/cloudflare_inbound_integration\.py$''',
+]
+commits = [
+  "fcc784f3e8516abda8ca763ede776ee32aebc122",
+]
+
+[[allowlists]]
+description = "Synthetic 32-hex IndexNow fixture key in SEO unit tests (historical commit)"
+condition = "AND"
+paths = [
+  '''^api/tests/test_site_seo\.py$''',
+]
+commits = [
+  "d0f930341140f1029157f31ff46692d17097cccf",
+]
+
+[[allowlists]]
+description = "Synthetic sequential test key in Rust social-service scheduler test (historical commit)"
+condition = "AND"
+paths = [
+  '''^concierge-stack/social-service/tests/api_scheduler\.rs$''',
+]
+commits = [
+  "451856266cdf6bcf6c2ec45d3f175a553a72a845",
+]
+
+[[allowlists]]
+description = "Synthetic temporary quotation public_token slug in quote-payments proof script (historical commit)"
+condition = "AND"
+paths = [
+  '''^scripts/vps/prove_quote_payments\.py$''',
+]
+commits = [
+  "d502443fc0b853ccd12b1d7c4c55051bad9928b3",
+]
+
+[[allowlists]]
+description = "False positive: empty UNSUBSCRIBE_SECRET= in .env.example matching next env var name across newline"
+condition = "AND"
+paths = [
+  '''^\.env\.example$''',
+]
+commits = [
+  "ccc2e29bf2cb79edbb94410a6969eb8cb6f3e773",
+]
+regexTarget = "match"
+regexes = [
+  '''UNSUBSCRIBE_SECRET=\r?\nCAMPAIGN_''',
+]
+
+[[allowlists]]
+description = "False positive: Rust doc comment describing HMAC-SHA256 capability token format"
+condition = "AND"
+paths = [
+  '''^concierge-stack/(action|hermes)-gateway/src/capability\.rs$''',
+]
+regexTarget = "line"
+regexes = [
+  '''//!.*HMAC-SHA256\(secret,''',
+]
+
+[[allowlists]]
+description = "False positive: staging tenant UUID next to trendi-oauth-staging slug in QA checkpoint note"
+condition = "AND"
+paths = [
+  '''^QA/verification/PORTAL_WORKFLOW_CHECKPOINT\.md$''',
+]
+commits = [
+  "8b52ab3e8c882789062586dd6f340108784c5cec",
+  "b62c09cc2aabc443961904eb5dcf0c8343a0bbe3",
+]
+regexTarget = "match"
+regexes = [
+  '''trendi-oauth-staging,\s*UUID[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+]
+
+[[allowlists]]
+description = "False positive: Docker rollback image tags (YYYYMMDD) and SHA256 image digests in QA handoff notes"
+condition = "AND"
+paths = [
+  '''^QA/verification/.*\.md$''',
+]
+regexTarget = "match"
+regexes = [
+  '''(trendi-)?(concierge-api|email-auth):[a-zA-Z0-9._-]*202611\d\d[a-zA-Z0-9._-]*''',
+  '''API image sha256:[0-9a-f]{64}''',
+]
