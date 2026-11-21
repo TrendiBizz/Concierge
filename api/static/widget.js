@@ -317,6 +317,7 @@
       var text = input.value.trim();
       if (!text || busy) return;
       input.value = "";
+      chatStarted = true;
       busy = true;
       sendBtn.disabled = true;
       addMsg("user", text);
@@ -387,8 +388,9 @@
     // A person on the team can reply live. Poll for those replies while the panel is open.
     var lastOwnerId = 0;
     var pollTimer = null;
+    var chatStarted = false;  // only poll once the visitor has written something
     async function pollOwner() {
-      if (!panel.classList.contains("open") || document.hidden) return;
+      if (!chatStarted || !panel.classList.contains("open") || document.hidden) return;
       try {
         var res = await fetch(API + "/api/v1/chat/poll?key=" + encodeURIComponent(KEY) +
           "&session_id=" + encodeURIComponent(SID) + "&after=" + lastOwnerId);
@@ -401,7 +403,6 @@
       } catch (e) { /* the next tick tries again */ }
     }
     pollTimer = setInterval(pollOwner, 5000);
-    window.addEventListener("concierge:open", pollOwner);
     sendBtn.addEventListener("click", sendText);
     input.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter" && !ev.shiftKey) {
