@@ -21,10 +21,14 @@ RSSH=(rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --delay-updates
 
 [ -d "$REPO_ROOT/api/app" ] || { echo "no api/app in $REPO_ROOT" >&2; exit 1; }
 [ -d "$REPO_ROOT/api/static" ] || { echo "no api/static in $REPO_ROOT" >&2; exit 1; }
+[ -f "$REPO_ROOT/api/alembic.ini" ] || { echo "no api/alembic.ini in $REPO_ROOT" >&2; exit 1; }
+[ -d "$REPO_ROOT/api/migrations" ] || { echo "no api/migrations in $REPO_ROOT" >&2; exit 1; }
 
-echo "==> syncing api/app and api/static to $HOST:$PRODUCT/api"
+echo "==> syncing api/app, api/static, api/alembic.ini, and api/migrations to $HOST:$PRODUCT/api"
 "${RSSH[@]}" "$REPO_ROOT/api/app/" "$HOST:$PRODUCT/api/app/"
 "${RSSH[@]}" "$REPO_ROOT/api/static/" "$HOST:$PRODUCT/api/static/"
+"${RSSH[@]}" "$REPO_ROOT/api/alembic.ini" "$HOST:$PRODUCT/api/alembic.ini"
+"${RSSH[@]}" "$REPO_ROOT/api/migrations/" "$HOST:$PRODUCT/api/migrations/"
 
 echo "==> rebuilding and restarting api + social"
 "${SSH[@]}" "REL='$PRODUCT' bash '$PRODUCT/scripts/vps/redeploy-api.sh'"
