@@ -37,7 +37,6 @@ jobs:
             "https://chat.trendibizz.com/widget.js"
             "https://concierge.trendibizz.com/studio/"
             "https://concierge.trendibizz.com/owner-ui"
-            "https://crm.trendibizz.com/"
           )
           for url in "${urls[@]}"; do
             code=""
@@ -46,12 +45,7 @@ jobs:
               [ "$code" = "200" ] && break
               sleep 10
             done
-            # CRM may legitimately answer with a redirect depending on auth state.
-            case "$url" in
-              https://crm.trendibizz.com/) ok="200 302 307";;
-              *) ok="200";;
-            esac
-            if ! echo " $ok " | grep -q " $code "; then
+            if [ "$code" != "200" ]; then
               failed="$failed\n- $url -> HTTP $code"
             fi
             echo "$url -> $code"
@@ -66,7 +60,7 @@ jobs:
       - name: Check TLS certificates
         run: |
           set -uo pipefail
-          for host in trendibizz.com chat.trendibizz.com concierge.trendibizz.com crm.trendibizz.com; do
+          for host in trendibizz.com chat.trendibizz.com concierge.trendibizz.com; do
             expiry=$(echo | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
               | openssl x509 -noout -enddate | cut -d= -f2)
             if [ -z "$expiry" ]; then

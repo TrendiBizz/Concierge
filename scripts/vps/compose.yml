@@ -5,25 +5,28 @@ services:
     restart: unless-stopped
     env_file:
       - {path: /opt/trendi/shared/postgres.env, format: raw}
-    # Tuned 2026-11-15 for THIS box: 2 vCPU / 8 GiB shared with the API, the website, Asterisk,
-    # Chatwoot and Twenty. Method taken from arjaythedev/multicore-server-challenge (its box/pg-conf.sh
-    # is pgtune's "web" profile for 8 threads and 100 connections) - but that profile assumes Postgres
-    # owns the machine and gives it RAM/4 = 2 GB of shared_buffers. Here it shares the box, and the
-    # database is ~20 MB, so the memory values are deliberately capped and only the two settings that
-    # change planner and observability behaviour are taken at full strength:
+    # Tuned 2026-11-21 for THIS box: 2 vCPU / 8 GiB shared with the API, the website, Asterisk,
+    # ClamAV, Rspamd and the social/email sidecars (Chatwoot and Twenty are retired).
+    # Memory settings are bounded to the container cgroup limit (`mem_limit: 1024m`):
+    #   shared_buffers=256MB       (25% of container limit; avoids OOM-kill as pgvector/blobs grow)
+    #   effective_cache_size=768MB (75% of container limit; keeps planner estimates honest)
+    #   work_mem=4MB               (40 connections * 4MB = 160MB worst-case sort/hash budget)
+    #   maintenance_work_mem=128MB (room for autovacuum and pgvector HNSW index builds)
+    #   wal_buffers=16MB           (256 + 128 + 16 + 160 = 560MB < 1024m cgroup cap)
+    # Planner & observability settings kept at full strength for SSD:
     #   random_page_cost 4 -> 1.1        (storage is SSD; 4 makes the planner over-prefer seq scans)
     #   effective_io_concurrency 1 -> 200 (same reason: no seek penalty to model)
-    #   shared_preload_libraries=pg_stat_statements (we had no way to see per-query cost at all)
+    #   shared_preload_libraries=pg_stat_statements (per-query cost visibility)
     command:
       - postgres
       - -c
       - max_connections=40
       - -c
-      - shared_buffers=512MB
+      - shared_buffers=256MB
       - -c
-      - effective_cache_size=2GB
+      - effective_cache_size=768MB
       - -c
-      - work_mem=8MB
+      - work_mem=4MB
       - -c
       - maintenance_work_mem=128MB
       - -c
@@ -54,7 +57,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    mem_limit: 384m
+    shm_size: 256m
+    mem_limit: 1024m
   # media-render was retired on 2026-11-14: the product no longer generates images or video, so
   # there is nothing for it to render. Customers upload their own media.
   # DKIM/DMARC sidecar. The api reaches it at EMAIL_AUTH_URL (http://email-auth:8090).
