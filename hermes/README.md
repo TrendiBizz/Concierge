@@ -110,7 +110,7 @@ model or the network.
 docker exec hermes-concierge hermes cron pause <id>        # stop one routine
 docker exec hermes-concierge hermes -p <profile> cron remove <id>
 docker exec hermes-concierge hermes profile delete <profile> -y
-docker rm -f hermes-concierge                              # stop the master
+./hermes/runtime/start-master.sh --stop                    # stop the master
 ```
 
 The data volume `hermes_concierge_data` is kept. Nothing on the Mac is deleted by
