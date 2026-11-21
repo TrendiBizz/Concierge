@@ -161,6 +161,8 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 settings = get_settings()
 ip_limiter = RateLimiter(settings.chat_rate_per_minute_ip, 60)
 session_limiter = RateLimiter(settings.chat_rate_per_day_session, 86_400)
+poll_ip_limiter = RateLimiter(120, 60)
+poll_session_limiter = RateLimiter(30, 60)
 sms_limiter = RateLimiter(12, 3600)  # AI replies per contact per hour (was 30): stops bot-to-bot SMS loops
 
 LEAD_STATUSES = ("new", "contacted", "booked", "won", "lost")
@@ -326,6 +328,14 @@ def _rate_limit(request: Request, session_id: str | None = None) -> None:
         raise HTTPException(status_code=429, detail="Too many requests, please slow down")
     if session_id and not session_limiter.check(session_id):
         raise HTTPException(status_code=429, detail="Session limit reached")
+
+
+def _poll_rate_limit(request: Request, session_id: str | None = None) -> None:
+    ip = request.client.host if request.client else "unknown"
+    if not poll_ip_limiter.check(ip):
+        raise HTTPException(status_code=429, detail="Too many poll requests, please slow down")
+    if session_id and not poll_session_limiter.check(session_id):
+        raise HTTPException(status_code=429, detail="Poll rate limit reached")
 
 
 # ------------------------------------------------------------ shared stats & tenant helpers

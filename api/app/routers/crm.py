@@ -1041,6 +1041,7 @@ async def owner_contact_takeover(
     Same store as the enquiry-level takeover, so the two screens can never disagree about who is
     handling the customer.
     """
+    owner_auth.require_role(user, "editor")
     if body.paused and not body.reason.strip():
         raise HTTPException(422, "Say why you are taking over; it is recorded for the customer's history")
     changed = await casetimeline.set_takeover(
@@ -1059,9 +1060,9 @@ async def owner_lead_takeover(
     """Take over, or hand back, one customer.
 
     Pausing stops the assistant replying to that person on every channel, which is what an owner
-    needs the moment they start answering themselves. It is deliberately available to any signed-in
-    member of the business: the person handling the customer is exactly who needs to press it.
+    needs the moment they start answering themselves. Requires editor role (viewers are read-only).
     """
+    owner_auth.require_role(user, "editor")
     lead = await db.pool().fetchrow(
         "SELECT case_id FROM leads WHERE tenant_id=$1 AND id=$2::uuid", user["tenant_id"], lead_id)
     if not lead:

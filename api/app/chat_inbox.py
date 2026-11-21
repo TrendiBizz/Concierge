@@ -117,7 +117,7 @@ async def poll(request: Request, key: str, session_id: str, after: int = 0):
     """Owner messages the visitor has not seen yet (the widget calls this while the chat is open)."""
     from . import main
     sid = convo.clean_session(session_id)
-    main._rate_limit(request, sid)
+    main._poll_rate_limit(request, sid)
     tenant = await main._tenant_for(request, key)
     rows = await db.pool().fetch(
         """SELECT m.id, m.content FROM messages m JOIN conversations c ON c.id=m.conversation_id

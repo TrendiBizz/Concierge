@@ -338,6 +338,7 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
         onToken(data.access_token);
       })
       .catch((e) => {
+        redeemInFlight.delete(token);
         if (cancelled) return;
         setFailed(true);
         setProblem(e instanceof Error ? e.message : 'This link has expired.');
@@ -360,6 +361,10 @@ function Invite({onToken}: {onToken: (token: string) => void}) {
         title="Welcome to Concierge"
         intro="This link has expired or has already been used."
         note="Enter your email and we will send you a fresh one-click link. No password needed."
+        onToken={(t) => {
+          history.replaceState(null, '', location.pathname + location.search);
+          onToken(t);
+        }}
       />
       {problem ? <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}><ErrorNote message={problem} /></div> : null}
       <div style={{maxWidth: 460, margin: '0 auto', padding: '0 24px 48px'}}>
@@ -1589,31 +1594,36 @@ function Reports({token}: {token: string}) {
 
 function Admin() {
   const [token, setToken] = useState(() => sessionStorage.getItem('adminToken') || '');
+  const [inputToken, setInputToken] = useState('');
   const [tenants, setTenants] = useState<Record<string, unknown>[]>([]);
   const [status, setStatus] = useState<{counts?: Record<string, number>; backups?: Array<{name: string; bytes: number; modified: number}>}>({});
   const [error, setError] = useState('');
 
-  async function load() {
+  async function load(candidate?: string) {
+    const activeToken = (candidate ?? token).trim();
+    if (!activeToken) { setError('Admin token is required'); return; }
     setError('');
-    const headers = {'X-Admin-Token': token, 'Accept': 'application/json'};
+    const headers = {'X-Admin-Token': activeToken, 'Accept': 'application/json'};
     try {
       const [t, s] = await Promise.all([
         fetch('/admin/tenants', {headers}).then((r) => r.ok ? r.json() : Promise.reject(new Error('Admin token rejected'))),
         fetch('/admin/status', {headers}).then((r) => r.ok ? r.json() : Promise.reject(new Error('Admin status unavailable'))),
       ]);
-      setTenants(t as Record<string, unknown>[]); setStatus(s); sessionStorage.setItem('adminToken', token);
+      setTenants(t as Record<string, unknown>[]); setStatus(s);
+      sessionStorage.setItem('adminToken', activeToken);
+      setToken(activeToken);
     } catch (e) { setError(e instanceof Error ? e.message : 'Admin request failed'); }
   }
 
-  useEffect(() => { if (token) load(); }, []);
+  useEffect(() => { if (token) load(token); }, []);
 
   if (!token) {
     return (
       <div style={{maxWidth: 420, margin: '10vh auto', padding: 24}}>
         <Heading level={1}>Trendi admin</Heading>
         <p>Internal console. The admin token is required.</p>
-        <TextInput label="Admin token" type="password" value={token} onChange={setToken} />
-        <div style={{marginTop: 16}}><Button label="Open console" variant="primary" onClick={load} /></div>
+        <TextInput label="Admin token" type="password" value={inputToken} onChange={setInputToken} />
+        <div style={{marginTop: 16}}><Button label="Open console" variant="primary" onClick={() => load(inputToken)} /></div>
         {error ? <ErrorNote message={error} /> : null}
       </div>
     );

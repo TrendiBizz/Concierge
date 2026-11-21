@@ -140,6 +140,7 @@ class InstallRequest(BaseModel):
 @router.post("/owner/install-request")
 async def owner_install_request(body: InstallRequest, user: dict = Depends(owner_auth.current_user)):
     """The customer asks us to put the chat on their site. No code, no third party."""
+    owner_auth.require_role(user, "editor")
     return await install_requests.create(
         user["tenant_id"], body.website, body.platform, body.contact_name, body.contact_phone,
         body.note)

@@ -230,6 +230,7 @@ function clearOAuthChannel(){
 const $ = id => document.getElementById(id);
 function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
 function node(tag,text,cls){const el=document.createElement(tag);el.textContent=String(text??"");if(cls)el.className=cls;return el;}
+function defang(text){return String(text??"").replace(/\bhttps?:\/\//gi,m=>m.toLowerCase().startsWith("https")?"hxxps://":"hxxp://");}
 // The invitation link is long and usually opened on a phone. Draw the QR locally from our own
 // link: no third-party QR service, so the one-time token never leaves the page.
 function inviteQrSvg(value,cellSize=4){
@@ -1099,7 +1100,7 @@ async function refreshTeam(){
   const data=await request("/owner/team");
   clear(host);clear(inviteHost);
   for(const member of data.members){
-   const row=node("div","team-row");
+   const row=node("div","","team-row");
    const label=node("span",member.email+(member.id===data.you?" (you)":""));
    label.className="team-who";row.appendChild(label);
    if(currentRole==="owner"&&member.id!==data.you){
