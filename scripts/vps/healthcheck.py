@@ -174,19 +174,57 @@ def deploying() -> str:
     return ""
 
 
+# Podman's `inspect -f '{{.State.StartedAt}}'` prints Go's `time.Time.String()` format
+# (`2026-11-21 05:00:00.617192387 +0000 UTC`), not RFC3339 (`2026-11-21T05:00:00.617192387Z`).
+# `datetime.fromisoformat` raised ValueError on that string, which made `recently_started()` always
+# return False — breaking both the 10-minute startup warming grace and the deploy grace window
+# (measured live 2026-11-21 18:00 NZDT).
+_CONTAINER_TS_RE = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})[T ](?P<time>\d{2}:\d{2}:\d{2})"
+    r"(?:\.(?P<frac>\d+))?"
+    r"\s*(?P<tz>Z|[+-]\d{2}:?\d{2})"
+)
+
+# Retry briefly when a container is starting or mid-recreate (e.g., the ~2-10s window while
+# redeploy-api.sh removes social, recreates api, and reattaches social). Zero delay when all
+# containers are already healthy/running.
+CONTAINER_RETRY_ATTEMPTS = 3
+CONTAINER_RETRY_DELAY_S = 5.0
+
+
+def parse_container_timestamp(raw: str) -> datetime | None:
+    """Parse RFC3339 or Podman/Go `time.Time.String()` container timestamps into UTC."""
+    match = _CONTAINER_TS_RE.match((raw or "").strip())
+    if not match:
+        return None
+    tz = match.group("tz")
+    if tz == "Z":
+        tz = "+00:00"
+    elif ":" not in tz:
+        tz = f"{tz[:3]}:{tz[3:]}"
+    frac = match.group("frac")
+    frac_part = f".{frac[:6].ljust(6, '0')}" if frac else ""
+    try:
+        parsed = datetime.fromisoformat(f"{match.group('date')}T{match.group('time')}{frac_part}{tz}")
+    except ValueError:
+        return None
+    if parsed.year <= 1:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
 def recently_started(name: str, minutes: int = 10) -> bool:
     """True when the container began after `minutes` ago. Used to tell a deploy from an outage."""
     code, out = run(["podman", "inspect", "-f", "{{.State.StartedAt}}", name], timeout=15)
     if code != 0:
         return False
-    try:
-        started = datetime.fromisoformat(out.strip().replace("Z", "+00:00"))
-    except ValueError:
+    started = parse_container_timestamp(out)
+    if started is None:
         return False
     return (datetime.now(timezone.utc) - started) < timedelta(minutes=minutes)
 
 
-def check_containers() -> list[dict]:
+def _check_containers_once() -> list[dict]:
     results = []
     code, out = run(["podman", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"])
     if code != 0:
@@ -222,6 +260,18 @@ def check_containers() -> list[dict]:
             results.append(_fail(f"container:{name}", state))
         else:
             results.append(_ok(f"container:{name}", state))
+    return results
+
+
+def check_containers() -> list[dict]:
+    attempts = max(1, int(CONTAINER_RETRY_ATTEMPTS))
+    results: list[dict] = []
+    for attempt in range(attempts):
+        results = _check_containers_once()
+        if all(item["status"] == "ok" for item in results):
+            return results
+        if attempt + 1 < attempts and CONTAINER_RETRY_DELAY_S > 0:
+            time.sleep(CONTAINER_RETRY_DELAY_S)
     return results
 
 
@@ -426,8 +476,30 @@ def check_sidecar(api_env: dict) -> list[dict]:
     health = url[: -len("/verify")] + "/healthz" if url.endswith("/verify") else url + "/healthz"
     code, out = run(["podman", "exec", "trendi-api-1", "python", "-c",
                      f"import urllib.request;print(urllib.request.urlopen('{health}',timeout=3).status)"], timeout=20)
-    return [_ok("email-auth:health", "ok") if code == 0 and "200" in out
-            else _fail("email-auth:health", out[:160] or "unreachable")]
+    results = [_ok("email-auth:health", "ok") if code == 0 and "200" in out
+               else _fail("email-auth:health", out[:160] or "unreachable")]
+
+    # social shares trendi-api-1's network namespace (`network_mode: service:api`). If api was
+    # recreated without recreating social, `podman ps` still shows social Up while api gets
+    # Connection refused on 127.0.0.1:4390. Probe from inside trendi-api-1 so a detached social
+    # cannot hide behind a green container list.
+    social_base = (api_env.get("SOCIAL_SERVICE_URL") or "http://127.0.0.1:4390").rstrip("/")
+    social_code, social_out = run(
+        ["podman", "exec", "trendi-api-1", "python3", "-c",
+         f"import urllib.request,urllib.error\n"
+         f"try:\n"
+         f"    print(urllib.request.urlopen('{social_base}/v1/customers',timeout=3).status)\n"
+         f"except urllib.error.HTTPError as e:\n"
+         f"    print(e.code)\n"],
+        timeout=20,
+    )
+    status_text = social_out.strip().splitlines()[-1] if social_out.strip() else ""
+    results.append(
+        _ok("social:reachable", f"HTTP {status_text}")
+        if social_code == 0 and status_text.isdigit()
+        else _fail("social:reachable", social_out[:160] or "unreachable from trendi-api-1")
+    )
+    return results
 
 
 def check_sms_inbound() -> list[dict]:
@@ -1231,9 +1303,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')} alert: {subject} -> {outcome} ({len(new_alerts)} new, "
               f"{len(reminders)} reminders, {len(recoveries)} recovered)", file=sys.stderr)
 
-    print(json.dumps({"ok": report["ok"], "counts": report["counts"],
-                      "failures": report["failures"], "warnings": report["warnings"]}, indent=2))
-    return 0 if report["ok"] else 1
+    summary = {"ok": report["ok"], "counts": report["counts"],
+               "failures": report["failures"], "warnings": report["warnings"]}
+    if grace:
+        summary["deploy_grace"] = grace
+    print(json.dumps(summary, indent=2))
+    # During an active deploy grace window in scheduled (alerting) mode, exit 0 so cron's
+    # `healthcheck.sh || alert.sh` fallback honours the same grace policy instead of emailing on a
+    # mid-deploy blip. Manual `--no-alert` runs never enter grace and always exit 1 on failure.
+    return 0 if (report["ok"] or grace) else 1
 
 
 if __name__ == "__main__":

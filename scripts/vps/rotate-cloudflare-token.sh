@@ -260,9 +260,9 @@ pause
 
 # ── Stage 4 ───────────────────────────────────────────────────────────────
 stage "Restart the API and verify"
-say "Recreating only the api container picks up the new env file."
-ssh "$VPS_HOST" 'cd /opt/trendi/releases/20261108-vps/product && podman compose --env-file /opt/trendi/shared/compose.env -f scripts/vps/compose.yml up -d --force-recreate api' || {
-  warn "compose failed - check the compose path on this VPS before continuing"
+say "Recreating api and social picks up the new env file without detaching social."
+ssh "$VPS_HOST" "REL='/opt/trendi/releases/20261108-vps/product' bash '/opt/trendi/releases/20261108-vps/product/scripts/vps/redeploy-api.sh' --no-build" || {
+  warn "redeploy-api.sh --no-build failed - check the release path on this VPS before continuing"
   pause "Enter to continue anyway."
 }
 sleep 5
