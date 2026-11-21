@@ -5,6 +5,8 @@ import secrets
 from . import db
 
 UPDATABLE_FIELDS = {
+    "send_from_address": str,
+    "send_from_verified": bool,
     "name": str,
     "site_url": str,
     "allowed_origins": list,

@@ -16,10 +16,12 @@ class EmailRateLimited(RuntimeError):
 
 
 def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None,
-               from_name: str | None = None, html: str | None = None) -> None:
+               from_name: str | None = None, html: str | None = None,
+               from_addr: str | None = None) -> None:
     s = get_settings()
     msg = EmailMessage()
-    msg["From"] = formataddr((from_name, s.smtp_from)) if from_name else s.smtp_from
+    sender = from_addr or s.smtp_from
+    msg["From"] = formataddr((from_name, sender)) if from_name else sender
     msg["To"] = to_addr
     msg["Subject"] = subject
     # RFC 3834 marker plus our own: lets the inbound side recognise mail we sent ourselves.
@@ -42,7 +44,12 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
             server.starttls()
         if s.smtp_user:
             server.login(s.smtp_user, s.smtp_password)
-        server.send_message(msg)
+        # Envelope sender stays the authenticated SMTP account (the relay refuses others); the
+        # tenant's own address is the visible From, which is what DMARC alignment is judged on.
+        if from_addr:
+            server.send_message(msg, from_addr=s.smtp_from)
+        else:
+            server.send_message(msg)
     finally:
         try:
             server.quit()
@@ -51,7 +58,8 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
 
 
 async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None,
-                     from_name: str | None = None, html: str | None = None) -> None:
+                     from_name: str | None = None, html: str | None = None,
+                     from_addr: str | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
     # Last resort for anything that bypasses the outbox: the same address, and the whole process.
@@ -59,4 +67,4 @@ async def send_email(to_addr: str, subject: str, body: str, headers: dict | None
         raise EmailRateLimited("Too many emails to this address in 10 minutes")
     if not flood_guard.memory_allow("email:all", "all", 200, 3600):
         raise EmailRateLimited("Too many emails in the last hour")
-    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name, html)
+    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name, html, from_addr)

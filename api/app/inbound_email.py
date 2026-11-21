@@ -6,7 +6,7 @@ provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
 import re
-from . import automated_mail, db, email_drafts, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
+from . import automated_mail, db, email_drafts, email_threading, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
@@ -78,7 +78,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
                           sender: str, recipient: str, subject: str,
                           text_body: str, auth: dict | None = None,
                           risk: str = "low", flags: list | None = None,
-                          envelope_from: str | None = None) -> dict:
+                          envelope_from: str | None = None, mail: dict | None = None) -> dict:
     """Persist an untrusted email as a non-sending human-review draft.
 
     Tenant identity must come from a private recipient mapping, not user input.
@@ -117,7 +117,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             draft = await email_drafts.create(
                 tenant_id, sender, subject, text_body,
                 "AUTOMATED — not a customer enquiry; no lead or alert was created.", key,
-                auth=auth, risk=risk, flags=flags, status="discarded", recipient=recipient,
+                auth=auth, risk=risk, flags=flags, status="discarded", recipient=recipient, mail=mail,
             )
             detail = {"reason": automated, "risk": risk, "status": draft.get("status")}
             if envelope_from:
@@ -135,10 +135,10 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             "REVIEW REQUIRED — write a verified response before approval.", key,
             auth=auth, risk=risk, flags=flags,
             status="quarantined" if risk == "high" else "draft",
-            recipient=recipient,
+            recipient=recipient, mail=mail,
         )
         tenant = await tenants.get_by_id(tenant_id)
-        conversation_id = await convo.get_or_create(tenant, "email" + hashlib.sha256(draft["sender"].lower().encode()).hexdigest()[:50], "email", None, None)
+        conversation_id = await convo.get_or_create(tenant, email_threading.thread_key(draft["sender"], subject, (mail or {}).get("in_reply_to", ""), (mail or {}).get("references")), "email", None, None)
         # The customer's own signature usually states who they are and where they work. Reading it
         # is the difference between a CRM record called "conrad@pukekoconstruction.co.nz" and one
         # called "Conrad Schiess, Pukeko Construction".
@@ -150,7 +150,7 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         if vendor:
             notice = "(Automated or vendor message — not a customer enquiry.)\n\n"
             flags.append("automated_sender")
-        await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + text_body,
+        await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + email_threading.attachment_notice((mail or {}).get("attachments")) + text_body,
                                 automated=bool(vendor or "automated_sender" in (flags or [])),
                                 conversation_id=conversation_id, email=draft["sender"],
                                 name=signature["name"], company=signature["company"],
