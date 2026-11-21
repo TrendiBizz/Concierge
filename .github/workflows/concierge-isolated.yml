@@ -82,7 +82,13 @@ jobs:
             # silent skip -- it still runs locally on 3.13 and should be fixed, not forgotten.
             python -m pytest api/tests -q -m "not hangs_on_py312"
           else
-            python "QA/verification/${{ matrix.suite }}.py"
+            # *_integration.py scripts live in api/tests (not collected by pytest: no test_ prefix);
+            # the remaining *_check / *_test scripts are still in QA/verification.
+            if [[ -f "api/tests/${{ matrix.suite }}.py" ]]; then
+              python "api/tests/${{ matrix.suite }}.py"
+            else
+              python "QA/verification/${{ matrix.suite }}.py"
+            fi
           fi
 
   static:
@@ -174,7 +180,7 @@ jobs:
         env:
           PYTHONPATH: QA/verification/shims:api
           CONCIERGE_TEST_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
-        run: python -m unittest QA.verification.customer_onboarding_integration -v
+        run: python -m unittest api.tests.customer_onboarding_integration -v
 
   socialsync:
     name: socialsync-node
