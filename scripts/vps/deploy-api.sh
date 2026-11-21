@@ -33,6 +33,10 @@ echo "==> syncing api/app, api/static, api/alembic.ini, and api/migrations to $H
 echo "==> moving files removed from the repo aside on the box"
 KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/prune-removed.sh"
 
+# API dependency changes must arrive before the image build, in the same release.
+"${RSSH[@]}" "$REPO_ROOT/scripts/vps/api-requirements.lock" "$HOST:$PRODUCT/scripts/vps/api-requirements.lock"
+"${RSSH[@]}" "$REPO_ROOT/scripts/vps/deploy-api.sh" "$HOST:$PRODUCT/scripts/vps/deploy-api.sh"
+
 echo "==> rebuilding and restarting api + social"
 "${SSH[@]}" "REL='$PRODUCT' bash '$PRODUCT/scripts/vps/redeploy-api.sh'"
 

@@ -149,7 +149,9 @@ from .contact import normalize_phone
 from .security import RateLimiter, apply_security_headers, require_admin
 from .tools import run_tool
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+from .observability import configure, RequestTelemetry
+
+configure()
 log = logging.getLogger("concierge")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -206,6 +208,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
+app.add_middleware(RequestTelemetry)
 
 app.include_router(voice_internal.router)
 app.include_router(owner_signin.router)
