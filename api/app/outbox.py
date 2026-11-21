@@ -200,6 +200,14 @@ async def _deliver(row: dict) -> None:
         try:
             await sms.send_sms(row["to_addr"], row["body"], tenant.get("sms_from"),
                                tenant=tenant, request_key="outbox:"+str(row["id"]), outbox_id=row["id"])
+        except sms.SmsUncertain:
+            await db.pool().execute(
+                "UPDATE outbox SET status='held',last_error='SMS submission unconfirmed; reconcile before retry' "
+                "WHERE id=$1 AND status IN ('sending','awaiting_receipt','held')", row["id"])
+            return
+        except sms.SmsRejected as exc:
+            await _finish(row["id"], "failed", str(exc))
+            return
         except device_sms.AwaitingReceipt:
             # The device may complete during this HTTP/DB turn. Preserve its
             # terminal receipt instead of overwriting it with a queued state.
@@ -209,6 +217,8 @@ async def _deliver(row: dict) -> None:
         except device_sms.ReconciliationRequired:
             await _finish(row["id"], "held", "Phone SMS requires owner reconciliation")
             return
+        if sms.provider() in {"hero", "twilio"} and tenant.get("sms_transport") != "device":
+            return  # Carrier acceptance is not a delivery receipt.
     elif row["channel"] == "email":
         if not settings.email_configured:
             await _finish(row["id"], "skipped", "email_not_configured")
@@ -266,6 +276,8 @@ async def process_once() -> int:
     """Send everything that is due. Safe to run from several workers (SKIP LOCKED)."""
     if await flood_guard.paused():
         return 0  # operator kill switch: everything stays queued
+    from . import sms_delivery
+    await sms_delivery.reconcile()
     pool = db.pool()
     # Recover rows claimed by a worker that died mid-send.
     await pool.execute(
@@ -288,11 +300,13 @@ async def process_once() -> int:
         except Exception as exc:  # one bad message must never stop the queue
             log.warning("outbox %s failed (attempt %s): %s", row["id"], row["attempts"], exc)
             if row["attempts"] >= MAX_ATTEMPTS:
-                await _finish(row["id"], "failed", str(exc))
+                await pool.execute(
+                    "UPDATE outbox SET status='failed',last_error=$2 WHERE id=$1 AND status='sending'",
+                    row["id"], str(exc)[:500])
             else:
                 await pool.execute(
                     "UPDATE outbox SET status = 'pending', last_error = $2, send_at = now() + $3 * interval '1 minute' "
-                    "WHERE id = $1",
+                    "WHERE id = $1 AND status='sending'",
                     row["id"], str(exc)[:500], row["attempts"] * 2,
                 )
     return len(rows)

@@ -80,6 +80,9 @@ jobs:
             # passes in 0.17s on 3.13, three runs). Excluding it is a documented concession, not a
             # silent skip -- it still runs locally on 3.13 and should be fixed, not forgotten.
             python -m pytest api/tests -q -m "not hangs_on_py312"
+            # N4 receipt ordering/cross-tenant guards must also run against real Postgres.
+            TEST_DATABASE_URL="postgresql://postgres:test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres" \
+              python -m pytest api/tests/test_n4_carrier_sms.py -q
           else
             # *_integration.py scripts live in api/tests (not collected by pytest: no test_ prefix);
             # the remaining *_check / *_test scripts are still in QA/verification.

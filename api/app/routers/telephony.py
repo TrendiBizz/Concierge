@@ -71,6 +71,27 @@ async def sms_inbound(public_key: str, request: Request):
     return _twiml(await m._sms_reply(tenant, sender, body, confirm_stop=False))
 
 
+@router.post("/api/v1/sms/status/{outbox_id}")
+async def sms_status(outbox_id: int, request: Request):
+    """Existing Twilio transport only; signed callbacks never trigger another SMS."""
+    settings = _main().settings
+    if sms.provider() != "twilio" or not settings.twilio_auth_token:
+        raise HTTPException(503, "SMS delivery callbacks disabled")
+    params = await _phone_webhook_form(request)
+    url = settings.public_base_url.rstrip("/") + request.url.path
+    if request.url.query:
+        url += "?" + request.url.query
+    if not sms.validate_signature(settings.twilio_auth_token, url, params,
+                                  request.headers.get("X-Twilio-Signature", "")):
+        raise HTTPException(403, "Invalid signature")
+    if params.get("AccountSid") != settings.twilio_account_sid:
+        raise HTTPException(403, "Invalid account")
+    from .. import sms_delivery
+    if not await sms_delivery.twilio_receipt(outbox_id, params):
+        raise HTTPException(400, "Unmatched or invalid SMS receipt")
+    return {"ok": True}
+
+
 @router.post("/api/v1/smsgate/{public_key}")
 async def smsgate_inbound(public_key: str, request: Request):
     """Webhook for the self-hosted Android SMS gateway (event sms:received). The reply is sent as a
