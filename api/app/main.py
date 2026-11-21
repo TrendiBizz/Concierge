@@ -35,11 +35,25 @@ from . import install_requests
 from . import site_enquiry
 from . import privacy
 from . import platform_billing
-from .routers import owner_signin
+from .routers import owner_signin, social
 from .routers.owner_signin import (  # noqa: F401 - re-exported for tests and tooling
     OwnerCodeRequest, OwnerCodeVerify, OwnerEmailLink, OwnerLinkAccept, OwnerLogin, OwnerRedeem,
     owner_accept_invite, owner_email_code, owner_email_link, owner_install_ticket, owner_login,
     owner_redeem, owner_verify_code,
+)
+from .routers.social import (  # noqa: F401 - re-exported for tests and tooling
+    OwnerOAuthCallback, OwnerSocialCompose, OwnerSocialDraft, OwnerSocialSchedule,
+    owner_social_accounts, owner_social_approve, owner_social_compose, owner_social_create,
+    owner_social_google_disconnect, owner_social_google_finish, owner_social_google_start,
+    owner_social_linkedin_finish, owner_social_linkedin_organization_finish,
+    owner_social_linkedin_organization_start, owner_social_linkedin_start,
+    owner_social_linkedin_unlink, owner_social_media_upload, owner_social_meta_disconnect,
+    owner_social_meta_finish, owner_social_meta_start, owner_social_oauth_callback,
+    owner_social_oauth_renew, owner_social_posts, owner_social_reject,
+    owner_social_request_approval, owner_social_status, owner_social_submit,
+    owner_social_tiktok_disconnect, owner_social_tiktok_finish, owner_social_tiktok_start,
+    owner_social_x_disconnect, owner_social_x_finish, owner_social_x_start,
+    social_media_download,
 )
 from . import invoices
 from . import guides
@@ -111,6 +125,7 @@ app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
 
 app.include_router(voice_internal.router)
 app.include_router(owner_signin.router)
+app.include_router(social.router)
 app.include_router(device_sms.router)
 app.include_router(sms_inbox.router)
 app.include_router(phone_sip.router)
@@ -2096,18 +2111,6 @@ async def onboarding_page():
     )
 
 
-@app.get("/owner/social/oauth/callback", include_in_schema=False)
-async def owner_social_oauth_callback():
-    # Public landing page only. It cannot exchange a code or authenticate anyone.
-    # The original logged-in tab compares state before exchanging the code itself.
-    return FileResponse(
-        STATIC_DIR / "social-oauth-callback.html", media_type="text/html",
-        headers={"Cache-Control": "no-store, no-cache, must-revalidate",
-                 "Pragma": "no-cache", "Referrer-Policy": "no-referrer",
-                 "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"},
-    )
-
-
 COUNTRY_LOCALE = {
     "FR": "fr-FR", "BE": "fr-FR", "CA": "fr-FR", "CH": "fr-FR",
     "ES": "es-ES", "MX": "es-ES", "AR": "es-ES", "CO": "es-ES", "CL": "es-ES",
@@ -4000,255 +4003,6 @@ async def owner_phone_transcript(call_id: str,user: dict = Depends(owner_auth.cu
         "AND m.role IN ('user','assistant') ORDER BY m.id LIMIT 200",user['tenant_id'],call_id)
     return [dict(row) for row in rows]
 
-# ------------------------------------------------------------------ owner social
-# The portal is the identity and approval interface; the Rust service never
-# receives a customer browser's auth token, and no social secrets reach the UI.
-
-class OwnerSocialDraft(BaseModel):
-    content: str = Field(min_length=1, max_length=10000)
-    account_ids: list[str] = Field(min_length=1, max_length=10)
-    link: str = Field(default="", max_length=2000)
-    hashtags: str = Field(default="", max_length=2000)
-    media: list[str] = Field(default_factory=list, max_length=10)
-    options: dict = Field(default_factory=dict)
-
-
-class OwnerSocialCompose(OwnerSocialDraft):
-    video: str | None = Field(default=None, max_length=2048)
-
-
-@app.post("/owner/social/media")
-async def owner_social_media_upload(request: Request, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    base, key = social_bridge._configuration()
-    slug = await social_bridge.ensure_tenant(user)
-    content = bytearray()
-    async for chunk in request.stream():
-        content.extend(chunk)
-        if len(content) > 64 * 1024 * 1024:
-            raise HTTPException(413, "Upload a file smaller than 64 MB")
-    import httpx
-    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
-        result = await client.post(base+f"/v1/customers/{slug}/media", headers={"Authorization":"Bearer "+key,"Content-Type":"application/octet-stream"},content=bytes(content))
-    if result.status_code != 200:
-        raise HTTPException(400, "Media could not be processed; use a JPG/PNG image or MP4/MOV video under 64 MB")
-    return result.json()
-
-
-@app.get("/api/v1/social-media/{token}")
-async def social_media_download(token: str):
-    if len(token)>2048:
-        raise HTTPException(404,"Media unavailable")
-    base, _ = social_bridge._configuration()
-    import httpx
-    async with httpx.AsyncClient(timeout=60,follow_redirects=False) as client:
-        result = await client.get(base+"/public-media/"+token)
-    if result.status_code != 200:
-        raise HTTPException(404,"Media unavailable")
-    return Response(content=result.content,media_type=result.headers.get("content-type","application/octet-stream"),headers={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"})
-
-
-@app.post("/owner/social/compose")
-async def owner_social_compose(body: OwnerSocialCompose,
-                               user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    return await social_bridge.compose(user, body.model_dump())
-
-
-class OwnerSocialSchedule(BaseModel):
-    scheduled_at: int = Field(ge=0)
-
-
-@app.get("/owner/social/status")
-async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
-    # No credentials, client IDs, access tokens or backend hostname in the response.
-    providers = {"linkedin_organization": False, "linkedin": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "x": False}
-    if settings.social_service_enabled:
-        try:
-            status = await social_bridge.provider_status()
-            providers = {name: status.get(name) is True for name in providers}
-        except HTTPException:
-            pass
-    return {"enabled": bool(settings.social_service_enabled),
-            "customer": user["slug"],
-            "providers": providers,
-            "callback_path": "/owner/social/oauth/callback",
-            "live_publishing": False}
-
-
-@app.post("/owner/social/oauth/renew/{account_id}")
-async def owner_social_oauth_renew(account_id: str,
-                                  user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.renew_social_token(user, account_id)
-
-
-class OwnerOAuthCallback(BaseModel):
-    state: str = Field(min_length=32, max_length=256)
-    code: str = Field(min_length=1, max_length=2048)
-
-
-@app.post("/owner/social/oauth/tiktok/start")
-async def owner_social_tiktok_start(user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.start_tiktok_oauth(user)
-
-
-@app.post("/owner/social/oauth/tiktok/finish")
-async def owner_social_tiktok_finish(body: OwnerOAuthCallback,
-                                     user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.finish_tiktok_oauth(user, body.state, body.code)
-
-
-@app.delete("/owner/social/oauth/tiktok/accounts/{account_id}")
-async def owner_social_tiktok_disconnect(account_id: str,
-                                         user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.disconnect_tiktok(user, account_id)
-
-
-@app.post("/owner/social/oauth/google/start")
-async def owner_social_google_start(user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.start_google_oauth(user)
-
-
-@app.post("/owner/social/oauth/google/finish")
-async def owner_social_google_finish(body: OwnerOAuthCallback,
-                                     user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.finish_google_oauth(user, body.state, body.code)
-
-
-@app.delete("/owner/social/oauth/google/accounts/{account_id}")
-async def owner_social_google_disconnect(account_id: str,
-                                          user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.disconnect_google(user, account_id)
-
-
-@app.post("/owner/social/oauth/x/start")
-async def owner_social_x_start(user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.start_x_oauth(user)
-
-
-@app.post("/owner/social/oauth/x/finish")
-async def owner_social_x_finish(body: OwnerOAuthCallback,
-                                     user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.finish_x_oauth(user, body.state, body.code)
-
-
-@app.delete("/owner/social/oauth/x/accounts/{account_id}")
-async def owner_social_x_disconnect(account_id: str,
-                                          user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.disconnect_x(user, account_id)
-
-
-@app.post("/owner/social/oauth/meta/{network}/start")
-async def owner_social_meta_start(network: str,
-                                  user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    if network not in ("facebook", "instagram"):
-        raise HTTPException(404, "Unsupported social network")
-    return await social_bridge.start_meta_oauth(user, network)
-
-
-@app.post("/owner/social/oauth/meta/{network}/finish")
-async def owner_social_meta_finish(network: str, body: OwnerOAuthCallback,
-                                   user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    if network not in ("facebook", "instagram"):
-        raise HTTPException(404, "Unsupported social network")
-    return await social_bridge.finish_meta_oauth(user, network, body.state, body.code)
-
-
-@app.delete("/owner/social/oauth/meta/{network}/accounts/{account_id}")
-async def owner_social_meta_disconnect(network: str, account_id: str,
-                                       user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    if network not in ("facebook", "instagram"):
-        raise HTTPException(404, "Unsupported social network")
-    return await social_bridge.unlink_meta(user, network, account_id)
-
-
-@app.delete("/owner/social/oauth/linkedin/accounts/{account_id}")
-async def owner_social_linkedin_unlink(
-    account_id: str, user: dict = Depends(owner_auth.current_user)
-):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.unlink_linkedin(user, account_id)
-
-
-@app.post("/owner/social/oauth/linkedin_organization/start")
-async def owner_social_linkedin_organization_start(user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.start_linkedin_organization_oauth(user)
-
-
-@app.post("/owner/social/oauth/linkedin_organization/finish")
-async def owner_social_linkedin_organization_finish(body: OwnerOAuthCallback, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.finish_linkedin_organization_oauth(user, body.state, body.code)
-
-
-@app.post("/owner/social/oauth/linkedin/start")
-async def owner_social_linkedin_start(user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.start_linkedin_oauth(user)
-
-
-@app.post("/owner/social/oauth/linkedin/finish")
-async def owner_social_linkedin_finish(body: OwnerOAuthCallback,
-                                       user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.finish_linkedin_oauth(user, body.state, body.code)
-
-
-@app.get("/owner/social/accounts")
-async def owner_social_accounts(user: dict = Depends(owner_auth.current_user)):
-    return await social_bridge.accounts(user)
-
-
-@app.get("/owner/social/posts")
-async def owner_social_posts(user: dict = Depends(owner_auth.current_user)):
-    return await social_bridge.posts(user)
-
-
-@app.post("/owner/social/posts")
-async def owner_social_create(body: OwnerSocialDraft,
-                              user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    return await social_bridge.create_draft(user, body.content, body.account_ids,
-                                            body.link, body.hashtags, body.media, body.options)
-
-
-@app.post("/owner/social/posts/{post_id}/submit")
-async def owner_social_submit(post_id: str, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "editor")
-    return await social_bridge.submit_draft(user, post_id)
-
-
-@app.post("/owner/social/posts/{post_id}/approval-request")
-async def owner_social_request_approval(post_id: str, body: OwnerSocialSchedule,
-                                        user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.request_approval(user, post_id, body.scheduled_at)
-
-
-@app.post("/owner/social/approvals/{token}/approve")
-async def owner_social_approve(token: str, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.decide(user, token, True)
-
-
-@app.post("/owner/social/approvals/{token}/reject")
-async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "owner")
-    return await social_bridge.decide(user, token, False)
 
 @app.get("/owner/email-engagement")
 async def owner_email_engagement(limit: int = 100, user: dict = Depends(owner_auth.current_user)):
