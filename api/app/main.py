@@ -29,7 +29,7 @@ from . import (
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, brand_from_site, releases, owner_ask
 from . import suppressions
 from . import engagement
-from . import sms_inbox
+from . import chat_inbox, sms_inbox
 from . import owner_invites
 from . import install_requests
 from . import site_enquiry
@@ -222,6 +222,7 @@ app.include_router(admin_router.router)
 app.include_router(public.router)
 app.include_router(device_sms.router)
 app.include_router(sms_inbox.router)
+app.include_router(chat_inbox.router)
 app.include_router(phone_sip.router)
 app.include_router(managed_phone.router)
 app.include_router(mobile_connections.router)

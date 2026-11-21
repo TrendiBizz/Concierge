@@ -29,6 +29,9 @@ const AUTHOR_LABEL = {customer: 'Customer', ai: 'Concierge (AI)', owner: 'You'} 
  */
 export function Texts({token}: {token: string}) {
   const api = createApi(token);
+  // One inbox, every channel: texts and website chats share the same read / take over / reply screen.
+  const [channel, setChannel] = useState<'sms' | 'chat'>('sms');
+  const base = '/owner/' + channel;
   const [phone, setPhone] = useState<Phone | null>(null);
   const [list, setList] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<string>('');
@@ -41,28 +44,29 @@ export function Texts({token}: {token: string}) {
 
   async function loadInbox() {
     try {
-      const data = await api('/owner/sms/inbox') as {phone: Phone; conversations: Conversation[]};
-      setPhone(data.phone); setList(data.conversations);
+      const data = await api(base + '/inbox') as {phone?: Phone; conversations: Conversation[]};
+      setPhone(data.phone || null); setList(data.conversations);
       if (!selectedRef.current && data.conversations.length) setSelected(data.conversations[0].id);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load your texts'); }
   }
   async function loadThread(id: string) {
     if (!id) { setThread(null); return; }
-    try { setThread(await api('/owner/sms/conversations/' + id) as Thread); }
+    try { setThread(await api(base + '/conversations/' + id) as Thread); }
     catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load that conversation'); }
   }
+  useEffect(() => { setSelected(''); setThread(null); setList([]); setStatus(''); }, [channel]);
   useEffect(() => {
     loadInbox();
     const timer = window.setInterval(() => { loadInbox(); if (selectedRef.current) loadThread(selectedRef.current); }, 15000);
     return () => window.clearInterval(timer);
-  }, [token]);
+  }, [token, channel]);
   useEffect(() => { loadThread(selected); }, [selected]);
 
   async function setTakeover(paused: boolean) {
     if (!thread) return;
     setBusy(true);
     try {
-      await api('/owner/sms/conversations/' + thread.id + '/takeover', 'POST', {paused});
+      await api(base + '/conversations/' + thread.id + '/takeover', 'POST', {paused});
       setStatus(paused ? 'You have taken over. Concierge will not reply to this person until you hand back.'
                        : 'Handed back. Concierge will answer this person again.');
       await Promise.all([loadThread(thread.id), loadInbox()]);
@@ -75,10 +79,10 @@ export function Texts({token}: {token: string}) {
     if (!thread || !text) return;
     setBusy(true);
     try {
-      const result = await api('/owner/sms/conversations/' + thread.id + '/reply', 'POST',
+      const result = await api(base + '/conversations/' + thread.id + '/reply', 'POST',
         {text, request_id: crypto.randomUUID()}) as {status: string};
       setDraft('');
-      setStatus(result.status === 'queued' ? 'Sent to your phone to text out. It goes within a few seconds while the phone link is on.'
+      setStatus(channel === 'chat' ? 'Sent. The visitor sees it in their chat within a few seconds.' : result.status === 'queued' ? 'Sent to your phone to text out. It goes within a few seconds while the phone link is on.'
                                            : 'Sent.');
       await Promise.all([loadThread(thread.id), loadInbox()]);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not send that text'); }
@@ -86,11 +90,15 @@ export function Texts({token}: {token: string}) {
   }
 
   const offline = phone && phone.transport === 'device' && phone.paired && !phone.online;
-  const who = (c: {name?: string; phone: string}) => c.name || c.phone || 'Unknown number';
+  const who = (c: {name?: string; phone?: string}) => c.name || c.phone || (channel === 'chat' ? 'Website visitor' : 'Unknown number');
 
   return (
     <VStack gap={4} style={{padding: 16}}>
-      {phone ? (
+      <HStack gap={2} role="group" aria-label="Inbox channel">
+        <Button label="Texts" variant={channel === 'sms' ? 'primary' : 'secondary'} onClick={() => setChannel('sms')} />
+        <Button label="Website chat" variant={channel === 'chat' ? 'primary' : 'secondary'} onClick={() => setChannel('chat')} />
+      </HStack>
+      {channel === 'sms' && phone ? (
         <HStack gap={2} style={{alignItems: 'center', flexWrap: 'wrap'}}>
           <Badge label={phone.transport === 'device' ? (phone.paired ? (phone.online ? 'Phone link online' : 'Phone offline') : 'No phone paired')
                         : 'Texting: ' + phone.transport}
@@ -99,11 +107,11 @@ export function Texts({token}: {token: string}) {
           {phone.receive_verified === false ? <Badge label="No text received yet" variant="warning" /> : null}
         </HStack>
       ) : null}
-      {offline ? <StatusLine tone="warning" text="Your phone link is offline, so new texts are not reaching Concierge and replies wait. Open the Mac and check the Trendi Phone Connector is running." /> : null}
+      {channel === 'sms' && offline ? <StatusLine tone="warning" text="Your phone link is offline, so new texts are not reaching Concierge and replies wait. Open the Mac and check the Trendi Phone Connector is running." /> : null}
       <StatusLine text={status} />
       <div style={{display: 'flex', flexWrap: 'wrap', gap: 16, minHeight: 520, alignItems: 'flex-start'}}>
         <VStack gap={1} role="list" aria-label="Text conversations" style={{overflowY: 'auto', maxHeight: 640, flex: '0 1 300px', minWidth: 220}}>
-          {list.length === 0 ? <Text>No text conversations yet. When a customer texts your business number, it shows here.</Text> : null}
+          {list.length === 0 ? <Text>{channel === 'chat' ? 'No website chats yet. When a visitor chats on your site, it shows here and you can reply live.' : 'No text conversations yet. When a customer texts your business number, it shows here.'}</Text> : null}
           {list.map((c) => (
             <button key={c.id} type="button" role="listitem" className="c-nav-item" data-active={c.id === selected}
                     aria-current={c.id === selected ? 'true' : undefined} onClick={() => setSelected(c.id)}

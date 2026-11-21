@@ -62,3 +62,28 @@ self.addEventListener('fetch', (event) => {
     })());
   }
 });
+
+/* Alerts (Web Push). Owner alerts arrive here even when the Studio is closed. A browser requires every
+ * push to show something, so a malformed payload still shows a generic alert. */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (error) { data = {}; }
+  event.waitUntil(self.registration.showNotification(String(data.title || 'New alert from Concierge').slice(0, 100), {
+    body: String(data.body || 'Open your inbox to see it.').slice(0, 200),
+    tag: String(data.tag || 'concierge-alert'),
+    renotify: true,
+    vibrate: [250, 120, 250],
+    data: {url: '/studio/'},
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+    for (const client of windows) {
+      if (client.url.includes('/studio') && 'focus' in client) return client.focus();
+    }
+    return self.clients.openWindow('/studio/');
+  })());
+});

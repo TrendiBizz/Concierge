@@ -493,10 +493,10 @@ async def is_paused_for_session(tenant_id, session_id: str, channel: str = "chat
     return bool(await db.pool().fetchval(
         """
         SELECT true FROM conversations cv
-        JOIN leads l ON l.conversation_id = cv.id AND l.tenant_id = cv.tenant_id
-        JOIN customer_cases c ON c.id = l.case_id AND c.tenant_id = cv.tenant_id
+        LEFT JOIN leads l ON l.conversation_id = cv.id AND l.tenant_id = cv.tenant_id
+        LEFT JOIN customer_cases c ON c.id = l.case_id AND c.tenant_id = cv.tenant_id
         WHERE cv.tenant_id = $1 AND cv.session_id = $2 AND cv.channel = $3
-          AND c.automation_paused
+          AND (cv.owner_takeover_at IS NOT NULL OR COALESCE(c.automation_paused, false))
         LIMIT 1
         """,
         tenant_id, session_id, channel))

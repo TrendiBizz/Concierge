@@ -42,7 +42,7 @@ type Form = {
 const EMPTY: Form = {id: '', sku: '', name: '', description: '', unit: 'each', price: '', cost: '', stock: '0', active: true};
 
 function money(cents: number) {
-  return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'USD'}).format((cents || 0) / 100);
+  return new Intl.NumberFormat('en-NZ', {style: 'currency', currency: 'NZD'}).format((cents || 0) / 100);
 }
 
 function dollars(value: string) {

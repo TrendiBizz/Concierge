@@ -530,6 +530,8 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_attempts integer NOT 
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_retry_at timestamptz NOT NULL DEFAULT now();
 CREATE UNIQUE INDEX IF NOT EXISTS appointment_conversation_slot_idx ON appointments(tenant_id,conversation_id,starts_at) WHERE conversation_id IS NOT NULL;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_ack jsonb;
+-- N5: a web-chat visitor has no phone or email, so the owner's takeover is kept on the conversation itself.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_takeover_at timestamptz;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email_auto_reply boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS email_secretary_jobs (
  id bigserial PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
