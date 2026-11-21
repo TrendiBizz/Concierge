@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.x.ai/v1"
     llm_api_key: str = ""
     chat_model: str = "grok-4"
+    # N3: resilience. Any OpenAI-compatible provider that supports tool calls can be the secondary
+    # (leave the key empty to keep failover off). Never hard-code a vendor or a key here.
+    llm_fallback_base_url: str = ""
+    llm_fallback_api_key: str = ""
+    llm_fallback_model: str = ""
+    llm_timeout_seconds: float = 45.0
+    llm_retry_attempts: int = 2          # extra tries on the primary before giving up on it
+    llm_breaker_threshold: int = 4       # consecutive failed requests that open the breaker
+    llm_breaker_cooldown_seconds: float = 60.0
+    # N3: directory where the PBX drops voicemail WAVs when the AI voice link is down. Empty = off.
+    voicemail_spool_dir: str = ""
 
     # PSTN telephone receptionist: opt-in and off until a real provider is validated.
     phone_receptionist_enabled: bool = False
