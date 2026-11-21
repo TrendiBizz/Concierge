@@ -61,6 +61,8 @@ async def sms_inbound(public_key: str, request: Request):
     if not sms.validate_signature(settings.twilio_auth_token, url, params, request.headers.get("X-Twilio-Signature", "")):
         raise HTTPException(status_code=403, detail="Invalid signature")
 
+    if not tenant.get("sms_enabled"):
+        raise HTTPException(status_code=403, detail="SMS is not enabled for this business")
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
     sender = normalize_phone(params.get("From", ""), casetimeline.tenant_country_code(tenant))
@@ -68,7 +70,11 @@ async def sms_inbound(public_key: str, request: Request):
     if not sender or not body:
         return _twiml("")
     # Twilio sends its own opt-out confirmation, so STOP gets no reply of ours here.
-    return _twiml(await m._sms_reply(tenant, sender, body, confirm_stop=False))
+    reply = await m._sms_reply(tenant, sender, body, confirm_stop=False)
+    is_compliance = body.upper() in (m.STOP_WORDS | m.START_WORDS | {"HELP"})
+    if reply and not is_compliance and not await channel_authorization.is_authorized(tenant["id"], "sms_send"):
+        return _twiml("")
+    return _twiml(reply)
 
 
 @router.post("/api/v1/sms/status/{outbox_id}")
@@ -114,26 +120,38 @@ async def smsgate_inbound(public_key: str, request: Request):
         envelope = json.loads(raw)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    if not isinstance(envelope, dict) or envelope.get("event") != "sms:received":
-        return {"ok": True}  # delivery receipts and pings are acknowledged and ignored
+    if not isinstance(envelope, dict):
+        return {"ok": True}
+    event = envelope.get("event")
+    payload = envelope.get("payload") or {}
+    if event in ("sms:sent", "sms:delivered", "sms:failed"):
+        from .. import sms_delivery
+        await sms_delivery.smsgate_receipt(tenant["id"], event, payload)
+        return {"ok": True}
+    if event != "sms:received":
+        return {"ok": True}  # pings and other events are acknowledged and ignored
 
+    if not tenant.get("sms_enabled") or tenant.get("sms_transport") == "device":
+        raise HTTPException(status_code=403, detail="SMS gateway is not enabled for this business")
     if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
         raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
-    payload = envelope.get("payload") or {}
     sender = normalize_phone(payload.get("sender") or payload.get("phoneNumber") or "", casetimeline.tenant_country_code(tenant))
     body = (payload.get("message") or "").strip()
     if not sender or not body:
         return {"ok": True}
 
     reply = await m._sms_reply(tenant, sender, body, confirm_stop=True)
-    if reply:
-        events.spawn(_send_reply(tenant, sender, reply))
+    is_compliance = body.upper() in (m.STOP_WORDS | m.START_WORDS | {"HELP"})
+    if reply and (is_compliance or await channel_authorization.is_authorized(tenant["id"], "sms_send")):
+        msg_id = str(payload.get("messageId") or payload.get("id") or "")
+        req_key = f"smsgate-inbound:{msg_id}" if msg_id else None
+        events.spawn(_send_reply(tenant, sender, reply, request_key=req_key))
     return {"ok": True}
 
 
-async def _send_reply(tenant: dict, to: str, text: str) -> None:
+async def _send_reply(tenant: dict, to: str, text: str, *, request_key: str | None = None) -> None:
     try:
-        await sms.send_sms(to, text, tenant.get("sms_from"))
+        await sms.send_sms(to, text[:1500], tenant.get("sms_from"), tenant=tenant, request_key=request_key)
     except Exception:
         log.exception("sms reply failed for %s", tenant["slug"])
 
@@ -559,8 +577,9 @@ async def owner_phone_numbers(user: dict = Depends(owner_auth.current_user)):
 @router.get("/owner/sms-phone")
 async def owner_sms_phone(user: dict = Depends(owner_auth.current_user)):
     device = await db.pool().fetchrow(
-        "SELECT from_number,last_seen,verified_at,inbound_verified_at FROM sms_devices "
-        "WHERE tenant_id=$1 AND enabled", user["tenant_id"])
+        "SELECT from_number,last_seen,verified_at,"
+        "(inbound_verified_at IS NOT NULL OR EXISTS(SELECT 1 FROM device_sms_inbound i WHERE i.device_id=sms_devices.id)) AS receive_verified "
+        "FROM sms_devices WHERE tenant_id=$1 AND enabled", user["tenant_id"])
     jobs = await db.pool().fetch(
         "SELECT recipient,body,status,created_at FROM device_sms_jobs "
         "WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 20", user["tenant_id"])
@@ -569,7 +588,7 @@ async def owner_sms_phone(user: dict = Depends(owner_auth.current_user)):
     return {"paired": bool(device), "online": online,
             "number": device["from_number"] if device else "",
             "send_verified": bool(device and device["verified_at"]),
-            "receive_verified": bool(device and device["inbound_verified_at"]),
+            "receive_verified": bool(device and device["receive_verified"]),
             "messages": [dict(row) for row in jobs]}
 
 

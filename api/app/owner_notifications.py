@@ -3,7 +3,7 @@
 Customer ENQUIRY alerts live in ``enquiry_alerts``; problems with them live in ``owner_issues``.
 """
 import asyncio
-from . import automated_mail, channel_authorization, db, team_chat_alerts, webpush
+from . import automated_mail, casetimeline, channel_authorization, db, team_chat_alerts, webpush
 from .contact import is_email, normalize_phone
 from .config import get_settings
 import re
@@ -40,7 +40,7 @@ async def sms_unconfirmable(runner, tenant_id) -> bool:
 
 
 async def sms_reliable(runner, tenant, phone=None) -> tuple | None:
-    phone = normalize_phone(phone or tenant.get("notify_phone", ""))
+    phone = normalize_phone(phone or tenant.get("notify_phone", ""), casetimeline.tenant_country_code(tenant))
     if (phone and tenant.get("sms_enabled")
             and await channel_authorization.is_authorized(tenant["id"], "sms_send")
             and not await sms_unconfirmable(runner, tenant["id"])):

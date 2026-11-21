@@ -32,7 +32,9 @@ def author_of(role: str, flag: str | None) -> str:
 
 async def phone_status(tenant_id) -> dict:
     device = await db.pool().fetchrow(
-        "SELECT last_seen,inbound_verified_at FROM sms_devices WHERE tenant_id=$1 AND enabled", tenant_id)
+        "SELECT last_seen,"
+        "(inbound_verified_at IS NOT NULL OR EXISTS(SELECT 1 FROM device_sms_inbound i WHERE i.device_id=sms_devices.id)) AS receive_verified "
+        "FROM sms_devices WHERE tenant_id=$1 AND enabled", tenant_id)
     tenant = await tenants.get_by_id(tenant_id)
     transport = (tenant or {}).get("sms_transport") or ("device" if device else sms.provider())
     if not device:
@@ -41,7 +43,7 @@ async def phone_status(tenant_id) -> dict:
     last = device["last_seen"]
     online = bool(last and (datetime.now(timezone.utc) - last).total_seconds() < ONLINE_SECONDS)
     return {"transport": "device", "paired": True, "online": online, "last_seen": last,
-            "receive_verified": bool(device["inbound_verified_at"])}
+            "receive_verified": bool(device["receive_verified"])}
 
 
 async def _paused(tenant: dict, phone: str) -> bool:
@@ -150,7 +152,6 @@ async def reply(conversation_id: uuid.UUID, body: Reply, user: dict = Depends(ow
         raise HTTPException(409, "This person replied STOP, so they cannot be texted")
     if not await channel_authorization.is_authorized(tenant["id"], "sms_send"):
         raise HTTPException(409, "Texting customers is not switched on in Permissions")
-    await _set_takeover(user, tenant, phone, True)
     status = "sent"
     try:
         await sms.send_sms(phone, text, tenant.get("sms_from"), tenant=tenant,
@@ -161,7 +162,8 @@ async def reply(conversation_id: uuid.UUID, body: Reply, user: dict = Depends(ow
         raise HTTPException(409, "An earlier text to this person needs checking before another is sent") from None
     except sms.SmsRateLimited as error:
         raise HTTPException(429, str(error)) from None
-    except (sms.SmsNotConfigured, ValueError) as error:
+    except (sms.SmsNotConfigured, sms.SmsUncertain, sms.SmsRejected, ValueError) as error:
         raise HTTPException(409, str(error)) from None
+    await _set_takeover(user, tenant, phone, True)
     await convo.save_message(conversation_id, "assistant", text, "owner")
     return {"status": status, "paused": True}

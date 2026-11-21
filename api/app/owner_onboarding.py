@@ -157,7 +157,9 @@ async def overview(tenant_id) -> dict:
     )
     settings = get_settings()
     phone_device = await db.pool().fetchrow(
-        "SELECT last_seen,verified_at,inbound_verified_at FROM sms_devices WHERE tenant_id=$1 AND enabled", tenant_id)
+        "SELECT last_seen,verified_at,"
+        "(inbound_verified_at IS NOT NULL OR EXISTS(SELECT 1 FROM device_sms_inbound i WHERE i.device_id=sms_devices.id)) AS receive_verified "
+        "FROM sms_devices WHERE tenant_id=$1 AND enabled", tenant_id)
     from datetime import datetime, timezone
     device_online = bool(phone_device and phone_device["last_seen"] and
                          (datetime.now(timezone.utc)-phone_device["last_seen"]).total_seconds()<300)
@@ -203,7 +205,7 @@ async def overview(tenant_id) -> dict:
                       "verified": False},
             "sms": {"configured": bool(tenant.get("sms_enabled") and
                                         (device_online if device_sms else settings.sms_configured)),
-                    "verified": bool(device_sms and device_online and phone_device["verified_at"] and phone_device["inbound_verified_at"]),
+                    "verified": bool(device_sms and device_online and phone_device["verified_at"] and phone_device["receive_verified"]),
                     "connection": "paired phone" if device_sms else "carrier gateway"},
             "social": {"configured": bool(settings.social_service_enabled), "verified": False},
             "crm": {"configured": True, "verified": True, "built_in": True},
