@@ -211,6 +211,13 @@ async def book(tenant: dict, args: dict, ctx: dict) -> dict:
             )
     if conversation_id:
         await convo.set_pending_booking(conversation_id, None)
+    if appt:
+        from . import portability
+        await portability.emit(tenant["id"], "appointment.booked", {
+            "appointment_id": str(appt["id"]), "starts_at": start_utc.isoformat(),
+            "ends_at": end_utc.isoformat(), "name": name, "phone": phone,
+            "email": email if is_email(email) else "", "notes": notes,
+            "case_key": case["case_key"] if case else ""})
 
     # The appointment belongs on the customer's history, or Contacts shows a booked customer with
     # no record of why they are known — the exact gap the CRM audit exists to catch.

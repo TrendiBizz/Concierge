@@ -150,6 +150,16 @@ async def finish(call_sid: str, status: str) -> None:
         "WHERE call_sid=$1 AND (status <> 'completed' OR $2 = 'completed')",
         call_sid, status[:40]
     )
+    if status == "completed":
+        row = await db.pool().fetchrow(
+            "SELECT tenant_id, from_number, started_at, ended_at FROM phone_calls WHERE call_sid=$1",
+            call_sid)
+        if row:
+            from . import portability
+            await portability.emit(row["tenant_id"], "call.completed", {
+                "call_sid": call_sid, "from": row["from_number"],
+                "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                "ended_at": row["ended_at"].isoformat() if row["ended_at"] else None})
 
 
 async def _record_setup(data: dict) -> dict | None:

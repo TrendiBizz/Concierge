@@ -97,6 +97,11 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
     lead = dict(row)
     message_key = f"{channel}:{original_key}"
     if created:
+        from . import portability  # lazy: portability imports casetimeline, which imports us indirectly
+        await portability.emit(tenant["id"], "customer.enquiry", {
+            "lead_id": str(lead["id"]), "channel": channel, "name": name, "company": company,
+            "phone": phone, "email": email, "message": message[:1000],
+            "case_key": case["case_key"] if case_id else ""})
         await automation.on_lead_created(
             tenant, {**lead, "_owner_notice_queued": True}, message_key=message_key)
     else:
