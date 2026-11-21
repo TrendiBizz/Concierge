@@ -251,11 +251,19 @@ def test_proposal_says_so_when_it_can_find_no_logo(monkeypatch):
     assert result["accent_source"] == "default"
 
 
+def _all_routes(app):
+    for route in app.routes:
+        if hasattr(route, "original_router"):
+            yield from route.original_router.routes
+        else:
+            yield route
+
+
 def test_the_suggestion_endpoint_only_reads():
     """A proposal must never be able to write a tenant field or a consent."""
     from app.main import app
 
-    route = next(r for r in app.routes
+    route = next(r for r in _all_routes(app)
                  if getattr(r, "path", "") == "/owner/onboarding/brand-suggestion")
     assert route.methods == {"GET"}
 
@@ -401,6 +409,6 @@ def test_a_business_without_a_chat_key_is_refused(monkeypatch):
 def test_the_install_check_endpoint_only_reads():
     from app.main import app
 
-    route = next(r for r in app.routes
+    route = next(r for r in _all_routes(app)
                  if getattr(r, "path", "") == "/owner/onboarding/install-check")
     assert route.methods == {"GET"}
