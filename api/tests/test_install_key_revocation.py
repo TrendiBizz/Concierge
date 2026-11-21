@@ -29,6 +29,6 @@ def test_the_operator_route_exists_and_returns_a_new_snippet():
 
 
 def test_only_the_operator_can_rotate():
-    source = inspect.getsource(main)
-    start = source.index('@app.post("/admin/tenants/{slug}/rotate-key"')
+    source = inspect.getsource(main.admin_router)
+    start = source.index('.post("/admin/tenants/{slug}/rotate-key"')
     assert "dependencies=admin" in source[start:start + 120]
