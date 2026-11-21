@@ -64,7 +64,8 @@ async def propose(tenant: dict, sender: str, subject: str, inbound_body: str) ->
 async def create(tenant_id, sender: str, subject: str, inbound_body: str,
                  reply_body: str, source_id: str = "", auth: dict | None = None,
                  risk: str | None = None, flags: list | None = None,
-                 status: str = "draft", recipient: str = "") -> dict:
+                 status: str = "draft", recipient: str = "",
+                 mail: dict | None = None) -> dict:
     sender = _address(sender)
     if not inbound_body.strip() or not reply_body.strip():
         raise DraftError("Inbound email and proposed reply are both required")
@@ -74,9 +75,9 @@ async def create(tenant_id, sender: str, subject: str, inbound_body: str,
         """
         INSERT INTO email_drafts
             (tenant_id, source_id, sender, subject, inbound_body, reply_body,
-             auth, risk, flags, status, recipient)
+             auth, risk, flags, status, recipient, message_id_hdr, references_hdr, attachments)
         VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6,
-                $7::jsonb, $8, $9::jsonb, $10, $11)
+                $7::jsonb, $8, $9::jsonb, $10, $11, NULLIF($12, ''), $13::jsonb, $14::jsonb)
         ON CONFLICT (tenant_id, source_id) WHERE source_id IS NOT NULL
         DO UPDATE SET source_id = EXCLUDED.source_id
         RETURNING *
@@ -85,6 +86,9 @@ async def create(tenant_id, sender: str, subject: str, inbound_body: str,
         json.dumps(auth) if auth is not None else None, risk,
         json.dumps(flags) if flags is not None else None, status,
         (recipient or "").strip().lower()[:320],
+        (mail or {}).get("message_id", ""),
+        json.dumps((mail or {}).get("references") or []),
+        json.dumps((mail or {}).get("attachments") or []),
     )
     return dict(row)
 

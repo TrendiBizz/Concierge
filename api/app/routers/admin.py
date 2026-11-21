@@ -78,6 +78,8 @@ class TenantUpdate(BaseModel):
     notify_email: str | None = None
     notify_phone: str | None = Field(default=None, max_length=32)
     owner_call_phone: str | None = Field(default=None, max_length=32)   # number a take-over/ring-first rings; falls back to notify_phone
+    send_from_address: str | None = None   # tenant's own sending address ("" clears); used only once verified
+    send_from_verified: bool | None = None  # operator confirms SPF/DKIM/DMARC for that domain
     inbound_ack: bool | None = None   # acknowledge verified inbound email with a reference (opt-in)
     inbound_ack_text: str | None = Field(default=None, max_length=600)
     owner_text_only: bool | None = None   # owner works in writing only: never ring or transfer to a human
@@ -249,6 +251,15 @@ async def admin_update_tenant(slug: str, body: TenantUpdate, force: bool = False
         blockers = await channel_health.go_live_blockers({**current, **changes})
         if blockers:
             raise HTTPException(409, {"error": "alerts_not_proven", "blockers": blockers})
+    if "send_from_address" in changes:
+        from .. import email_threading
+        addr = (changes["send_from_address"] or "").strip()
+        if addr and not email_threading.ADDRESS.fullmatch(addr):
+            raise HTTPException(422, "send_from_address is not a valid email address")
+        changes["send_from_address"] = addr
+        if addr != (current.get("send_from_address") or ""):
+            # A new address is unverified until the operator confirms its DNS in the same call.
+            changes["send_from_verified"] = bool(changes.get("send_from_verified")) and bool(addr)
     updated = await tenants.update(slug, changes)
     if updated.get("notify_email") and not updated.get("reply_address"):
         try:

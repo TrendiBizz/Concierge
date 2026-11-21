@@ -1,6 +1,7 @@
 """Follow-up engine: a durable queue of SMS / email messages with retries, opt-outs and quiet hours."""
 
 import asyncio
+import json
 import logging
 import time as _time
 from datetime import datetime, time, timedelta, timezone
@@ -8,7 +9,7 @@ from email.utils import make_msgid
 from zoneinfo import ZoneInfo
 
 from . import casetimeline, channel_authorization, db, device_sms, flood_guard, mailer, sms, suppressions, tenants, unsub, tenant_pause
-from . import engagement
+from . import email_threading, engagement
 from .config import get_settings
 from .contact import contact_key
 
@@ -251,6 +252,22 @@ async def _deliver(row: dict) -> None:
                 # Matching then falls back to the recipient address; the mail still goes out.
                 log.warning("could not persist message id for outbox row %s", row["id"])
         headers = {**(headers or {}), "Message-ID": message_id}
+        dedupe = row.get("dedupe_key") or ""
+        if row["kind"] == "approved_reply" and dedupe.startswith("approved-email-draft:"):
+            # Thread the reply under the customer's message (RFC 5322 3.6.4) so Gmail and Outlook
+            # group it instead of showing a new conversation.
+            try:
+                parent = await db.pool().fetchrow(
+                    "SELECT message_id_hdr, references_hdr FROM email_drafts WHERE id=$1 AND tenant_id=$2",
+                    int(dedupe.split(":", 1)[1]), row["tenant_id"])
+                if parent and parent["message_id_hdr"]:
+                    refs = parent["references_hdr"]
+                    refs = json.loads(refs) if isinstance(refs, str) else (refs or [])
+                    headers.update(email_threading.reply_headers(parent["message_id_hdr"], refs))
+            except Exception:  # noqa: BLE001 - threading is cosmetic; never cost the send
+                log.warning("could not thread outbox row %s", row["id"])
+        own_from = email_threading.sender_address(tenant, sender)
+        extra = {"from_addr": own_from} if own_from != sender else {}
         html_body = None
         if engagement.enabled_for(row["kind"]):
             try:
@@ -259,7 +276,7 @@ async def _deliver(row: dict) -> None:
                 log.warning("could not build tracked links for outbox row %s", row["id"])
         await mailer.send_email(
             row["to_addr"], row["subject"] or f"Message from {tenant['name']}", body, headers,
-            from_name=tenant.get("name") or None, html=html_body,
+            from_name=tenant.get("name") or None, html=html_body, **extra,
         )
         if row["kind"] == "email_secretary_reply":
             await casetimeline.mark_replied(

@@ -16,7 +16,7 @@ from email.utils import parseaddr
 
 from fastapi import HTTPException, Request
 
-from . import (automated_mail, bounces, channel_authorization, db, email_auth, email_risk,
+from . import (email_threading, automated_mail, bounces, channel_authorization, db, email_auth, email_risk,
                email_scan, inbound_email, inbound_policy, inbound_text, suppressions)
 from .config import get_settings
 
@@ -320,6 +320,7 @@ async def handle(request: Request) -> dict:
             tenant_id, "cloudflare", payload["message_id"],
             bare_address(payload["sender"]), recipient, payload["subject"], payload["text"],
             auth=auth, risk=risk, flags=flags, envelope_from=envelope_from,
+            mail=email_threading.parse(raw_bytes),
         )
     except (ValueError, TypeError, inbound_email.InboundError) as exc:
         # The caller only ever sees a generic 400 by design, but without this line the reason was

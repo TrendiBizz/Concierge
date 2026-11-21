@@ -1258,3 +1258,10 @@ ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_provider_id text;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_delivery_status text;
 CREATE UNIQUE INDEX IF NOT EXISTS outbox_sms_provider_id_idx
     ON outbox (sms_provider, sms_provider_id) WHERE sms_provider_id IS NOT NULL;
+
+-- N10 email professionalism: RFC threading, attachment metadata, per-tenant sending address.
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS message_id_hdr text;
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS references_hdr jsonb;
+ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS attachments jsonb;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS send_from_address text;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS send_from_verified boolean NOT NULL DEFAULT false;
