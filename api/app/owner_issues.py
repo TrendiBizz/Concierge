@@ -79,10 +79,14 @@ async def sweep_unanswered() -> int:
     raised = 0
     for record in await db.pool().fetch("SELECT * FROM tenants"):
         tenant = dict(record)
-        minutes = int(tenant.get("sla_minutes") or 0) or settings.owner_issue_unanswered_minutes
+        tenant_sla = int(tenant.get("sla_minutes") or 0)
+        minutes = tenant_sla or settings.owner_issue_unanswered_minutes
         if minutes <= 0:
             continue
-        probe = {**tenant, "sla_minutes": minutes, "sla_min_score": 0}
+        min_score = (
+            int(tenant["sla_min_score"]) if tenant.get("sla_min_score") is not None else 70
+        ) if tenant_sla > 0 else 0
+        probe = {**tenant, "sla_minutes": minutes, "sla_min_score": min_score}
         for lead in await sla.overdue(probe, max_age_days=2):
             # Only enquiries the owner was actually alerted about are "genuine"; vendor mail never was.
             alerted = await db.pool().fetchval(
@@ -98,6 +102,7 @@ async def sweep_unanswered() -> int:
             send_at = outbox.next_allowed_send(ZoneInfo(tenant["timezone"] or "UTC"), datetime.now(timezone.utc))
             if await raise_issue(tenant, "unanswered", lead["id"], f"no reply yet to {who}", body,
                                  lead_id=lead["id"], send_at=send_at):
+                await db.pool().execute("UPDATE leads SET sla_alerted_at = now() WHERE id = $1", lead["id"])
                 raised += 1
     return raised
 
