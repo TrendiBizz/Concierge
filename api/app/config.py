@@ -163,6 +163,15 @@ class Settings(BaseSettings):
     stripe_portal_return_url: str = "https://concierge.trendibizz.com/studio/"
     # Days a declined card keeps working before the business is paused.
     billing_grace_days: int = 7
+    # N6 integrations. Every provider ships disabled: with no credentials the Connect button is
+    # hidden and nothing is called. Register an app with the provider, then set these.
+    xero_client_id: str = ""
+    xero_client_secret: str = ""
+    ms_client_id: str = ""            # Microsoft 365 / Outlook Calendar (Entra app registration)
+    ms_client_secret: str = ""
+    ms_tenant: str = "common"
+    fergus_partner_key: str = ""      # Fergus and Tradify only open their APIs to approved partners
+    tradify_partner_key: str = ""
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window

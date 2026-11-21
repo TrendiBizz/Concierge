@@ -25,7 +25,11 @@ from . import db, public_fetch
 
 log = logging.getLogger("concierge.portability")
 
-EVENTS = ("customer.created", "customer.enquiry")
+EVENTS = ("customer.created", "customer.enquiry", "quote.accepted", "appointment.booked",
+          "call.completed")
+MAX_ATTEMPTS = 8
+# Minutes to wait after the Nth failed attempt (capped at the last value): 1m, 5m, 15m, 1h, 3h, 6h...
+BACKOFF_MINUTES = (1, 5, 15, 60, 180, 360, 720)
 
 CUSTOMER_COLUMNS = ["case_key", "display_name", "primary_phone", "primary_email",
                     "addresses", "channels", "last_seen"]
@@ -162,21 +166,29 @@ def signature(secret: str, body: bytes) -> str:
 
 
 async def emit(tenant_id, event: str, payload: dict) -> None:
-    """Queue an event. Never raises: a CRM hook must not break the customer's own conversation."""
+    """Queue an event. Never raises: a CRM hook must not break the customer's own conversation.
+
+    The event goes to the tenant's own webhook (if any) and to any connected integration (Xero,
+    ServiceM8, ...). Either side being absent is normal.
+    """
     if event not in EVENTS:
         raise ValueError(f"Unsupported event: {event}")
     try:
         # No endpoint configured means no CRM to feed: do not queue rows nobody will collect.
         configured = await db.pool().fetchval(
             "SELECT 1 FROM tenant_webhooks WHERE tenant_id=$1 AND active", tenant_id)
-        if not configured:
-            return
-        await db.pool().execute(
-            "INSERT INTO webhook_events (tenant_id, event, payload) VALUES ($1,$2,$3::jsonb)",
-            tenant_id, event, json.dumps(payload))
-        asyncio.create_task(deliver_pending(tenant_id))
+        if configured:
+            await db.pool().execute(
+                "INSERT INTO webhook_events (tenant_id, event, payload) VALUES ($1,$2,$3::jsonb)",
+                tenant_id, event, json.dumps(payload))
+            asyncio.create_task(deliver_pending(tenant_id))
     except Exception:
         log.exception("could not queue %s for tenant %s", event, tenant_id)
+    try:
+        from . import integrations
+        asyncio.create_task(integrations.dispatch(tenant_id, event, payload))
+    except Exception:
+        log.exception("could not dispatch %s to integrations for tenant %s", event, tenant_id)
 
 
 async def deliver_pending(tenant_id, limit: int = 20) -> dict:
@@ -187,8 +199,8 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
         return {"sent": 0, "failed": 0, "reason": "no webhook configured"}
     rows = await db.pool().fetch(
         "SELECT id, event, payload, attempts FROM webhook_events "
-        "WHERE tenant_id=$1 AND delivered_at IS NULL AND attempts < 5 "
-        "ORDER BY created_at LIMIT $2", tenant_id, limit)
+        "WHERE tenant_id=$1 AND delivered_at IS NULL AND attempts < $3 AND next_attempt_at <= now() "
+        "ORDER BY created_at LIMIT $2", tenant_id, limit, MAX_ATTEMPTS)
     sent = failed = 0
     async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
         for row in rows:
@@ -217,8 +229,35 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
                     row["id"])
                 sent += 1
             except Exception as exc:
+                delay = BACKOFF_MINUTES[min(row["attempts"], len(BACKOFF_MINUTES) - 1)]
                 await db.pool().execute(
-                    "UPDATE webhook_events SET attempts=attempts+1, last_error=$2 WHERE id=$1",
-                    row["id"], str(exc)[:200])
+                    "UPDATE webhook_events SET attempts=attempts+1, last_error=$2, "
+                    "next_attempt_at=now() + make_interval(mins => $3) WHERE id=$1",
+                    row["id"], str(exc)[:200], delay)
                 failed += 1
     return {"sent": sent, "failed": failed}
+
+
+async def retry_all(limit_tenants: int = 50) -> int:
+    """Background sweep: retry every tenant whose queued events are due. Returns events sent."""
+    tenants = await db.pool().fetch(
+        "SELECT DISTINCT tenant_id FROM webhook_events "
+        "WHERE delivered_at IS NULL AND attempts < $1 AND next_attempt_at <= now() LIMIT $2",
+        MAX_ATTEMPTS, limit_tenants)
+    total = 0
+    for row in tenants:
+        result = await deliver_pending(row["tenant_id"])
+        total += result.get("sent", 0)
+    return total
+
+
+async def run_forever(stop: asyncio.Event, every: int = 60) -> None:
+    while not stop.is_set():
+        try:
+            await retry_all()
+        except Exception:  # noqa: BLE001 - try again next minute
+            log.exception("webhook retry sweep failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=every)
+        except asyncio.TimeoutError:
+            pass

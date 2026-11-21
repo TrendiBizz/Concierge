@@ -974,8 +974,45 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     last_error text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz NOT NULL DEFAULT now();
 CREATE INDEX IF NOT EXISTS webhook_events_pending_idx
     ON webhook_events (created_at) WHERE delivered_at IS NULL;
+
+-- N6: tenant-scoped API keys (only a hash is stored; the key is shown once on creation).
+CREATE TABLE IF NOT EXISTS tenant_api_keys (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name text NOT NULL DEFAULT '',
+    prefix text NOT NULL,
+    key_hash text NOT NULL UNIQUE,
+    scope text NOT NULL DEFAULT 'read',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    last_used_at timestamptz,
+    revoked_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS tenant_api_keys_tenant_idx ON tenant_api_keys (tenant_id);
+
+-- N6: connections to a tenant's own accounting / job-management / calendar systems.
+CREATE TABLE IF NOT EXISTS tenant_integrations (
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    provider text NOT NULL,
+    status text NOT NULL DEFAULT 'disconnected',
+    credentials jsonb NOT NULL DEFAULT '{}'::jsonb,
+    external_account text NOT NULL DEFAULT '',
+    last_error text NOT NULL DEFAULT '',
+    last_sync_at timestamptz,
+    connected_at timestamptz,
+    PRIMARY KEY (tenant_id, provider)
+);
+CREATE TABLE IF NOT EXISTS integration_links (
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    provider text NOT NULL,
+    kind text NOT NULL,
+    local_key text NOT NULL,
+    external_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, provider, kind, local_key)
+);
 
 -- A B2B enquiry carries a company as well as a person. Storing only the person lost half of what
 -- the customer told us in their own signature.
