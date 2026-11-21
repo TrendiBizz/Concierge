@@ -172,7 +172,9 @@ async def on_invoice_paid(invoice: dict, event_id: str = "") -> None:
     if not isinstance(amount, int) or amount <= 0 or not invoice.get("id"):
         return
     from . import platform_billing  # local: platform_billing imports this module
-    gst, _net = platform_billing.gst_split(amount)
+    currency = (invoice.get("currency") or "nzd").upper()[:3]
+    gst_rate = platform_billing.GST_RATE if currency == "NZD" else 0.0
+    gst, _net = platform_billing.gst_split(amount, rate=gst_rate)
     email = (invoice.get("customer_email") or tenant.get("notify_email") or "").strip().lower()
     number = await platform_billing.next_number()
     import secrets
@@ -183,7 +185,7 @@ async def on_invoice_paid(invoice: dict, event_id: str = "") -> None:
         "$11,current_date,now(),$12) ON CONFLICT (stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL "
         "DO NOTHING RETURNING *",
         number, email, (invoice.get("customer_name") or "")[:120], tenant["name"][:160], amount, gst,
-        (invoice.get("currency") or "nzd").upper()[:3], event_id[:120], invoice["id"], tenant["id"],
+        currency, event_id[:120], invoice["id"], tenant["id"],
         secrets.token_urlsafe(24), "Concierge subscription renewal")
     if row and "@" in email:
         await platform_billing.email_invoice(dict(row))

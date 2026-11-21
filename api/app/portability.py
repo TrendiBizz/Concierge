@@ -181,12 +181,13 @@ async def emit(tenant_id, event: str, payload: dict) -> None:
             await db.pool().execute(
                 "INSERT INTO webhook_events (tenant_id, event, payload) VALUES ($1,$2,$3::jsonb)",
                 tenant_id, event, json.dumps(payload))
-            asyncio.create_task(deliver_pending(tenant_id))
+            from . import events as _events
+            _events.spawn(deliver_pending(tenant_id))
     except Exception:
         log.exception("could not queue %s for tenant %s", event, tenant_id)
     try:
-        from . import integrations
-        asyncio.create_task(integrations.dispatch(tenant_id, event, payload))
+        from . import events as _events, integrations
+        _events.spawn(integrations.dispatch(tenant_id, event, payload))
     except Exception:
         log.exception("could not dispatch %s to integrations for tenant %s", event, tenant_id)
 
@@ -198,9 +199,12 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
     if not hook:
         return {"sent": 0, "failed": 0, "reason": "no webhook configured"}
     rows = await db.pool().fetch(
-        "SELECT id, event, payload, attempts FROM webhook_events "
-        "WHERE tenant_id=$1 AND delivered_at IS NULL AND attempts < $3 AND next_attempt_at <= now() "
-        "ORDER BY created_at LIMIT $2", tenant_id, limit, MAX_ATTEMPTS)
+        "UPDATE webhook_events SET next_attempt_at = now() + interval '5 minutes' "
+        "WHERE id IN ("
+        "  SELECT id FROM webhook_events "
+        "   WHERE tenant_id=$1 AND delivered_at IS NULL AND attempts < $3 AND next_attempt_at <= now() "
+        "   ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED"
+        ") RETURNING id, event, payload, attempts", tenant_id, limit, MAX_ATTEMPTS)
     sent = failed = 0
     async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
         for row in rows:
@@ -241,8 +245,9 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
 async def retry_all(limit_tenants: int = 50) -> int:
     """Background sweep: retry every tenant whose queued events are due. Returns events sent."""
     tenants = await db.pool().fetch(
-        "SELECT DISTINCT tenant_id FROM webhook_events "
-        "WHERE delivered_at IS NULL AND attempts < $1 AND next_attempt_at <= now() LIMIT $2",
+        "SELECT DISTINCT we.tenant_id FROM webhook_events we "
+        "JOIN tenant_webhooks tw ON tw.tenant_id = we.tenant_id AND tw.active "
+        "WHERE we.delivered_at IS NULL AND we.attempts < $1 AND we.next_attempt_at <= now() LIMIT $2",
         MAX_ATTEMPTS, limit_tenants)
     total = 0
     for row in tenants:

@@ -205,10 +205,25 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         stop.set()
-        results = await asyncio.gather(*workers, return_exceptions=True)
-        for task, result in zip(workers, results):
-            if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
-                log.warning("Background worker %s exited with error during shutdown: %s", task.get_name(), result)
+        try:
+            results = await asyncio.wait_for(asyncio.gather(*workers, return_exceptions=True), timeout=15.0)
+            for task, result in zip(workers, results):
+                if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                    log.warning("Background worker %s exited with error during shutdown: %s", task.get_name(), result)
+        except asyncio.TimeoutError:
+            log.warning("Timed out waiting for background workers; cancelling remaining tasks")
+            for task in workers:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
+        bg = [t for t in list(events._background) if not t.done()]
+        if bg:
+            try:
+                await asyncio.wait_for(asyncio.gather(*bg, return_exceptions=True), timeout=5.0)
+            except asyncio.TimeoutError:
+                for t in bg:
+                    t.cancel()
+                await asyncio.gather(*bg, return_exceptions=True)
         await db.close()
 
 

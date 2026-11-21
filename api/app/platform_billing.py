@@ -52,19 +52,20 @@ def verify_signature(payload: bytes, header: str, secret: str, *, now: float | N
     """
     if not header or not secret:
         return False
-    fields = dict(part.split("=", 1) for part in header.split(",") if "=" in part)
+    pairs = [part.strip().split("=", 1) for part in header.split(",") if "=" in part]
+    timestamp_raw = next((v for k, v in pairs if k == "t"), "")
     try:
-        timestamp = int(fields.get("t", ""))
+        timestamp = int(timestamp_raw)
     except ValueError:
         return False
-    signature = fields.get("v1", "")
-    if not signature:
+    v1_sigs = [v for k, v in pairs if k == "v1" and v]
+    if not v1_sigs:
         return False
     clock = time.time() if now is None else now
     if abs(clock - timestamp) > tolerance:
         return False
     expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return any(hmac.compare_digest(expected, sig) for sig in v1_sigs)
 
 
 def gst_split(amount_cents: int, rate: float = GST_RATE) -> tuple[int, int]:
@@ -157,7 +158,10 @@ async def email_invoice(invoice: dict) -> None:
     """
     owner_tenant = invoice.get("tenant_id") or await db.pool().fetchval(
         "SELECT id FROM tenants WHERE slug='trendi-support' LIMIT 1")
-    link = f"https://concierge.trendibizz.com/receipt/{invoice['public_token']}"
+    if not owner_tenant:
+        return
+    base = (get_settings().public_base_url or "https://concierge.trendibizz.com").rstrip("/")
+    link = f"{base}/receipt/{invoice['public_token']}"
     total = invoice["amount_cents"] / 100
     body = (f"Thanks — your payment of {total:,.2f} {invoice['currency']} has been received and verified.\n\n"
             f"Invoice {invoice['number']} is attached to this payment and is also here:\n{link}\n\n"
@@ -220,7 +224,7 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
     provision_error = None
     if not invoice.get("tenant_id"):
         try:
-            await provision(dict(invoice))
+            await provision(invoice)
         except Exception as error:  # noqa: BLE001 - the sale stands; a person must fix the business
             provision_error = error
             await subscription.log_event(
@@ -234,11 +238,16 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
     operator = await db.pool().fetchrow(
         "SELECT t.* FROM tenants t WHERE t.slug='trendi-support'")
     if operator:
+        prov_line = (
+            f"PROVISIONING FAILED — manual follow-up needed: {provision_error}"
+            if provision_error
+            else f"Business provisioned: {invoice.get('business_name') or invoice['customer_email']}."
+        )
         await owner_notifications.queue(
             dict(operator), "Payment received — " + invoice["number"],
             f"{invoice['customer_email']} paid {invoice['amount_cents'] / 100:,.2f} "
             f"{invoice['currency']} ({invoice['plan']}).\nInvoice issued and emailed.\n"
-            f"Business provisioned: {invoice.get('business_name') or invoice['customer_email']}.",
+            f"{prov_line}",
             f"platform-sale:{invoice['id']}")
     return invoice
 
@@ -286,7 +295,7 @@ async def manual_charge(body: ManualCharge):
         await db.pool().execute(
             "UPDATE platform_invoices SET emailed_at=now() WHERE id=$1", invoice["id"])
     if not invoice.get("tenant_id"):
-        await provision(dict(invoice))
+        await provision(invoice)
     return invoice
 
 

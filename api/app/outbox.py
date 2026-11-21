@@ -242,8 +242,10 @@ async def _deliver(row: dict) -> None:
         # Record the Message-ID before sending, so a bounce that comes back (through the
         # Cloudflare Worker or the Brevo webhook) can be matched to exactly this outbox row.
         sender = getattr(settings, "smtp_from", "") or ""
-        message_id = row.get("message_id") or make_msgid(
-            domain=(sender.rsplit("@", 1)[-1] or None))
+        from email.utils import parseaddr
+        sender_addr = parseaddr(sender)[1] or sender
+        domain = sender_addr.rsplit("@", 1)[-1].strip("<> ") if "@" in sender_addr else None
+        message_id = row.get("message_id") or make_msgid(domain=domain or None)
         if not row.get("message_id"):
             try:
                 await db.pool().execute(

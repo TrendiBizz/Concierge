@@ -178,16 +178,22 @@ async def complete_oauth(tenant_id, provider: str, code: str) -> None:
     await _save(tenant_id, provider, creds, account=account)
 
 
+_REFRESH_LOCKS: dict[tuple[str, str], asyncio.Lock] = {}
+
+
 async def _fresh(tenant_id, provider: str) -> dict:
-    row = await _row(tenant_id, provider)
-    if not row or row["status"] != "connected":
-        raise RuntimeError("not connected")
-    creds = _creds(row)
-    if provider in ("xero", "m365") and creds.get("expires_at", 0) <= time.time():
-        new = await _token_call(provider, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]})
-        creds.update({k: v for k, v in new.items() if v})
-        await _save(tenant_id, provider, creds)
-    return creds
+    key = (str(tenant_id), provider)
+    lock = _REFRESH_LOCKS.setdefault(key, asyncio.Lock())
+    async with lock:
+        row = await _row(tenant_id, provider)
+        if not row or row["status"] != "connected":
+            raise RuntimeError("not connected")
+        creds = _creds(row)
+        if provider in ("xero", "m365") and creds.get("expires_at", 0) <= time.time():
+            new = await _token_call(provider, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]})
+            creds.update({k: v for k, v in new.items() if v})
+            await _save(tenant_id, provider, creds)
+        return creds
 
 
 # ---- connectors ------------------------------------------------------------------------------
@@ -215,7 +221,7 @@ async def _xero(tenant_id, event: str, p: dict) -> None:
         if not qid or await _link(tenant_id, "xero", "invoice", qid):
             return
         contact = p.get("contact") or {}
-        inv = {"Type": "ACCREC", "Status": "DRAFT",
+        inv = {"Type": "ACCREC", "Status": "DRAFT", "LineAmountTypes": "Inclusive",
                "Contact": {"Name": _name(contact), "EmailAddress": contact.get("email", "")},
                "Reference": f"Quote {p.get('number', '')}".strip(),
                "LineItems": [{"Description": f"Accepted quotation {p.get('number', '')}".strip(),
@@ -234,9 +240,17 @@ async def _m365(tenant_id, event: str, p: dict) -> None:
     if not aid or await _link(tenant_id, "m365", "event", aid):
         return
     creds = await _fresh(tenant_id, "m365")
+    from datetime import datetime, timezone
+
+    def _utc_iso(raw: str) -> str:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S")
+
     body = {"subject": f"Appointment: {_name(p)}", "body": {"contentType": "text", "content": p.get("notes", "")},
-            "start": {"dateTime": p["starts_at"].replace("+00:00", ""), "timeZone": "UTC"},
-            "end": {"dateTime": p["ends_at"].replace("+00:00", ""), "timeZone": "UTC"}}
+            "start": {"dateTime": _utc_iso(p["starts_at"]), "timeZone": "UTC"},
+            "end": {"dateTime": _utc_iso(p["ends_at"]), "timeZone": "UTC"}}
     r = await http("POST", "https://graph.microsoft.com/v1.0/me/events",
                    headers={"Authorization": "Bearer " + creds["access_token"], "Content-Type": "application/json"},
                    content=json.dumps(body))
