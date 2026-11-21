@@ -98,10 +98,10 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "False positive: Rust doc comment describing HMAC-SHA256 capability token format"
+description = "False positive: Rust doc comment describing HMAC-SHA256 capability token format (hermes-gateway only exists in git history; the path stays allowlisted for the history scan)"
 condition = "AND"
 paths = [
-  '''^concierge-stack/action-gateway/src/capability\.rs$''',
+  '''^concierge-stack/(action|hermes)-gateway/src/capability\.rs$''',
 ]
 regexTarget = "line"
 regexes = [
