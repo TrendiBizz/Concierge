@@ -887,6 +887,9 @@ CREATE INDEX IF NOT EXISTS supervision_sessions_open_idx
 -- the assistant never offers a transfer or a phone call-back, and take-over/listen-in are refused.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS owner_text_only boolean NOT NULL DEFAULT false;
 
+-- H6: optional Slack / Microsoft Teams incoming-webhook URL; owner alerts are also posted there.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS team_chat_webhook_url text;
+
 -- Operator switches (outbound_paused: the flood kill switch) and the index the flood guard counts with.
 CREATE TABLE IF NOT EXISTS system_flags (
     key        text PRIMARY KEY,

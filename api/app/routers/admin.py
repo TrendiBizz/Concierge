@@ -92,6 +92,13 @@ class TenantUpdate(BaseModel):
     weekly_digest: bool | None = None                                  # Monday summary email to notify_email
     daily_summary: bool | None = None                                  # 7am "what needs you today" email to notify_email
     scoring: dict[str, int] | None = None                              # {} resets to the defaults
+    team_chat_webhook_url: str | None = None                           # Slack / Teams incoming webhook ("" clears)
+
+    @field_validator("team_chat_webhook_url")
+    @classmethod
+    def _team_chat_webhook(cls, value):
+        from .. import team_chat_alerts
+        return team_chat_alerts.validate_url(value)
 
     @field_validator("lead_webhook_url")
     @classmethod

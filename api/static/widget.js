@@ -17,6 +17,17 @@
   if (!KEY) return;
   var API = new URL(script.src, location.href).origin;
   var AUTOOPEN = script.getAttribute("data-autoopen") === "1";
+  // Proactive nudge (opt-in, set by the host page): data-nudge-seconds="30" shows a small prompt above
+  // the launcher after that many seconds; data-nudge-paths="/pricing,/quote" limits it to those path
+  // prefixes (omit for every page); data-nudge-text overrides the wording. Shown once per browser session.
+  var NUDGE_SECONDS = Math.max(0, Math.min(600, parseInt(script.getAttribute("data-nudge-seconds") || "0", 10) || 0));
+  var NUDGE_PATHS = (script.getAttribute("data-nudge-paths") || "").split(",")
+    .map(function (p) { return p.trim(); }).filter(Boolean);
+  var NUDGE_TEXT = (script.getAttribute("data-nudge-text") || "").slice(0, 140);
+  function nudgeAppliesToPath(path) {
+    if (!NUDGE_PATHS.length) return true;
+    return NUDGE_PATHS.some(function (p) { var base = p.replace(/\/+$/, "") || "/"; return path === base || path.indexOf(base + "/") === 0; });
+  }
 
   // ------------------------------------------------------------ utilities
   function newSessionId() {
@@ -164,6 +175,10 @@
       ".launcher:hover{filter:brightness(1.08)}" +
       "@keyframes pulse{0%,100%{box-shadow:0 6px 24px rgba(0,0,0,.25)}50%{box-shadow:0 6px 32px " + accent + "99}}" +
       "@media (prefers-reduced-motion:reduce){.launcher{animation:none}}" +
+      ".nudge{position:fixed;right:20px;bottom:84px;z-index:2147483000;display:none;align-items:flex-start;gap:8px;" +
+      "max-width:min(280px,calc(100vw - 40px));background:#fff;color:#111;border-radius:12px;padding:10px 12px;" +
+      "font-size:14px;line-height:1.35;box-shadow:0 6px 24px rgba(0,0,0,.25);cursor:pointer;border:0;text-align:left}" +
+      ".nudge.show{display:flex}.nudge-x{border:0;background:none;font-size:16px;line-height:1;cursor:pointer;color:#555;padding:0}" +
       ".panel{position:fixed;right:20px;bottom:20px;z-index:2147483001;width:380px;max-width:calc(100vw - 24px);" +
       "height:560px;max-height:calc(100vh - 24px);background:#fff;color:#111;border-radius:16px;display:none;" +
       "flex-direction:column;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)}" +
@@ -216,6 +231,10 @@
     recordLabel.hidden = !(cfg.recording_available && recordingSupported);
 
 
+    var nudgeText = el("span", { text: NUDGE_TEXT || "Questions? Ask our AI guide." });
+    var nudgeClose = el("button", { class: "nudge-x", type: "button", "aria-label": "Dismiss", text: "×" });
+    var nudge = el("div", { class: "nudge", role: "status" }, [nudgeText, nudgeClose]);
+
     var panel = el("div", { class: "panel", role: "dialog", "aria-label": cfg.name + " AI guide" }, [
       el("div", { class: "head" }, [
         (function(){
@@ -248,6 +267,7 @@
       shadow.appendChild(style);
     }
     shadow.appendChild(launcher);
+    shadow.appendChild(nudge);
     shadow.appendChild(panel);
     document.body.appendChild(host);
 
@@ -264,9 +284,13 @@
       status.textContent = text || "";
     }
 
+    function hideNudge() { nudge.classList.remove("show"); }
+    nudgeClose.addEventListener("click", function (ev) { ev.stopPropagation(); hideNudge(); });
+    nudge.addEventListener("click", function () { openPanel(); });
     var greeted = false;
     function openPanel() {
       panel.classList.add("open");
+      hideNudge();
       launcher.style.display = "none";
       if (!greeted) {
         greeted = true;
@@ -763,6 +787,19 @@
     });
 
     if (AUTOOPEN) setTimeout(openPanel, 600);
+
+    if (NUDGE_SECONDS > 0 && !AUTOOPEN && nudgeAppliesToPath(location.pathname)) {
+      var NUDGE_KEY = "cc_nudge_" + KEY;
+      var already = false;
+      try { already = sessionStorage.getItem(NUDGE_KEY) === "1"; } catch (e) {}
+      if (!already) {
+        setTimeout(function () {
+          if (panel.classList.contains("open")) return;
+          nudge.classList.add("show");
+          try { sessionStorage.setItem(NUDGE_KEY, "1"); } catch (e) {}
+        }, NUDGE_SECONDS * 1000);
+      }
+    }
   }
 
   // One request, no retry and an empty catch: a transient 429 from the CDN left a customer staring at

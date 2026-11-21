@@ -3,7 +3,7 @@
 Customer ENQUIRY alerts live in ``enquiry_alerts``; problems with them live in ``owner_issues``.
 """
 import asyncio
-from . import automated_mail, channel_authorization, db, webpush
+from . import automated_mail, channel_authorization, db, team_chat_alerts, webpush
 from .contact import is_email, normalize_phone
 from .config import get_settings
 import re
@@ -87,8 +87,10 @@ _push_tasks: set = set()
 def spawn_push(tenant, subject, body, dedupe) -> None:
     """Also push the alert to the owner's devices, in the background so it never delays or fails the alert."""
     try:
-        task = asyncio.get_running_loop().create_task(webpush.notify(tenant, subject, body, dedupe))
-        _push_tasks.add(task)
-        task.add_done_callback(_push_tasks.discard)
+        loop = asyncio.get_running_loop()
+        for coro in (webpush.notify(tenant, subject, body, dedupe), team_chat_alerts.notify(tenant, subject, body)):
+            task = loop.create_task(coro)
+            _push_tasks.add(task)
+            task.add_done_callback(_push_tasks.discard)
     except Exception:  # noqa: BLE001 - no running loop (a script or a test): there is nothing to push from
         pass

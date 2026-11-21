@@ -19,6 +19,7 @@ UPDATABLE_FIELDS = {
     "phone_daily_limit": int,
     "booking_url": str,
     "lead_webhook_url": str,
+    "team_chat_webhook_url": str,
     "incentive": str,
     "timezone": str,
     "business_hours": dict,
