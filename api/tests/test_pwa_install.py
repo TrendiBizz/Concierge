@@ -254,7 +254,8 @@ def test_the_studio_qr_is_minted_per_signed_in_user_and_renewed():
     assert "installUrl()" in app.split("function PhoneInstall")[1].split("function Setup")[0], \
         "if minting fails the QR must still open the install page"
     src = (pathlib.Path(main.__file__)).read_text(encoding="utf-8")
-    assert '@app.post("/owner/auth/install-ticket")' in src
+    router_src = (pathlib.Path(main.__file__).parent / "routers" / "owner_signin.py").read_text(encoding="utf-8")
+    assert '@router.post("/owner/auth/install-ticket")' in router_src
     assert src.index('"/studio/manifest.webmanifest"') < src.index('"/studio/{path:path}"'), \
         "the manifest route must precede the static catch-all or it is never reached"
 
