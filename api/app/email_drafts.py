@@ -144,7 +144,8 @@ async def approve(tenant_id, draft_id: int) -> dict | None:
                 ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
                 """,
                 tenant_id, row["sender"],
-                ("Re: " + row["subject"])[:250] if row["subject"] else "Reply",
+                (row["subject"] if row["subject"].lstrip().lower().startswith("re:") else ("Re: " + row["subject"]))[:250]
+                if row["subject"] else "Reply",
                 row["reply_body"], f"approved-email-draft:{draft_id}",
             )
             updated = await conn.fetchrow(

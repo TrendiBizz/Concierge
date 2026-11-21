@@ -165,7 +165,8 @@ async def recording(body: Recording, x_concierge_internal: str | None = Header(d
     record = dict(record)
     await voice_records.store_audio(record, raw, "audio/wav")
     request = await db.pool().fetchval(
-        "UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 RETURNING delivery_request",
+        "UPDATE voice_sessions SET finalized_at=now() WHERE id=$1 AND finalized_at IS NULL RETURNING delivery_request",
         body.record_session_id)
-    await voice_records.complete_delivery(record, tenant, request, {"ok": True})
+    if request is not None:
+        await voice_records.complete_delivery(record, tenant, request, {"ok": True})
     return {"ok": True}

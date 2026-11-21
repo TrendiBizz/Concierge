@@ -1,7 +1,7 @@
 """Opt-in email receptionist. Verified ingress only; deliveries use the outbox."""
 import asyncio
-import hashlib
-from . import channel_authorization, chat, db, flood_guard, outbox, tenants
+import json
+from . import channel_authorization, chat, db, email_threading, flood_guard, outbox, tenants
 
 
 async def process_once():
@@ -16,7 +16,10 @@ async def process_once():
             if not tenant.get('email_auto_reply') or not await channel_authorization.is_authorized(tenant['id'], 'email_read') or not await channel_authorization.is_authorized(tenant['id'], 'email_send'):
                 await db.pool().execute("UPDATE email_secretary_jobs SET status='held',error='Authorize email reading and sending before retry' WHERE id=$1", job['id'])
                 continue
-            draft_status = await db.pool().fetchval('SELECT status FROM email_drafts WHERE tenant_id=$1 AND source_id=$2', tenant['id'], job['source_key'])
+            draft_status = await db.pool().fetchval(
+                'SELECT status FROM email_drafts WHERE tenant_id=$1 AND source_id=$2',
+                tenant['id'], job['source_key'],
+            )
             if draft_status != 'draft':
                 await db.pool().execute("UPDATE email_secretary_jobs SET status='held',error='Already reviewed by owner' WHERE id=$1", job['id'])
                 continue
@@ -25,7 +28,20 @@ async def process_once():
                 # auto-responders will answer each other forever.
                 await db.pool().execute("UPDATE email_secretary_jobs SET status='held',error='Automated sender: no automatic reply' WHERE id=$1", job['id'])
                 continue
-            session = 'email' + hashlib.sha256(job['sender'].lower().encode()).hexdigest()[:50]
+            draft_meta = None
+            pool = db.pool()
+            if hasattr(pool, "fetchrow"):
+                draft_meta = await pool.fetchrow(
+                    'SELECT message_id_hdr, in_reply_to, references_hdr FROM email_drafts WHERE tenant_id=$1 AND source_id=$2',
+                    tenant['id'], job['source_key'],
+                )
+            refs = draft_meta['references_hdr'] if draft_meta else []
+            refs = json.loads(refs) if isinstance(refs, str) else (refs or [])
+            session = email_threading.thread_key(
+                job['sender'], job['subject'],
+                (draft_meta['in_reply_to'] or '') if draft_meta else '', refs,
+                message_id=(draft_meta['message_id_hdr'] or '') if draft_meta else '',
+            )
             result = await chat.run_turn(tenant, session, 'email', 'Subject: ' + job['subject'] + '\n\n' + job['body'], sender_email=job['sender'])
 
             # Human takeover: the owner has taken this customer over, so no automatic reply is sent.
@@ -46,7 +62,9 @@ async def process_once():
                     if not draft or draft['status'] != 'draft':
                         await conn.execute("UPDATE email_secretary_jobs SET status='held',error='Already reviewed by owner' WHERE id=$1", job['id'])
                         continue
-                    await conn.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'email_secretary_reply','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING", tenant['id'], job['sender'], 'Re: ' + job['subject'], result['reply'], f"email-secretary:{tenant['id']}:{job['source_key']}")
+                    raw_subj = (job['subject'] or '').strip()
+                    reply_subj = (raw_subj if raw_subj.lower().startswith('re:') else ('Re: ' + raw_subj))[:250] if raw_subj else 'Reply'
+                    await conn.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'email_secretary_reply','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING", tenant['id'], job['sender'], reply_subj, result['reply'], f"email-secretary:{tenant['id']}:{job['source_key']}")
                     await conn.execute("UPDATE email_drafts SET status='discarded',reply_body=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2", tenant['id'], draft['id'], result['reply'])
                     await conn.execute("UPDATE email_secretary_jobs SET status='queued',error='' WHERE id=$1", job['id'])
         except Exception:

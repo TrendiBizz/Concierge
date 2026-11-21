@@ -904,7 +904,7 @@ async def _decide(token: str, status: str, payment_option: str = 'full', accepte
     if status == 'accepted':
         from . import portability
         await portability.emit(quote['tenant_id'], 'quote.accepted', {
-            'quote_id': str(quote['id']), 'number': str(quote.get('number') or ''),
+            'quote_id': str(quote['id']), 'number': str(quote.get('reference') or quote.get('number') or ''),
             'total_cents': quote.get('total_cents'), 'accepted_by': who,
             'payment_option': chosen, 'contact': quote.get('contact') or {}})
         tenant = await db.pool().fetchrow("SELECT * FROM tenants WHERE id=$1", quote['tenant_id'])

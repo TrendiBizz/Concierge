@@ -64,15 +64,16 @@ def parse(raw: bytes | None) -> dict:
         return empty
 
 
-def thread_key(sender: str, subject: str, in_reply_to: str = "", references: list | None = None) -> str:
+def thread_key(sender: str, subject: str, in_reply_to: str = "", references: list | None = None,
+               message_id: str = "") -> str:
     """Stable conversation key for one email thread.
 
-    A reply carries the root of its thread in References (or the parent in In-Reply-To), so every
-    message of one thread maps to one key; a new subject from the same sender starts a new thread
-    (the old key was sha256(sender), which merged unrelated subjects).
+    A reply carries the root of its thread in References (or the parent in In-Reply-To), and the
+    root message itself carries Message-ID, so every message of one thread maps to one key; a new
+    subject from the same sender without Message-ID falls back to sender + normalized subject.
     """
     refs = list(references or [])
-    root = refs[0] if refs else (in_reply_to or "")
+    root = refs[0] if refs else (in_reply_to or message_id or "")
     basis = ("id:" + root) if root else ("subj:" + parseaddr(sender)[1].lower() + "|" + normalize_subject(subject))
     return "email" + hashlib.sha256(basis.encode()).hexdigest()[:50]
 

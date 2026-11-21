@@ -38,11 +38,15 @@ async def _process(path: Path, tenant: dict, parts: dict) -> str:
     caller = ("+" + parts["num"]) if parts["num"] and len(parts["num"]) >= 8 else parts["num"]
     body = path.read_bytes()
     async with db.pool().acquire() as c:
-        inserted = await c.fetchval(
-            "INSERT INTO phone_calls(tenant_id,call_sid,from_number,to_number,status) VALUES($1,$2,$3,$4,'voicemail') "
-            "ON CONFLICT DO NOTHING RETURNING 1", tenant["id"], call_id, caller, "")
-    if not inserted:
-        return "duplicate"
+        existing = await c.fetchrow(
+            "SELECT ended_at FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2",
+            tenant["id"], call_id)
+        if existing and existing["ended_at"] is not None:
+            return "duplicate"
+        if not existing:
+            await c.execute(
+                "INSERT INTO phone_calls(tenant_id,call_sid,from_number,to_number,status) VALUES($1,$2,$3,$4,'voicemail') "
+                "ON CONFLICT DO NOTHING", tenant["id"], call_id, caller, "")
     conversation = await convo.get_or_create(tenant, call_id, "phone", None, None)
     capability = await voice_records.start(tenant, call_id, channel="phone")
     session = await voice_records.authenticate(capability["id"], capability["token"])
@@ -74,9 +78,12 @@ async def _process(path: Path, tenant: dict, parts: dict) -> str:
 
 
 async def sweep(directory: str | None = None) -> dict:
-    root = Path(directory or get_settings().voicemail_spool_dir)
+    raw_dir = (directory if directory is not None else get_settings().voicemail_spool_dir) or ""
     result = {"stored": 0, "kept": 0, "duplicate": 0, "skipped": 0, "errors": 0}
-    if not str(root) or not root.is_dir():
+    if not raw_dir.strip():
+        return result
+    root = Path(raw_dir)
+    if not root.is_dir():
         return result
     kept = root / "kept"
     for path in sorted(root.glob("*.wav")):

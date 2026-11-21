@@ -113,7 +113,7 @@ async def serve_call(call_id,tenant,caller):
             "Do not claim to be human. Audio is not recorded by Concierge. "
             "Use the business information and tools; never invent facts or say a text was sent without a confirmed result. "
             "When the caller is finished, say goodbye then call end_call. Do not end a call with an open question."
-        )
+        )+voice.COPY_DELIVERY_INSTRUCTIONS
         session["tools"].append({"type":"function","name":"end_call","description":"End the call after the caller has finished and you have said goodbye.","parameters":{"type":"object","properties":{},"additionalProperties":False}})
         # SIP handles codecs and audio transport. Keep native Grok speech, not
         # an intermediate carrier TTS voice or a microphone on the operator Mac.
@@ -247,7 +247,9 @@ async def incoming(connection_id: uuid.UUID,request: Request):
     except (ValueError,TypeError,KeyError,AttributeError):
         raise HTTPException(400,"Invalid telephone event") from None
     tenant=await tenants.get_by_slug(config["tenant"])
+    from . import tenant_pause
     if (not get_settings().phone_receptionist_enabled or number!=config["number"] or not tenant or not tenant.get("phone_enabled")
+            or await tenant_pause.is_paused(tenant)
             or not get_settings().xai_api_key
             or get_settings().phone_voice_provider!='grok'
             or not await channel_authorization.is_authorized(tenant["id"],"telephone")):

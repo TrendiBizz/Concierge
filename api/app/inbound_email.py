@@ -138,7 +138,16 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
             recipient=recipient, mail=mail,
         )
         tenant = await tenants.get_by_id(tenant_id)
-        conversation_id = await convo.get_or_create(tenant, email_threading.thread_key(draft["sender"], subject, (mail or {}).get("in_reply_to", ""), (mail or {}).get("references")), "email", None, None)
+        conversation_id = await convo.get_or_create(
+            tenant,
+            email_threading.thread_key(
+                draft["sender"], subject,
+                (mail or {}).get("in_reply_to", ""),
+                (mail or {}).get("references"),
+                message_id=(mail or {}).get("message_id", ""),
+            ),
+            "email", None, None,
+        )
         # The customer's own signature usually states who they are and where they work. Reading it
         # is the difference between a CRM record called "conrad@pukekoconstruction.co.nz" and one
         # called "Conrad Schiess, Pukeko Construction".
