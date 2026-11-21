@@ -1521,14 +1521,15 @@ def test_only_the_customer_facing_endpoints_are_rate_limited():
     Verified live: /api/v1/widget-config accepted 26 consecutive calls without a 429, because it is
     not rate limited. Pinning the set means adding the limiter elsewhere is a deliberate choice.
     """
-    import inspect
-    from app import main as app_main
-    src = inspect.getsource(app_main)
+    import pathlib
+    app_dir = pathlib.Path(__file__).resolve().parents[1] / "app"
+    files = [app_dir / "main.py", *sorted((app_dir / "routers").glob("*.py"))]
+    src = "\n".join(p.read_text() for p in files)
     limited = [
-        '@app.post("/api/v1/chat"' in src,
-        '@app.post("/api/v1/voice/token"' in src,
-        '@app.post("/api/v1/tools/{name}"' in src,
-        '@app.post("/api/v1/voice/log"' in src,
+        '.post("/api/v1/chat"' in src,
+        '.post("/api/v1/voice/token"' in src,
+        '.post("/api/v1/tools/{name}"' in src,
+        '.post("/api/v1/voice/log"' in src,
     ]
     assert all(limited)
     assert src.count("_rate_limit(request") >= 4
