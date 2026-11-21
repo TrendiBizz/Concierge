@@ -142,7 +142,7 @@ from . import guides
 from . import quote_profiles
 from . import portability
 from . import channel_health, flood_guard, mailer
-from . import asterisk_ami, call_control, call_insights, casetimeline, case_policy, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
+from . import asterisk_ami, call_control, call_insights, casetimeline, case_policy, live_calls, missed_calls, provider_readiness, voicemail_fallback, quote_payments, revenue, supervision
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -194,6 +194,7 @@ async def lifespan(_: FastAPI):
             asyncio.create_task(sla.run_forever(stop), name="sla_worker"),
             asyncio.create_task(sales.run_forever(stop), name="digest_worker"),
             asyncio.create_task(missed_calls.run_forever(stop), name="missed_worker"),
+            asyncio.create_task(voicemail_fallback.run_forever(stop), name="voicemail_worker"),
             asyncio.create_task(call_insights.run_forever(stop), name="insights_worker"),
         ])
     try:

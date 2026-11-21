@@ -164,3 +164,13 @@ fixture database; the live script uses actual Asterisk and Grok but synthetic
 speech. They never run a send worker, make a PSTN call or send a real message.
 A genuine forwarded mobile call and delivery receipt are separate activation
 gates. An Asterisk container does not itself provide a publicly dialable number.
+
+## AI-link failover voicemail (N3, off by default)
+
+If the AI voice link fails while the caller is still on the line, the dialplan can fall back to the
+owner's ring number (when `ring_owner` is set) and then a recorded voicemail. Enable it by rendering with
+`--voicemail-dir /var/spool/concierge-voicemail`, mounting that directory into both the PBX and the API,
+setting `VOICEMAIL_SPOOL_DIR` for the API, and installing a short generic `concierge-voicemail-greeting`
+sound ("we can't take your call right now; leave your name, number and message after the tone; it will
+be recorded"). The API sweep (`app/voicemail_fallback.py`) turns each file into a CRM enquiry, stores the
+recording and alerts the owner through the paired phone. Not enabled in production: needs the mount and greeting recording.

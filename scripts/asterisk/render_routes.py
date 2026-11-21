@@ -108,7 +108,25 @@ def _ring_lines(slug, ring):
     ]
 
 
-def render(rows, bridge_host, public_ip=None, trunk=None):
+def _failover_lines(slug, ring, voicemail_dir):
+    """N3: runs only when AudioSocket returns while the caller is still on the line, which means the
+    AI voice link failed (a caller hanging up ends the dialplan before this). Ring the owner if a
+    ring number is configured, otherwise take a voicemail. Off unless a spool directory is given."""
+    if not voicemail_dir:
+        return []
+    lines = [f' same => n,NoOp(AI voice link unavailable for {slug}: voicemail fallback)']
+    if ring:
+        lines += [' same => n,Dial(PJSIP/' + ring['digits'] + '@concierge-reg,' + str(ring['seconds']) + ',r)',
+                  ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done)']
+    lines += [' same => n,Playback(concierge-voicemail-greeting)',
+              ' same => n,Set(VM_FROM=${FILTER(0-9,${CALLERID(num)})})',
+              f' same => n,Record({voicemail_dir}/{slug}__${{CONCIERGE_CALL}}__${{VM_FROM}}.wav,3,120,k)']
+    return lines
+
+
+def render(rows, bridge_host, public_ip=None, trunk=None, voicemail_dir=None):
+    if voicemail_dir is not None and not re.fullmatch(r'/[A-Za-z0-9_./-]{1,120}', voicemail_dir):
+        raise ValueError('Invalid voicemail spool directory')
     if not HOST.fullmatch(bridge_host):
         raise ValueError('Invalid private bridge hostname')
     trunk = _trunk(trunk) if trunk else None
@@ -158,7 +176,8 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
         contexts += ([f'[business-{slug}]'] + start +
                      [' same => n,Set(TIMEOUT(absolute)=600)',
                       ' same => n,Set(CONCIERGE_CALL=${FILTER(0-9a-f-,${SHELL(cat /proc/sys/kernel/random/uuid)})})',
-                      f' same => n,AudioSocket(${{CONCIERGE_CALL}},{bridge_host}:{port})'] + end)
+                      f' same => n,AudioSocket(${{CONCIERGE_CALL}},{bridge_host}:{port})'] +
+                     _failover_lines(slug, ring, voicemail_dir) + end)
     if not rows:
         raise ValueError('No business routes')
     if trunk:
@@ -265,9 +284,14 @@ if __name__ == '__main__':
         index = args.index('--manager-secret-file')
         manager_secret = Path(args[index + 1]).read_text().strip()
         del args[index:index + 2]
+    voicemail_dir = None
+    if '--voicemail-dir' in args:
+        index = args.index('--voicemail-dir')
+        voicemail_dir = args[index + 1]
+        del args[index:index + 2]
     rows, trunk = load(args[0])
     extensions, pjsip = render(rows, args[2] if len(args) > 2 else 'bridge',
-                               args[3] if len(args) > 3 else None, trunk)
+                               args[3] if len(args) > 3 else None, trunk, voicemail_dir)
     target = Path(args[1])
     target.mkdir(parents=True, exist_ok=True)
     (target / 'extensions.conf').write_text(extensions)
