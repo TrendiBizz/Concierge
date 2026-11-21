@@ -90,7 +90,9 @@ async def issue(*, email: str, name: str, business: str, plan: str, amount_cents
             "SELECT * FROM platform_invoices WHERE stripe_session_id=$1", stripe_session_id)
         if existing:
             return dict(existing)
-    gst_cents, net_cents = gst_split(amount_cents)
+    norm_currency = (currency or "NZD").upper()[:3]
+    gst_rate = GST_RATE if norm_currency == "NZD" else 0.0
+    gst_cents, net_cents = gst_split(amount_cents, rate=gst_rate)
     number = await next_number()
     token = secrets.token_urlsafe(24)
     row = await db.pool().fetchrow(
@@ -100,7 +102,7 @@ async def issue(*, email: str, name: str, business: str, plan: str, amount_cents
         "VALUES($1,$2,$3,$4,$5,$6,$7,$8,'paid',$9,$10,$11,$12,$13,current_date,now(),$14) "
         "ON CONFLICT (stripe_session_id) DO NOTHING RETURNING *",
         number, email, name[:120], business[:160], plan[:80], int(amount_cents), gst_cents,
-        (currency or "NZD").upper()[:3], source, stripe_session_id, stripe_event_id[:120],
+        norm_currency, source, stripe_session_id, stripe_event_id[:120],
         tenant_id, token, description[:500] or f"Concierge — {plan}"[:500])
     if row is None:  # lost a race with a retry; the other transaction's invoice stands
         row = await db.pool().fetchrow(
@@ -122,9 +124,10 @@ def invoice_html(invoice: dict) -> str:
     business = html.escape(str(invoice.get("business_name") or ""))
     description = html.escape(str(invoice.get("description") or ""))
     currency = html.escape(str(invoice.get("currency") or ""))
+    gst_label = "GST (15%)" if (gst > 0 or currency == "NZD") else "GST (0% — zero-rated export)"
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Invoice {number} — Trendi Bizz</title>
+<title>Invoice {number} — TRENDI LIMITED</title>
 <style>body{{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#15191f;background:#f6f8fa}}
 .page{{max-width:760px;margin:32px auto;background:#fff;padding:40px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}}
 header{{display:flex;justify-content:space-between;border-bottom:6px solid #c8f560;padding-bottom:18px}}
@@ -132,13 +135,13 @@ h1{{margin:6px 0;font-size:26px}} .muted{{color:#5a6673;font-size:14px}}
 table{{width:100%;border-collapse:collapse;margin-top:24px}} td,th{{padding:10px 8px;border-bottom:1px solid #e3e7ec;text-align:left}}
 .num{{text-align:right}} .paid{{display:inline-block;background:#e7f8d0;color:#2b4a00;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px}}
 </style></head><body><div class="page">
-<header><div><div class="muted">Trendi Bizz Limited</div><h1>Tax invoice</h1>
+<header><div><div class="muted">TRENDI LIMITED (NZBN 9429051967215 · GST 142-296-901)</div><h1>Tax invoice</h1>
 <div class="muted">{number}</div></div>
 <div class="muted">{issued}<br><span class="paid">PAID {paid}</span></div></header>
 <p><strong>{name}</strong>{('<br>' + business) if business else ''}<br>{email}</p>
 <table><thead><tr><th>Description</th><th class="num">Amount</th></tr></thead><tbody>
 <tr><td>{description}</td><td class="num">{net:,.2f} {currency}</td></tr>
-<tr><td>GST (15%)</td><td class="num">{gst:,.2f} {currency}</td></tr>
+<tr><td>{gst_label}</td><td class="num">{gst:,.2f} {currency}</td></tr>
 <tr><td><strong>Total paid</strong></td><td class="num"><strong>{total:,.2f} {currency}</strong></td></tr>
 </tbody></table>
 <p class="muted" style="margin-top:26px">Paid in full. This is your tax invoice — keep it for your records.</p>

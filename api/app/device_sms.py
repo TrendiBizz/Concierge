@@ -204,6 +204,9 @@ async def inbound(body: Incoming, device: dict = Depends(device_auth)):
     )
     if not inserted:
         return {"ok": True, "duplicate": True}
+    await db.pool().execute(
+        "UPDATE sms_devices SET inbound_verified_at=now(),last_seen=now() WHERE id=$1", device["id"]
+    )
     tenant = await tenants.get_by_id(device["tenant_id"])
     # Reuse the same Grok, CRM, STOP/START and consent path as carrier webhooks.
     from .main import _sms_reply
@@ -214,5 +217,4 @@ async def inbound(body: Incoming, device: dict = Depends(device_auth)):
                           operational=body.body.strip().upper() in {"STOP","STOPALL","UNSUBSCRIBE","CANCEL","END","QUIT","START","UNSTOP","HELP"})
         except AwaitingReceipt:
             pass
-    await db.pool().execute("UPDATE sms_devices SET inbound_verified_at=now(),last_seen=now() WHERE id=$1",device["id"])
     return {"ok": True}
