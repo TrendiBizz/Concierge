@@ -223,7 +223,7 @@ def render(rows, bridge_host, public_ip=None, trunk=None):
 def render_manager(secret, user='concierge', port=5038):
     """Render ``manager.conf`` for the private AMI listener.
 
-    The listener is never published to the host: the PBX and the API share a private Docker
+    The listener is never published to the host: the PBX and the API share a private container
     network. The AMI user gets exactly the classes call control needs and nothing else, so a
     leaked secret cannot run CLI commands or touch configuration.
     """

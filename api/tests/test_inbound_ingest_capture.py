@@ -4,7 +4,7 @@
 email raised NameError and the API answered 400 — no draft, no lead, no customer. Nothing caught it,
 because the tests around inbound mail exercised helpers and never the ingestion path itself.
 
-    docker run -d --name pgaddr -e POSTGRES_PASSWORD=pw -p 55433:5432 pgvector/pgvector:pg16
+    scripts/dev/test-db.sh
     TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
       python3 -m pytest tests/test_inbound_ingest_capture.py -q
 """

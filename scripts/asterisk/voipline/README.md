@@ -17,13 +17,9 @@ number + SIP Line are active.
 3. Append the trunk and tenant route:
    `python3 scripts/asterisk/voipline/configure-voipline.py`
 4. Add the printed bridge row to `ASTERISK_ROUTES` in the private Asterisk env.
-5. Start with the VoipLine override:
-   `docker compose -f scripts/asterisk/compose.yml -f scripts/asterisk/voipline/compose.voipline.yml up -d`
+5. Start with the VoipLine override (`scripts/asterisk/voipline/compose.voipline.yml`) through a script in `scripts/asterisk/`.
 6. Firewall: allow UDP 5060 and 10000-10099 from VoipLine's signalling IPs only.
-7. Reload and verify:
-   `docker exec asterisk-pbx-1 asterisk -rx "pjsip reload"`
-   `docker exec asterisk-pbx-1 asterisk -rx "pjsip show endpoint voipline"`
-   `docker exec asterisk-pbx-1 asterisk -rx "pjsip show registrations"`
+7. Reload and verify: `scripts/asterisk/cutover_to_tenant.sh` reloads the PBX and checks the registrations.
 8. Test: dial the NZ number, confirm the AI answers, the CRM enquiry is created,
    and the call finishes with a transcript.
 

@@ -64,6 +64,7 @@ services:
   email-auth:
     build:
       context: ../../services/email-auth
+      dockerfile: Containerfile
     image: trendi-email-auth:vps
     restart: unless-stopped
     expose: ["8090"]
@@ -78,7 +79,7 @@ services:
   api:
     build:
       context: ../..
-      dockerfile: scripts/vps/Dockerfile.api
+      dockerfile: scripts/vps/Containerfile.api
     image: trendi-concierge-api:vps
     restart: unless-stopped
     env_file:
@@ -98,7 +99,7 @@ services:
   social:
     build:
       context: ../..
-      dockerfile: scripts/vps/Dockerfile.social
+      dockerfile: scripts/vps/Containerfile.social
     image: trendi-concierge-social:vps
     network_mode: service:api
     restart: unless-stopped
@@ -185,7 +186,7 @@ services:
     volumes: [rspamd-data:/var/lib/rspamd]
     mem_limit: 512m
     cpus: 1
-  # Rust AudioSocket shell (concierge-stack/core-rs/Dockerfile.shell). It joins
+  # Rust AudioSocket shell (concierge-stack/core-rs/Containerfile.shell). It joins
   # the Asterisk phone network as well as the app network, exactly as the live
   # container does; a recreate that dropped `asterisk_phone` would leave the PBX
   # with nothing to send call audio to.

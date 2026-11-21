@@ -6,7 +6,7 @@
 # committed, "deployed" and verified while the box kept serving the old page. This copies both,
 # rebuilds the image, recreates api + social, then runs the checksum check.
 #
-# usage: KEY=./Concierge ./scripts/vps/deploy-api.sh
+# usage: KEY=./Concierge ./scripts/vps/deploy-api.sh   (run sync-tooling.sh first when compose or Containerfiles changed)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,6 +29,9 @@ echo "==> syncing api/app, api/static, api/alembic.ini, and api/migrations to $H
 "${RSSH[@]}" "$REPO_ROOT/api/static/" "$HOST:$PRODUCT/api/static/"
 "${RSSH[@]}" "$REPO_ROOT/api/alembic.ini" "$HOST:$PRODUCT/api/alembic.ini"
 "${RSSH[@]}" "$REPO_ROOT/api/migrations/" "$HOST:$PRODUCT/api/migrations/"
+
+echo "==> moving files removed from the repo aside on the box"
+KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/prune-removed.sh"
 
 echo "==> rebuilding and restarting api + social"
 "${SSH[@]}" "REL='$PRODUCT' bash '$PRODUCT/scripts/vps/redeploy-api.sh'"

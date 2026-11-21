@@ -2,7 +2,7 @@
 # Read an env file as data, never as shell.
 #
 # Why this exists (2026-11-15): the scripts used `. /opt/trendi/shared/api.env`, and the file is
-# also consumed by docker compose as plain KEY=VALUE data. Compose does not run a shell, so a
+# also consumed by compose as plain KEY=VALUE data. Compose does not run a shell, so a
 # value may legally contain anything — and ours does:
 #
 #     ASTERISK_CHANNEL_DIAL=PJSIP/<number>@concierge

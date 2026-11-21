@@ -1,6 +1,6 @@
 """Run inside the API container; exercise public voice auth and real Grok audio.
 
-Usage on VPS: docker exec -i trendi-api-1 python - < this-file.py
+Usage on VPS: podman exec -i trendi-api-1 python - < this-file.py
 No microphone, telephone call, outbound message or long-lived credential output.
 """
 import asyncio

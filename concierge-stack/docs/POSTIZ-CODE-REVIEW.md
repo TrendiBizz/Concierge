@@ -37,9 +37,9 @@ Organization, not the "customer" label.** A self-hosted install also has no bill
 ## Cautions (read these)
 
 1. **Heavy to run.** The official compose file runs Postiz, Postgres 17, Redis, Temporal with its own Postgres and **Elasticsearch 7.17**,
-   plus admin tools, a Temporal UI and Sentry's Spotlight. The Mac's Docker has 7.7 GB. A small VPS needs roughly 4 to 8 GB.
+   plus admin tools, a Temporal UI and Sentry's Spotlight. The Mac's container engine has 7.7 GB. A small VPS needs roughly 4 to 8 GB.
 2. **No approval gate.** Anything with an API key can schedule posts directly. Our layer must hold the keys and enforce
-   the customer's approval; Hermes should never hold them.
+   the customer's approval; the agent should never hold them.
 3. **Channel tokens look unencrypted at rest.** I found encryption used for other things (API keys, OAuth, third-party
    credentials) but not for `Integration.token` in the integration repository code I searched. Unconfirmed. Treat the Postiz
    database and disk as holding live access to customers' accounts: encrypted backups (restic, already set up), disk encryption,
@@ -54,6 +54,6 @@ Organization, not the "customer" label.** A self-hosted install also has no bill
 
 ## Next
 
-1. Run Postiz in Docker on the Mac (official image, loopback only) and prove point 6 with two test organizations and a free
+1. Run Postiz in a container on the Mac (official image, loopback only) and prove point 6 with two test organizations and a free
    Bluesky test account (no approval needed).
-2. If it holds, adopt it as the linking and publishing engine and wire Hermes to it through our guardrail and approval layer.
+2. If it holds, adopt it as the linking and publishing engine and wire the agent to it through our guardrail and approval layer.

@@ -24,7 +24,7 @@ def _world(tmp_path, *, postgres_running=True):
 
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    docker = fake_bin / "docker"
+    docker = fake_bin / "podman"
     docker.write_text(textwrap.dedent(f"""\
         #!/usr/bin/env bash
         case "$1" in

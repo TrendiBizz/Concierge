@@ -41,10 +41,8 @@ def test_no_private_key_material_is_in_the_build_context():
         "key material would be baked into the API image: " + ", ".join(offenders))
 
 
-def test_the_docker_ignores_exclude_key_material():
-    for name in ("Dockerfile.api.dockerignore",):
+def test_the_build_ignores_exclude_key_material():
+    for name in ("Containerfile.api.dockerignore",):
         body = (REPO / "scripts" / "vps" / name).read_text()
         assert "**/Concierge" in body and "*.pem" in body.replace("**/", ""), (
             f"{name} must keep key material out of the build context")
-    api_ignore = (REPO / "api" / ".dockerignore").read_text()
-    assert "Concierge" in api_ignore and "*.key" in api_ignore

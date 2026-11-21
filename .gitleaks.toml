@@ -101,7 +101,7 @@ regexes = [
 description = "False positive: Rust doc comment describing HMAC-SHA256 capability token format"
 condition = "AND"
 paths = [
-  '''^concierge-stack/(action|hermes)-gateway/src/capability\.rs$''',
+  '''^concierge-stack/action-gateway/src/capability\.rs$''',
 ]
 regexTarget = "line"
 regexes = [
@@ -124,7 +124,7 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "False positive: Docker rollback image tags (YYYYMMDD) and SHA256 image digests in QA handoff notes"
+description = "False positive: Container rollback image tags (YYYYMMDD) and SHA256 image digests in QA handoff notes"
 condition = "AND"
 paths = [
   '''^QA/verification/.*\.md$''',

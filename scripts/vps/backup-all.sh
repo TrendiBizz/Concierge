@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full data backup of the Concierge VPS: both Postgres databases, Docker
+# Full data backup of the Concierge VPS: both Postgres databases, Podman
 # volumes, shared secrets/config, website and phone config. Keeps 14 daily
 # archives under /opt/trendi/backups (root-only). Runs from cron daily.
 set -euo pipefail
@@ -14,7 +14,7 @@ chmod 750 "$BACKUPS"
 log() { echo "$(date -Is) $*"; }
 log "backup start $STAMP"
 
-docker exec trendi-postgres-1 pg_dump -U postgres -d concierge -Fc > "$WORK/concierge.dump"
+podman exec trendi-postgres-1 pg_dump -U postgres -d concierge -Fc > "$WORK/concierge.dump"
 
 SKIPPED=()
 volumes=("trendi_social:social")
@@ -22,7 +22,7 @@ volumes=("trendi_social:social")
 for spec in "${volumes[@]}"; do
   volume="${spec%%:*}"
   name="${spec##*:}"
-  docker run --rm -v "$volume":/data:ro -v "$WORK":/backup alpine:3.20 \
+  podman run --rm -v "$volume":/data:ro -v "$WORK":/backup alpine:3.20 \
     tar czf "/backup/$name.tgz" -C /data .
 done
 printf '%s\n' "${SKIPPED[@]:-}" > "$WORK/SKIPPED.txt"

@@ -4,18 +4,8 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 
-from app import config, hermes_ops, owner_issues
-
-
-def test_settings_exposes_hermes_gateway_fields_and_route_stays_404_by_default():
-    settings = config.Settings()
-    assert settings.hermes_gateway_enabled is False
-    assert settings.hermes_gateway_key == ""
-    with pytest.raises(HTTPException) as exc:
-        hermes_ops.require_gateway("")
-    assert exc.value.status_code == 404
+from app import config, owner_issues
 
 
 def test_sweep_unanswered_honours_tenant_min_score_and_marks_sla_alerted_at(monkeypatch):

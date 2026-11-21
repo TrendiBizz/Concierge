@@ -38,9 +38,9 @@ not once per customer. After approval, every customer links their account the sa
 
 ## Where the connectors live
 
-Customers' tokens are held by SocialSync (our code), not by Hermes. SocialSync gets, per network: an OAuth start and callback,
+Customers' tokens are held by SocialSync (our code), not by the agent. SocialSync gets, per network: an OAuth start and callback,
 encrypted token storage per customer, refresh, a publish adapter, and a scheduler (Instagram and others have no native
-scheduling). Hermes calls SocialSync (draft, check against guardrails, request approval, schedule). This keeps credentials out
+scheduling). the agent calls SocialSync (draft, check against guardrails, request approval, schedule). This keeps credentials out
 of the agent and keeps one place that enforces the guardrails and the customer's approval.
 
 ## Build order (free first, by lead time)

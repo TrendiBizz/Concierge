@@ -13,7 +13,7 @@ pool would add state for no benefit.
 Security notes:
 
 * AMI has no TLS. The listener is not published to the host; it is bound inside the PBX
-  container and reachable only on the private Docker networks, using a scoped AMI user
+  container and reachable only on the private container networks, using a scoped AMI user
   (``read=call,reporting`` / ``write=call,originate``) and a per-install random secret.
 * Values are validated before they are written: AMI is header-based, so a value containing a
   newline would inject a second header. :func:`_clean` refuses that.

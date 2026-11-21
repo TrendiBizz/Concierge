@@ -6,9 +6,6 @@ data/
 backup.env
 .backup-stage/
 
-# Hermes API key for calling the local Hermes. Never commit.
-hermes/hermes.env
-
 # Rust build output and the social service runtime data. Never commit.
 social-service/target/
 social-service/data/

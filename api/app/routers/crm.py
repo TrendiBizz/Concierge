@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import (
-    automation, calendar_connection, casetimeline, db, hermes_orchestrator, ical, llm,
+    automation, calendar_connection, casetimeline, db, case_policy, ical, llm,
     owner_ask, owner_auth, portability, quotations, quote_payments, revenue, sales, scoring,
     sla, tasks, tenants, voice_records,
 )
@@ -673,7 +673,7 @@ async def owner_lead_case(lead_id: str, user: dict = Depends(owner_auth.current_
             }
             for e in events
         ],
-        "deadline": hermes_orchestrator.deadline_state(
+        "deadline": case_policy.deadline_state(
             tenant or {}, {"created_at": lead["created_at"]}),
     }
 

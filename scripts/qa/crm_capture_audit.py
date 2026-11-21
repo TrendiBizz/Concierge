@@ -2,7 +2,7 @@
 
 Run inside the api container:
 
-    docker exec -i -e PYTHONPATH=/srv -w /srv trendi-api-1 python3 - < scripts/qa/crm_capture_audit.py
+    python3 - < scripts/qa/crm_capture_audit.py   (PYTHONPATH=/srv, working directory /srv)
 
 Read-only. Reports four things per tenant: coverage of each identity field, enquiries that never
 became a customer, customers with no history, and duplicate customers for one person.

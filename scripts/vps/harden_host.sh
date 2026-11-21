@@ -4,7 +4,7 @@
 #
 # What it does (and how to undo each part):
 #  1. SIP signalling (udp/5060) restricted to the Hero ranges via DOCKER-USER
-#     (Docker bypasses ufw). RTP 10000-10099 is deliberately left open so a media
+#     (published container ports bypass ufw). RTP 10000-10099 is deliberately left open so a media
 #     gateway on another address can never cause one-way audio — a documented
 #     trade-off, not an oversight: measured 2026-11-15, udp/10000-10099 is reachable
 #     from the internet. To close it after proving a call with the carrier:
@@ -126,6 +126,6 @@ sleep 2
 fail2ban-client status | sed -n 1,4p
 
 echo "== verification"
-docker exec asterisk-pbx-1 asterisk -rx "pjsip show registrations" | grep -i "concierge-reg" || echo "!! registration line missing"
+podman exec asterisk-pbx-1 asterisk -rx "pjsip show registrations" | grep -i "concierge-reg" || echo "!! registration line missing"
 echo "Backups: $BK"
 echo "DONE"

@@ -38,8 +38,6 @@ MAX_UNTRACKED_BYTES = 10 * 1024 * 1024
 
 # Paths that must never be committed, even if .gitignore changes.
 EXCLUDED_PREFIXES = (
-    "QA/verification/HERMES_",
-    "QA/verification/HANDOFF_HERMES_",
     "office-shots/",
     "tiktok-review/",
     ".private/",
@@ -73,7 +71,6 @@ UNTRACKED_ALLOWED_FILES = {
     "HANDOFF.md",
     ".gitignore",
     "Caddyfile",
-    "docker-compose.yml",
 }
 
 DEFAULT_LOG = Path.home() / "Library" / "Logs" / "concierge-commit-checkpoint.log"

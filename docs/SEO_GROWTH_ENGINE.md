@@ -164,7 +164,7 @@ missing number into a zero or a win.
 
 ## 6. Roles and guardrails
 
-- **Hermes `seo-engine`** runs the daily monitor, weekly cycle and monthly audit. It
+- **The SEO engine** runs the daily monitor, weekly cycle and monthly audit. It
   proposes; it does not send outreach or publish without Jo.
 - **The Mac session** owns the backlink CSV, the outreach drafts, and the deploy gate.
 - **Jo** approves: the first outreach batch, any paid placement, any case study, any new

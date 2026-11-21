@@ -15,5 +15,4 @@ check HANDOFF.md 8000
 check outputs/SESSION_HANDOFF_LATEST.md 4500
 check outputs/.session_notes.md 2500
 check docs/AGENT_WORKING_ORDER.md 6000
-check hermes/README.md 7000
 exit $rc

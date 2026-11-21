@@ -1,5 +1,5 @@
 """Real Asterisk → bridge → live Grok → disposable Concierge DB.
-Synthetic calls only; no carrier call or message delivery. Needs local Docker,
+Synthetic calls only; no carrier call or message delivery. Needs local Podman,
 macOS say, ffmpeg and an existing XAI_API_KEY. Uses fixture tenants from DB test.
 """
 import asyncio
@@ -28,7 +28,7 @@ def command(*args):
 async def main():
     cfg=get_settings()
     assert 'fixture-only' in cfg.database_url
-    # Read only the existing xAI credential; never expose it to Docker/CLI/logs.
+    # Read only the existing xAI credential; never expose it to the container/CLI/logs.
     if not cfg.xai_api_key:
         source=Path(__file__).resolve().parents[2]/'concierge-stack/.env'
         for line in source.read_text().splitlines():
@@ -76,7 +76,7 @@ async def main():
         for index,business in enumerate(('alpha','beta')):
             route=b.Route(business,f'+649555010{index}',9101+index)
             async def connected(reader,writer,route=route):
-                # Fixture only: host listener reachable by Docker Desktop.
+                # Fixture only: host listener reachable by a local Podman machine.
                 task=asyncio.create_task(b.handle(reader,writer,route,[ipaddress.ip_network('0.0.0.0/0')]))
                 active.add(task)
                 task.add_done_callback(active.discard)
@@ -87,25 +87,25 @@ async def main():
             message=f'This is a synthetic test call for {business}. Please take a message. The test order reference is {business} seven four two. Please save this message for the owner. Thank you. Goodbye.'
             command('say','-v','Samantha','-o',str(directory/f'{business}.aiff'),message)
             command('ffmpeg','-y','-loglevel','error','-i',str(directory/f'{business}.aiff'),'-ar','8000','-ac','1','-c:a','pcm_s16le',str(directory/f'{business}.wav'))
-            lines += [f'exten => {business},1,Answer()',f' same => n,AudioSocket({ident},host.docker.internal:{port})',' same => n,Hangup()']
+            lines += [f'exten => {business},1,Answer()',f' same => n,AudioSocket({ident},host.containers.internal:{port})',' same => n,Hangup()']
             caller += [f'exten => {business},1,Answer()',f' same => n,MixMonitor(/qa/{business}-received.wav)',
                        ' same => n,Wait(4)',f' same => n,Playback(/qa/{business})',' same => n,Wait(20)',' same => n,Hangup()']
         (directory/'extensions.conf').write_text('\n'.join(lines+caller)+'\n')
-        command('docker','run','-d','--name',name,'-v',f'{directory}:/qa','-v',f'{directory}/extensions.conf:/etc/asterisk/extensions.conf:ro','concierge-asterisk-test:local')
+        command('podman','run','-d','--name',name,'-v',f'{directory}:/qa','-v',f'{directory}/extensions.conf:/etc/asterisk/extensions.conf:ro','concierge-asterisk-test:local')
         ready=False
         for _ in range(180):
             await asyncio.sleep(.3)
             try:
-                result=command('docker','exec',name,'asterisk','-rx','core show help channel originate')
+                result=command('podman','exec',name,'asterisk','-rx','core show help channel originate')
                 if 'Usage1:' in result:
                     ready=True
                     break
             except subprocess.CalledProcessError:
                 pass
         assert ready, 'Asterisk did not finish booting'
-        print(command('docker','exec',name,'asterisk','-rx','core show version'),flush=True)
+        print(command('podman','exec',name,'asterisk','-rx','core show version'),flush=True)
         for business in ('alpha','beta'):
-            command('docker','exec',name,'asterisk','-rx',f'channel originate Local/{business}@qa extension {business}@caller')
+            command('podman','exec',name,'asterisk','-rx',f'channel originate Local/{business}@qa extension {business}@caller')
         async with asyncio.timeout(65):
             while True:
                 count=await db.pool().fetchval('SELECT count(*) FROM phone_calls WHERE call_sid=ANY($1) AND ended_at IS NOT NULL',identities)
@@ -131,7 +131,7 @@ async def main():
         print('PASS real Asterisk and live Grok, two concurrent businesses; carrier calls=0, external messages=0')
     except Exception:
         try:
-            print(command('docker','logs','--tail','45',name))
+            print(command('podman','logs','--tail','45',name))
         except Exception:
             pass
         raise
@@ -143,7 +143,7 @@ async def main():
         b.websockets.connect=connect
         for wav in directory.glob('*.wav'):
             shutil.copy2(wav,artifacts/wav.name)
-        subprocess.run(['docker','rm','-f',name],capture_output=True)
+        subprocess.run(['podman','rm','-f',name],capture_output=True)
         for server in servers:
             server.close();await server.wait_closed()
         for task in list(active):task.cancel()

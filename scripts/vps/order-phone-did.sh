@@ -310,7 +310,7 @@ ask CALL_OK "Did the receptionist answer and did the owner alert arrive? (yes/no
 if [[ "$CALL_OK" =~ ^[Yy] ]]; then
   note "Phone path is live."
 else
-  warn "Capture the Asterisk log: ssh $VPS_HOST 'docker logs --tail 200 trendi-asterisk 2>&1 | tail -50'"
+  warn "Capture the Asterisk log: ssh $VPS_HOST 'podman logs --tail 200 trendi-asterisk 2>&1 | tail -50'"
   SKIPPED+=("verify the first inbound call on $DID_E164")
 fi
 pause

@@ -16,7 +16,6 @@ REQUIRED_PATHS = (
     "concierge-stack/agent/agent.py",
     "concierge-stack/social-service/Cargo.toml",
     "concierge-stack/social-service/src/main.rs",
-    "concierge-stack/docker-compose.voice.yml",
     "concierge-stack/backup.sh",
     "concierge-stack/restore-test.sh",
 )

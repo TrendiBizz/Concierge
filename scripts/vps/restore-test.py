@@ -29,27 +29,27 @@ try:
         assert metadata.with_suffix('.bin').stat().st_size == record['bytes']
     with sqlite3.connect(str(stage / 'social.db')) as database:
         assert database.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
-    run(['docker', 'run', '-d', '--rm', '--name', name, '--network', 'none',
+    run(['podman', 'run', '-d', '--rm', '--name', name, '--network', 'none',
          '--memory', '512m', '-e', 'POSTGRES_HOST_AUTH_METHOD=trust',
          'pgvector/pgvector:pg16'], stdout=subprocess.DEVNULL)
     created = True
     for attempt in range(30):
-        if subprocess.run(['docker', 'exec', name, 'pg_isready', '-U', 'postgres'],
+        if subprocess.run(['podman', 'exec', name, 'pg_isready', '-U', 'postgres'],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             break
         time.sleep(1)
     else:
         raise RuntimeError('Isolated restore database did not start')
     for label, database in [('concierge', 'concierge')]:
-        run(['docker', 'exec', name, 'createdb', '-U', 'postgres', database])
+        run(['podman', 'exec', name, 'createdb', '-U', 'postgres', database])
         with (stage / (label + '.dump')).open('rb') as dump:
-            run(['docker', 'exec', '-i', name, 'pg_restore', '-U', 'postgres',
+            run(['podman', 'exec', '-i', name, 'pg_restore', '-U', 'postgres',
                  '-d', database, '--no-owner', '--exit-on-error'], stdin=dump)
-        count = subprocess.check_output(['docker', 'exec', name, 'psql', '-U', 'postgres',
+        count = subprocess.check_output(['podman', 'exec', name, 'psql', '-U', 'postgres',
             '-d', database, '-Atc', "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')"], text=True).strip()
         print(label, 'encrypted backup restored:', count, 'tables', flush=True)
     print('Encrypted backup restore test passed: the database, social vault and settings.', flush=True)
 finally:
     if created:
-        subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['podman', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     shutil.rmtree(tmp)

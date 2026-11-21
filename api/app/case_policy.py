@@ -1,14 +1,10 @@
-"""Hermes orchestration in Python: an untrusted planner behind a closed allowlist.
+"""Case policy: an untrusted planner behind a closed allowlist.
 
-WHY THIS IS PYTHON AND NOT THE GATEWAY SERVICE
-The Rust `hermes-gateway` has the right security design, but it is a separate service and the Rust
-workstream is flagged for later. `api/app/hermes_ops.py` is only the internal endpoint that gateway
-calls; nothing in production calls it. So neither half of the original design runs. Rather than
-leave the capability dead, the orchestration is expressed here, in-process, without the service
-boundary. `hermes_ops.py` is left in place and untouched for whenever Rust is revisited.
+The planner is asked for one typed JSON plan and the orchestration is expressed here, in-process.
+Concierge remains the record, the permission boundary and the executor.
 
-THE TRUST MODEL, unchanged from the original design
-Hermes is an UNTRUSTED PLANNER. It is asked for one typed JSON plan and nothing it says is believed:
+THE TRUST MODEL
+The planner is UNTRUSTED. It is asked for one typed JSON plan and nothing it says is believed:
 
   - the tenant and case come from OUR records, never from the plan. A plan that carries them is
     rejected outright, so a model cannot aim work at another business or another customer;

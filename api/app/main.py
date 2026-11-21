@@ -26,7 +26,7 @@ from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
     phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
-from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, hermes_ops, brand_from_site, releases, owner_ask
+from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, brand_from_site, releases, owner_ask
 from . import suppressions
 from . import engagement
 from . import sms_inbox
@@ -142,7 +142,7 @@ from . import guides
 from . import quote_profiles
 from . import portability
 from . import channel_health, flood_guard, mailer
-from . import asterisk_ami, call_control, call_insights, casetimeline, hermes_orchestrator, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
+from . import asterisk_ami, call_control, call_insights, casetimeline, case_policy, live_calls, missed_calls, provider_readiness, quote_payments, revenue, supervision
 from .booking import DAYS
 from .config import get_settings
 from .contact import normalize_phone
@@ -236,7 +236,6 @@ app.include_router(designs.page_router)
 app.include_router(media_studio.router)
 app.include_router(calendar_connection.router)
 app.include_router(email_secretary.router)
-app.include_router(hermes_ops.router)  # answers 404 unless HERMES_GATEWAY_ENABLED and HERMES_GATEWAY_KEY are set
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.

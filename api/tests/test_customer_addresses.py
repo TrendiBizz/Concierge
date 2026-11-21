@@ -4,7 +4,7 @@ Against a real Postgres, because the whole point is SQL behaviour: matching on e
 the unique (tenant, kind, value) identity, and merging without tripping that index. Skipped when
 TEST_DATABASE_URL is unset, so the unit suite still runs anywhere.
 
-    docker run -d --name pgaddr -e POSTGRES_PASSWORD=pw -p 55433:5432 pgvector/pgvector:pg16
+    scripts/dev/test-db.sh
     TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55433/postgres \
       python3 -m pytest tests/test_customer_addresses.py -q
 """
