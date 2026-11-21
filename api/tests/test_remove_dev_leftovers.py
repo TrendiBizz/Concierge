@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 import tarfile
 from pathlib import Path
 
@@ -13,6 +14,7 @@ SCRIPT_SH = REPO / "scripts" / "vps" / "remove-dev-leftovers.sh"
 
 _spec = importlib.util.spec_from_file_location("remove_dev_leftovers", SCRIPT_PY)
 mod = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = mod
 _spec.loader.exec_module(mod)
 
 
