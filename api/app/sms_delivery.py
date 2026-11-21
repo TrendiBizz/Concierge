@@ -1,4 +1,4 @@
-"""Durable carrier submission and monotonic delivery receipts, scoped to one outbox row."""
+"""Durable SMS submission and monotonic delivery receipts, scoped to one outbox row."""
 from . import db
 
 
@@ -56,5 +56,5 @@ async def reconcile() -> None:
     # Missing DLRs are unknown, never 'delivered' and never silently retried.
     await db.pool().execute(
         "UPDATE outbox SET status='held', last_error='Carrier delivery unconfirmed; reconcile before retry' "
-        "WHERE channel='sms' AND sms_provider IN ('hero','twilio') "
+        "WHERE channel='sms' AND sms_provider IN ('hero','smsgate','twilio') "
         "AND status='awaiting_receipt' AND claimed_at < now()-interval '24 hours'")

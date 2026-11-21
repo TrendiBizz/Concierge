@@ -18,9 +18,9 @@ from app.routers import telephony
 
 
 @pytest.fixture
-def hero(monkeypatch):
-    settings = Settings(sms_provider="hero", hero_sms_enabled=True,
-                        hero_sms_username="fixture", hero_sms_password="fixture-password")
+def gateway(monkeypatch):
+    settings = Settings(sms_provider="smsgate", smsgate_base_url="https://sms.example",
+                        smsgate_username="fixture", smsgate_password="fixture-password")
     monkeypatch.setattr(sms, "get_settings", lambda: settings)
     monkeypatch.setattr(sms.flood_guard, "memory_allow", lambda *a: True)
     return settings
@@ -32,50 +32,46 @@ def transport(monkeypatch, handler):
         transport=httpx.MockTransport(handler), **kw))
 
 
-def test_hero_requires_explicit_enable_and_credentials(hero):
-    assert hero.sms_configured and sms.sender_ready({})
-    hero.hero_sms_enabled = False
-    assert not hero.sms_configured and not sms.sender_ready({})
+def test_hero_cannot_send_even_with_stale_environment(monkeypatch):
+    settings = Settings(sms_provider="hero")
+    monkeypatch.setattr(sms, "get_settings", lambda: settings)
+    monkeypatch.setattr(sms.flood_guard, "memory_allow", lambda *a: True)
+    assert not settings.sms_configured and not sms.sender_ready({})
+    transport(monkeypatch, lambda req: pytest.fail("Hero must never receive SMS"))
     with pytest.raises(sms.SmsNotConfigured):
         asyncio.run(sms.send_sms("+64210000001", "hello"))
-    hero.hero_sms_enabled = True
-    hero.hero_sms_password = ""
-    assert not sms.sender_ready({})
 
 
-def test_hero_posts_documented_form_and_only_reports_acceptance(hero, monkeypatch):
-    seen = []
+def test_own_sms_default_and_paired_phone_override(monkeypatch):
+    monkeypatch.delenv("SMS_PROVIDER", raising=False)
+    assert Settings(_env_file=None).sms_provider == "smsgate"
+    settings = Settings(sms_provider="none")
+    monkeypatch.setattr(sms, "get_settings", lambda: settings)
+    monkeypatch.setattr(sms.flood_guard, "memory_allow", lambda *a: True)
+    from app import device_sms
+    enqueue = AsyncMock(return_value="phone-receipt")
+    monkeypatch.setattr(device_sms, "enqueue", enqueue)
+    tenant = {"id": "t", "sms_transport": "device", "sms_enabled": True, "sms_from": "+64210000002"}
+    assert sms.sender_ready(tenant)
+    assert asyncio.run(sms.send_sms("+64210000001", "hello", tenant=tenant, request_key="outbox:4", outbox_id=4)) == "phone-receipt"
+    enqueue.assert_awaited_once_with(tenant, "+64210000001", "hello", "outbox:4", 4)
+
+
+def test_smsgate_submission_is_durable_and_not_delivered(gateway, monkeypatch):
+    begin = AsyncMock(return_value=True)
+    accepted = AsyncMock()
+    monkeypatch.setattr(sms_delivery, "begin", begin)
+    monkeypatch.setattr(sms_delivery, "accepted", accepted)
     def handler(req):
-        seen.append(req)
-        return httpx.Response(200, text="0:1 SMS successfully queued")
-    # Official RETURN Values are code + explanation; tolerate the documented explanation.
+        begin.assert_awaited_once_with(4, "t", "smsgate")
+        assert req.url.host == "sms.example"
+        return httpx.Response(202, json={"id": "gateway-id"})
     transport(monkeypatch, handler)
-    assert asyncio.run(sms.send_sms("+64210000001", "hello")) == ""
-    req = seen[0]
-    assert str(req.url) == "https://hero.co.nz/sms.php"
-    assert req.method == "POST" and not req.url.query
-    assert parse_qs(req.content.decode()) == {
-        "username": ["fixture"], "password": ["fixture-password"],
-        "destination": ["+64210000001"], "message": ["hello"]}
+    assert asyncio.run(sms.send_sms("+64210000001", "hello", tenant={"id": "t"}, outbox_id=4)) == "gateway-id"
+    accepted.assert_awaited_once_with(4, "smsgate", "gateway-id")
 
 
-@pytest.mark.parametrize("code", ["2:0", "3:0", "4:0"])
-def test_hero_rejection_is_safe_and_does_not_include_response(hero, monkeypatch, code):
-    transport(monkeypatch, lambda req: httpx.Response(200, text=code))
-    with pytest.raises(sms.SmsRejected) as error:
-        asyncio.run(sms.send_sms("+64210000001", "hello"))
-    assert "fixture-password" not in str(error.value)
-
-
-def test_hero_never_truncates_overlength_messages(hero, monkeypatch):
-    called = []
-    transport(monkeypatch, lambda req: called.append(req))
-    with pytest.raises(sms.SmsRejected):
-        asyncio.run(sms.send_sms("+64210000001", "x" * 161))
-    assert not called
-
-
-def test_timeout_is_uncertain_and_second_submission_is_prevented(hero, monkeypatch):
+def test_timeout_is_uncertain_and_second_submission_is_prevented(gateway, monkeypatch):
     begin = AsyncMock(side_effect=[True, False])
     monkeypatch.setattr(sms_delivery, "begin", begin)
     calls = []
@@ -170,7 +166,7 @@ def test_real_database_receipt_ordering_scope_and_missing_receipts(monkeypatch):
                 assert await conn.fetchval("SELECT sms_delivery_status FROM outbox WHERE id=$1", oid) == "sent"
                 assert await sms_delivery.twilio_receipt(oid, {**form, "MessageStatus": "undelivered"})
                 assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "failed"
-                await conn.execute("UPDATE outbox SET status='awaiting_receipt',sms_provider='hero',claimed_at=now()-interval '25 hours' WHERE id=$1", oid)
+                await conn.execute("UPDATE outbox SET status='awaiting_receipt',sms_provider='smsgate',claimed_at=now()-interval '25 hours' WHERE id=$1", oid)
                 await sms_delivery.reconcile()
                 assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "held"
         finally:
