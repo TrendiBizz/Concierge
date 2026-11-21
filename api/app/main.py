@@ -181,26 +181,28 @@ async def lifespan(_: FastAPI):
                 await asyncio.wait_for(stop.wait(), timeout=3600)
             except asyncio.TimeoutError:
                 pass
-    voice_retention_worker = asyncio.create_task(maintain_voice_records())
-    worker = asyncio.create_task(outbox.run_forever(stop)) if settings.outbox_enabled else None
-    sla_worker = asyncio.create_task(sla.run_forever(stop)) if settings.outbox_enabled else None
-    digest_worker = asyncio.create_task(sales.run_forever(stop)) if settings.outbox_enabled else None
-    missed_worker = asyncio.create_task(missed_calls.run_forever(stop)) if settings.outbox_enabled else None
-    insights_worker = asyncio.create_task(call_insights.run_forever(stop)) if settings.outbox_enabled else None
-    email_worker = asyncio.create_task(email_secretary.run_forever(stop))
-    calendar_worker = asyncio.create_task(calendar_connection.run_forever(stop))
-    yield
-    stop.set()
-    await calendar_worker
-    await email_worker
-    await voice_retention_worker
-    if worker:
-        await worker
-    if sla_worker:
-        await sla_worker
-    if digest_worker:
-        await digest_worker
-    await db.close()
+    workers: list[asyncio.Task] = [
+        asyncio.create_task(maintain_voice_records(), name="voice_retention_worker"),
+        asyncio.create_task(email_secretary.run_forever(stop), name="email_worker"),
+        asyncio.create_task(calendar_connection.run_forever(stop), name="calendar_worker"),
+    ]
+    if settings.outbox_enabled:
+        workers.extend([
+            asyncio.create_task(outbox.run_forever(stop), name="outbox_worker"),
+            asyncio.create_task(sla.run_forever(stop), name="sla_worker"),
+            asyncio.create_task(sales.run_forever(stop), name="digest_worker"),
+            asyncio.create_task(missed_calls.run_forever(stop), name="missed_worker"),
+            asyncio.create_task(call_insights.run_forever(stop), name="insights_worker"),
+        ])
+    try:
+        yield
+    finally:
+        stop.set()
+        results = await asyncio.gather(*workers, return_exceptions=True)
+        for task, result in zip(workers, results):
+            if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                log.warning("Background worker %s exited with error during shutdown: %s", task.get_name(), result)
+        await db.close()
 
 
 app = FastAPI(title="Website AI Concierge", lifespan=lifespan)
