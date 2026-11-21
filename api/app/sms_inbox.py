@@ -123,7 +123,7 @@ async def _set_takeover(user: dict, tenant: dict, phone: str, paused: bool) -> b
 
 @router.post("/conversations/{conversation_id}/takeover")
 async def takeover(conversation_id: uuid.UUID, body: Takeover, user: dict = Depends(owner_auth.current_user)):
-    owner_auth.require_role(user, "viewer")
+    owner_auth.require_role(user, "editor")
     tenant = await tenants.get_by_id(user["tenant_id"])
     conv = await _conversation(user, conversation_id)
     await _set_takeover(user, tenant, phone_of(conv["session_id"]), body.paused)

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import re
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -112,7 +113,7 @@ async def privacy_request(request: Request):
             f"A privacy request was made from the website.\n\nEmail: {email}\n"
             f"Request: {kind}\nNote: {note[:500] or '-'}\n\n"
             f"See it in Studio, then record what you did.\n",
-            f"privacy:{tenant_id}:{email}:{kind}:{note[:40]}")
+            f"privacy:{tenant_id}:{email}:{kind}:{date.today().isoformat()}")
     return _page("""
 <h1>Request received</h1>
 <p>Thank you. We have passed this to the business that holds your details and recorded it with them.

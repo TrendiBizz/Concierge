@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from . import db, owner_auth, owner_invites, outbox, owner_notifications, subscription, tenants
 from .config import get_settings
+from .security import require_admin
 
 router = APIRouter(tags=["billing"])
 public_router = APIRouter(prefix="/receipt", tags=["billing"])
@@ -273,12 +274,9 @@ class ManualCharge(BaseModel):
     reference: str = Field(default="", max_length=120)
 
 
-@router.post("/admin/billing/charge")
-async def manual_charge(body: ManualCharge, x_admin_token: str = Header(default="")):
+@router.post("/admin/billing/charge", dependencies=[Depends(require_admin)])
+async def manual_charge(body: ManualCharge):
     """A bank transfer, verified by a person. Same outcome: invoice, provisioning, email."""
-    import os
-    if not x_admin_token or not hmac.compare_digest(x_admin_token, os.environ.get("ADMIN_TOKEN", "")):
-        raise HTTPException(401, "Not authorised")
     invoice = await issue(
         email=body.email, name=body.name, business=body.business, plan=body.plan,
         amount_cents=body.amount_cents, currency=body.currency.upper(),

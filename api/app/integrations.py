@@ -67,7 +67,10 @@ def _require(provider: str) -> None:
 # ---- signed OAuth state ----------------------------------------------------------------------
 def _key() -> bytes:
     s = get_settings()
-    return (s.unsubscribe_secret or s.admin_token or "dev-only").encode()
+    secret = (s.unsubscribe_secret or s.admin_token or "").strip()
+    if not secret:
+        raise HTTPException(503, "Integration signing secret is not configured")
+    return secret.encode()
 
 
 def make_state(tenant_id, provider: str, ttl: int = 900) -> str:

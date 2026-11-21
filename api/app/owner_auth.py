@@ -114,11 +114,13 @@ async def redeem(token: str, password: str) -> dict:
             if not invitation:
                 raise ValueError("Invalid or expired invitation")
             existing = await conn.fetchrow(
-                "SELECT id FROM tenant_users WHERE tenant_id=$1 AND email=$2",
+                "SELECT id, active FROM tenant_users WHERE tenant_id=$1 AND email=$2",
                 invitation["tenant_id"], invitation["email"],
             )
             if invitation["purpose"] == "recovery" and not existing:
                 raise ValueError("Account no longer exists")
+            if existing and not dict(existing).get("active", True) and invitation["purpose"] != "invite":
+                raise ValueError("Account has been deactivated")
             # A valid invitation for an account that already exists must sign them in, not fail.
             # On 14 Nov that check raised "Account already exists" for support@trendibizz.com because
             # an operator link had already created the user, and the endpoint reported it as "this
@@ -270,11 +272,13 @@ async def accept_invite(token: str, *, expected_email: str | None = None,
             if not invite_still_good(invitation["used_at"], datetime.now(timezone.utc)):
                 raise ValueError("This link has already been used")
             existing = await conn.fetchrow(
-                "SELECT id FROM tenant_users WHERE tenant_id=$1 AND email=$2",
+                "SELECT id, active FROM tenant_users WHERE tenant_id=$1 AND email=$2",
                 invitation["tenant_id"], invitation["email"],
             )
             if invitation["purpose"] == "recovery" and not existing:
                 raise ValueError("Account no longer exists")
+            if existing and not dict(existing).get("active", True) and invitation["purpose"] != "invite":
+                raise ValueError("Account has been deactivated")
             # A valid invitation for an account that already exists must sign them in, not fail.
             # On 14 Nov that check raised "Account already exists" for support@trendibizz.com because
             # an operator link had already created the user, and the endpoint reported it as "this
@@ -294,7 +298,10 @@ async def accept_invite(token: str, *, expected_email: str | None = None,
                     "VALUES($1,$2,$3,$4) RETURNING id",
                     invitation["tenant_id"], invitation["email"], invitation["role"], NO_PASSWORD,
                 )
-            await conn.execute("UPDATE tenant_invites SET used_at=now() WHERE id=$1", invitation["id"])
+            await conn.execute(
+                "UPDATE tenant_invites SET used_at=COALESCE(used_at, now()) WHERE id=$1",
+                invitation["id"],
+            )
             await conn.execute(
                 "DELETE FROM tenant_sessions WHERE user_id=$1 AND expires_at < now()", user_id)
             session = secrets.token_urlsafe(32)

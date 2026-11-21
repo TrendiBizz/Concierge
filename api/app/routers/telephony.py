@@ -448,6 +448,7 @@ async def owner_live_supervise(
     The media server does the work (Asterisk `ChanSpy` on the caller's channel through the same
     carrier trunk). Nothing is written to the caller's transcript — this is the owner listening.
     """
+    owner_auth.require_role(user, "editor")
     tenant = await _main()._require_tenant(user["slug"])
     row = await db.pool().fetchrow(
         "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",
@@ -476,6 +477,7 @@ async def owner_live_supervise_stop(
 
     The audit row closes with who stopped it; the caller and the assistant are untouched.
     """
+    owner_auth.require_role(user, "editor")
     tenant = await _main()._require_tenant(user["slug"])
     row = await db.pool().fetchrow(
         "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",
@@ -503,6 +505,7 @@ async def owner_supervision(limit: int = 20, user: dict = Depends(owner_auth.cur
 async def owner_live_takeover(
     call_sid: str, body: LiveTakeover, user: dict = Depends(owner_auth.current_user)
 ):
+    owner_auth.require_role(user, "editor")
     tenant = await _main()._require_tenant(user["slug"])
     row = await db.pool().fetchrow(
         "SELECT * FROM phone_calls WHERE tenant_id = $1 AND call_sid = $2",

@@ -121,15 +121,21 @@ def test_connectors_are_disabled_without_credentials():
     assert getattr(e.value, "status_code", None) == 409
 
 
-def test_oauth_state_is_signed_expiring_and_provider_bound():
-    s = integrations.make_state("t-1", "xero")
-    assert integrations.read_state(s, "xero") == "t-1"
-    with pytest.raises(Exception):
-        integrations.read_state(s, "m365")
-    with pytest.raises(Exception):
-        integrations.read_state(s[:-2] + "00", "xero")
-    with pytest.raises(Exception):
-        integrations.read_state(integrations.make_state("t-1", "xero", ttl=-5), "xero")
+def test_oauth_state_is_signed_expiring_and_provider_bound(monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setenv("ADMIN_TOKEN", "test-oauth-signing-secret")
+    get_settings.cache_clear()
+    try:
+        s = integrations.make_state("t-1", "xero")
+        assert integrations.read_state(s, "xero") == "t-1"
+        with pytest.raises(Exception):
+            integrations.read_state(s, "m365")
+        with pytest.raises(Exception):
+            integrations.read_state(s[:-2] + "00", "xero")
+        with pytest.raises(Exception):
+            integrations.read_state(integrations.make_state("t-1", "xero", ttl=-5), "xero")
+    finally:
+        get_settings.cache_clear()
 
 
 @needs_db

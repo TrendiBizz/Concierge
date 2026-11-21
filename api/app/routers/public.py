@@ -179,15 +179,21 @@ async def public_translate(body: PublicTranslateRequest, request: Request):
 
 @router.get("/api/v1/widget-logo")
 async def widget_logo(request: Request, key: str):
+    from .. import media_studio
     tenant = await _main()._tenant_for(request, key)
     row = await db.pool().fetchrow("SELECT logo_data FROM media_brand WHERE tenant_id=$1", tenant["id"])
     data = row["logo_data"] if row else None
-    if not data or not data.startswith("data:image/"):
+    if not data:
         raise HTTPException(404, "Logo unavailable")
-    header, encoded = data.split(",", 1)
-    mime = header[5:].split(";")[0] or "image/png"
-    return Response(base64.b64decode(encoded), media_type=mime,
-                    headers={"Cache-Control": "public, max-age=300"})
+    try:
+        mime, raw = media_studio.parse_logo_data_uri(data)
+    except ValueError:
+        raise HTTPException(404, "Logo unavailable") from None
+    return Response(raw, media_type=mime,
+                    headers={
+                        "Cache-Control": "public, max-age=300",
+                        "Content-Security-Policy": "default-src 'none'; sandbox",
+                    })
 
 
 @router.get("/api/v1/widget-config")
@@ -436,8 +442,9 @@ async def studio_page():
 @router.get("/studio/assets/{path:path}", include_in_schema=False)
 async def studio_asset(path: str):
     studio_dir = _main().STUDIO_DIR
-    target = (studio_dir / "assets" / path).resolve()
-    if not str(target).startswith(str((studio_dir / "assets").resolve())):
+    assets_root = (studio_dir / "assets").resolve()
+    target = (assets_root / path).resolve()
+    if not target.is_relative_to(assets_root):
         raise HTTPException(404, "Not found")
     if not _readable(target):
         raise HTTPException(404, "Not found")
@@ -527,7 +534,7 @@ async def studio_manifest(k: str = ""):
 async def studio_file(path: str):
     root = _main().STUDIO_DIR.resolve()
     target = (root / path).resolve()
-    if not str(target).startswith(str(root)) or not _readable(target):
+    if not target.is_relative_to(root) or not _readable(target):
         # A browser navigating to an app URL gets the shell; a missing *file* must be an honest
         # 404. Answering every missing path with index.html made /studio/sw.js a 200 text/html
         # document: a browser still holding the old worker fetches it for an update, rejects it on
