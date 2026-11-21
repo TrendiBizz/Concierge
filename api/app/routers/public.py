@@ -42,6 +42,7 @@ async def healthz():
 
 
 @router.get("/status")
+@router.get("/owner/status")
 async def service_status():
     """Point-in-time readiness, never a claim about historical uptime."""
     from datetime import datetime, timezone
