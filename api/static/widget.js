@@ -386,18 +386,29 @@
       }
     }
     // A person on the team can reply live. Poll for those replies while the panel is open.
+    var lastOwnerKey = "cc_last_owner_" + SID;
     var lastOwnerId = 0;
+    try { lastOwnerId = parseInt(localStorage.getItem(lastOwnerKey) || "0", 10) || 0; } catch (e) {}
     var pollTimer = null;
+    var pollBackoffUntil = 0;
     var chatStarted = false;  // only poll once the visitor has written something
     async function pollOwner() {
       if (!chatStarted || !panel.classList.contains("open") || document.hidden) return;
+      if (Date.now() < pollBackoffUntil) return;
       try {
         var res = await fetch(API + "/api/v1/chat/poll?key=" + encodeURIComponent(KEY) +
           "&session_id=" + encodeURIComponent(SID) + "&after=" + lastOwnerId);
+        if (res.status === 429) {
+          pollBackoffUntil = Date.now() + 60000;
+          return;
+        }
         if (!res.ok) return;
         var data = await res.json();
         (data.messages || []).forEach(function (m) {
-          if (m.id > lastOwnerId) lastOwnerId = m.id;
+          if (m.id > lastOwnerId) {
+            lastOwnerId = m.id;
+            try { localStorage.setItem(lastOwnerKey, String(lastOwnerId)); } catch (e) {}
+          }
           addMsg("assistant", m.text);
         });
       } catch (e) { /* the next tick tries again */ }

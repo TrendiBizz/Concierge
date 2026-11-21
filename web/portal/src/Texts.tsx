@@ -39,8 +39,13 @@ export function Texts({token}: {token: string}) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [role, setRole] = useState<string>('owner');
   const selectedRef = useRef('');
   selectedRef.current = selected;
+
+  useEffect(() => {
+    api('/owner/me').then((me) => setRole((me as {role?: string}).role || 'owner')).catch(() => {});
+  }, [token]);
 
   async function loadInbox() {
     try {
@@ -54,8 +59,9 @@ export function Texts({token}: {token: string}) {
     try { setThread(await api(base + '/conversations/' + id) as Thread); }
     catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load that conversation'); }
   }
-  useEffect(() => { setSelected(''); setThread(null); setList([]); setStatus(''); }, [channel]);
   useEffect(() => {
+    selectedRef.current = '';
+    setSelected(''); setThread(null); setList([]); setStatus('');
     loadInbox();
     const timer = window.setInterval(() => { loadInbox(); if (selectedRef.current) loadThread(selectedRef.current); }, 15000);
     return () => window.clearInterval(timer);
@@ -132,13 +138,15 @@ export function Texts({token}: {token: string}) {
             <>
               <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', paddingBottom: 8, flexWrap: 'wrap'}}>
                 <Heading level={3}>{who(list.find((c) => c.id === thread.id) || thread)}</Heading>
-                {thread.paused
+                {role !== 'viewer' ? (thread.paused
                   ? <Button label="Hand back to Concierge" variant="secondary" isDisabled={busy} onClick={() => setTakeover(false)} />
-                  : <Button label="Take over" variant="primary" isDisabled={busy} onClick={() => setTakeover(true)} />}
+                  : <Button label="Take over" variant="primary" isDisabled={busy} onClick={() => setTakeover(true)} />) : null}
               </HStack>
               <div style={{flex: 1, minHeight: 420}}>
                 <ChatLayout
-                  composer={thread.opted_out
+                  composer={role === 'viewer'
+                    ? <ChatSystemMessage>View-only account: editors and owners can reply or take over.</ChatSystemMessage>
+                    : thread.opted_out
                     ? <ChatSystemMessage>This person replied STOP, so they cannot be texted.</ChatSystemMessage>
                     : <ChatComposer value={draft} onChange={setDraft} onSubmit={send} isDisabled={busy}
                                     placeholder={thread.paused ? 'Text this customer yourself' : 'Type to reply yourself (this takes over from Concierge)'} />}>
