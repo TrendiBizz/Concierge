@@ -131,7 +131,7 @@ def test_a_stale_build_shows_a_message_not_a_blank_page():
 
 def test_assets_are_cacheable_and_old_chunks_are_not_deleted():
     """Two halves of the same bug: no cache headers, and rsync --delete removing live chunks."""
-    api = pathlib.Path(__file__).resolve().parents[1] / "app" / "main.py"
+    api = pathlib.Path(__file__).resolve().parents[1] / "app" / "routers" / "public.py"
     source = api.read_text()
     assert "immutable" in source, "hashed assets should be cached hard"
     deploy = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "vps" / "redeploy-api.sh"

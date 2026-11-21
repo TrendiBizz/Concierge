@@ -25,7 +25,12 @@ def test_the_invitation_result_draws_a_qr_code_for_the_same_link():
 def test_the_qr_encoder_is_served_under_the_proxied_prefix():
     from fastapi.testclient import TestClient
 
-    paths = {getattr(route, "path", "") for route in main.app.routes}
+    paths = set()
+    for route in main.app.routes:
+        if hasattr(route, "original_router"):
+            paths.update(getattr(r, "path", "") for r in route.original_router.routes)
+        else:
+            paths.add(getattr(route, "path", ""))
     assert "/owner/qrcode.js" in paths
     source = (STATIC / "qrcode.js").read_text()
     assert "QR Code Generator for JavaScript" in source

@@ -90,10 +90,10 @@ def test_the_install_page_is_its_own_document_not_a_route_inside_the_app():
 
 
 def test_the_server_serves_the_install_document_before_the_spa_catch_all():
-    source = (pathlib.Path(main.__file__)).read_text(encoding="utf-8")
-    route = '@app.get("/studio/install", include_in_schema=False)'
+    source = (pathlib.Path(main.__file__).parent / "routers" / "public.py").read_text(encoding="utf-8")
+    route = '@router.get("/studio/install", include_in_schema=False)'
     assert route in source, "the static install route is missing"
-    assert source.index(route) < source.index('@app.get("/studio/{path:path}"'), \
+    assert source.index(route) < source.index('@router.get("/studio/{path:path}"'), \
         "the catch-all is declared first and would answer /studio/install with the shell"
 
 
@@ -253,7 +253,7 @@ def test_the_studio_qr_is_minted_per_signed_in_user_and_renewed():
     assert "50 * 60 * 1000" in app, "the ticket lasts an hour and must be renewed before it lapses"
     assert "installUrl()" in app.split("function PhoneInstall")[1].split("function Setup")[0], \
         "if minting fails the QR must still open the install page"
-    src = (pathlib.Path(main.__file__)).read_text(encoding="utf-8")
+    src = (pathlib.Path(main.__file__).parent / "routers" / "public.py").read_text(encoding="utf-8")
     router_src = (pathlib.Path(main.__file__).parent / "routers" / "owner_signin.py").read_text(encoding="utf-8")
     assert '@router.post("/owner/auth/install-ticket")' in router_src
     assert src.index('"/studio/manifest.webmanifest"') < src.index('"/studio/{path:path}"'), \
