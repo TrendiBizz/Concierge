@@ -1291,7 +1291,7 @@ ALTER TABLE tenant_invites DROP CONSTRAINT IF EXISTS tenant_invites_purpose_chec
 ALTER TABLE tenant_invites ADD CONSTRAINT tenant_invites_purpose_check
     CHECK (purpose IN ('invite','recovery','code'));
 
--- Carrier submissions are separate from confirmed delivery. Hero has no published DLR.
+-- SMS submissions are separate from confirmed delivery.
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_provider text;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_provider_id text;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_delivery_status text;
