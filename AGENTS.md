@@ -8,6 +8,11 @@ command below: `docs/AGENTS_DETAIL.md` (read the section you need). Startup file
 **This repository is the only place work lives.** One repo, one history, one deploy path. Uncommitted or
 box-only changes are lost or silently diverge. "It works" and "it is what we committed" are different questions.
 
+## Deploy rule (Jo, 2026-11-21)
+- All deploys go only through the repo scripts: `scripts/vps/deploy-api.sh`, `deploy-site.sh`, `sync-tooling.sh`, `verify-deploy.sh`; `scripts/seo-gate.sh` must print `GATE RESULT: PASS`.
+- Never put raw `docker`, `docker compose`, `podman` or `podman-compose` commands in plans, prompts, docs or proposals.
+- If a one-off container step is needed (e.g. `alembic stamp`), add it to a repo script first, then reference the script.
+
 ## Where things live
 - Canonical local clone: `~/trendi-site` (TrendiBizz/Concierge `main`). Deploy from here: `cd ~/trendi-site && KEY=<path to deploy key> ./scripts/vps/deploy-site.sh`. The GitHub repo Trendiisales/trendi-site is stale (Cloudflare-era); do not use it.
 - Website source: `website/` (only source) → `scripts/vps/deploy-site.sh`
