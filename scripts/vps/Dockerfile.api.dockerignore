@@ -1,6 +1,8 @@
 **
 !api/app/**
 !api/static/**
+!api/alembic.ini
+!api/migrations/**
 !scripts/vps/api-requirements.lock
 
 # Never build macOS AppleDouble resource forks into the image. They appear when a source tree is
