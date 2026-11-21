@@ -22,6 +22,17 @@ pub async fn refresh(
     customer: &str,
     account_id: &str,
 ) -> Result<i64, String> {
+    if store.refresh_candidate(customer, account_id)?.0 == "youtube" {
+        return crate::youtube::refresh_with_endpoints(
+            store,
+            vault,
+            customer,
+            account_id,
+            &crate::youtube::from_env()?,
+            &crate::youtube::Endpoints::default(),
+        )
+        .await;
+    }
     let (network, external_id, encrypted, encrypted_refresh, expiry) =
         store.refresh_candidate(customer, account_id)?;
     if network == "instagram"

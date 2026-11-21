@@ -4222,7 +4222,7 @@ class OwnerSocialSchedule(BaseModel):
 @app.get("/owner/social/status")
 async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
     # No credentials, client IDs, access tokens or backend hostname in the response.
-    providers = {"linkedin_organization": False, "linkedin": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "x": False}
+    providers = {"linkedin_organization": False, "linkedin": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "youtube": False, "x": False}
     if settings.social_service_enabled:
         try:
             status = await social_bridge.provider_status()
@@ -4266,6 +4266,26 @@ async def owner_social_tiktok_disconnect(account_id: str,
                                          user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
     return await social_bridge.disconnect_tiktok(user, account_id)
+
+
+@app.post("/owner/social/oauth/youtube/start")
+async def owner_social_youtube_start(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.start_youtube_oauth(user)
+
+
+@app.post("/owner/social/oauth/youtube/finish")
+async def owner_social_youtube_finish(body: OwnerOAuthCallback,
+                                     user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.finish_youtube_oauth(user, body.state, body.code)
+
+
+@app.delete("/owner/social/oauth/youtube/accounts/{account_id}")
+async def owner_social_youtube_disconnect(account_id: str,
+                                         user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.disconnect_youtube(user, account_id)
 
 
 @app.post("/owner/social/oauth/google/start")

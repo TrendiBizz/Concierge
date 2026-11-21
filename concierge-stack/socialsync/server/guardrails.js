@@ -3,7 +3,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 
-export const PLATFORM_IDS = ['linkedin', 'facebook', 'instagram', 'twitter'];
+export const PLATFORM_IDS = ['linkedin', 'facebook', 'instagram', 'twitter', 'youtube'];
 
 // Loads rules.json (and optionally merges Trendi's truth.json). Reloads
 // automatically when either file changes, so edits need no restart.

@@ -93,6 +93,13 @@ pub fn default_platforms() -> BTreeMap<String, PlatformRule> {
         "google_business".to_string(),
         rule("Google Business Profile", 1500, Some(1)),
     );
+    m.insert(
+        "youtube".into(),
+        PlatformRule {
+            requires_media: true,
+            ..rule("YouTube", 5000, Some(1))
+        },
+    );
     m.insert("facebook".to_string(), rule("Facebook", 63206, Some(10)));
     m.insert(
         "instagram".to_string(),

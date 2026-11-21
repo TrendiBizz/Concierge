@@ -1,6 +1,7 @@
 {
   "_readme": "SocialSync guardrails for Pukeko Construction. 'facts' and 'forbidden_phrases' are ERRORS (they block scheduling) and mirror the verified facts in Trendi's truth.json. 'warnings' cover claims that are still pending verification: they are shown to the user but do not block. Edit this file at any time; the server reloads it automatically. Set TRUTH_JSON=/path/to/truth.json to merge the owner-verified facts from Trendi automatically.",
   "platforms": {
+    "youtube": {"label": "YouTube", "limit": 5000, "requiresMedia": true, "maxMedia": 1},
     "linkedin": { "label": "LinkedIn", "limit": 3000, "maxMedia": 9 },
     "facebook": { "label": "Facebook", "limit": 63206, "maxMedia": 10 },
     "instagram": {

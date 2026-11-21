@@ -533,7 +533,7 @@ route('DELETE', '/api/media/(\\d+)', async ({ tenantId, params, res }) => {
 // ---------------------------------------------------------------- social pages
 
 // Pages and accounts a tenant uses. These are links the team can open from
-// one place; the four platforms in PLATFORM_IDS are also the ones a post can
+// one place; the platforms in PLATFORM_IDS are also the ones a post can
 // be written for.
 const CHANNEL_PLATFORMS = [
   'facebook',

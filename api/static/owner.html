@@ -174,6 +174,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <button type="button" id="social-linkedin-connect" hidden>Connect LinkedIn profile</button>
 <button type="button" id="social-linkedin_organization-connect" hidden>Connect LinkedIn company Pages</button>
 <button type="button" id="social-x-connect" hidden>Connect X</button>
+<button type="button" id="social-youtube-connect" hidden>Connect YouTube</button>
 <button type="button" id="social-tiktok-connect" hidden>Connect TikTok</button>
 <p id="social-oauth-readiness" class="muted" aria-live="polite"></p>
 <div id="social-accounts" aria-live="polite"></div>
@@ -187,7 +188,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 <div><label for="social-media">Public HTTPS image URL (or upload a photo)</label><input id="social-media" type="url" maxlength="2048" placeholder="https://your-cdn.example/photo.jpg"></div>
 <div><label for="social-hashtags">Hashtags (optional)</label><input id="social-hashtags" maxlength="2000"></div>
 </div>
-<div><label for="social-upload">Upload a photo or video (up to 64 MB)</label><input id="social-upload" type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime"><p id="social-upload-status" class="muted" aria-live="polite"></p></div><div><label for="social-video">External video URL (TikTok requires a file upload)</label><input id="social-video" type="url" maxlength="2048"></div><button type="submit">Prepare platform previews</button>
+<div><label for="social-upload">Upload a photo or video (up to 64 MB)</label><input id="social-upload" type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime"><p id="social-upload-status" class="muted" aria-live="polite"></p></div><div><label for="social-video">External video URL (TikTok and YouTube require a file upload)</label><input id="social-video" type="url" maxlength="2048"></div><button type="submit">Prepare platform previews</button>
 </form>
 <section id="social-previews" aria-live="polite"></section>
 <button type="button" id="social-refresh" class="secondary">Refresh social drafts</button>
@@ -481,6 +482,7 @@ async function startSocialOAuth(provider){
   facebook:"Use the Facebook login that manages your business Pages, then authorize only the Pages for this business.",
   instagram:"Use the login that manages your professional Instagram account and its connected business Page.",
   x:"Use the X account you want connected to this business.",
+  youtube:"Choose your business YouTube channel and allow video uploads.",
   tiktok:"Use the TikTok account you want connected to this business."
  };
  message("Continue in the provider window. "+(instructions[provider]||"Authorize the account for this business."));
@@ -513,6 +515,7 @@ $("social-instagram-connect").addEventListener("click",()=>startSocialOAuth("ins
 $("social-linkedin_organization-connect").addEventListener("click",()=>startSocialOAuth("linkedin_organization"));
 $("social-linkedin-connect").addEventListener("click",()=>startSocialOAuth("linkedin"));
 $("social-x-connect").addEventListener("click",()=>startSocialOAuth("x"));
+$("social-youtube-connect").addEventListener("click",()=>startSocialOAuth("youtube"));
 $("social-tiktok-connect").addEventListener("click",()=>startSocialOAuth("tiktok"));
 async function finishSocialOAuth(data){
  if(data?.type!=="concierge-social-oauth" || !pendingOAuthState)return;
@@ -559,6 +562,7 @@ $("social-form").addEventListener("submit",async event=>{
  try{
   const account_ids=Array.from($("social-account").selectedOptions).map(option=>option.value);
   if(!account_ids.length)throw new Error("Select at least one linked account");
+  if(Array.from($("social-account").selectedOptions).some(option=>option.dataset.network==="youtube") && socialUpload?.kind!=="video")throw new Error("Upload a video for YouTube");
   const variants=await request("/owner/social/compose","POST",{
    content:$("composer-body").value,account_ids,link:$("composer-url").value.trim(),
    hashtags:$("social-hashtags").value.trim(),media:socialUpload?.kind==="image"?["upload:"+socialUpload.id]:($("social-media").value.trim()?[$("social-media").value.trim()]:[]),
@@ -577,6 +581,19 @@ $("social-form").addEventListener("submit",async event=>{
    for(const warning of variant.warnings)item.appendChild(node("p",warning,"muted"));
    for(const error of variant.errors)item.appendChild(node("p",error,"error"));
    const options={};
+   if(variant.network==="youtube"){
+    const fields=node("fieldset","");fields.appendChild(node("legend","YouTube video settings"));
+    const title=document.createElement("input");title.id="youtube-title-"+variant.account_id;title.name="title";title.required=true;title.maxLength=100;
+    const titleLabel=node("label","Title (required, up to 100 characters; no angle brackets)");titleLabel.htmlFor=title.id;fields.append(titleLabel,title);
+    const descriptionLabel=node("label","Description (up to 5000 bytes)");edit.id="youtube-description-"+variant.account_id;edit.name="description";descriptionLabel.htmlFor=edit.id;edit.before(descriptionLabel);
+    const privacy=document.createElement("select");privacy.id="youtube-privacy-"+variant.account_id;privacy.name="privacy";
+    const privacyLabel=node("label","Visibility");privacyLabel.htmlFor=privacy.id;fields.appendChild(privacyLabel);
+    for(const [value,label] of [["private","Private"],["unlisted","Unlisted"],["public","Public"]]){const choice=node("option",label);choice.value=value;privacy.appendChild(choice);}
+    fields.appendChild(privacy);item.appendChild(fields);options.privacy="private";
+    title.addEventListener("input",()=>{options.title=title.value;title.setCustomValidity("");});
+    privacy.addEventListener("change",()=>options.privacy=privacy.value);
+    options.description=edit.value;edit.addEventListener("input",()=>options.description=edit.value);
+   }
    if(variant.tiktok_creator){
     const creator=variant.tiktok_creator;
     item.appendChild(node("p","TikTok creator: "+creator.creator_nickname+" (@"+creator.creator_username+")"));
@@ -598,6 +615,13 @@ $("social-form").addEventListener("submit",async event=>{
     for(const {variant,edit,options} of drafts){
      assertSession(generation);
      if(variant.saved)continue;
+     if(variant.network==="youtube"){
+      const title=document.getElementById("youtube-title-"+variant.account_id);
+      title.setCustomValidity(!options.title?.trim()||Array.from(options.title).length>100||/[<>]/.test(options.title)?"Enter a title of up to 100 characters without angle brackets":"");
+      if(!title.reportValidity())throw new Error("Review the YouTube title");
+      options.description=edit.value;
+      if(new TextEncoder().encode(options.description).length>5000){edit.focus();throw new Error("YouTube description exceeds 5000 bytes");}
+     }
      if(variant.network==="tiktok" && (!options.privacy_level||!options.creator_consent||!options.music_usage_consent||!options.duration_seconds))throw new Error("Choose TikTok visibility, duration and video consent before saving");
      const saved=await request("/owner/social/posts","POST",{content:edit.value,account_ids:[variant.account_id],link:variant.link,hashtags:variant.hashtags,media:variant.media,options});variant.post_id=saved.id;
      variant.saved=true;
@@ -847,7 +871,7 @@ async function refreshSocial(){
   $("social-tiktok-connect").hidden=!canLink;
   $("social-tiktok-connect").disabled=!status.providers?.tiktok;
   $("social-tiktok-connect").title=status.providers?.tiktok?"Connect an authorized TikTok account":"TikTok Login Kit developer app and scopes must be approved";
-  for(const provider of ["facebook","instagram","linkedin","linkedin_organization","tiktok","google_business","x"]){
+  for(const provider of ["facebook","instagram","linkedin","linkedin_organization","tiktok","youtube","google_business","x"]){
     $("social-"+provider+"-connect").hidden=!canLink||!status.providers?.[provider];
   }
   $("social-oauth-readiness").textContent=!status.enabled?
@@ -871,7 +895,7 @@ async function refreshSocial(){
          account.network+" — "+account.display_name+
          (account.needs_reauth?" (disconnected or reconnection required)":"")));
       if(currentRole==="owner" && !account.needs_reauth && account.expires_at &&
-         ["instagram","linkedin","google_business","x"].includes(account.network) && account.expires_at<Date.now()/1000+14*86400){
+         ["instagram","linkedin","google_business","youtube","x"].includes(account.network) && account.expires_at<Date.now()/1000+(account.network==="youtube"?300:14*86400)){
         const renew=node("button","Renew "+account.display_name,"secondary");
         renew.addEventListener("click",async()=>{
           try{
@@ -880,6 +904,14 @@ async function refreshSocial(){
           }catch(error){message("Token renewal not available: "+error.message+". Reconnect the account if needed.",true);}
         });
         $("social-accounts").appendChild(renew);
+      }
+      if(account.network==="youtube" && currentRole==="owner"){
+        const disconnect=node("button","Disconnect "+account.display_name,"danger");disconnect.type="button";
+        disconnect.addEventListener("click",async()=>{
+          if(!confirm("Disconnect this YouTube channel? Future uploads will be blocked."))return;
+          try{await request(socialOAuthPath("youtube")+"/accounts/"+encodeURIComponent(account.id),"DELETE");await refreshSocial();message("YouTube channel disconnected.");}
+          catch(error){message("Could not disconnect YouTube: "+error.message,true);}
+        });$("social-accounts").appendChild(disconnect);
       }
       if(account.network==="google_business" && currentRole==="owner" && !account.needs_reauth){
         const unlink=node("button","Disconnect "+account.display_name,"danger");
@@ -919,7 +951,7 @@ async function refreshSocial(){
       }
       if(!account.needs_reauth && account.network!=="bluesky"){
         const option=node("option",account.network+" — "+account.display_name);
-        option.value=account.id;$("social-account").appendChild(option);
+        option.value=account.id;option.dataset.network=account.network;$("social-account").appendChild(option);
         const label=node("label",account.network.replaceAll("_"," ")+" — "+account.display_name,"social-destination");const choose=document.createElement("input");choose.type="checkbox";choose.addEventListener("change",()=>option.selected=choose.checked);label.prepend(choose);$("social-destinations").appendChild(label);
       }
     }

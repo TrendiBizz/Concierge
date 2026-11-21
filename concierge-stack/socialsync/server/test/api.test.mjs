@@ -83,6 +83,14 @@ describe('auth', () => {
 });
 
 describe('guardrails', () => {
+  it('supports YouTube as a publish destination with required media', async () => {
+    const { data } = await api('POST', '/api/check', {
+      content: 'Channel update', platforms: ['youtube'],
+    });
+    assert.ok(data.check.platforms.youtube);
+    assert.equal(data.check.ok, false);
+    assert.ok(data.check.errors.some((e) => e.code === 'media_required'));
+  });
   it('blocks a years-in-business claim that contradicts the owner', async () => {
     const { data } = await api('POST', '/api/check', {
       content: 'We have 25 years of experience in recladding.',

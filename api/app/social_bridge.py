@@ -44,6 +44,18 @@ async def _request(method: str, path: str, data: dict | None = None):
                          "Accept": "application/json"},
                 json=data)
         if response.status_code >= 300:
+            if response.status_code == 400 and "/oauth/youtube/" in path:
+                safe = {"YouTube did not grant upload access", "YouTube authorization unavailable",
+                        "YouTube authorization rejected; reconnect YouTube", "Invalid YouTube token response",
+                        "YouTube channel lookup unavailable", "YouTube channel verification failed",
+                        "Invalid YouTube channel response", "Select one YouTube channel and reconnect",
+                        "OAuth state expired or invalid"}
+                try:
+                    detail = response.json().get("error")
+                except (ValueError, AttributeError):
+                    detail = None
+                if isinstance(detail, str) and detail in safe:
+                    raise HTTPException(400, detail)
             if response.status_code == 404:
                 raise HTTPException(404, "Social resource not found")
             if response.status_code == 400 and "/oauth/meta/" in path:
@@ -266,6 +278,27 @@ async def disconnect_tiktok(tenant: dict, account_id: str):
     slug = await ensure_tenant(tenant)
     return await _request("DELETE",
                           f"/v1/customers/{slug}/oauth/tiktok/accounts/{account_id}")
+
+
+async def start_youtube_oauth(tenant: dict):
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/youtube/start")
+
+
+async def finish_youtube_oauth(tenant: dict, state: str, code: str):
+    if not POST_ID.fullmatch(state) or not code or len(code) > 2048:
+        raise HTTPException(400, "Invalid OAuth callback")
+    slug = await ensure_tenant(tenant)
+    return await _request("POST", f"/v1/customers/{slug}/oauth/youtube/finish",
+                          {"state": state, "code": code})
+
+
+async def disconnect_youtube(tenant: dict, account_id: str):
+    if not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid account identifier")
+    slug = await ensure_tenant(tenant)
+    return await _request("DELETE",
+                          f"/v1/customers/{slug}/oauth/youtube/accounts/{account_id}")
 
 
 async def start_google_oauth(tenant: dict):

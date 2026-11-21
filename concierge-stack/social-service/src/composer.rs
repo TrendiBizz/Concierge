@@ -14,6 +14,7 @@ pub const NETWORKS: &[&str] = &[
     "linkedin",
     "linkedin_organization",
     "tiktok",
+    "youtube",
     "google_business",
 ];
 #[derive(Clone, Debug, Deserialize)]
@@ -126,6 +127,7 @@ pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec
         }
         let network = account.network.as_str();
         let limit = match network {
+            "youtube" => 5000,
             "x" => 280,
             "facebook" => 63206,
             "google_business" => 1500,
@@ -163,6 +165,13 @@ pub fn compose(brief: &Brief, accounts: &[Account], rules: &Rules) -> Result<Vec
             warnings.push("Instagram caption links are not clickable; add the destination to your profile if needed".into());
         }
         let media = match network {
+            "youtube" => match &brief.video {
+                Some(video) if video.starts_with("upload:") => vec![video.clone()],
+                _ => {
+                    errors.push("Upload a video for YouTube".into());
+                    vec![]
+                }
+            },
             "tiktok" => {
                 if let Some(video) = &brief.video {
                     if !video.starts_with("upload:") {

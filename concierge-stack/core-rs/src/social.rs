@@ -123,12 +123,15 @@ pub fn response(status: u16, path: &str, body: Result<Value, ()>) -> Result<Valu
     if status == 404 {
         return Err(http(404, "Social resource not found").into());
     }
-    if status == 400 && path.contains("/oauth/meta/") {
+    if status == 400 && (path.contains("/oauth/meta/") || path.contains("/oauth/youtube/")) {
         let msg = error_text(&body).filter(|m| safe_lists().0.contains(m));
         return Err(http(
             400,
-            msg.as_deref()
-                .unwrap_or("Meta authorization could not be completed"),
+            msg.as_deref().unwrap_or(if path.contains("/oauth/youtube/") {
+                "Social request could not be completed"
+            } else {
+                "Meta authorization could not be completed"
+            }),
         )
         .into());
     }
@@ -203,6 +206,7 @@ pub fn run(
 ) -> Result<Value, HttpErr> {
     let oauth_providers = [
         "tiktok",
+        "youtube",
         "google",
         "x",
         "mastodon",
@@ -383,7 +387,7 @@ pub fn run(
                 .and_then(|r| r.strip_suffix("_oauth"))
                 .filter(|p| oauth_providers.contains(p))
             {
-                let validate_first = matches!(p, "tiktok" | "google" | "x");
+                let validate_first = matches!(p, "tiktok" | "youtube" | "google" | "x");
                 let s = if validate_first {
                     if !callback_ok(s_arg(args, 0), s_arg(args, 1)) {
                         return Err(http(400, "Invalid OAuth callback"));
@@ -404,6 +408,7 @@ pub fn run(
             }
             let provider = match op {
                 "disconnect_tiktok" => "tiktok",
+                "disconnect_youtube" => "youtube",
                 "disconnect_google" => "google",
                 "disconnect_x" => "x",
                 "disconnect_mastodon" => "mastodon",
@@ -411,7 +416,7 @@ pub fn run(
                 other => panic!("unknown operation {other}"),
             };
             let id = s_arg(args, 0);
-            let s = if matches!(provider, "tiktok" | "google" | "x") {
+            let s = if matches!(provider, "tiktok" | "youtube" | "google" | "x") {
                 if !valid_id(id) {
                     return Err(http(400, "Invalid account identifier"));
                 }

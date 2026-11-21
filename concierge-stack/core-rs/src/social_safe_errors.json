@@ -1,5 +1,13 @@
 {
 "safe": [
+    "YouTube did not grant upload access",
+    "YouTube authorization unavailable",
+    "YouTube authorization rejected; reconnect YouTube",
+    "Invalid YouTube token response",
+    "YouTube channel lookup unavailable",
+    "YouTube channel verification failed",
+    "Invalid YouTube channel response",
+    "Select one YouTube channel and reconnect",
 "Facebook authorization rejected",
 "Facebook long-lived token rejected",
 "Facebook permissions not verified",
