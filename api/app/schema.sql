@@ -1265,3 +1265,34 @@ ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS references_hdr jsonb;
 ALTER TABLE email_drafts ADD COLUMN IF NOT EXISTS attachments jsonb;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS send_from_address text;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS send_from_verified boolean NOT NULL DEFAULT false;
+
+-- N1: Concierge's own subscription lifecycle. Stripe is the source of truth; these columns mirror it
+-- so a cancelled or declined subscriber is suspended after a grace period instead of staying live.
+-- billing_status 'none' = never subscribed through Stripe (bank transfer / one-off): never auto-suspended.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_customer_id text;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status text NOT NULL DEFAULT 'none';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_grace_until timestamptz;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_period_end timestamptz;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_cancel_at_period_end boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS tenants_stripe_customer_idx ON tenants(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS tenants_stripe_subscription_idx ON tenants(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;
+ALTER TABLE platform_invoices ADD COLUMN IF NOT EXISTS stripe_invoice_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS platform_invoices_stripe_invoice_uidx ON platform_invoices(stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL;
+
+-- Each Stripe event is processed once; a retry of an event that already succeeded is a no-op.
+CREATE TABLE IF NOT EXISTS stripe_events (
+    event_id text PRIMARY KEY,
+    kind text NOT NULL DEFAULT '',
+    received_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Billing audit trail and provisioning failures (these used to be written into privacy_requests).
+CREATE TABLE IF NOT EXISTS billing_events (
+    id bigserial PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL,
+    kind text NOT NULL,
+    detail text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS billing_events_tenant_idx ON billing_events(tenant_id, created_at DESC);
