@@ -340,9 +340,13 @@ async def owner_set_pause(body: PauseRequest, user: dict = Depends(owner_auth.cu
     """Stop or resume Concierge for this business only.
 
     Never the operator's deployment-wide kill switch (flood_guard): one customer must not be able
-    to silence another.
+    to silence another. Also never allows bypassing a billing suspension.
     """
     owner_auth.require_role(user, "owner")
+    if not body.paused:
+        current = await tenant_pause.state(user["tenant_id"])
+        if current.get("paused") and current.get("by") == "billing":
+            raise HTTPException(402, "Update your payment method under Billing to resume")
     return await tenant_pause.set_paused(
         user["tenant_id"], body.paused, user.get("email") or "owner")
 
@@ -531,11 +535,17 @@ async def owner_team_deactivate(user_id: uuid.UUID, user: dict = Depends(owner_a
     target = await _team_member(user["tenant_id"], user_id)
     if target["role"] == "owner" and not await _other_active_owner_exists(user["tenant_id"], user_id):
         raise HTTPException(400, "A business needs at least one owner")
-    await db.pool().execute(
-        "UPDATE tenant_users SET active=false WHERE tenant_id=$1 AND id=$2",
-        user["tenant_id"], user_id)
-    # Sessions check `active`, but kill them outright so nothing in flight survives the decision.
-    await db.pool().execute("DELETE FROM tenant_sessions WHERE user_id=$1", user_id)
+    async with db.pool().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE tenant_users SET active=false WHERE tenant_id=$1 AND id=$2",
+                user["tenant_id"], user_id)
+            # Sessions check `active`, but kill them outright and revoke any outstanding invites/
+            # recovery links/codes so a deactivated member cannot self-reactivate.
+            await conn.execute("DELETE FROM tenant_sessions WHERE user_id=$1", user_id)
+            await conn.execute(
+                "DELETE FROM tenant_invites WHERE tenant_id=$1 AND lower(email)=lower($2)",
+                user["tenant_id"], target["email"])
     return {"id": str(user_id), "active": False}
 
 

@@ -101,7 +101,7 @@ def test_the_routes_exist():
 def test_a_manual_bank_transfer_takes_the_same_path():
     source = inspect.getsource(platform_billing.manual_charge)
     assert "issue(" in source and "provision(" in source and "email_invoice" in source
-    assert "ADMIN_TOKEN" in source
+    assert "require_admin" in source
 
 
 def test_the_webhook_reads_the_raw_body():

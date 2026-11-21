@@ -125,7 +125,7 @@ async def page(token: str) -> HTMLResponse:
     name = html.escape(brand.get("name") or issuer["name"] or "Invoice")
     accent = html.escape(brand.get("accent") or "#c8f560")
     logo = brand.get("logo_data") or ""
-    logo_tag = f'<img src="{logo}" alt="" style="height:56px">' if logo.startswith("data:image/") else ""
+    logo_tag = f'<img src="{html.escape(logo, quote=True)}" alt="" style="height:56px">' if logo.startswith("data:image/") else ""
     contact = html.escape(brand.get("contact") or issuer["phone"] or "")
     issuer_lines = [issuer["name"]] + [value for value in (
         issuer["address"], issuer["phone"],

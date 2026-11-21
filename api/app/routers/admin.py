@@ -60,7 +60,7 @@ class TenantUpdate(BaseModel):
     persona: str | None = None
     greeting: str | None = None
     cta_text: str | None = None
-    accent_color: str | None = None
+    accent_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     voice: str | None = None
     voice_enabled: bool | None = None
     phone_enabled: bool | None = None
@@ -518,7 +518,7 @@ async def admin_authorization_audit(slug: str, limit: int = 100):
     return await channel_authorization.audit_log(tenant["id"], max(1, min(limit, 500)))
 
 
-@router.get("/admin/pending-invites")
+@router.get("/admin/pending-invites", dependencies=admin)
 async def admin_pending_invites():
     """Owners who were invited and have never signed in: the call list, not a report.
 

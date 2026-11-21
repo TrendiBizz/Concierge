@@ -77,11 +77,35 @@ async def get_brand(user=Depends(owner_auth.current_user)):
     return await _brand(user["tenant_id"])
 
 
+SAFE_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+
+
+def parse_logo_data_uri(data: str) -> tuple[str, bytes]:
+    """Validate and decode a raster logo data URI. Rejects SVG to prevent stored XSS."""
+    if not data or not data.startswith("data:") or "," not in data:
+        raise ValueError("Logo must be a PNG, JPEG, WebP, or GIF image upload")
+    header, encoded = data.split(",", 1)
+    parts = header[5:].split(";")
+    mime = (parts[0] or "").strip().lower()
+    if mime not in SAFE_LOGO_TYPES or "base64" not in [p.strip().lower() for p in parts[1:]]:
+        raise ValueError("Logo must be a base64 PNG, JPEG, WebP, or GIF image")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError("Logo data is not valid base64") from exc
+    if not raw:
+        raise ValueError("Logo image is empty")
+    return mime, raw
+
+
 @router.put("/brand")
 async def put_brand(body: Brand, user=Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
-    if body.logo and not body.logo.startswith("data:image/"):
-        raise HTTPException(400, "Logo must be an image upload")
+    if body.logo:
+        try:
+            parse_logo_data_uri(body.logo)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
     row = await db.pool().fetchrow(
         """INSERT INTO media_brand(tenant_id,name,accent,contact,logo_data,updated_at)
            VALUES($1,$2,$3,$4,$5,now())
