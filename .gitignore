@@ -43,3 +43,7 @@ scripts/security/tamper/reports/
 
 # Session scratch output (handoff notes, snapshots, embedded checkouts). Never commit.
 /outputs/
+
+# QA screenshots live in the qa-screenshots-archive-20261121 GitHub Release, not in git
+QA/verification/*.png
+QA/verification/*.jpg
