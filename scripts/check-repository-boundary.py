@@ -16,8 +16,6 @@ REQUIRED_PATHS = (
     "concierge-stack/agent/agent.py",
     "concierge-stack/social-service/Cargo.toml",
     "concierge-stack/social-service/src/main.rs",
-    "concierge-stack/backup.sh",
-    "concierge-stack/restore-test.sh",
 )
 
 def git_files(path: Path, *args: str) -> set[str]:

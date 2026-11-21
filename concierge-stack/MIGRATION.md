@@ -10,7 +10,6 @@ The copied contents originated from **Trendiisales/trendi-site** branch
 - `social-service/`: independent Rust social API, OAuth groundwork and tests.
 - `socialsync/`: legacy social user interface and supporting Node code.
 - `tests/`: voice and messaging verification.
-- `backup.sh`, `restore-test.sh`, associated scripts: encrypted backup tooling.
 - `platform-website/`: separate historical product website prototype, **not**
   the current Trendi public website in the other repository.
 
@@ -26,10 +25,7 @@ The private `.env`, `backup.env`, and customer data were checksum-matched to
 the canonical Concierge paths and the old runtime was moved to a local,
 Git-ignored, owner-only `.migration-rollback/` archive inside this directory.
 
-The launchd daily backup and monthly isolated restore jobs now run the
-**Concierge** repository scripts. A new encrypted backup was uploaded from
-the canonical location, then restored successfully, including 121 Twenty
-tables. The voice Python 3.12 environment was independently rebuilt and all
+(The Mac launchd backup/restore-test jobs and their scripts were removed on 2026-11-21 with Twenty CRM.) The voice Python 3.12 environment was independently rebuilt and all
 54 tests passed. Compose config was validated with the private local env.
 
 The running core platform, Twenty and Caddy services were preserved,

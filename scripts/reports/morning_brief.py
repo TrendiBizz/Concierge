@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-REPORT_DIR = Path.home() / ".workwatch" / "reports" / "hermes" / "trendi-master"
+REPORT_DIR = Path.home() / ".workwatch" / "reports" / "trendi-master"
 OMEGA_HOST = os.environ.get("OMEGA_HOST", "omega-new")
 VPS_KEY = REPO / "Concierge"
 VPS_HOST = "root@152.42.239.240"
