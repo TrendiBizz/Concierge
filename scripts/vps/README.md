@@ -100,6 +100,10 @@ selectively skipped by WAF rules.
 
 Removed 2026-11-21. Box cleanup: `remove-hermes-leftovers.sh`; tables dropped by migration 0002 (`migrate-api.sh`); dump taken by `hermes-db-backup.sh`.
 
+## Dev leftovers
+
+Removed 2026-11-21. Box cleanup: `remove-dev-leftovers.sh` (lists and confirms no overlap with production, backs up non-empty volumes to `/opt/trendi/releases/20261108-vps/removed/20261121/dev-volumes/`, removes `dev-*` containers/volumes/networks/unused images, and removes `containerd` only when Podman does not depend on it).
+
 ## Grok SIP telephone activation
 
 Website/portal voice uses browser audio and needs no telephone number or SIP
