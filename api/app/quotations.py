@@ -681,8 +681,11 @@ def document_html(quote: dict, issuer: dict, brand: dict | None, *, actions: str
         ('NZBN ' + issuer['nzbn']) if issuer.get('nzbn') else '') if part]
     issuer_html = '<br>'.join(html.escape(str(part)) for part in issuer_lines)
 
-    print_note = ('<p class="no-print"><button onclick="window.print()">Print or save as PDF</button></p>'
-                  if not public_view else '')
+    print_note = (
+        '<p class="no-print"><button id="print-quote" type="button">Print or save as PDF</button></p>'
+        '<script>document.getElementById("print-quote")?.addEventListener("click",()=>window.print());</script>'
+        if not public_view else ''
+    )
     viewed_note = ''
     if public_view and quote.get('sent_at'):
         viewed_note = '<p class="muted small">Issued ' + html.escape(issued_text) + '</p>'
@@ -792,7 +795,8 @@ async def print_view(quote_id: UUID, user=Depends(owner_auth.current_user)):
         'deposit_percent FROM tenants WHERE id=$1', user['tenant_id'])
     issuer = billing.details(dict(tenant) if tenant else {})
     brand = await _brand_for(user['tenant_id'], dict(tenant) if tenant else {})
-    return HTMLResponse(document_html(quote, issuer, brand))
+    from .security import html_with_script_nonce
+    return html_with_script_nonce(document_html(quote, issuer, brand))
 
 
 @public_router.get('/{token}', response_class=HTMLResponse)

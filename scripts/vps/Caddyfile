@@ -71,6 +71,11 @@
         path / /favicon.ico /favicon.svg /webhooks/stripe /receipt/* /privacy /privacy/* /guide/* /owner-ui /onboarding /studio /studio/* /quote/* /invoice/* /upload/* /robots.txt /api/v1/public-design/* /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /webhooks/brevo /api/v1/social-media/* /api/v1/device-sms/* /api/v1/phone/xai/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/*
     }
     handle @owner {
+        # Fallback defensive headers when Caddy itself answers (upstream FastAPI sets route-specific CSP).
+        header ?X-Frame-Options "DENY"
+        header ?X-Content-Type-Options "nosniff"
+        header ?Referrer-Policy "no-referrer"
+        header ?Permissions-Policy "camera=(), microphone=(), geolocation=()"
         reverse_proxy api:8000 {
             # A deploy recreates the api container and the container network's DNS briefly answers
             # SERVFAIL for "api"; without retries Caddy returned 502 and the phone

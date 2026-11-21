@@ -24,6 +24,7 @@ from .. import (
     channel_authorization, chat as chat_engine, cloudflare_auth, convo, db, llm,
     site_enquiry, tenants,
 )
+from ..security import html_with_script_nonce
 
 log = logging.getLogger("concierge")
 router = APIRouter()
@@ -358,7 +359,10 @@ async def client_report(token: str, days: int = 30):
 @router.get("/admin-ui")
 async def admin_ui():
     """Static dashboard shell. It holds no data; the page asks for the admin token and calls /admin/*."""
-    return FileResponse(_main().STATIC_DIR / "admin.html", media_type="text/html", headers={"Cache-Control": "no-store"})
+    return html_with_script_nonce(
+        (_main().STATIC_DIR / "admin.html").read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/", include_in_schema=False)
@@ -384,8 +388,8 @@ async def owner_favicon():
 
 @router.get("/owner-ui")
 async def owner_ui():
-    return FileResponse(
-        _main().STATIC_DIR / "owner.html", media_type="text/html",
+    return html_with_script_nonce(
+        (_main().STATIC_DIR / "owner.html").read_text(encoding="utf-8"),
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
                  "Referrer-Policy": "no-referrer"},
     )
@@ -468,9 +472,11 @@ async def studio_install():
     studio_dir = _main().STUDIO_DIR
     target = (studio_dir / "install.html").resolve()
     if _readable(target):
-        return FileResponse(target, media_type="text/html",
-                            headers={"Cache-Control": "no-store",
-                                     "X-Robots-Tag": "noindex, nofollow, noai, noimageai"})
+        return html_with_script_nonce(
+            target.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store",
+                     "X-Robots-Tag": "noindex, nofollow, noai, noimageai"},
+        )
     # A deploy that has not copied install.html yet still serves something sensible.
     return _studio_index(studio_dir.resolve())
 
@@ -529,8 +535,8 @@ async def robots_txt():
 
 @router.get("/onboarding", include_in_schema=False)
 async def onboarding_page():
-    return FileResponse(
-        _main().STATIC_DIR / "onboarding.html", media_type="text/html",
+    return html_with_script_nonce(
+        (_main().STATIC_DIR / "onboarding.html").read_text(encoding="utf-8"),
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
                  "Referrer-Policy": "no-referrer"},
     )

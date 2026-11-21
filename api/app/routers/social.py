@@ -27,8 +27,10 @@ def _main():
 async def owner_social_oauth_callback():
     # Public landing page only. It cannot exchange a code or authenticate anyone.
     # The original logged-in tab compares state before exchanging the code itself.
-    return FileResponse(
-        _main().STATIC_DIR / "social-oauth-callback.html", media_type="text/html",
+    from ..security import html_with_script_nonce
+
+    return html_with_script_nonce(
+        (_main().STATIC_DIR / "social-oauth-callback.html").read_text(encoding="utf-8"),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate",
                  "Pragma": "no-cache", "Referrer-Policy": "no-referrer",
                  "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"},
