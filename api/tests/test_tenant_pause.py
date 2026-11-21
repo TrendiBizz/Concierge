@@ -12,6 +12,7 @@ Two things are pinned here.
    a broken website. That is why `suppressed()` exists and is tested.
 """
 import asyncio
+from unittest.mock import AsyncMock
 from types import SimpleNamespace
 
 import pytest
@@ -112,7 +113,14 @@ def test_a_human_takeover_returns_the_full_shape(monkeypatch):
     async def taken_over(*a, **k):
         return True
 
+    async def get_or_create(*a, **k):
+        return 7
+
     monkeypatch.setattr(chat.casetimeline, "is_paused_for", taken_over)
+    # A takeover keeps the visitor's message for the owner, so the conversation is written.
+    monkeypatch.setattr(chat.convo, "get_or_create", get_or_create)
+    monkeypatch.setattr(chat.convo, "save_message", AsyncMock())
+    monkeypatch.setattr(chat.enquiries, "capture", AsyncMock())
     result = asyncio.run(chat.run_turn(TENANT, "sess-4", "chat", "hello"))
     assert result["suppressed"] is True and result["reason"] == "human_takeover"
     for key in ENDPOINT_READS:
