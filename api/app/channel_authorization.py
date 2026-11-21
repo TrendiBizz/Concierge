@@ -71,7 +71,7 @@ async def ownership(tenant_id) -> dict | None:
     """The tenant's owner principal, used when an operator grants on their behalf."""
     return await db.pool().fetchrow(
         """SELECT u.id FROM tenant_users u
-           WHERE u.tenant_id=$1 AND u.role='owner' AND u.active AND u.password_hash <> ''
+           WHERE u.tenant_id=$1 AND u.role='owner' AND u.active
            ORDER BY u.created_at LIMIT 1""",
         tenant_id,
     )

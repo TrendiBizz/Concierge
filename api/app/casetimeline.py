@@ -481,6 +481,27 @@ async def is_paused_for(tenant_id, *, phone: str = "", email: str = "", default_
         tenant_id, keys, phone_norm, email_norm))
 
 
+async def is_paused_for_session(tenant_id, session_id: str, channel: str = "chat") -> bool:
+    """True when the owner took over the customer behind this web-chat session.
+
+    A website visitor is known by their chat session, not by a phone or email, so is_paused_for()
+    (identifier based) can never match them. The enquiry captured from the session carries the
+    customer case, and the takeover switch lives on that case.
+    """
+    if not session_id:
+        return False
+    return bool(await db.pool().fetchval(
+        """
+        SELECT true FROM conversations cv
+        JOIN leads l ON l.conversation_id = cv.id AND l.tenant_id = cv.tenant_id
+        JOIN customer_cases c ON c.id = l.case_id AND c.tenant_id = cv.tenant_id
+        WHERE cv.tenant_id = $1 AND cv.session_id = $2 AND cv.channel = $3
+          AND c.automation_paused
+        LIMIT 1
+        """,
+        tenant_id, session_id, channel))
+
+
 async def mark_replied(tenant_id, *, phone: str = "", email: str = "", channel: str = "",
                        source_key: str = "", default_cc: str = "1") -> None:
     """Record that a reply went out, so unanswered-message tracking stays honest.

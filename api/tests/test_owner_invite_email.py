@@ -23,7 +23,7 @@ def test_it_names_the_business_and_the_first_steps():
     """Generic first steps, not one trade's workflow. Cladding takeoff is a separate optional section."""
     _, body = owner_invites.compose("Pukeko Construction", "link")
     assert "Pukeko Construction" in body
-    for phrase in ("Business", "rates", "Quotes", "chat window", "Setup step"):
+    for phrase in ("Setup", "What Concierge", "Read my website now", "rates", "Quotes", "chat window", "Setup step"):
         assert phrase in body, phrase
     assert "have us do it for you" in body, "the email must match the Setup step that offers to install"
     assert "paste before </body>" not in body, "we do not ask customers to paste code in the first email"
