@@ -20,3 +20,7 @@ for keys/integrations (API only), real Tradify/Fergus connectors.
 
 **Jo must supply:** Xero app client id/secret (`XERO_CLIENT_ID/SECRET`), Microsoft Entra app
 (`MS_CLIENT_ID/SECRET`), Tradify/Fergus partner access; ServiceM8 needs nothing (each customer pastes their key).
+
+**Follow-up (found at verify):** after deploy `/api/v1/*` and `/integrations/*/callback` answered 404 on
+the public host, because the Caddyfile `@owner` allowlist only forwards listed paths (the API itself
+returned 401 locally). Added those paths to the allowlist; synced with `sync-tooling.sh`.
