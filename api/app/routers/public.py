@@ -41,6 +41,25 @@ async def healthz():
     return {"ok": True}
 
 
+@router.get("/status")
+async def service_status():
+    """Point-in-time readiness, never a claim about historical uptime."""
+    from datetime import datetime, timezone
+    from fastapi.responses import JSONResponse
+    try:
+        import asyncio
+        await asyncio.wait_for(db.pool().fetchval("SELECT 1"), timeout=3)
+        healthy = True
+    except Exception:
+        healthy = False
+    return JSONResponse({
+        "status": "operational" if healthy else "degraded",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "components": {"api": "operational", "database": "operational" if healthy else "degraded"},
+        "scope": "Current API and database readiness; voice, email and carrier delivery are not independently probed.",
+    }, status_code=200 if healthy else 503, headers={"Cache-Control": "no-store"})
+
+
 @router.get("/widget.js")
 async def widget_js():
     return FileResponse(

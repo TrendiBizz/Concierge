@@ -86,3 +86,5 @@ MarkupSafe==3.0.4
 psycopg==3.3.9
 psycopg-binary==3.3.9
 SQLAlchemy==2.1.9
+
+sentry-sdk==2.75.0

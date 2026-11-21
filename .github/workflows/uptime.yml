@@ -32,6 +32,8 @@ jobs:
           set -uo pipefail
           failed=""
           urls=(
+            "https://concierge.trendibizz.com/status"
+            "https://concierge.trendibizz.com/healthz"
             "https://trendibizz.com/"
             "https://chat.trendibizz.com/demo/pukeko-construction"
             "https://chat.trendibizz.com/widget.js"
