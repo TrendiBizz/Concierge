@@ -7,7 +7,13 @@ STATIC = pathlib.Path(main.__file__).resolve().parent.parent / "static"
 
 
 def _paths():
-    return {getattr(route, "path", "") for route in main.app.routes}
+    paths = set()
+    for route in main.app.routes:
+        if hasattr(route, "original_router"):
+            paths.update(getattr(r, "path", "") for r in route.original_router.routes)
+        else:
+            paths.add(getattr(route, "path", ""))
+    return paths
 
 
 def test_the_worker_is_served_under_a_proxied_prefix():
