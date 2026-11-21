@@ -1,6 +1,7 @@
 """SMS sending and webhook verification behind one provider switch.
 
 Providers (SMS_PROVIDER):
+  hero     Hero Internet SMS API (explicit opt-in; acceptance is not delivery).
   twilio   Twilio REST API. Use a Messaging Service SID when the sender is a short code or a pool.
   smsgate  A self-hosted Android phone running capcom6/android-sms-gateway (Apache-2.0). The phone's
            own SIM is the sender, so a real local mobile number works with no short code.
@@ -25,6 +26,14 @@ class SmsNotConfigured(RuntimeError):
     pass
 
 
+class SmsUncertain(RuntimeError):
+    """Provider may have accepted the SMS; never automatically resend."""
+
+
+class SmsRejected(RuntimeError):
+    """Provider definitively rejected the request."""
+
+
 class SmsRateLimited(RuntimeError):
     pass
 
@@ -39,6 +48,8 @@ def sender_ready(tenant: dict | None = None) -> bool:
     if (tenant or {}).get("sms_transport") == "device":
         return bool(tenant.get("sms_enabled") and tenant.get("sms_from"))
     name = provider()
+    if name == "hero":
+        return bool(s.hero_sms_enabled and s.hero_sms_username and s.hero_sms_password)
     if name == "twilio":
         has_sender = bool(s.twilio_messaging_service_sid or (tenant or {}).get("sms_from") or s.twilio_from_number)
         return bool(s.twilio_account_sid and s.twilio_auth_token and has_sender)
@@ -61,15 +72,34 @@ async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
             raise SmsNotConfigured("Phone sender does not belong to this business")
         return await device_sms.enqueue(tenant, to_e164, body, request_key, outbox_id)
     name = provider()
-    if name == "twilio":
-        return await _send_twilio(to_e164, body, from_number)
+    if name in {"hero", "twilio"}:
+        from . import sms_delivery
+        if name == "hero" and not sender_ready(tenant):
+            raise SmsNotConfigured("needs Hero credentials and HERO_SMS_ENABLED")
+        if name == "hero" and len(body) > 160:
+            raise SmsRejected("Hero SMS exceeds the documented 160-character limit")
+        if outbox_id is not None:
+            if not await sms_delivery.begin(outbox_id, tenant["id"], name):
+                raise SmsUncertain("SMS already submitted; reconcile before retry")
+        try:
+            message_id = (await _send_hero(to_e164, body) if name == "hero" else
+                          await _send_twilio(to_e164, body, from_number, outbox_id=outbox_id))
+        except SmsRejected:
+            raise
+        except Exception:
+            # A timeout, malformed response or dropped connection can follow acceptance.
+            # Keep both logs and the outbox free of credentials/provider response bodies.
+            raise SmsUncertain("SMS submission unconfirmed; reconcile before retry") from None
+        if outbox_id is not None:
+            await sms_delivery.accepted(outbox_id, name, message_id)
+        return message_id
     if name == "smsgate":
         return await _send_smsgate(to_e164, body)
     raise SmsNotConfigured("SMS_PROVIDER is not set to a sending provider")
 
 
 # ---- Twilio ----------------------------------------------------------------
-async def _send_twilio(to_e164: str, body: str, from_number: str | None) -> str:
+async def _send_twilio(to_e164: str, body: str, from_number: str | None, *, outbox_id: int | None = None) -> str:
     s = get_settings()
     sender = from_number or s.twilio_from_number
     if not (s.twilio_account_sid and s.twilio_auth_token and (sender or s.twilio_messaging_service_sid)):
@@ -79,11 +109,18 @@ async def _send_twilio(to_e164: str, body: str, from_number: str | None) -> str:
         data["MessagingServiceSid"] = s.twilio_messaging_service_sid
     else:
         data["From"] = sender
+    if outbox_id is not None:
+        data["StatusCallback"] = s.public_base_url.rstrip("/") + f"/api/v1/sms/status/{outbox_id}"
     url = f"{s.twilio_api_base.rstrip('/')}/2010-04-01/Accounts/{s.twilio_account_sid}/Messages.json"
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, data=data, auth=(s.twilio_account_sid, s.twilio_auth_token))
+    if 400 <= resp.status_code < 500:
+        raise SmsRejected("SMS provider rejected submission")
     resp.raise_for_status()
-    return resp.json().get("sid", "")
+    sid = resp.json().get("sid", "")
+    if not sid:
+        raise SmsUncertain("SMS submission returned no identifier")
+    return sid
 
 
 def validate_signature(auth_token: str, url: str, params: dict[str, str], signature: str) -> bool:
@@ -138,3 +175,26 @@ def validate_smsgate_signature(
         return False
     mac = hmac.new(signing_key.encode(), raw_body + timestamp.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(mac, signature.strip().lower())
+
+
+async def _send_hero(to_e164: str, body: str) -> str:
+    """Official Hero Internet API. No DLR or message identifier is documented.
+
+    https://herointernet.supporthero.io/article/show/119030-sms-gateway-instructions
+    Credentials go in POST form fields, never in the URL. Do not log the response.
+    """
+    s = get_settings()
+    if not (s.hero_sms_enabled and s.hero_sms_username and s.hero_sms_password):
+        raise SmsNotConfigured("needs Hero credentials and HERO_SMS_ENABLED")
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+        resp = await client.post("https://hero.co.nz/sms.php", data={
+            "username": s.hero_sms_username, "password": s.hero_sms_password,
+            "destination": to_e164, "message": body,
+        })
+    resp.raise_for_status()
+    result = resp.text.strip().split(maxsplit=1)[0] if resp.text.strip() else ""
+    if result in {"2:0", "3:0", "4:0"}:
+        raise SmsRejected("Hero SMS rejected submission (authentication, destination or message)")
+    if result != "0:1":
+        raise SmsUncertain("Hero SMS submission unconfirmed; reconcile before retry")
+    return ""  # Hero returns only 'queued'; never invent a message ID or delivery receipt.

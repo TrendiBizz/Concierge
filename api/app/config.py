@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     # SMS. Optional: without a configured provider, SMS messages are skipped, not failed.
     # SMS_PROVIDER = twilio | smsgate | none
     sms_provider: str = "twilio"
+    hero_sms_enabled: bool = False
+    hero_sms_username: str = ""
+    hero_sms_password: str = ""
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_from_number: str = ""
@@ -183,6 +186,8 @@ class Settings(BaseSettings):
     @property
     def sms_configured(self) -> bool:
         name = (self.sms_provider or "none").strip().lower()
+        if name == "hero":
+            return bool(self.hero_sms_enabled and self.hero_sms_username and self.hero_sms_password)
         if name == "twilio":
             return bool(self.twilio_account_sid and self.twilio_auth_token
                         and (self.twilio_from_number or self.twilio_messaging_service_sid))

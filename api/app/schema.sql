@@ -1251,3 +1251,10 @@ ALTER TABLE tenant_users ADD COLUMN IF NOT EXISTS last_seen_version integer NOT 
 ALTER TABLE tenant_invites DROP CONSTRAINT IF EXISTS tenant_invites_purpose_check;
 ALTER TABLE tenant_invites ADD CONSTRAINT tenant_invites_purpose_check
     CHECK (purpose IN ('invite','recovery','code'));
+
+-- Carrier submissions are separate from confirmed delivery. Hero has no published DLR.
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_provider text;
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_provider_id text;
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS sms_delivery_status text;
+CREATE UNIQUE INDEX IF NOT EXISTS outbox_sms_provider_id_idx
+    ON outbox (sms_provider, sms_provider_id) WHERE sms_provider_id IS NOT NULL;
