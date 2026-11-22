@@ -304,6 +304,32 @@ async def accept_invite(token: str, *, expected_email: str | None = None,
             )
             await conn.execute(
                 "DELETE FROM tenant_sessions WHERE user_id=$1 AND expires_at < now()", user_id)
+            mfa_row = await conn.fetchrow(
+                "SELECT totp_enabled FROM tenant_user_mfa WHERE user_id=$1", user_id
+            )
+            pk_count = await conn.fetchval(
+                "SELECT count(*) FROM tenant_user_passkeys WHERE user_id=$1", user_id
+            )
+            methods: list[str] = []
+            if mfa_row is not None and "totp_enabled" in mfa_row.keys() and mfa_row["totp_enabled"] is True:
+                methods.append("totp")
+            if isinstance(pk_count, int) and pk_count > 0:
+                methods.append("passkey")
+            if methods:
+                mfa_token = secrets.token_urlsafe(32)
+                await conn.execute(
+                    "INSERT INTO tenant_mfa_challenges(token_hash, user_id, expires_at) "
+                    "VALUES($1, $2, now() + interval '5 minutes')",
+                    digest(mfa_token), user_id,
+                )
+                return {
+                    "mfa_required": True,
+                    "mfa_token": mfa_token,
+                    "methods": methods,
+                    "email": invitation["email"],
+                    "role": invitation["role"],
+                    "slug": invitation["tenant_slug"],
+                }
             session = secrets.token_urlsafe(32)
             await conn.execute(
                 "INSERT INTO tenant_sessions(user_id,token_hash,expires_at) "
@@ -313,6 +339,27 @@ async def accept_invite(token: str, *, expected_email: str | None = None,
     return {"access_token": session, "token_type": "bearer",
             "expires_in": SESSION_DAYS * 86400, "email": invitation["email"],
             "role": invitation["role"], "slug": invitation["tenant_slug"]}
+
+
+async def issue_session_for_user(user_id, email: str, role: str, slug: str) -> dict:
+    """Issue a fresh 30-day session token for an already-authenticated user (e.g. post-MFA/passkey)."""
+    session = secrets.token_urlsafe(32)
+    await db.pool().execute(
+        "DELETE FROM tenant_sessions WHERE user_id=$1 AND expires_at < now()", user_id
+    )
+    await db.pool().execute(
+        "INSERT INTO tenant_sessions(user_id,token_hash,expires_at) "
+        "VALUES($1,$2,now()+make_interval(days=>$3::int))",
+        user_id, digest(session), SESSION_DAYS,
+    )
+    return {
+        "access_token": session,
+        "token_type": "bearer",
+        "expires_in": SESSION_DAYS * 86400,
+        "email": email,
+        "role": role,
+        "slug": slug,
+    }
 
 
 async def account_emails(email: str) -> list[dict]:

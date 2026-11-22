@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from . import db, owner_auth
+from . import crypto_vault, db, owner_auth
 from .config import get_settings
 
 log = logging.getLogger("concierge.integrations")
@@ -109,17 +109,22 @@ async def _row(tenant_id, provider):
 
 def _creds(row) -> dict:
     c = row["credentials"]
-    return json.loads(c) if isinstance(c, str) else dict(c or {})
+    data = json.loads(c) if isinstance(c, str) else dict(c or {})
+    if isinstance(data, dict) and "_enc" in data and isinstance(data["_enc"], str):
+        aad = f"integration:{row['tenant_id']}:{row['provider']}"
+        return json.loads(crypto_vault.decrypt_text(data["_enc"], aad=aad, allow_plaintext=False))
+    return data
 
 
 async def _save(tenant_id, provider, creds: dict, status="connected", account="") -> None:
+    enc = {"_enc": crypto_vault.encrypt_text(json.dumps(creds), aad=f"integration:{tenant_id}:{provider}")}
     await db.pool().execute(
         """INSERT INTO tenant_integrations (tenant_id, provider, status, credentials, external_account, connected_at)
            VALUES ($1,$2,$3,$4::jsonb,$5,now())
            ON CONFLICT (tenant_id, provider) DO UPDATE SET status=$3, credentials=$4::jsonb,
              external_account=CASE WHEN $5<>'' THEN $5 ELSE tenant_integrations.external_account END,
              last_error='', connected_at=now()""",
-        tenant_id, provider, status, json.dumps(creds), account)
+        tenant_id, provider, status, json.dumps(enc), account)
 
 
 async def _link(tenant_id, provider, kind, local_key):

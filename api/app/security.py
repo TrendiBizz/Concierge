@@ -3,7 +3,7 @@ import secrets
 import time
 from collections import defaultdict, deque
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from .config import get_settings
@@ -145,12 +145,29 @@ def apply_security_headers(path: str, response) -> None:
         response.headers.setdefault("Content-Security-Policy", STRICT_DOC_CSP)
 
 
-def require_admin(x_admin_token: str = Header(default="")) -> None:
-    expected = get_settings().admin_token
-    if not expected:
-        raise HTTPException(status_code=503, detail="ADMIN_TOKEN is not configured")
-    if not hmac.compare_digest(x_admin_token.encode(), expected.encode()):
-        raise HTTPException(status_code=401, detail="Invalid admin token")
+async def require_admin(request: Request = None, x_admin_token: str = Header(default="")) -> dict:
+    from . import admin_operators
+
+    operator = await admin_operators.verify_operator_token(x_admin_token)
+    if operator is None:
+        expected = get_settings().admin_token
+        if not expected:
+            raise HTTPException(status_code=503, detail="ADMIN_TOKEN is not configured")
+        if not hmac.compare_digest(x_admin_token.encode(), expected.encode()):
+            raise HTTPException(status_code=401, detail="Invalid admin token")
+        operator = {"id": None, "name": "legacy-admin-token", "email": "", "role": "superadmin", "legacy": True}
+    if request is not None:
+        request.state.admin_operator = operator
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            ip = request.client.host if request.client else ""
+            await admin_operators.record_audit(
+                operator,
+                action=f"{request.method} {request.url.path}",
+                path=request.url.path,
+                method=request.method,
+                ip=ip,
+            )
+    return operator
 
 
 class RateLimiter:

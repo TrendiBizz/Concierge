@@ -36,7 +36,7 @@ from . import site_enquiry
 from . import privacy
 from . import platform_billing
 from . import subscription
-from . import api_keys, integrations
+from . import api_keys, integrations, owner_mfa, admin_operators
 from .routers import (
     admin as admin_router, crm, email, owner_portal, owner_signin, public, social, telephony,
 )
@@ -234,7 +234,9 @@ app.add_middleware(RequestTelemetry)
 
 app.include_router(voice_internal.router)
 app.include_router(owner_signin.router)
+app.include_router(owner_mfa.router)
 app.include_router(owner_portal.router)
+app.include_router(admin_operators.router)
 app.include_router(social.router)
 app.include_router(telephony.router)
 app.include_router(email.router)

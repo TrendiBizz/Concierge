@@ -16,7 +16,7 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from . import db, owner_auth
+from . import crypto_vault, db, owner_auth
 from .config import get_settings
 
 router = APIRouter(prefix='/owner/calendar', tags=['calendar'])
@@ -54,8 +54,9 @@ def save_token(tenant_id, value):
     temporary = path.with_suffix('.' + secrets.token_hex(8) + '.tmp')
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
+        encrypted = crypto_vault.encrypt_text(json.dumps(value), aad=f"calendar:{tenant_id}")
         with os.fdopen(fd, 'w') as stream:
-            json.dump(value, stream)
+            stream.write(encrypted)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -69,7 +70,9 @@ async def connection(tenant_id):
 
 async def access_token(tenant_id):
     try:
-        token = json.loads(token_path(tenant_id).read_text())
+        raw = token_path(tenant_id).read_text()
+        plaintext = crypto_vault.decrypt_text(raw, aad=f"calendar:{tenant_id}", allow_plaintext=True)
+        token = json.loads(plaintext)
     except (OSError, ValueError):
         raise CalendarUnavailable('Reconnect the business calendar') from None
     if token.get('expires_at', 0) > datetime.now(timezone.utc).timestamp() + 60:

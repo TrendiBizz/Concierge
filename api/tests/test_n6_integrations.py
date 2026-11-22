@@ -160,7 +160,7 @@ def test_xero_pushes_contact_once_and_refreshes_expired_token(monkeypatch):
         assert [u for _, u in sent if "Contacts" in u] == ["https://api.xero.com/api.xro/2.0/Contacts"]
         assert any("token" in u for _, u in sent)
         assert await pool.fetchval("SELECT external_id FROM integration_links") == "C1"
-        assert await pool.fetchval("SELECT credentials->>'access_token' FROM tenant_integrations") == "new"
+        assert integrations._creds(await integrations._row(t, "xero"))["access_token"] == "new"
     run(go)
 
 
