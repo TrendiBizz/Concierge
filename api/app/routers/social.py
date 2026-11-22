@@ -113,7 +113,7 @@ async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
             "customer": user["slug"],
             "providers": providers,
             "callback_path": "/owner/social/oauth/callback",
-            "live_publishing": False}
+            "live_publishing": bool(settings.social_service_enabled and settings.social_live_publishing)}
 
 
 @router.post("/owner/social/oauth/renew/{account_id}")
