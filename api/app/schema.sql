@@ -1441,3 +1441,40 @@ CREATE TABLE IF NOT EXISTS privacy_audit_log (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS privacy_audit_log_tenant_idx ON privacy_audit_log(tenant_id, created_at DESC);
+
+-- N14: Voice operational essentials (business-hours routing, caller blocklist, warm transfers).
+CREATE TABLE IF NOT EXISTS tenant_voice_routing (
+    tenant_id           uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    business_hours      jsonb NOT NULL DEFAULT '{}'::jsonb,
+    timezone            text NOT NULL DEFAULT 'Pacific/Auckland',
+    during_hours_action text NOT NULL DEFAULT 'ai_only'
+                        CHECK (during_hours_action IN ('ring_owner_then_ai','ai_only','ring_owner_only')),
+    after_hours_action  text NOT NULL DEFAULT 'ai_only'
+                        CHECK (after_hours_action IN ('ai_only','voicemail')),
+    ring_owner_number   text NOT NULL DEFAULT '',
+    ring_seconds        integer NOT NULL DEFAULT 15,
+    spam_max_calls_10m  integer NOT NULL DEFAULT 0,
+    updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS voice_caller_blocklist (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    phone_pattern text NOT NULL,
+    reason        text NOT NULL DEFAULT '',
+    source        text NOT NULL DEFAULT 'owner' CHECK (source IN ('owner','auto_spam')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, phone_pattern)
+);
+CREATE INDEX IF NOT EXISTS voice_caller_blocklist_tenant_idx ON voice_caller_blocklist(tenant_id);
+
+CREATE TABLE IF NOT EXISTS voice_warm_transfers (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    call_sid      text NOT NULL,
+    target_number text NOT NULL,
+    brief         text NOT NULL DEFAULT '',
+    initiated_by  text NOT NULL DEFAULT '',
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS voice_warm_transfers_tenant_idx ON voice_warm_transfers(tenant_id, created_at DESC);

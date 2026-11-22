@@ -36,7 +36,7 @@ from . import site_enquiry
 from . import privacy, privacy_retention
 from . import platform_billing
 from . import subscription
-from . import api_keys, integrations, owner_mfa, admin_operators
+from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing
 from .routers import (
     admin as admin_router, crm, email, owner_portal, owner_signin, public, social, telephony,
 )
@@ -248,6 +248,7 @@ app.include_router(device_sms.router)
 app.include_router(sms_inbox.router)
 app.include_router(chat_inbox.router)
 app.include_router(phone_sip.router)
+app.include_router(voice_routing.router)
 app.include_router(managed_phone.router)
 app.include_router(mobile_connections.router)
 app.include_router(quotations.router)

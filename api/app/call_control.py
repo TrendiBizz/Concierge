@@ -110,6 +110,25 @@ async def transfer_call(call_sid, tenant_slug, number, *, config=None):
     return channel
 
 
+async def warm_transfer_call(call_sid, tenant_slug, number, *, brief: str = '', config=None):
+    """Put the caller on hold music, brief the owner via CONCIERGE_WARM_BRIEF, and bridge on answer."""
+    if not SLUG.fullmatch(str(tenant_slug or '')):
+        raise CallControlUnavailable('Unknown business for this call')
+    number = str(number or '').strip()
+    if not re.fullmatch(r'\+?[0-9]{3,20}', number):
+        raise CallControlUnavailable('A valid transfer number is required')
+    clean_brief = re.sub(r'[\r\n]+', ' ', str(brief or '')).strip()[:240]
+    config = config or _config()
+    channel = await channel_for(call_sid, config)
+    if not channel:
+        raise CallControlUnavailable('That call is no longer on the switchboard')
+    await asterisk_ami.set_variable(config, channel, 'CONCIERGE_TRANSFER', number)
+    await asterisk_ami.set_variable(config, channel, 'CONCIERGE_WARM_BRIEF', clean_brief)
+    await asterisk_ami.redirect(config, channel, f'business-{tenant_slug}-warm-transfer', 's', 1)
+    log.info('warm-transfer redirect: %s → %s', channel, number)
+    return channel
+
+
 CHANNEL_NAME = re.compile(r'[A-Za-z0-9_/.@:;-]{1,200}')
 
 
