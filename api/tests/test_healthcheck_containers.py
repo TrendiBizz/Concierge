@@ -92,18 +92,16 @@ def test_recently_started_recognises_podman_go_timestamp(monkeypatch):
     assert healthcheck.recently_started("trendi-api-1", minutes=10) is False
 
 
-def test_starting_api_and_transient_missing_social_pass_after_retry(monkeypatch):
+def test_starting_api_passes_after_retry(monkeypatch):
     """2026-11-21 18:00 NZDT incident: cron caught redeploy-api.sh mid-swap."""
     fresh = (datetime.now(timezone.utc) - timedelta(seconds=2)).strftime("%Y-%m-%d %H:%M:%S.%f000 +0000 UTC")
     ps_mid_swap = "\n".join(
         f"{name}\tUp 2 seconds (starting)" if name == "trendi-api-1"
         else f"{name}\tUp 2 hours"
         for name in healthcheck.CRITICAL_CONTAINERS
-        if name != "trendi-social-1"
     )
     ps_recovered = "\n".join(
         f"{name}\tUp 12 seconds (healthy)" if name == "trendi-api-1"
-        else f"{name}\tUp 10 seconds" if name == "trendi-social-1"
         else f"{name}\tUp 2 hours"
         for name in healthcheck.CRITICAL_CONTAINERS
     )
@@ -124,7 +122,6 @@ def test_starting_api_and_transient_missing_social_pass_after_retry(monkeypatch)
     results = {item["check"]: item["status"] for item in healthcheck.check_containers()}
     assert calls["ps"] == 2
     assert results["container:trendi-api-1"] == "ok"
-    assert results["container:trendi-social-1"] == "ok"
     assert all(status == "ok" for status in results.values()), results
 
 
@@ -141,26 +138,26 @@ def test_container_still_starting_within_grace_warns_not_fails(monkeypatch):
     assert not any(status == "fail" for status in results.values()), results
 
 
-def test_check_sidecar_checks_email_auth_and_social_reachability(monkeypatch):
+def test_check_sidecar_checks_email_auth_and_unified_social_module(monkeypatch):
     def fake_ok(cmd, timeout=20):
         script = cmd[-1]
-        if "4390" in script:
-            return 0, "405"
+        if "app import social" in script:
+            return 0, "enabled=True providers=7"
         return 0, "200"
 
     monkeypatch.setattr(healthcheck, "run", fake_ok)
     ok_results = {item["check"]: item["status"] for item in healthcheck.check_sidecar({})}
-    assert ok_results == {"email-auth:health": "ok", "social:reachable": "ok"}
+    assert ok_results == {"email-auth:health": "ok", "social:module": "ok"}
 
-    def fake_detached(cmd, timeout=20):
+    def fake_disabled(cmd, timeout=20):
         script = cmd[-1]
-        if "4390" in script:
-            return 1, "URLError: [Errno 111] Connection refused"
+        if "app import social" in script:
+            return 0, "enabled=False providers=0"
         return 0, "200"
 
-    monkeypatch.setattr(healthcheck, "run", fake_detached)
+    monkeypatch.setattr(healthcheck, "run", fake_disabled)
     bad_results = {item["check"]: item["status"] for item in healthcheck.check_sidecar({})}
-    assert bad_results == {"email-auth:health": "ok", "social:reachable": "fail"}
+    assert bad_results == {"email-auth:health": "ok", "social:module": "fail"}
 
 
 def test_main_exits_zero_during_deploy_grace_but_nonzero_with_no_alert(monkeypatch, tmp_path):
@@ -170,7 +167,7 @@ def test_main_exits_zero_during_deploy_grace_but_nonzero_with_no_alert(monkeypat
     monkeypatch.setattr(healthcheck, "API_ENV", tmp_path / "missing-api.env")
     monkeypatch.setattr(healthcheck, "COMPOSE_ENV", tmp_path / "missing-compose.env")
     monkeypatch.setattr(healthcheck, "check_containers",
-                        lambda: [healthcheck._fail("container:trendi-social-1", "container missing")])
+                        lambda: [healthcheck._fail("container:trendi-api-1", "container missing")])
     for fn in (
         "check_public_urls", "check_api_internal", "check_database", "check_host", "check_tls",
         "check_local_services", "check_crm_capture", "check_site_prices", "check_sms_inbound",
@@ -187,13 +184,11 @@ def test_main_exits_zero_during_deploy_grace_but_nonzero_with_no_alert(monkeypat
 
 
 def test_no_script_recreates_or_restarts_api_without_redeploy_script():
-    """Any script restarting api must go through redeploy-api.sh so social stays attached."""
+    """Any script restarting api must go through redeploy-api.sh so it uses the lock and health checks."""
     vps_dir = REPO / "scripts" / "vps"
     redeploy = (vps_dir / "redeploy-api.sh").read_text()
     assert "--no-build" in redeploy
-    assert "rm -sf social" in redeploy
-    assert "HostConfig.NetworkMode" in redeploy
-    assert "social reachable" in redeploy
+    assert "unified social module ready" in redeploy
 
     restart = (vps_dir / "restart-api.sh").read_text()
     assert "redeploy-api.sh" in restart and "--no-build" in restart

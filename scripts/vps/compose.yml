@@ -100,24 +100,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-  social:
-    build:
-      context: ../..
-      dockerfile: scripts/vps/Containerfile.social
-    image: trendi-concierge-social:vps
-    network_mode: service:api
-    restart: unless-stopped
-    env_file:
-      - {path: /opt/trendi/shared/social.env, format: raw}
-    environment:
-      SOCIAL_MEDIA_DIR: /data/media
-      SOCIAL_PUBLIC_MEDIA_BASE: https://concierge.trendibizz.com/api/v1/social-media
-      SOCIAL_DB: /data/social.db
-      SOCIAL_BIND: 127.0.0.1:4390
-    volumes: [social:/data]
-    depends_on:
-      api: {condition: service_healthy}
-    mem_limit: 512m
+  # The standalone Rust `social` service was retired on 2026-11-22 after its functionality
+  # and data were folded into Concierge's unified `api/app/social/` module (Postgres + N9 vault).
+  # The legacy `social` volume is intentionally preserved on disk until Jo decides to remove it.
   website:
     image: node:22-alpine
     restart: unless-stopped

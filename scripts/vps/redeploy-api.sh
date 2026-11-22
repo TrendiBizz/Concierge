@@ -41,8 +41,7 @@ if [ "$BUILD" -eq 1 ]; then
   "${COMPOSE[@]}" build api
 fi
 
-echo "==> removing social (shares api's namespace), then recreating api"
-"${COMPOSE[@]}" rm -sf social
+echo "==> stopping any retired standalone social container, then recreating api"
 for stray in $(podman ps -a --format '{{.Names}}' | grep -E '^([0-9a-f]+_)?trendi-social-1$' || true); do
   podman rm -f "$stray" >/dev/null 2>&1 || true
 done
@@ -52,14 +51,6 @@ TEMP_API="$(podman ps -a --format '{{.Names}}' | grep -E '^[0-9a-f]+_trendi-api-
 if [ -n "$TEMP_API" ]; then
   echo "    normalising container name $TEMP_API -> trendi-api-1"
   podman rename "$TEMP_API" trendi-api-1
-fi
-
-echo "==> recreating social in api's namespace"
-"${COMPOSE[@]}" up -d --force-recreate --no-deps social
-TEMP_SOCIAL="$(podman ps -a --format '{{.Names}}' | grep -E '^[0-9a-f]+_trendi-social-1$' | head -1 || true)"
-if [ -n "$TEMP_SOCIAL" ]; then
-  echo "    normalising container name $TEMP_SOCIAL -> trendi-social-1"
-  podman rename "$TEMP_SOCIAL" trendi-social-1
 fi
 
 echo "==> waiting for the api"
@@ -76,33 +67,11 @@ if [ "$API_READY" -ne 1 ]; then
   exit 1
 fi
 
-echo "==> verifying social shares api's network namespace"
-API_ID="$(podman inspect -f '{{.Id}}' trendi-api-1)"
-SOCIAL_NET="$(podman inspect -f '{{.HostConfig.NetworkMode}}' trendi-social-1)"
-if [ "$SOCIAL_NET" != "container:$API_ID" ]; then
-  echo "social NetworkMode is '$SOCIAL_NET', expected 'container:$API_ID'" >&2
-  exit 1
-fi
-
-echo "==> checking social answers from inside the api container"
-SOCIAL_OK=0
-for _ in $(seq 1 10); do
-  if podman exec trendi-api-1 python3 -c "
-import os, urllib.request, urllib.error
-base = os.environ.get('SOCIAL_SERVICE_URL', 'http://127.0.0.1:4390').rstrip('/')
-try:
-    urllib.request.urlopen(base + '/v1/customers', timeout=5)
-except urllib.error.HTTPError:
-    pass  # answering at all is what matters
-print('social reachable')
-" 2>/dev/null; then
-    SOCIAL_OK=1
-    break
-  fi
-  sleep 2
-done
-if [ "$SOCIAL_OK" -ne 1 ]; then
-  echo "social NOT reachable from the api — recreate social again" >&2
-  exit 1
-fi
+echo "==> verifying unified social module inside api"
+podman exec trendi-api-1 python3 -c "
+from app import social
+st = social.config.provider_status()
+assert isinstance(st, dict) and len(st) == 7
+print('unified social module ready:', sum(1 for v in st.values() if v), 'of 7 providers configured')
+"
 echo "==> done"

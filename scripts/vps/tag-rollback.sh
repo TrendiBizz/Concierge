@@ -13,6 +13,7 @@ case "$TAG" in *[!A-Za-z0-9._-]*|"") echo "bad tag" >&2; exit 2 ;; esac
 
 ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$KEY" "$HOST" "set -e
 for img in trendi-concierge-api trendi-concierge-social; do
+  if ! podman image exists \$img:vps; then continue; fi
   if podman image exists \$img:$TAG; then echo \"REFUSING: \$img:$TAG already exists\" >&2; exit 1; fi
   podman tag \$img:vps \$img:$TAG
   echo \"tagged \$img:vps -> \$img:$TAG (\$(podman image inspect \$img:$TAG --format '{{.Id}}' | cut -c1-12))\"
