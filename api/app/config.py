@@ -159,6 +159,9 @@ class Settings(BaseSettings):
     # Needed only for the self-serve Stripe Customer Portal (Studio > Billing). Unset = portal link hidden.
     stripe_secret_key: str = ""
     stripe_portal_return_url: str = "https://concierge.trendibizz.com/studio/"
+    # N8: Tenant online payments via Stripe Connect Standard (disabled until configured).
+    stripe_connect_client_id: str = ""
+    stripe_connect_webhook_secret: str = ""
     # Days a declined card keeps working before the business is paused.
     billing_grace_days: int = 7
     # N6 integrations. Every provider ships disabled: with no credentials the Connect button is
