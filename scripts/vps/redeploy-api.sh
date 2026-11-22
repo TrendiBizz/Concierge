@@ -27,6 +27,12 @@ while [ "$#" -gt 0 ]; do
 done
 
 REL="${REL:-/opt/trendi/releases/20261108-vps/product}"
+mkdir -p /var/lock
+exec 9>/var/lock/trendi-redeploy-api.lock
+if ! flock -w 300 9; then
+  echo "Refusing: another redeploy-api.sh holds /var/lock/trendi-redeploy-api.lock" >&2
+  exit 1
+fi
 cd "$REL/scripts/vps"
 COMPOSE=(podman compose -f compose.yml --env-file /opt/trendi/shared/compose.env --profile public)
 

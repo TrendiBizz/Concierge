@@ -164,14 +164,30 @@ def mailable(problems: dict) -> dict:
     }
 
 
+def container_restart_count(name: str) -> int:
+    """Return the container's RestartCount (0 on a fresh deploy, >0 on a crash loop)."""
+    code, out = run(["podman", "inspect", "-f", "{{.RestartCount}}", name], timeout=15)
+    if code != 0:
+        return 0
+    try:
+        return int((out or "0").strip())
+    except ValueError:
+        return 0
+
+
 def deploying() -> str:
     """The name of a critical container restarted within the grace window, else "".
 
     A deploy restarts the api container, so public URLs and the API briefly fail. Paging the operator
     for our own deploy is noise that trains them to ignore real alerts: the two FAIL mails at 18:05
     and 18:10 on 13 Nov were exactly this.
+
+    Never treat a crash-looping container (RestartCount > 0) as a normal deploy: a crash loop keeps
+    resetting StartedAt and would otherwise hide behind the grace window indefinitely.
     """
     for name in CRITICAL_CONTAINERS:
+        if container_restart_count(name) > 0:
+            continue
         if recently_started(name, minutes=DEPLOY_GRACE_MINUTES):
             return name
     return ""
@@ -613,6 +629,47 @@ BROKEN_LOCATION = re.compile(
     r"(?:in|of|from|to|at|for|by) worldwide|worldwide law|worldwide Privacy|<td>worldwide</td>|<h2>worldwide</h2>")
 
 
+def _parse_head_tags(html: str) -> dict:
+    """Parse canonical <link>, <meta name=description|robots>, and <h1> count regardless of attribute order."""
+    from html.parser import HTMLParser
+
+    class _HeadParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.canonical: str | None = None
+            self.description: str | None = None
+            self.robots: str | None = None
+            self.h1_count = 0
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            t = tag.lower()
+            attr_map = {k.lower(): (v or "") for k, v in attrs}
+            if t == "h1":
+                self.h1_count += 1
+            elif t == "link" and self.canonical is None:
+                rels = {r.strip().lower() for r in attr_map.get("rel", "").split()}
+                if "canonical" in rels and attr_map.get("href"):
+                    self.canonical = attr_map["href"].strip()
+            elif t == "meta":
+                name = attr_map.get("name", "").strip().lower()
+                if name == "description" and self.description is None:
+                    self.description = attr_map.get("content", "")
+                elif name == "robots" and self.robots is None:
+                    self.robots = attr_map.get("content", "")
+
+    parser = _HeadParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        pass
+    return {
+        "canonical": parser.canonical,
+        "description": parser.description,
+        "robots": parser.robots,
+        "h1_count": parser.h1_count,
+    }
+
+
 def page_quality(html: str, minimum_words: int = THIN_PAGE_WORDS) -> list[str]:
     """On-page problems that cost rankings: thin copy, a broken snippet, missing canonical, no h1."""
     problems = []
@@ -621,15 +678,15 @@ def page_quality(html: str, minimum_words: int = THIN_PAGE_WORDS) -> list[str]:
     words = len(re.findall(r"[A-Za-z0-9']+", re.sub(r"<[^>]+>", " ", main)))
     if words < minimum_words:
         problems.append(f"{words} words (floor {minimum_words})")
-    if len(re.findall(r"<h1[ >]", html)) != 1:
-        problems.append(f"{len(re.findall(r'<h1[ >]', html))} h1 tags")
-    if 'rel="canonical"' not in html:
+    tags = _parse_head_tags(html)
+    if tags["h1_count"] != 1:
+        problems.append(f"{tags['h1_count']} h1 tags")
+    if not tags["canonical"]:
         problems.append("no canonical")
-    description = re.search(r'<meta content="([^"]*)" name="description"/>', html)
-    if not description:
+    if tags["description"] is None:
         problems.append("no meta description")
-    elif len(description.group(1)) > DESCRIPTION_LIMIT:
-        problems.append(f"description {len(description.group(1))} chars (limit {DESCRIPTION_LIMIT})")
+    elif len(tags["description"]) > DESCRIPTION_LIMIT:
+        problems.append(f"description {len(tags['description'])} chars (limit {DESCRIPTION_LIMIT})")
     if BROKEN_LOCATION.search(html):
         problems.append("broken location wording")
     return problems
@@ -864,14 +921,15 @@ def check_site_seo() -> list[dict]:
                 if page_code != 200:
                     problems.append(f"{url} returned {page_code}")
                     continue
-                canonical = re.search(r'<link href="([^"]+)" rel="canonical"', html)
+                tags = _parse_head_tags(html)
+                canonical = tags["canonical"]
                 expected = url if url.endswith("/") else url
                 if not canonical:
                     problems.append(f"{url} has no canonical")
-                elif canonical.group(1).rstrip("/") != expected.rstrip("/"):
-                    problems.append(f"{url} canonical is {canonical.group(1)}")
-                robots = re.search(r'<meta content="([^"]*)" name="robots"', html)
-                if robots and "noindex" in robots.group(1):
+                elif canonical.rstrip("/") != expected.rstrip("/"):
+                    problems.append(f"{url} canonical is {canonical}")
+                robots_val = (tags["robots"] or "").lower()
+                if "noindex" in robots_val:
                     problems.append(f"{url} is noindex but listed in the sitemap")
 
     # 3. The public IndexNow key is the key a submission would use.

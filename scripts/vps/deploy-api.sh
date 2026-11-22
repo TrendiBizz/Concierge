@@ -49,5 +49,8 @@ KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/prune
 echo "==> rebuilding and restarting api + social"
 "${SSH[@]}" "REL='$PRODUCT' bash '$PRODUCT/scripts/vps/redeploy-api.sh'"
 
+echo "==> running database migrations"
+KEY="$KEY" VPS_HOST="$HOST" "$REPO_ROOT/scripts/vps/migrate-api.sh"
+
 echo "==> verifying repo and box agree"
 KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/verify-deploy.sh"

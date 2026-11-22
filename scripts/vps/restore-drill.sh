@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 LATEST=$(ls -t /opt/trendi/backups/trendi-backup-*.tar.gz | head -1)
 echo "archive: $LATEST ($(du -h "$LATEST" | cut -f1))"
 rm -rf /tmp/restoredrill && mkdir -p /tmp/restoredrill
@@ -8,7 +8,14 @@ echo "contents:"; ls -1 /tmp/restoredrill
 podman exec trendi-postgres-1 psql -U postgres -c 'DROP DATABASE IF EXISTS restore_drill' >/dev/null
 podman exec trendi-postgres-1 psql -U postgres -c 'CREATE DATABASE restore_drill' >/dev/null
 podman cp /tmp/restoredrill/concierge.dump trendi-postgres-1:/tmp/concierge.dump >/dev/null
-podman exec trendi-postgres-1 pg_restore -U postgres -d restore_drill --no-owner --no-privileges /tmp/concierge.dump 2>&1 | tail -2 || true
+RESTORE_LOG=/tmp/restoredrill/pg_restore.err
+if ! podman exec trendi-postgres-1 pg_restore -U postgres -d restore_drill --no-owner --no-privileges --exit-on-error /tmp/concierge.dump 2>"$RESTORE_LOG"; then
+  echo "ERROR: pg_restore failed:" >&2
+  cat "$RESTORE_LOG" >&2
+  podman exec trendi-postgres-1 psql -U postgres -c 'DROP DATABASE IF EXISTS restore_drill' >/dev/null || true
+  rm -rf /tmp/restoredrill
+  exit 1
+fi
 echo "--- recovered ---"
 podman exec trendi-postgres-1 psql -U postgres -d restore_drill -tAc "SELECT 'businesses='||(SELECT count(*) FROM tenants)||' enquiries='||(SELECT count(*) FROM leads)||' quotes='||(SELECT count(*) FROM quotations)||' messages='||(SELECT count(*) FROM messages)||' users='||(SELECT count(*) FROM tenant_users)"
 podman exec trendi-postgres-1 psql -U postgres -c 'DROP DATABASE restore_drill' >/dev/null

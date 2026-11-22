@@ -27,13 +27,13 @@ compare() { # local_dir remote_dir label
   # Normalise both sides to "<md5> <path>": md5sum prints two spaces, macOS md5 -r prints one, and
   # macOS leaves AppleDouble ._ files in synced directories. Without this every file looks different
   # and the check reports drift that does not exist (found on the first run, 2026-11-15).
-  remote_list="$("${SSH[@]}" "$HOST" "cd '$remote_dir' 2>/dev/null && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec md5sum {} + | sed 's/ \+/ /' | LC_ALL=C sort -k2" 2>/dev/null)"
+  remote_list="$("${SSH[@]}" "$HOST" "cd '$remote_dir' 2>/dev/null && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' -o -name 'Caddyfile' -o -name 'compose.yml' -o -name 'Containerfile.*' -o -name '_headers' -o -name 'robots.txt' \) -exec md5sum {} + | sed 's/ \+/ /' | LC_ALL=C sort -k2" 2>/dev/null)"
   if [ -z "$remote_list" ]; then
     echo "  $label: remote directory unreadable ($remote_dir)"; drift=1; return
   fi
   # md5sum on Linux, md5 -r on macOS: both are normalised to "<md5> <path>" by the sed below.
   local hasher="md5 -r"; command -v md5sum >/dev/null 2>&1 && hasher="md5sum"
-  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' \) -exec $hasher {} + 2>/dev/null | sed 's/  */ /' | LC_ALL=C sort -k2)"
+  local_list="$(cd "$local_dir" && find . -type f ! -name '._*' \( -name '*.py' -o -name '*.sql' -o -name '*.sh' -o -name '*.html' -o -name '*.xml' -o -name '*.css' -o -name '*.js' -o -name 'Caddyfile' -o -name 'compose.yml' -o -name 'Containerfile.*' -o -name '_headers' -o -name 'robots.txt' \) -exec $hasher {} + 2>/dev/null | sed 's/  */ /' | LC_ALL=C sort -k2)"
   local diffout
   diffout="$(diff <(echo "$local_list") <(echo "$remote_list"))"
   if [ -n "$diffout" ]; then
@@ -46,6 +46,7 @@ compare() { # local_dir remote_dir label
 echo "verify-deploy against $HOST"
 compare "$REPO_ROOT/api/app"            "$RELEASE/product/api/app"              "api/app"
 compare "$REPO_ROOT/api/static"         "$RELEASE/product/api/static"           "api/static"
+compare "$REPO_ROOT/api/migrations"     "$RELEASE/product/api/migrations"       "api/migrations"
 compare "$REPO_ROOT/scripts/vps"        "$RELEASE/product/scripts/vps"           "scripts/vps"
 compare "$SITE_MIRROR"                  "$RELEASE/website/site"                  "website/site"
 if [ "$drift" -eq 0 ]; then echo "OK: repo and box agree"; else echo "FAIL: drift above"; fi
