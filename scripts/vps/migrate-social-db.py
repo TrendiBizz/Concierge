@@ -19,8 +19,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Allow running from repo root or /srv inside container
-for candidate in (Path(__file__).resolve().parents[2] / "api", Path("/srv")):
+# Allow running from repo root or /srv inside container (including via stdin)
+_candidates = [Path("/srv")]
+_file_parents = Path(__file__).resolve().parents
+if len(_file_parents) > 2:
+    _candidates.insert(0, _file_parents[2] / "api")
+for candidate in _candidates:
     if (candidate / "app").is_dir() and str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 

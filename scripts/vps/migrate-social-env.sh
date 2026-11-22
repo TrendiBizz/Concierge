@@ -92,8 +92,7 @@ PY
 VOL_DIR="$(podman volume inspect trendi_social --format '{{.Mountpoint}}' 2>/dev/null || true)"
 if [ -n "$VOL_DIR" ] && [ -f "$VOL_DIR/social.db" ]; then
   BACKUP_DB="$BACKUPS/social-legacy-$TS.db"
-  cp -p "$VOL_DIR/social.db" "$BACKUP_DB"
-  chmod 600 "$BACKUP_DB"
+  install -m 600 -o 10001 -g 10001 "$VOL_DIR/social.db" "$BACKUP_DB"
   echo "==> backed up legacy social.db to $BACKUP_DB"
 
   if [ -d "$VOL_DIR/media" ]; then
