@@ -19,15 +19,20 @@ import pytest
 from app import (
     calendar_connection,
     call_insights,
+    crawl_scheduler,
     db,
     email_secretary,
     main,
     missed_calls,
     outbox,
+    portability,
+    privacy_retention,
     sales,
     sla,
+    subscription,
     tenants,
     voice_records,
+    voicemail_fallback,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,7 +116,11 @@ def test_lifespan_awaits_every_worker_before_db_close(monkeypatch, slow_worker):
         events: list[str] = []
         db_closed = False
         started: set[str] = set()
-        worker_names = ("outbox", "sla", "sales", "missed_calls", "call_insights", "email_secretary", "calendar")
+        worker_names = (
+            "outbox", "sla", "sales", "missed_calls", "call_insights", "email_secretary",
+            "calendar", "subscription", "portability", "voicemail_fallback",
+            "privacy_retention", "crawl_scheduler",
+        )
 
         def make_worker(name: str):
             async def _run(stop: asyncio.Event):
@@ -144,6 +153,11 @@ def test_lifespan_awaits_every_worker_before_db_close(monkeypatch, slow_worker):
         monkeypatch.setattr(call_insights, "run_forever", make_worker("call_insights"))
         monkeypatch.setattr(email_secretary, "run_forever", make_worker("email_secretary"))
         monkeypatch.setattr(calendar_connection, "run_forever", make_worker("calendar"))
+        monkeypatch.setattr(subscription, "run_forever", make_worker("subscription"))
+        monkeypatch.setattr(portability, "run_forever", make_worker("portability"))
+        monkeypatch.setattr(voicemail_fallback, "run_forever", make_worker("voicemail_fallback"))
+        monkeypatch.setattr(privacy_retention, "run_forever", make_worker("privacy_retention"))
+        monkeypatch.setattr(crawl_scheduler, "run_forever", make_worker("crawl_scheduler"))
 
         before_tasks = set(asyncio.all_tasks())
         async with main.lifespan(main.app):
@@ -195,6 +209,11 @@ def test_lifespan_still_awaits_remaining_workers_and_closes_db_when_one_worker_e
         monkeypatch.setattr(call_insights, "run_forever", make_worker("call_insights"))
         monkeypatch.setattr(email_secretary, "run_forever", make_worker("email_secretary"))
         monkeypatch.setattr(calendar_connection, "run_forever", make_worker("calendar"))
+        monkeypatch.setattr(subscription, "run_forever", make_worker("subscription"))
+        monkeypatch.setattr(portability, "run_forever", make_worker("portability"))
+        monkeypatch.setattr(voicemail_fallback, "run_forever", make_worker("voicemail_fallback"))
+        monkeypatch.setattr(privacy_retention, "run_forever", make_worker("privacy_retention"))
+        monkeypatch.setattr(crawl_scheduler, "run_forever", make_worker("crawl_scheduler"))
 
         async with main.lifespan(main.app):
             await asyncio.sleep(0.01)
