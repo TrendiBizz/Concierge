@@ -36,7 +36,7 @@ from . import site_enquiry
 from . import privacy, privacy_retention
 from . import platform_billing
 from . import subscription
-from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing, crawl_scheduler, booking_links, email_domain, analytics, tenant_payments, meta_inbound
+from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing, crawl_scheduler, booking_links, email_domain, analytics, tenant_payments, meta_inbound, tier2
 from .routers import (
     admin as admin_router, crm, email, owner_portal, owner_signin, public, social, telephony,
 )
@@ -285,6 +285,10 @@ app.include_router(analytics.owner_router)
 app.include_router(analytics.public_router)
 app.include_router(meta_inbound.owner_router)
 app.include_router(meta_inbound.webhook_router)
+app.include_router(tier2.owner_router)
+app.include_router(tier2.public_router)
+app.include_router(tier2.admin_router)
+app.include_router(tier2.partner_router)
 
 # Public widget endpoints authenticate with the tenant's public key in the request body, not
 # cookies, so wildcard CORS is safe. Per-tenant origin allow-lists are enforced in code.

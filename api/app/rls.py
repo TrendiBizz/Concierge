@@ -79,6 +79,12 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "csat_responses",
     "tenant_meta_channels",
     "meta_inbound_messages",
+    "chat_uploads",
+    "gbp_reviews",
+    "staff_resources",
+    "tenant_crm_stages",
+    "contact_tags",
+    "outbound_ai_calls",
 )
 
 

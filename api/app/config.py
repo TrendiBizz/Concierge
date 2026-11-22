@@ -180,6 +180,9 @@ class Settings(BaseSettings):
     meta_messaging_enabled: bool = False
     meta_app_secret: str = ""
     meta_webhook_verify_token: str = ""
+    # Tier 2 (H2/H10): disabled by default until explicitly enabled.
+    gbp_reviews_enabled: bool = False
+    outbound_ai_calls_enabled: bool = False
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window
