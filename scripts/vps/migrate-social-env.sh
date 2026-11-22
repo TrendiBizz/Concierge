@@ -92,7 +92,7 @@ PY
 VOL_DIR="$(podman volume inspect trendi_social --format '{{.Mountpoint}}' 2>/dev/null || true)"
 if [ -n "$VOL_DIR" ] && [ -f "$VOL_DIR/social.db" ]; then
   BACKUP_DB="$BACKUPS/social-legacy-$TS.db"
-  install -m 600 -o 10001 -g 10001 "$VOL_DIR/social.db" "$BACKUP_DB"
+  install -m 600 "$VOL_DIR/social.db" "$BACKUP_DB"
   echo "==> backed up legacy social.db to $BACKUP_DB"
 
   if [ -d "$VOL_DIR/media" ]; then
@@ -112,7 +112,7 @@ for ln in Path("/opt/trendi/shared/social.env").read_text().splitlines():
   if [ -n "$VAULT_KEY" ]; then
     REL="${REL:-/opt/trendi/releases/20261108-vps/product}"
     echo "==> migrating legacy social.db rows into Concierge Postgres (re-encrypting with N9 vault)"
-    podman exec -i \
+    podman exec -u 0 -i \
       -e "SOCIAL_VAULT_KEY=$VAULT_KEY" \
       -e "LEGACY_SOCIAL_DB=/backups/social-legacy-$TS.db" \
       trendi-api-1 python3 - < "$REL/scripts/vps/migrate-social-db.py"
