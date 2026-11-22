@@ -1561,3 +1561,29 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
     created_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments(tenant_id, invoice_id);
+
+-- N7: WhatsApp Business, Facebook Messenger, and Instagram DM inbound (disabled until Meta approval).
+CREATE TABLE IF NOT EXISTS tenant_meta_channels (
+    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel          text NOT NULL CHECK (channel IN ('whatsapp','messenger','instagram')),
+    external_id      text NOT NULL,
+    access_token_enc text NOT NULL,
+    enabled          boolean NOT NULL DEFAULT true,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (channel, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS meta_inbound_messages (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel             text NOT NULL CHECK (channel IN ('whatsapp','messenger','instagram')),
+    external_message_id text NOT NULL,
+    sender_id           text NOT NULL,
+    sender_name         text NOT NULL DEFAULT '',
+    text                text NOT NULL DEFAULT '',
+    direction           text NOT NULL DEFAULT 'in' CHECK (direction IN ('in','out')),
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (channel, external_message_id)
+);
+CREATE INDEX IF NOT EXISTS meta_inbound_messages_tenant_idx ON meta_inbound_messages(tenant_id, created_at DESC);

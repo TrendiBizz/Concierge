@@ -176,6 +176,10 @@ class Settings(BaseSettings):
     # N10 remainder: Gmail send-as OAuth (disabled until credentials are supplied).
     gmail_oauth_client_id: str = ""
     gmail_oauth_client_secret: str = ""
+    # N7: Meta WhatsApp / FB Messenger / IG DM inbound (disabled until Meta app approval).
+    meta_messaging_enabled: bool = False
+    meta_app_secret: str = ""
+    meta_webhook_verify_token: str = ""
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window
