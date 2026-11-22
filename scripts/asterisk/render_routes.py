@@ -75,19 +75,37 @@ def _ring_owner(row, trunk):
         if not isinstance(found, int) or isinstance(found, bool) or not low <= found <= high:
             raise ValueError(f'ring_owner.{key} must be between {low} and {high}')
         limits[key] = found
-    return {'digits': number[1:], 'seconds': seconds, **limits}
+    hours = str(value.get('hours') or '').strip()
+    if hours and not re.fullmatch(r'[0-9a-zA-Z:,* -]{3,80}', hours):
+        raise ValueError('ring_owner.hours must be an Asterisk time spec such as 08:30-17:00,mon-fri,*,*')
+    return {'digits': number[1:], 'seconds': seconds, 'hours': hours, **limits}
+
+
+def _blocked_callers(row):
+    raw = row.get('blocked_callers') or []
+    if not isinstance(raw, list):
+        raise ValueError('blocked_callers must be a list')
+    out = []
+    for item in raw:
+        digits = re.sub(r'[^0-9]', '', str(item or ''))
+        if digits:
+            out.append(digits)
+    return out
 
 
 def _ring_lines(slug, ring):
     """Dialplan that rings the owner first, with hard limits so nobody can use it to flood a phone.
 
-    A call is only rung through while: fewer than max_per_hour owner rings were placed this hour,
-    this caller has had fewer than max_per_caller_hour this hour, and fewer than max_concurrent
-    rings are in progress. Anything over a limit goes straight to the assistant. The counters live in
-    AstDB, keyed by the hour, so they need no cleanup to stay correct.
+    A call is only rung through while: (if configured) within business hours, fewer than max_per_hour
+    owner rings were placed this hour, this caller has had fewer than max_per_caller_hour this hour,
+    and fewer than max_concurrent rings are in progress. Anything over a limit goes straight to the
+    assistant. The counters live in AstDB, keyed by the hour, so they need no cleanup to stay correct.
     """
-    return [
-        'exten => s,1,NoOp(Ring owner first for ' + slug + ')',
+    lines = ['exten => s,1,NoOp(Ring owner first for ' + slug + ')']
+    if ring.get('hours'):
+        lines.append(' same => n,GotoIfTime(' + ring['hours'] + '?rf_hours_ok:rf_skip)')
+        lines.append(' same => n(rf_hours_ok),NoOp(Within business hours)')
+    lines += [
         ' same => n,Set(RF_HOUR=${STRFTIME(${EPOCH},,%Y%m%d%H)})',
         ' same => n,Set(RF_FROM=${FILTER(0-9,${CALLERID(num)})})',
         ' same => n,GotoIf($["${DB_EXISTS(ringall/${RF_HOUR})}"="1"]?rf_a)',
@@ -106,6 +124,7 @@ def _ring_lines(slug, ring):
         ' same => n(rf_skip),Set(GROUP()=aicall)',
         ' same => n,Answer()',
     ]
+    return lines
 
 
 def _failover_lines(slug, ring, voicemail_dir):
@@ -167,12 +186,21 @@ def render(rows, bridge_host, public_ip=None, trunk=None, voicemail_dir=None):
         slugs.add(slug)
         groups.setdefault(source, []).append(row)
         ring = _ring_owner(row, trunk)
+        blocked = _blocked_callers(row)
+        block_lines = [
+            ' same => n,Set(CONCIERGE_CID=${FILTER(0-9,${CALLERID(num)})})',
+            *[f' same => n,GotoIf($["${{CONCIERGE_CID}}"="{digits}"]?blocked)' for digits in blocked],
+        ] if blocked else []
         if ring:
             start = _ring_lines(slug, ring)
+            if block_lines:
+                start = [start[0]] + block_lines + start[1:]
             end = [' same => n,Hangup()', ' same => n(done),Hangup()']
         else:
-            start = ['exten => s,1,Answer()']
+            start = ['exten => s,1,NoOp(Inbound for ' + slug + ')'] + block_lines + [' same => n,Answer()'] if block_lines else ['exten => s,1,Answer()']
             end = [' same => n,Hangup()']
+        if block_lines:
+            end.append(' same => n(blocked),Hangup(21)')
         contexts += ([f'[business-{slug}]'] + start +
                      [' same => n,Set(TIMEOUT(absolute)=600)',
                       ' same => n,Set(CONCIERGE_CALL=${FILTER(0-9a-f-,${SHELL(cat /proc/sys/kernel/random/uuid)})})',
@@ -210,6 +238,14 @@ def render(rows, bridge_host, public_ip=None, trunk=None, voicemail_dir=None):
                 f' same => n,NoOp(Take-over for {slug} from ${{CALLERID(num)}} to ${{CONCIERGE_TRANSFER}})',
                 ' same => n,GotoIf($["${CONCIERGE_TRANSFER}"=""]?ai)',
                 ' same => n,Dial(PJSIP/${CONCIERGE_TRANSFER}@concierge-reg,30,r)',
+                ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done:ai)',
+                f' same => n(ai),Goto(business-{slug},s,1)',
+                ' same => n(done),Hangup()',
+                f'[business-{slug}-warm-transfer]',
+                'exten => s,1,Set(CONCIERGE_TRANSFER=${FILTER(0-9,${CONCIERGE_TRANSFER})})',
+                f' same => n,NoOp(Warm transfer for {slug} brief=${{CONCIERGE_WARM_BRIEF}})',
+                ' same => n,GotoIf($["${CONCIERGE_TRANSFER}"=""]?ai)',
+                ' same => n,Dial(PJSIP/${CONCIERGE_TRANSFER}@concierge-reg,30,mA(beep))',
                 ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?done:ai)',
                 f' same => n(ai),Goto(business-{slug},s,1)',
                 ' same => n(done),Hangup()']
