@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Securely set a SocialSync Meta App Secret in the *local staging* env file.
+"""Securely set a Trendi Concierge Social Meta App Secret in the *local staging* env file.
 
 Run on the authorized Mac.hub terminal. Input is hidden and never printed.
 No production or customer settings are changed.
@@ -24,7 +24,7 @@ def main() -> int:
     if ENV.stat().st_mode & 0o077:
         print("ERROR: staging environment permissions are too broad; no changes made.")
         return 1
-    value = getpass.getpass("Paste SocialSync App Secret (hidden), then press Return: ").strip()
+    value = getpass.getpass("Paste Trendi Concierge Social App Secret (hidden), then press Return: ").strip()
     if not re.fullmatch(r"[A-Za-z0-9]{16,256}", value):
         print("ERROR: invalid secret format; no changes made.")
         return 1
@@ -57,7 +57,7 @@ def main() -> int:
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-    print("SocialSync App Secret saved securely for staging. Publishing remains disabled.")
+    print("Trendi Concierge Social App Secret saved securely for staging. Publishing remains disabled.")
     return 0
 
 

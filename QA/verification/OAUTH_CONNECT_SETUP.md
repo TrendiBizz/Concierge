@@ -11,8 +11,8 @@ The Rust service retains encrypted tokens, and the owner API proxies owner-autho
 
 ## Developer apps Trendi must control
 
-**Meta Facebook Pages — EXISTING APP: SocialSync, App ID `676274422041376`**
-1. Reuse the existing **SocialSync** Meta Developer app (administrator access confirmed by the supplied 2026-11-08 screenshot). It is currently **in Development mode**, has **Type: None**, and shows **no selected business portfolio**. Do not create another app unless Meta proves its existing type/use cases cannot support the needed capabilities. The visible App ID is public and may be recorded in the tracked template; the **App Secret must never be committed**.
+**Meta Facebook Pages — EXISTING APP: Trendi Concierge Social, App ID `676274422041376`**
+1. Reuse the existing **Trendi Concierge Social** Meta Developer app (administrator access confirmed by the supplied 2026-11-08 screenshot). It is currently **in Development mode**, has **Type: None**, and shows **no selected business portfolio**. Do not create another app unless Meta proves its existing type/use cases cannot support the needed capabilities. The visible App ID is public and may be recorded in the tracked template; the **App Secret must never be committed**.
 2. Open its dashboard and check that the **Facebook Login for Business/Pages** use case or product can be added. If the app's type prevents it, confirm that limitation in Meta before creating a replacement. Link the appropriate Trendi business portfolio where Meta requires it.
 3. Register the exact OAuth redirect URI that serves the Concierge owner portal. Do not guess the public host name; verify HTTPS reachability first.
 4. Configure app contact email, privacy policy URL, user-data deletion instructions, app domains, and allowed OAuth domains as required by the dashboard. Public privacy terms must accurately describe connected social accounts and tokens before approval.
@@ -23,8 +23,8 @@ For Facebook Pages grant `pages_show_list`, `pages_manage_posts`, `pages_read_en
 
 After approving the development permissions, test real Page enumeration, disconnect/reconnect, cross-tenant isolation and an explicitly approved text-only post. Do not enable production customer access while the app remains in Development mode.
 
-**Meta Instagram — existing SocialSync Instagram Graph API with Facebook Login**
-1. SocialSync already has **Instagram Graph API** installed. Use its Facebook Login product and the SAME Facebook App ID/secret; do not create a separate Instagram Login app for this configuration.
+**Meta Instagram — existing Trendi Concierge Social Instagram Graph API with Facebook Login**
+1. Trendi Concierge Social already has **Instagram Graph API** installed. Use its Facebook Login product and the SAME Facebook App ID/secret; do not create a separate Instagram Login app for this configuration.
 2. The default `SOCIAL_INSTAGRAM_LOGIN_MODE=facebook` uses `https://www.facebook.com/dialog/oauth`, Meta Graph API v27.0 and permissions `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`.
 3. The authorized person must manage a Facebook Page linked to an Instagram Business/Creator professional account. Concierge discovers only accounts returned by the trusted Page listing, encrypts the Page access token with a tenant/account-bound label, and posts images through versioned `graph.facebook.com` endpoints.
 4. Test a professional account, a public HTTPS image URL, owner approval, connection/disconnection and receipt; Meta App Review/Advanced Access is required before onboarding unrelated customers.
@@ -61,7 +61,7 @@ Set these only in the private service environment or the approved secret store (
 - `SOCIAL_FACEBOOK_CLIENT_ID`, `SOCIAL_FACEBOOK_CLIENT_SECRET`, `SOCIAL_FACEBOOK_CALLBACK`.
 - `SOCIAL_INSTAGRAM_CLIENT_ID`, `SOCIAL_INSTAGRAM_CLIENT_SECRET`, `SOCIAL_INSTAGRAM_CALLBACK`.
 - `SOCIAL_META_GRAPH_VERSION=v27.0` (latest confirmed from Meta release notes on 2026-11-08; re-audit on upgrades).
-- `SOCIAL_INSTAGRAM_LOGIN_MODE=facebook` (the installed SocialSync Instagram Graph API product).
+- `SOCIAL_INSTAGRAM_LOGIN_MODE=facebook` (the installed Trendi Concierge Social Instagram Graph API product).
 - `SOCIAL_GOOGLE_CLIENT_ID`, `SOCIAL_GOOGLE_CLIENT_SECRET`, `SOCIAL_GOOGLE_CALLBACK`.
 - `SOCIAL_LINKEDIN_CLIENT_ID`, `SOCIAL_LINKEDIN_CLIENT_SECRET`, `SOCIAL_LINKEDIN_CALLBACK`.
 - `SOCIAL_MASTODON_ORIGIN`, `SOCIAL_MASTODON_CLIENT_ID`, `SOCIAL_MASTODON_CLIENT_SECRET`, `SOCIAL_MASTODON_CALLBACK`.

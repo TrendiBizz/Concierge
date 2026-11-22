@@ -1,6 +1,6 @@
 # CI red on `main`: cause, fix, proof (20 November 2026)
 
-`main` at 054954d failed three jobs of "Concierge isolated verification": `socialsync-node`,
+`main` at 054954d failed three jobs of "Concierge isolated verification": `concierge-social-node`,
 `isolated-phone_relay_integration`, `isolated-cloudflare_inbound_integration`. Each was reproduced locally
 (Postgres 16 + pgvector, Python 3.13, Node 22) before any change.
 
@@ -28,7 +28,7 @@
 - **Mutation:** with the gate disabled in `main.py` (`if False and blockers`), the new refusal check failed.
   Restored, confirmed `git status` clean for `main.py`.
 
-## 3. `socialsync-node`: the tests were stale (three failures)
+## 3. `concierge-social-node`: the tests were stale (three failures)
 
 - **Symptom:** `owner_customer_journey_test.cjs` tests 2, 6 and 7 failed.
 - **Cause:** two deliberate product changes. (a) An invitation link now signs the owner in directly through
@@ -44,7 +44,7 @@
 ## Proof (local, same commands as CI)
 
 - All 15 integration suites in the CI matrix pass.
-- `node --test` in `concierge-stack/socialsync`: 19 pass, 0 fail. The three widget/journey/operator files: 11 pass.
+- `node --test` in `concierge-stack/concierge-social`: 19 pass, 0 fail. The three widget/journey/operator files: 11 pass.
 - Unit suite (`pytest api/tests -m "not hangs_on_py312"`): 1543 passed. Two `test_studio_deploy_window.py` tests that
   `chmod 000` a file fail only when run as root (root ignores permissions); as a non-root user all 5 in the file pass.
 - `python3 -m compileall -q api/app QA/verification` and `git diff --check`: clean.

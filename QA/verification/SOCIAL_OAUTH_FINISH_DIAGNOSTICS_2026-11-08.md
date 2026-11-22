@@ -1,4 +1,4 @@
-# SocialSync Facebook/Instagram OAuth completion — 2026-11-08
+# Trendi Concierge Social Facebook/Instagram OAuth completion — 2026-11-08
 
 ## Verified observed result
 After the user initiated live Meta Facebook and Instagram authorization via the staging owner UI:
@@ -21,6 +21,6 @@ The Python social bridge mapped every Rust HTTP 400 or 409 into the generic `Soc
 - Publishing remains disabled.
 
 ## Next action needed
-A real account owner must re-run **Connect Facebook Pages** in the signed-in portal, then report the exact **new** error text, if any. The previously consumed authorization codes are intentionally not reusable. Use the returned category to identify whether SocialSync needs approved Page scopes, a managed Page, app roles/advanced access, or a corrected Meta exchange configuration. Repeat Instagram only after Facebook Page discovery is confirmed.
+A real account owner must re-run **Connect Facebook Pages** in the signed-in portal, then report the exact **new** error text, if any. The previously consumed authorization codes are intentionally not reusable. Use the returned category to identify whether Trendi Concierge Social needs approved Page scopes, a managed Page, app roles/advanced access, or a corrected Meta exchange configuration. Repeat Instagram only after Facebook Page discovery is confirmed.
 
 Do not claim OAuth is complete until an account appears in the encrypted store with verified identity and tenant ownership. Preserve `QA/verification/office-shots/` and all other untracked unrelated files.

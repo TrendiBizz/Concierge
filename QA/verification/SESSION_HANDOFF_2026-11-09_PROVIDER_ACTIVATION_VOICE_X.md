@@ -83,7 +83,7 @@ Private provider files: local `.private/provider-activation-20261109/{google-oau
 
 ## Meta review and authentic evidence
 
-App SocialSync **676274422041376**; draft **1132925159709631** at https://developers.facebook.com/apps/676274422041376/app-review/submissions/?submission_id=1132925159709631 . All six required scopes selected: `pages_manage_posts`, `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_basic`, `instagram_content_publish`.
+App Trendi Concierge Social **676274422041376**; draft **1132925159709631** at https://developers.facebook.com/apps/676274422041376/app-review/submissions/?submission_id=1132925159709631 . All six required scopes selected: `pages_manage_posts`, `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_basic`, `instagram_content_publish`.
 
 Business association is now **confirmed** by Meta's success dialog: managed by verified **Trendi** portfolio **801162021859410**. Evidence `meta-trendi-portfolio-connected-20261109.jpg`. Old GitHub Site URL replaced with current owner portal, observed again in review form. No callback changes were needed for Meta.
 

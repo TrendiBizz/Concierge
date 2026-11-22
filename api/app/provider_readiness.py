@@ -38,12 +38,13 @@ def _step(what: str, kind: str, detail: str = "", setting: str = "") -> dict:
 
 def _social() -> dict:
     s = get_settings()
+    enabled = bool(getattr(s, "social_service_enabled", False) or getattr(s, "social_enabled", False))
     steps = [
         _step(
-            "Run the social service",
-            "ready" if s.social_service_enabled and len(s.social_concierge_key or "") >= 32 else "unconfigured",
-            "The Rust social service holds the provider tokens; it is a separate internal process.",
-            "SOCIAL_SERVICE_ENABLED / SOCIAL_CONCIERGE_KEY",
+            "Enable built-in social publishing",
+            "ready" if enabled else "unconfigured",
+            "Social publishing and OAuth run natively inside Concierge with encrypted Postgres token storage.",
+            "SOCIAL_SERVICE_ENABLED",
         ),
         _step(
             "Verify existing provider applications",

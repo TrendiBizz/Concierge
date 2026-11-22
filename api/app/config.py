@@ -42,11 +42,49 @@ class Settings(BaseSettings):
             raise ValueError("Owner portal must be an HTTPS /owner-ui URL (HTTP is allowed only on loopback) without credentials or parameters")
         return value
 
-    # Local Rust social service, completely off unless operator enables it.
+    # Unified Concierge social publishing module (built into the API; reads existing SOCIAL_* env names).
     social_service_enabled: bool = False
-    social_service_url: str = "http://127.0.0.1:4390"
-    social_concierge_key: str = ""
+    social_enabled: bool = False
+    social_service_url: str = "http://127.0.0.1:4390"  # deprecated legacy setting; kept for backward compatibility
+    social_concierge_key: str = ""                     # deprecated legacy setting; kept for backward compatibility
     social_live_publishing: bool = False
+    social_enable_publish: bool = False
+    social_enable_facebook_publish: bool = False
+    social_enable_instagram_publish: bool = False
+    social_enable_linkedin_publish: bool = False
+    social_enable_linkedin_organization_publish: bool = False
+    social_enable_x_publish: bool = False
+    social_enable_tiktok_publish: bool = False
+    social_enable_google_business_publish: bool = False
+    social_facebook_client_id: str = ""
+    social_facebook_client_secret: str = ""
+    social_facebook_callback: str = ""
+    social_facebook_page_hints: str = ""
+    social_instagram_login_mode: str = "facebook"
+    social_instagram_client_id: str = ""
+    social_instagram_client_secret: str = ""
+    social_instagram_callback: str = ""
+    social_linkedin_client_id: str = ""
+    social_linkedin_client_secret: str = ""
+    social_linkedin_callback: str = ""
+    social_linkedin_organization_client_id: str = ""
+    social_linkedin_organization_client_secret: str = ""
+    social_linkedin_organization_callback: str = ""
+    social_x_client_id: str = ""
+    social_x_client_secret: str = ""
+    social_x_callback: str = ""
+    social_tiktok_client_key: str = ""
+    social_tiktok_client_secret: str = ""
+    social_tiktok_callback: str = ""
+    social_tiktok_enable_video_scope: bool = False
+    social_tiktok_verified_media_origins: str = ""
+    social_google_client_id: str = ""
+    social_google_client_secret: str = ""
+    social_google_callback: str = ""
+    social_meta_graph_version: str = "v22.0"
+    social_linkedin_api_version: str = "202605"
+    social_media_dir: str = ""
+    social_poll_seconds: int = 15
 
     # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.
     case_planner: str = ""
@@ -183,6 +221,9 @@ class Settings(BaseSettings):
     meta_app_secret: str = ""
     meta_webhook_verify_token: str = ""
     meta_graph_version: str = "v22.0"
+    # Dedicated WhatsApp Meta app ("Trendi Messaging"); falls back to main Meta app when unset.
+    meta_wa_app_id: str = ""
+    meta_wa_app_secret: str = ""
     meta_wa_embedded_signup_config_id: str = ""
     # Tier 2 (H2/H10): disabled by default until explicitly enabled.
     gbp_reviews_enabled: bool = False

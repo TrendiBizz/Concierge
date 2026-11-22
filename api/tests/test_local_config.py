@@ -27,44 +27,51 @@ def test_invitation_origin_rejects_unsafe_urls(url):
 
 
 @pytest.mark.parametrize("url,permitted", [
-    ("http://127.0.0.1:4390", True), ("http://host.docker.internal:4391", True),
-    ("http://localhost:4391", True), ("http://attacker.test:4391", False),
-    ("https://localhost:4391", False), ("http://localhost:80", False),
-    ("http://localhost:4391/path", False), ("http://localhost:4391?x=y", False),
-    ("http://user:pass@localhost:4391", False),
+    ("https://concierge.trendibizz.com/owner/social/oauth/callback", True),
+    ("http://127.0.0.1:8000/owner/social/oauth/callback", True),
+    ("http://localhost:8000/owner/social/oauth/callback", True),
+    ("http://attacker.test/owner/social/oauth/callback", False),
+    ("https://concierge.trendibizz.com/wrong-path", False),
+    ("https://concierge.trendibizz.com/owner/social/oauth/callback?x=y", False),
+    ("https://user:pass@concierge.trendibizz.com/owner/social/oauth/callback", False),
 ])
-def test_social_backend_stays_private_with_separate_local_port(monkeypatch, url, permitted):
-    config = Settings(_env_file=None, social_service_enabled=True,
-                      social_service_url=url, social_concierge_key="x" * 40)
-    monkeypatch.setattr(social_bridge, "get_settings", lambda: config)
-    if permitted:
-        assert social_bridge._configuration() == (url, "x" * 40)
-    else:
-        with pytest.raises(HTTPException):
-            social_bridge._configuration()
+def test_social_oauth_callback_url_validation(url, permitted):
+    from app.social import config as social_config
+    res = social_config.validated_callback(url)
+    assert (res == url) if permitted else (res is None)
 
 
 def test_x_oauth_bridge_keeps_tenant_and_validates_callback(monkeypatch):
     import asyncio
     from fastapi import HTTPException
+    from app import social
     calls = []
 
     async def ensure(tenant):
         assert tenant == {"slug": "business-a"}
         return tenant["slug"]
 
-    async def request(method, path, data=None):
-        calls.append((method, path, data))
+    async def fake_start(slug, network):
+        calls.append(("start", slug, network))
+        return {"authorization_url": "https://x.com/i/oauth2/authorize?state=s", "state": "a" * 32}
+
+    async def fake_finish(slug, network, state, code):
+        if len(state) < 32:
+            raise HTTPException(400, "Invalid OAuth callback")
+        calls.append(("finish", slug, network, state, code))
         return {"ok": True}
 
     monkeypatch.setattr(social_bridge, "ensure_tenant", ensure)
-    monkeypatch.setattr(social_bridge, "_request", request)
+    monkeypatch.setattr(social.oauth, "start_oauth", fake_start)
+    monkeypatch.setattr(social.oauth, "finish_oauth", fake_finish)
     tenant = {"slug": "business-a"}
     state = "a" * 32
     asyncio.run(social_bridge.start_x_oauth(tenant))
     asyncio.run(social_bridge.finish_x_oauth(tenant, state, "provider-code"))
-    assert calls == [("POST", "/v1/customers/business-a/oauth/x/start", None),
-                     ("POST", "/v1/customers/business-a/oauth/x/finish", {"state": state, "code": "provider-code"})]
+    assert calls == [
+        ("start", "business-a", "x"),
+        ("finish", "business-a", "x", state, "provider-code"),
+    ]
     with pytest.raises(HTTPException):
         asyncio.run(social_bridge.finish_x_oauth(tenant, "bad", "provider-code"))
     assert len(calls) == 2

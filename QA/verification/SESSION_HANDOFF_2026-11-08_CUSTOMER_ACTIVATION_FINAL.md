@@ -37,11 +37,11 @@ Latest implementation test run (synthetic/disposable, no paid communications):
 - Phone + simulated Twilio Recording API: **29/29** including correct tenant phone number, signed webhook, cross-tenant denial, explicit business authorization, caller phrase `I consent to recording`, mock Twilio recording SID, forged callback denied, signed receipt.
 - Cloudflare signed inbound email: **17/17** including permission denied before authorization, replay dedupe and prompt-injection inert handling.
 - Existing LiveKit/Grok agent: **54** offline tests passed.
-- SocialSync: **19** Node tests passed.
+- Trendi Concierge Social: **19** Node tests passed.
 - Rust social: `cargo build --locked`, `cargo test --locked`, `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` all passed.
 - Local Python-to-Rust HTTP contract: PASSED using disposable SQLite/fake account credentials and social publishing OFF. Fixed previously stale source path in `QA/verification/social_rust_contract_test.py` to use the canonical repository.
 - Owner GUI browser tests: business profiles and seven channel permission toggles, grant/revoke, viewer access denial, logout and no JavaScript errors; passed.
-- New `.github/workflows/concierge-isolated.yml` includes authorization/database suites, Rust tests and HTTP contract, SocialSync; YAML parsed locally. **Check remote GitHub Actions execution separately** — workflow edited/committed does not prove CI passed on GitHub.
+- New `.github/workflows/concierge-isolated.yml` includes authorization/database suites, Rust tests and HTTP contract, Trendi Concierge Social; YAML parsed locally. **Check remote GitHub Actions execution separately** — workflow edited/committed does not prove CI passed on GitHub.
 - Strict repo boundary: `python3 scripts/check-repository-boundary.py --website-root ../trendi-site` PASSED.
 - Full evidence: `QA/verification/CUSTOMER_ACTIVATION_VERIFICATION_2026-11-07.md`.
 
@@ -119,7 +119,7 @@ node QA/verification/owner_onboarding_browser.cjs
 concierge-stack/.venv/bin/python -m unittest discover -s concierge-stack/tests -q
 (cd concierge-stack/social-service && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked && cargo build --locked)
 PYTHONPATH=QA/verification/shims:api /Users/jo/work-staging/venv-concierge/bin/python QA/verification/social_rust_contract_test.py
-(cd concierge-stack/socialsync/server && node --test)
+(cd concierge-stack/concierge-social/server && node --test)
 docker ps --format '{{.Names}} {{.Status}}'
 ```
 **Disposable DB integration:** scripts such as `QA/verification/phone_relay_integration.py` and `cloudflare_inbound_integration.py` target ONLY a throwaway pgvector PostgreSQL on `127.0.0.1:55432` with `postgres:test`. Never run them against the live database. Confirm the port is free, create an isolated `pgvector/pgvector:pg16` container, and tear it down in a trap.

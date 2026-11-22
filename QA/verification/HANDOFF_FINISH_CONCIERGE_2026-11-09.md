@@ -71,7 +71,7 @@ Local main.py/owner.html/schema.sql and Caddyfile also contain **unshipped manag
 
 ## Other outstanding work
 
-Meta SocialSync 676274422041376 submission 1132925159709631 successfully submitted: all 6 permissions in review. Cloudflare disclosure corrected 18→131 countries/territories, reopened and verified. Restricted reviewer login/worker retained; global social publishing remains off. All finite approved posts published; no replay authorization remains. Preserve genuine original Desktop recordings privately.
+Meta Trendi Concierge Social 676274422041376 submission 1132925159709631 successfully submitted: all 6 permissions in review. Cloudflare disclosure corrected 18→131 countries/territories, reopened and verified. Restricted reviewer login/worker retained; global social publishing remains off. All finite approved posts published; no replay authorization remains. Preserve genuine original Desktop recordings privately.
 
 Last verified provider gates: Google Business Profile case 7-0643000042292 pending allowlist/zero quota; LinkedIn Pages 266706827 application pending approval and organization grant; profile 266722540 publishing grant/test unproven; TikTok 7705532547380250645 Login Kit review pending, posting audit not approved; X 33619967 account OAuth/live test unproven and $0 credits. No purchase authorized. support@trendibizz.com mailbox remains uncreated; the owner's personal Gmail (redacted) remains the explicitly approved temporary Google consent support address. Do not recreate applications or change MX without evidence/authorization. Detailed provider IDs/history: SESSION_HANDOFF_2026-11-09_PROVIDER_ACTIVATION_VOICE_X.md.
 

@@ -2,7 +2,7 @@
 // npm dependencies. Requires Node 22.5+ (built-in node:sqlite).
 //
 // Standalone: no GHL, no third party. Same tenant/auth shape as Concierge's
-// other modules (see /Users/jo/Pukeko/SocialSync/server/server.js) so they
+// other modules (see /Users/jo/Pukeko/Trendi Concierge Social/server/server.js) so they
 // integrate later without reconciling two different auth models.
 
 import http from 'node:http';
@@ -57,7 +57,7 @@ function safeEqual(a, b) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-// "<tenantId>.<hmac>" -- see SocialSync's server.js for why this shape.
+// "<tenantId>.<hmac>" -- see Trendi Concierge Social's server.js for why this shape.
 function tenantToken(tenantId) {
   const mac = createHmac('sha256', config.secret).update(`concierge-tenant:${tenantId}`).digest('hex');
   return `${tenantId}.${mac}`;

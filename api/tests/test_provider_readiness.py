@@ -80,20 +80,12 @@ def test_the_report_never_claims_a_provider_has_accepted_anything():
 def test_the_social_service_step_reflects_the_real_configuration():
     with patch.object(provider_readiness, "get_settings", lambda: _settings()):
         off = provider_readiness.report()["areas"]["social"]["steps"][0]
-    assert off["status"] == "unconfigured", "a disabled service must not read as ready"
+    assert off["status"] == "unconfigured", "a disabled social module must not read as ready"
 
     with patch.object(provider_readiness, "get_settings",
-                      lambda: _settings(social_service_enabled=True, social_concierge_key="k" * 32)):
+                      lambda: _settings(social_service_enabled=True)):
         on = provider_readiness.report()["areas"]["social"]["steps"][0]
     assert on["status"] == "ready"
-
-
-def test_a_short_social_key_is_not_treated_as_configured():
-    """A weak key must not satisfy a readiness check."""
-    with patch.object(provider_readiness, "get_settings",
-                      lambda: _settings(social_service_enabled=True, social_concierge_key="short")):
-        step = provider_readiness.report()["areas"]["social"]["steps"][0]
-    assert step["status"] == "unconfigured"
 
 
 def test_the_telephony_sip_step_reflects_the_real_configuration():

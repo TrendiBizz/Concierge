@@ -3,7 +3,7 @@
 > **CORRECTION (2026-11-07, later the same day).** This analysis judged the product by the voice stack alone and so
 > overstated the gaps. A separate platform already exists on Jo's Mac (`TrendiBizz/Concierge`: multi-tenant core API,
 > booking, reminders, two-way text, review requests, a Twenty CRM with a lead bridge, calendars, an inbound email bridge,
-> SocialSync). Read `PLATFORM-AND-SOCIALSYNC-FINDINGS.md` first. Section 2's "not built" column is true of THIS voice stack
+> Trendi Concierge Social). Read `PLATFORM-AND-CONCIERGE_SOCIAL-FINDINGS.md` first. Section 2's "not built" column is true of THIS voice stack
 > only. The real gaps are connection (the voice assistant does not use the platform), identity across modules, proof
 > against real providers, and a phone line. Sections 3 to 6 (what is worth adding and what is bloat) still stand as a
 > checklist to compare against the platform.

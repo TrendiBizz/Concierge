@@ -1,5 +1,5 @@
 //! Per-customer guardrails for social posts: platform limits, verified facts, forbidden phrases, warnings.
-//! This is SocialSync's core idea, ported to Rust. Errors block a post from going for approval; warnings do not.
+//! This is Trendi Concierge Social's core idea, ported to Rust. Errors block a post from going for approval; warnings do not.
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -8,7 +8,7 @@ The copied contents originated from **Trendiisales/trendi-site** branch
 
 - `agent/`, `livekit/`: LiveKit + Grok voice implementations and SIP templates.
 - `social-service/`: independent Rust social API, OAuth groundwork and tests.
-- `socialsync/`: legacy social user interface and supporting Node code.
+- `concierge-social/`: legacy social user interface and supporting Node code.
 - `tests/`: voice and messaging verification.
 - `platform-website/`: separate historical product website prototype, **not**
   the current Trendi public website in the other repository.

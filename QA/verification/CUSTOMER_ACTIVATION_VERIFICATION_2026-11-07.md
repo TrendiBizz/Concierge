@@ -11,7 +11,7 @@ Canonical repository: `TrendiBizz/Concierge`, branch `integration/concierge-v1`.
 - Owner browser: successful owner/viewer login and profile UI, seven permission controls, owner grant/revocation, viewer cannot edit; zero JavaScript errors.
 - Rust social: cargo build/test/fmt/clippy passed; a local disposable HTTP contract passed with fake credentials and publisher OFF.
 - Existing Grok/LiveKit agent: 54 offline tests passed. The previously working Trendi-specific voice agent remains preserved. **It is not proof of tenant-specific live SIP routes.**
-- SocialSync Node: 19/19 tests passed.
+- Trendi Concierge Social Node: 19/19 tests passed.
 - Strict repository boundary check: passed.
 
 ## New customer permissions and runtime safeguards

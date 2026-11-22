@@ -43,7 +43,7 @@ Settings (environment variables):
 | `HOST` | `127.0.0.1` | `0.0.0.0` lets other devices on the network connect |
 | `DATA_DIR` | `crm/data` | Where the database and the HMAC secret live. **Back this folder up.** |
 
-**Security note.** The server speaks plain HTTP and is meant for your own network, same posture as SocialSync. Do not expose it to the internet as it is.
+**Security note.** The server speaks plain HTTP and is meant for your own network, same posture as Trendi Concierge Social. Do not expose it to the internet as it is.
 
 ### Tests
 
@@ -62,6 +62,6 @@ cd ~/Concierge/crm/server && npm test
 
 ## Next steps (not built yet)
 
-- Shared identity with Concierge's other modules (SocialSync today has its own separate `tenants` table with the same shape but a different database file -- a tenant created here is not automatically known to SocialSync, or vice versa). A central identity/tenant service is the natural next step once more modules exist, so "create a customer" happens once, not per module.
+- Shared identity with Concierge's other modules (Trendi Concierge Social today has its own separate `tenants` table with the same shape but a different database file -- a tenant created here is not automatically known to Trendi Concierge Social, or vice versa). A central identity/tenant service is the natural next step once more modules exist, so "create a customer" happens once, not per module.
 - HTTPS and an internet-reachable deployment.
-- Multiple users per tenant (today one shared passcode per tenant, same as SocialSync).
+- Multiple users per tenant (today one shared passcode per tenant, same as Trendi Concierge Social).

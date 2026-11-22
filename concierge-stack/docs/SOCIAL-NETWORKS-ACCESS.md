@@ -38,9 +38,9 @@ not once per customer. After approval, every customer links their account the sa
 
 ## Where the connectors live
 
-Customers' tokens are held by SocialSync (our code), not by the agent. SocialSync gets, per network: an OAuth start and callback,
+Customers' tokens are held by Trendi Concierge Social (our code), not by the agent. Trendi Concierge Social gets, per network: an OAuth start and callback,
 encrypted token storage per customer, refresh, a publish adapter, and a scheduler (Instagram and others have no native
-scheduling). the agent calls SocialSync (draft, check against guardrails, request approval, schedule). This keeps credentials out
+scheduling). the agent calls Trendi Concierge Social (draft, check against guardrails, request approval, schedule). This keeps credentials out
 of the agent and keeps one place that enforces the guardrails and the customer's approval.
 
 ## Build order (free first, by lead time)
@@ -48,7 +48,7 @@ of the agent and keeps one place that enforces the guardrails and the customer's
 1. Start the approval applications now: Meta (Business Verification, then App Review), LinkedIn Community Management, Google
    Business Profile, TikTok, Pinterest. I can prepare the submission texts and screencast scripts; the company documents
    and the privacy policy are Jo's.
-2. SocialSync groundwork: under git, backed up, then a connector framework (OAuth, encrypted tokens, scheduler).
+2. Trendi Concierge Social groundwork: under git, backed up, then a connector framework (OAuth, encrypted tokens, scheduler).
 3. Connectors with no approval wait: Bluesky, Mastodon, LinkedIn personal, then X.
 4. Meta, LinkedIn pages, GBP, TikTok, Pinterest connectors as each approval arrives (develop in each network's development mode with test accounts first).
-5. Guardrails and the approval gate in front of every publish (SocialSync's core idea).
+5. Guardrails and the approval gate in front of every publish (Trendi Concierge Social's core idea).
