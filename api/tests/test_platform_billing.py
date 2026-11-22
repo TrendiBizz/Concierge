@@ -54,6 +54,36 @@ def test_gst_is_broken_out_of_the_amount_paid_not_added_to_it():
     assert platform_billing.gst_split(0) == (0, 0)
 
 
+def test_gst_applies_only_to_nz_and_is_inclusive_in_250_usd():
+    # NZ customer paying $250 USD -> 15% GST included in $250 (not added on top)
+    nz_rate = platform_billing.gst_rate_for("USD", "NZ")
+    assert nz_rate == platform_billing.GST_RATE
+    nz_gst, nz_net = platform_billing.gst_split(25_000, rate=nz_rate)
+    assert nz_gst + nz_net == 25_000
+    assert nz_gst == 3_261 and nz_net == 21_739
+    # Non-NZ customer paying $250 USD -> 0% GST (exempt)
+    us_rate = platform_billing.gst_rate_for("USD", "US")
+    assert us_rate == 0.0
+    assert platform_billing.gst_split(25_000, rate=us_rate) == (0, 25_000)
+    # Non-NZ customer paying in NZD -> 0% GST
+    assert platform_billing.gst_rate_for("NZD", "AU") == 0.0
+    # Legacy/manual NZD payment without country -> 15% GST
+    assert platform_billing.gst_rate_for("NZD", "") == platform_billing.GST_RATE
+    # Receipt label reflects GST status regardless of currency
+    nz_html = platform_billing.invoice_html({
+        "number": "TRB-0008", "customer_email": "nz@example.co.nz", "customer_name": "NZ Co",
+        "business_name": "NZ Co", "currency": "USD", "amount_cents": 25_000,
+        "gst_cents": nz_gst, "description": "Concierge", "issued_on": "2026-11-22",
+    })
+    assert "GST (15%)" in nz_html and "250.00 USD" in nz_html
+    us_html = platform_billing.invoice_html({
+        "number": "TRB-0009", "customer_email": "us@example.com", "customer_name": "US Co",
+        "business_name": "US Co", "currency": "USD", "amount_cents": 25_000,
+        "gst_cents": 0, "description": "Concierge", "issued_on": "2026-11-22",
+    })
+    assert "GST (0% — zero-rated export)" in us_html and "250.00 USD" in us_html
+
+
 def test_an_unpaid_session_is_not_money():
     source = inspect.getsource(platform_billing.handle_checkout)
     assert "payment_status" in source

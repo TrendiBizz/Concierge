@@ -86,46 +86,18 @@ def test_timeout_is_uncertain_and_second_submission_is_prevented(gateway, monkey
     assert len(calls) == 1
 
 
-def test_twilio_supplies_row_bound_callback(monkeypatch):
-    settings = Settings(sms_provider="twilio", twilio_account_sid="ACfixture",
-                        twilio_auth_token="test", twilio_from_number="+64210000002",
-                        public_base_url="https://api.example")
+def test_twilio_sms_is_disabled_and_routes_removed(monkeypatch):
+    settings = Settings(sms_provider="twilio", twilio_account_sid="ACfixture", twilio_auth_token="test")
     monkeypatch.setattr(sms, "get_settings", lambda: settings)
-    seen = []
-    def handler(req):
-        seen.append(parse_qs(req.content.decode()))
-        return httpx.Response(201, json={"sid": "SMfixture"})
-    transport(monkeypatch, handler)
-    assert asyncio.run(sms._send_twilio("+64210000001", "hello", None, outbox_id=4)) == "SMfixture"
-    assert seen[0]["StatusCallback"] == ["https://api.example/api/v1/sms/status/4"]
-
-
-def test_status_webhook_rejects_forgery_account_and_duplicate_fields(monkeypatch):
-    settings = SimpleNamespace(twilio_account_sid="ACfixture", twilio_auth_token="test",
-                               public_base_url="https://api.example")
-    monkeypatch.setattr(telephony, "_main", lambda: SimpleNamespace(settings=settings))
-    monkeypatch.setattr(sms, "provider", lambda: "twilio")
-    receipt = AsyncMock(return_value=True)
-    monkeypatch.setattr(sms_delivery, "twilio_receipt", receipt)
-    app = FastAPI()
-    app.include_router(telephony.router)
-    client = TestClient(app)
-    path = "/api/v1/sms/status/4"
-    form = {"AccountSid": "ACfixture", "MessageSid": "SMfixture", "MessageStatus": "delivered", "To": "+64210000001"}
-    import base64, hashlib, hmac
-    def post(params, signed=True):
-        value = settings.public_base_url + path + "".join(k + params[k] for k in sorted(params))
-        signature = base64.b64encode(hmac.new(b"test", value.encode(), hashlib.sha1).digest()).decode()
-        return client.post(path, content=urlencode(params), headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Twilio-Signature": signature if signed else "bad"})
-    assert post(form, False).status_code == 403
-    assert post({**form, "AccountSid": "other"}).status_code == 403
-    receipt.assert_not_called()
-    assert post(form).status_code == 200
-    receipt.assert_awaited_once_with(4, form)
-    assert client.post(path, content="MessageSid=a&MessageSid=b", headers={
-        "Content-Type": "application/x-www-form-urlencoded"}).status_code == 400
+    monkeypatch.setattr(sms.flood_guard, "memory_allow", lambda *a: True)
+    assert not settings.sms_configured and not sms.sender_ready({})
+    transport(monkeypatch, lambda req: pytest.fail("Twilio SMS must never send"))
+    with pytest.raises(sms.SmsNotConfigured):
+        asyncio.run(sms.send_sms("+64210000001", "hello"))
+    paths = {r.path for r in telephony.router.routes}
+    assert "/api/v1/sms/{public_key}" not in paths
+    assert "/api/v1/sms/status/{outbox_id}" not in paths
+    assert "/api/v1/smsgate/{public_key}" in paths
 
 
 @pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="requires test Postgres")
@@ -147,25 +119,17 @@ def test_real_database_receipt_ordering_scope_and_missing_receipts(monkeypatch):
                 tenant = await conn.fetchval("INSERT INTO tenants(slug,name,public_key) VALUES('fixture','Fixture','pk') RETURNING id")
                 other = uuid.uuid4()
                 oid = await conn.fetchval("INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,status) VALUES($1,'test','sms','+64210000001','hello','sending') RETURNING id", tenant)
-                assert not await sms_delivery.begin(oid, other, "twilio")
-                assert await sms_delivery.begin(oid, tenant, "twilio")
-                assert not await sms_delivery.begin(oid, tenant, "twilio")
-                form = {"MessageSid": "SMfixture", "MessageStatus": "delivered", "To": "+64210000001"}
-                assert not await sms_delivery.twilio_receipt(oid, {**form, "To": "+64210000009"})
-                assert await sms_delivery.twilio_receipt(oid, form)
-                # Response bookkeeping and reordered/replayed callbacks cannot regress delivery.
-                await sms_delivery.accepted(oid, "twilio", "SMfixture")
-                assert await sms_delivery.twilio_receipt(oid, {**form, "MessageStatus": "sent"})
-                assert not await sms_delivery.twilio_receipt(oid, {**form, "MessageSid": "other"})
+                assert not await sms_delivery.begin(oid, other, "smsgate")
+                assert await sms_delivery.begin(oid, tenant, "smsgate")
+                assert not await sms_delivery.begin(oid, tenant, "smsgate")
+                await sms_delivery.accepted(oid, "smsgate", "gw-msg-1")
+                assert not await sms_delivery.smsgate_receipt(other, "sms:delivered", {"messageId": "gw-msg-1"})
+                assert await sms_delivery.smsgate_receipt(tenant, "sms:sent", {"messageId": "gw-msg-1"})
+                assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "awaiting_receipt"
+                assert await sms_delivery.smsgate_receipt(tenant, "sms:delivered", {"messageId": "gw-msg-1"})
                 row = await conn.fetchrow("SELECT * FROM outbox WHERE id=$1", oid)
                 assert row["status"] == "sent" and row["sms_delivery_status"] == "delivered" and row["sent_at"]
-                await conn.execute("UPDATE outbox SET status='awaiting_receipt',sent_at=NULL,sms_delivery_status='queued' WHERE id=$1", oid)
-                assert await sms_delivery.twilio_receipt(oid, {**form, "MessageStatus": "sent"})
-                assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "awaiting_receipt"
-                assert await sms_delivery.twilio_receipt(oid, {**form, "MessageStatus": "queued"})
-                assert await conn.fetchval("SELECT sms_delivery_status FROM outbox WHERE id=$1", oid) == "sent"
-                assert await sms_delivery.twilio_receipt(oid, {**form, "MessageStatus": "undelivered"})
-                assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "failed"
+                # Stale awaiting_receipt rows are held after 24 hours.
                 await conn.execute("UPDATE outbox SET status='awaiting_receipt',sms_provider='smsgate',claimed_at=now()-interval '25 hours' WHERE id=$1", oid)
                 await sms_delivery.reconcile()
                 assert await conn.fetchval("SELECT status FROM outbox WHERE id=$1", oid) == "held"

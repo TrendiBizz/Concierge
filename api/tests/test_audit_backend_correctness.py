@@ -108,8 +108,11 @@ def test_voicemail_sweep_returns_empty_when_spool_dir_blank(monkeypatch):
 
 def test_subscription_renewal_zero_rates_non_nzd():
     src = inspect.getsource(subscription.on_invoice_paid)
-    assert 'currency == "NZD"' in src
+    assert "gst_rate_for" in src
     assert "rate=gst_rate" in src
+    assert platform_billing.gst_rate_for("USD", "NZ") == platform_billing.GST_RATE
+    assert platform_billing.gst_rate_for("USD", "US") == 0.0
+    assert platform_billing.gst_rate_for("NZD", "") == platform_billing.GST_RATE
 
 
 def test_xero_invoice_sets_inclusive_and_m365_converts_utc():

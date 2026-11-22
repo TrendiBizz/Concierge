@@ -218,7 +218,7 @@ async def _deliver(row: dict) -> None:
         except device_sms.ReconciliationRequired:
             await _finish(row["id"], "held", "Phone SMS requires owner reconciliation")
             return
-        if sms.provider() in {"smsgate", "twilio"} and tenant.get("sms_transport") != "device":
+        if sms.provider() == "smsgate" and tenant.get("sms_transport") != "device":
             return  # Carrier acceptance is not a delivery receipt.
     elif row["channel"] == "email":
         if not settings.email_configured:

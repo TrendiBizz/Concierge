@@ -129,13 +129,13 @@ from .routers.social import (  # noqa: F401 - re-exported for tests and tooling
 from .routers.telephony import (  # noqa: F401 - re-exported for tests and tooling
     LiveSupervise, LiveTakeover, MissedCallTextback, PhoneNumberCreate, PhoneNumberEnable,
     PhoneSmsTest, ToolRequest, VoiceLogRequest, VoiceTokenRequest, _phone_webhook_form,
-    _send_reply, _sms_reply, _twiml, admin_phone_call_history, admin_phone_number_create,
+    _send_reply, _sms_reply, admin_phone_call_history, admin_phone_number_create,
     admin_phone_number_enable, admin_phone_numbers, admin_phone_setup, owner_call_insights,
     owner_live_call, owner_live_calls, owner_live_supervise, owner_live_supervise_stop,
     owner_live_takeover, owner_missed_calls, owner_phone_calls, owner_phone_numbers,
     owner_phone_setup, owner_phone_transcript, owner_save_phone_setup, owner_set_missed_textback,
     owner_sms_phone, owner_sms_phone_test, owner_supervision, private_audio_response,
-    shared_voice_recording, sms_inbound, smsgate_inbound, tool_endpoint, twilio_phone_ended,
+    shared_voice_recording, smsgate_inbound, tool_endpoint, twilio_phone_ended,
     twilio_phone_inbound, twilio_phone_recording_receipt, twilio_phone_relay, voice_log,
     voice_recording_upload, voice_session_finish, voice_token,
 )
@@ -418,7 +418,7 @@ def _with_snippet(tenant: dict) -> dict:
         "embed_snippet": f'<script src="{base}/widget.js" data-key="{tenant["public_key"]}" defer></script>',
         "demo_url": f"{base}/demo/{tenant['slug']}?presenter=1",
         "report_url": f"{base}/report/{tenant['report_token']}",
-        "sms_webhook_url": f"{base}/api/v1/sms/{tenant['public_key']}",
+        "sms_webhook_url": f"{base}/api/v1/smsgate/{tenant['public_key']}",
         "calendar_url": f"{base}/api/v1/calendar/{tenant['calendar_token']}.ics" if tenant.get("calendar_token") else None,
     }
 

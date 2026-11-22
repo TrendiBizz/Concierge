@@ -68,6 +68,17 @@ def verify_signature(payload: bytes, header: str, secret: str, *, now: float | N
     return any(hmac.compare_digest(expected, sig) for sig in v1_sigs)
 
 
+def gst_rate_for(currency: str, customer_country: str = "") -> float:
+    """NZ customers pay 15% GST (included in the stated price); everyone else is GST-exempt (0%).
+
+    When no country is provided (e.g. a manual NZD bank transfer), NZD implies a New Zealand supply.
+    """
+    country = (customer_country or "").strip().upper()
+    if country:
+        return GST_RATE if country == "NZ" else 0.0
+    return GST_RATE if (currency or "").strip().upper() == "NZD" else 0.0
+
+
 def gst_split(amount_cents: int, rate: float = GST_RATE) -> tuple[int, int]:
     """GST-inclusive totals: the GST component, and the ex-GST subtotal."""
     total = max(0, int(amount_cents))
@@ -83,8 +94,9 @@ async def next_number() -> str:
 
 
 async def issue(*, email: str, name: str, business: str, plan: str, amount_cents: int,
-                currency: str = "NZD", source: str = "stripe", stripe_session_id: str | None = None,
-                stripe_event_id: str = "", description: str = "", tenant_id=None) -> dict:
+                currency: str = "NZD", customer_country: str = "", source: str = "stripe",
+                stripe_session_id: str | None = None, stripe_event_id: str = "",
+                description: str = "", tenant_id=None) -> dict:
     """Idempotent on the Stripe session: a retried webhook returns the invoice already issued."""
     email = email.strip().lower()
     if stripe_session_id:
@@ -93,7 +105,7 @@ async def issue(*, email: str, name: str, business: str, plan: str, amount_cents
         if existing:
             return dict(existing)
     norm_currency = (currency or "NZD").upper()[:3]
-    gst_rate = GST_RATE if norm_currency == "NZD" else 0.0
+    gst_rate = gst_rate_for(norm_currency, customer_country)
     gst_cents, net_cents = gst_split(amount_cents, rate=gst_rate)
     number = await next_number()
     token = secrets.token_urlsafe(24)
@@ -126,7 +138,7 @@ def invoice_html(invoice: dict) -> str:
     business = html.escape(str(invoice.get("business_name") or ""))
     description = html.escape(str(invoice.get("description") or ""))
     currency = html.escape(str(invoice.get("currency") or ""))
-    gst_label = "GST (15%)" if (gst > 0 or currency == "NZD") else "GST (0% — zero-rated export)"
+    gst_label = "GST (15%)" if gst > 0 else "GST (0% — zero-rated export)"
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noai, noimageai"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Invoice {number} — TRENDI LIMITED</title>
@@ -206,6 +218,7 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
     email = (details.get("email") or session.get("customer_email") or "").strip().lower()
     if "@" not in email:
         return None
+    customer_country = ((details.get("address") or {}).get("country") or "").strip().upper()
     invoice = await issue(
         email=email,
         name=(details.get("name") or "").strip(),
@@ -213,6 +226,7 @@ async def handle_checkout(session: dict, event_id: str = "") -> dict | None:
         plan=(session.get("metadata") or {}).get("plan", "Concierge"),
         amount_cents=amount,
         currency=session.get("currency") or "NZD",
+        customer_country=customer_country,
         source="stripe",
         stripe_session_id=session.get("id"),
         stripe_event_id=event_id,
@@ -280,6 +294,7 @@ class ManualCharge(BaseModel):
     plan: str = Field(default="Concierge", max_length=80)
     amount_cents: int = Field(gt=0)
     currency: str = Field(default="NZD", min_length=3, max_length=3)
+    customer_country: str = Field(default="", max_length=2)
     reference: str = Field(default="", max_length=120)
 
 
@@ -289,6 +304,7 @@ async def manual_charge(body: ManualCharge):
     invoice = await issue(
         email=body.email, name=body.name, business=body.business, plan=body.plan,
         amount_cents=body.amount_cents, currency=body.currency.upper(),
+        customer_country=body.customer_country,
         source="manual:" + (body.reference or "bank"), description=body.plan)
     if not invoice.get("emailed_at"):
         await email_invoice(invoice)
