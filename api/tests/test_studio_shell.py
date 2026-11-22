@@ -137,8 +137,7 @@ def test_assets_are_cacheable_and_old_chunks_are_not_deleted():
     deploy = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "vps" / "redeploy-api.sh"
     assert deploy.exists(), "the deploy path must be a script, not a remembered command"
     text = deploy.read_text()
-    assert "--force-recreate api social" in text, "social shares api's namespace and must be recreated with it"
-    assert "social reachable" in text, "the script must prove social answers before it exits"
+    assert "unified social module ready" in text, "the script must verify the unified social module before it exits"
 
 
 def test_no_page_reimplements_the_api_helper():
