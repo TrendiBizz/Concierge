@@ -77,6 +77,8 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "integration_links",
     "billing_events",
     "csat_responses",
+    "tenant_meta_channels",
+    "meta_inbound_messages",
 )
 
 
