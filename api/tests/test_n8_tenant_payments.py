@@ -89,28 +89,50 @@ def test_n8_stripe_connect_disabled_by_default_and_deposit_balance_flow(monkeypa
             assert bal.json()["number"] == "INV-100-BAL"
             assert bal.json()["due_cents"] == 70000
 
-            # 3. When Stripe Connect IS configured & connected, checkout + webhook work end-to-end
+            # 3. Express onboarding via Account Links needs ONLY STRIPE_SECRET_KEY (no Connect client_id)
             monkeypatch.setattr(get_settings(), "stripe_secret_key", "stripe-test-mode", raising=False)
-            monkeypatch.setattr(get_settings(), "stripe_connect_client_id", "ca_test_mode", raising=False)
+            monkeypatch.setattr(get_settings(), "stripe_connect_client_id", "", raising=False)
             monkeypatch.setattr(get_settings(), "stripe_connect_webhook_secret", "connect-hook-secret", raising=False)
-            await pool.execute(
-                "INSERT INTO tenant_stripe_connect(tenant_id, stripe_account_id, charges_enabled, status) "
-                "VALUES($1, 'acct_123', true, 'connected')",
-                t["id"],
-            )
+
             async def fake_http(method, url, **kw):
+                if url.endswith("/v1/accounts") and method == "POST":
+                    return httpx.Response(200, json={"id": "acct_express_1"})
+                if url.endswith("/v1/account_links") and method == "POST":
+                    return httpx.Response(200, json={"url": "https://connect.stripe.com/setup/e/acct_express_1"})
+                if url.endswith("/v1/accounts/acct_express_1") and method == "GET":
+                    return httpx.Response(200, json={"id": "acct_express_1", "charges_enabled": True, "payouts_enabled": True})
                 return httpx.Response(200, json={"id": "cs_test_1", "url": "https://checkout.stripe.com/c/pay/cs_test_1"})
             monkeypatch.setattr(tenant_payments, "http", fake_http)
+
+            st_on = await client.get("/owner/payments/connect", headers=headers)
+            assert st_on.status_code == 200 and st_on.json()["platform_configured"] is True
+
+            started = await client.post("/owner/payments/connect/start", headers=headers)
+            assert started.status_code == 200
+            assert started.json()["stripe_account_id"] == "acct_express_1"
+            assert started.json()["authorize_url"].startswith("https://connect.stripe.com/")
+
+            synced = await client.post("/owner/payments/connect/sync", headers=headers)
+            assert synced.status_code == 200
+            assert synced.json()["connected"] is True and synced.json()["charges_enabled"] is True
 
             co = await client.post(f"/owner/invoices/{inv_id}/checkout", headers=headers, json={"kind": "deposit"})
             assert co.status_code == 200 and co.json()["amount_cents"] == 30000
 
-            # Simulate signed Stripe Connect webhook completion
+            # Simulate signed Stripe Connect webhook for account.updated & checkout.session.completed
+            acct_payload = json.dumps({
+                "type": "account.updated",
+                "data": {"object": {"id": "acct_express_1", "charges_enabled": True, "payouts_enabled": True}},
+            }).encode("utf-8")
+            ts = str(int(time.time()))
+            sig_a = hmac.new(b"connect-hook-secret", f"{ts}.".encode() + acct_payload, hashlib.sha256).hexdigest()
+            wh_a = await client.post("/webhooks/stripe-connect", content=acct_payload, headers={"stripe-signature": f"t={ts},v1={sig_a}"})
+            assert wh_a.status_code == 200
+
             payload = json.dumps({
                 "type": "checkout.session.completed",
                 "data": {"object": {"id": "cs_test_1", "metadata": {"invoice_id": str(inv_id), "payment_kind": "deposit"}}},
             }).encode("utf-8")
-            ts = str(int(time.time()))
             sig = hmac.new(b"connect-hook-secret", f"{ts}.".encode() + payload, hashlib.sha256).hexdigest()
             wh = await client.post("/webhooks/stripe-connect", content=payload, headers={"stripe-signature": f"t={ts},v1={sig}"})
             assert wh.status_code == 200
