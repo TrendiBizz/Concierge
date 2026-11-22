@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     social_service_enabled: bool = False
     social_service_url: str = "http://127.0.0.1:4390"
     social_concierge_key: str = ""
+    social_live_publishing: bool = False
 
     # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.
     case_planner: str = ""

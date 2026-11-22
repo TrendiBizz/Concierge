@@ -340,18 +340,22 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   const [when, setWhen] = useState('');
   const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [providers, setProviders] = useState<Record<string, boolean>>({});
+  const [livePublishing, setLivePublishing] = useState(false);
+  const [autoPublish, setAutoPublish] = useState(false);
   const [role, setRole] = useState('');
 
   async function load() {
     try {
-      const [a, p, status, me, media] = await Promise.all([
+      const [a, p, statusRes, me, media] = await Promise.all([
         api('/owner/social/accounts'), api('/owner/social/posts'), api('/owner/social/status'),
         api('/owner/me'), api('/owner/media/assets').catch(() => []),
       ]);
       setAccounts(a as Account[]); setPosts(p as Post[]);
       // Anything generated on the Media page is offered here, so "it goes to your composer" is true.
       setLibrary((media as Asset[]) || []);
-      setProviders(((status as {providers?: Record<string, boolean>}).providers || {}));
+      const s = statusRes as {providers?: Record<string, boolean>; live_publishing?: boolean};
+      setProviders(s.providers || {});
+      setLivePublishing(Boolean(s.live_publishing));
       setRole((me as {role: string}).role);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load social accounts'); }
   }
@@ -361,6 +365,24 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     if (provider === 'google_business') return '/owner/social/oauth/google';
     if (['facebook', 'instagram'].includes(provider)) return '/owner/social/oauth/meta/' + provider;
     return '/owner/social/oauth/' + provider;
+  }
+
+  function disconnectPath(provider: string, accountId: string) {
+    if (provider === 'linkedin_organization') return '/owner/social/oauth/linkedin/accounts/' + accountId;
+    return oauthPath(provider) + '/accounts/' + accountId;
+  }
+
+  async function disconnectAccount(account: Account) {
+    if (role !== 'owner') { setStatus('Only the business owner can disconnect accounts.'); return; }
+    if (!window.confirm('Disconnect ' + (account.display_name || networkLabel(account.network)) + '?')) return;
+    setBusy(true); setStatus('');
+    try {
+      await api(disconnectPath(account.network, account.id), 'DELETE');
+      setSelected((current) => current.filter((id) => id !== account.id));
+      setStatus((account.display_name || networkLabel(account.network)) + ' disconnected.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not disconnect account'); }
+    setBusy(false);
   }
 
   async function connect(provider: string) {
@@ -432,23 +454,62 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     setBusy(false);
   }
 
-  async function saveVariant(variant: Variant, schedule: boolean) {
+  async function saveVariant(variant: Variant, mode: 'draft' | 'submit' | 'schedule' | 'publish_now') {
     setBusy(true); setStatus('');
     try {
       const media = variant.media || [];
       const draft = {content: variant.content, account_ids: [variant.account_id], link: variant.link || '', hashtags: variant.hashtags || '', media, video: variant.video || null, options: {}};
       const saved = await api('/owner/social/posts', 'POST', draft) as {id: string};
-      if (schedule) {
+      if (mode === 'draft') {
+        setStatus('Draft saved. Submit it for approval when ready.');
+      } else if (mode === 'submit') {
         await api('/owner/social/posts/' + saved.id + '/submit', 'POST');
-        const at = when ? Math.floor(new Date(when).getTime() / 1000) : Math.floor(Date.now() / 1000) + 3600;
+        setStatus('Submitted for owner approval. Approve it in Your posts below to publish.');
+      } else {
+        await api('/owner/social/posts/' + saved.id + '/submit', 'POST');
+        const at = mode === 'publish_now'
+          ? Math.floor(Date.now() / 1000)
+          : (when ? Math.floor(new Date(when).getTime() / 1000) : Math.floor(Date.now() / 1000) + 3600);
         const approval = await api('/owner/social/posts/' + saved.id + '/approval-request', 'POST', {scheduled_at: at}) as {token: string};
         await api('/owner/social/approvals/' + approval.token + '/approve', 'POST');
-        setStatus('Scheduled in Concierge. Live delivery depends on operator publishing being enabled.');
-      } else {
-        setStatus('Draft saved. Submit it for approval when ready.');
+        setStatus(livePublishing
+          ? (mode === 'publish_now' ? 'Approved and queued for immediate live publishing.' : 'Approved and scheduled for live publishing.')
+          : 'Approved and scheduled in Concierge (live publishing is currently paused).');
       }
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save the post'); }
+    setBusy(false);
+  }
+
+  async function submitPostForApproval(postId: string) {
+    setBusy(true); setStatus('');
+    try {
+      await api('/owner/social/posts/' + postId + '/submit', 'POST');
+      setStatus('Post submitted for owner approval.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not submit post'); }
+    setBusy(false);
+  }
+
+  async function decidePost(postId: string, action: 'schedule' | 'publish_now' | 'reject') {
+    if (role !== 'owner') { setStatus('Only the business owner can approve or reject posts.'); return; }
+    setBusy(true); setStatus('');
+    try {
+      const at = action === 'publish_now'
+        ? Math.floor(Date.now() / 1000)
+        : (when ? Math.floor(new Date(when).getTime() / 1000) : Math.floor(Date.now() / 1000) + 3600);
+      const approval = await api('/owner/social/posts/' + postId + '/approval-request', 'POST', {scheduled_at: at}) as {token: string};
+      if (action === 'reject') {
+        await api('/owner/social/approvals/' + approval.token + '/reject', 'POST');
+        setStatus('Post returned to draft.');
+      } else {
+        await api('/owner/social/approvals/' + approval.token + '/approve', 'POST');
+        setStatus(livePublishing
+          ? (action === 'publish_now' ? 'Approved for immediate live publishing.' : 'Approved and scheduled for live publishing.')
+          : 'Approved and scheduled in Concierge (live publishing is currently paused).');
+      }
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not update post approval'); }
     setBusy(false);
   }
 
@@ -456,7 +517,10 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
 
   return (
     <div>
-      <p>Prepare one post for each network, review the exact text, then schedule it for {brand.name || 'your business'}.</p>
+      <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap', marginBottom: 8}}>
+        <p style={{margin: 0}}>Prepare one post for each network, review the exact text, then approve or schedule it for {brand.name || 'your business'}.</p>
+        <Badge label={livePublishing ? 'Live publishing enabled' : 'Drafts & approvals only'} variant={livePublishing ? 'success' : 'neutral'} />
+      </HStack>
       <Card>
         <Heading level={2}>Social accounts</Heading>
         <p>Authorize one account at a time on the provider's own site. A full-colour mark means the network is available for this business; a faded one means setup has not been enabled yet.</p>
@@ -473,16 +537,31 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                     ? linked.map((account) => account.display_name || 'Connected').join(' · ')
                     : enabled ? network.note : 'Not enabled for this business yet'}</span>
                 </div>
-                {enabled
-                  ? <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
-                            isDisabled={busy} onClick={() => void connect(network.id)} />
-                  : <Badge label="setup" variant="neutral" />}
+                <HStack gap={1} vAlign="center">
+                  {enabled
+                    ? <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
+                              isDisabled={busy} onClick={() => void connect(network.id)} />
+                    : <Badge label="setup" variant="neutral" />}
+                  {role === 'owner' && linked.length ? (
+                    <Button label="Disconnect" variant="ghost" isDisabled={busy}
+                            onClick={() => void disconnectAccount(linked[0])} />
+                  ) : null}
+                </HStack>
               </div>
             );
           })}
         </div>
         {!Object.values(providers).some(Boolean) ? <p>Account connections are awaiting Trendi setup for this business.</p> : null}
         {role !== 'owner' ? <p>Only the business owner can connect an account.</p> : null}
+        {role === 'owner' ? (
+          <div style={{marginTop: 10}}>
+            <CheckboxInput
+              label="Auto-publish approved composer previews (off by default — requires owner approval in Your posts when unchecked)"
+              value={autoPublish}
+              onChange={setAutoPublish}
+            />
+          </div>
+        ) : null}
       </Card>
       {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Choose a network above; it appears here once connected.</p></Card> : null}
       {accounts.length ? (
@@ -531,8 +610,17 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <TextArea label="Exact post text" value={variant.content} onChange={(v) => setVariants(variants.map((item) => item.account_id === variant.account_id ? {...item, content: v} : item))} rows={5} />
           <p>{variant.limit ? variant.content.length + ' / ' + variant.limit + ' characters' : ''}</p>
           {variant.errors?.map((error) => <p key={error} role="alert">{error}</p>)}
-          <Button label="Save draft" variant="secondary" onClick={() => saveVariant(variant, false)} />
-          <Button label="Schedule" variant="primary" onClick={() => saveVariant(variant, true)} />
+          <HStack gap={2} style={{flexWrap: 'wrap'}}>
+            <Button label="Save draft" variant="secondary" isDisabled={busy} onClick={() => void saveVariant(variant, 'draft')} />
+            {autoPublish && role === 'owner' ? (
+              <>
+                <Button label="Schedule" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'schedule')} />
+                <Button label="Publish now" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'publish_now')} />
+              </>
+            ) : (
+              <Button label="Submit for owner approval" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'submit')} />
+            )}
+          </HStack>
         </Card>
       ))}
 
@@ -592,6 +680,18 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
             <Badge label={post.status.replaceAll('_', ' ')} variant={post.status === 'published' ? 'success' : post.status === 'failed' ? 'error' : 'neutral'} />
             <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
             {post.last_error ? <p role="alert">{post.last_error}</p> : null}
+            <HStack gap={2} style={{flexWrap: 'wrap', marginTop: 8}}>
+              {post.status === 'draft' ? (
+                <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />
+              ) : null}
+              {post.status === 'pending_approval' && role === 'owner' ? (
+                <>
+                  <Button label="Approve & schedule" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'schedule')} />
+                  <Button label="Approve & publish now" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'publish_now')} />
+                  <Button label="Reject" variant="ghost" isDisabled={busy} onClick={() => void decidePost(post.id, 'reject')} />
+                </>
+              ) : null}
+            </HStack>
           </Card>
         ))}
         {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}

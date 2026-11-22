@@ -114,7 +114,6 @@ services:
       SOCIAL_PUBLIC_MEDIA_BASE: https://concierge.trendibizz.com/api/v1/social-media
       SOCIAL_DB: /data/social.db
       SOCIAL_BIND: 127.0.0.1:4390
-      SOCIAL_ENABLE_PUBLISH: "false"
     volumes: [social:/data]
     depends_on:
       api: {condition: service_healthy}
