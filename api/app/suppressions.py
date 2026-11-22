@@ -144,7 +144,9 @@ async def record_event(event: dict) -> dict:
                                    {"address": address, "reason": reason})
         return {"deferred": True}
     if name in ("unsubscribed", "unsub"):
+        created = await add(tenant_id, address, "unsubscribed", "brevo",
+                            {"reason": reason, "message_id": message_id[:500]})
         await inbound_policy.audit(tenant_id, None, "unsubscribed_provider", "brevo",
-                                   {"address": address})
-        return {"unsubscribed": True}
+                                   {"address": address, "suppressed": created})
+        return {"unsubscribed": True, "suppressed": created}
     return {"ignored": name or "unknown event"}

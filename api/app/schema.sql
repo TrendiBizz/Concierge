@@ -1403,3 +1403,41 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
     created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(created_at DESC);
+
+-- N2: NZ Privacy Act 2020 & AU Privacy / Call-Recording Compliance Completion.
+ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS phone text NOT NULL DEFAULT '';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS retention_days_messages integer NOT NULL DEFAULT 365;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS retention_days_leads integer NOT NULL DEFAULT 730;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS retention_days_outbox integer NOT NULL DEFAULT 180;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS retention_days_email_drafts integer NOT NULL DEFAULT 365;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS call_recording_consent_mode text NOT NULL DEFAULT 'opt_out';
+ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_call_recording_consent_mode_check;
+ALTER TABLE tenants ADD CONSTRAINT tenants_call_recording_consent_mode_check
+    CHECK (call_recording_consent_mode IN ('opt_out', 'strict_opt_in'));
+
+CREATE TABLE IF NOT EXISTS privacy_breaches (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    title           text NOT NULL,
+    severity        text NOT NULL DEFAULT 'medium' CHECK (severity IN ('low','medium','high','critical')),
+    description     text NOT NULL DEFAULT '',
+    affected_count  integer NOT NULL DEFAULT 0,
+    status          text NOT NULL DEFAULT 'open' CHECK (status IN ('open','investigating','notified_opc','closed')),
+    detected_at     timestamptz NOT NULL DEFAULT now(),
+    due_72h_at      timestamptz NOT NULL DEFAULT (now() + interval '72 hours'),
+    notified_at     timestamptz,
+    created_by      text NOT NULL DEFAULT '',
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS privacy_breaches_tenant_idx ON privacy_breaches(tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS privacy_audit_log (
+    id          bigserial PRIMARY KEY,
+    tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    actor       text NOT NULL DEFAULT '',
+    action      text NOT NULL,
+    subject     text NOT NULL DEFAULT '',
+    detail      jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS privacy_audit_log_tenant_idx ON privacy_audit_log(tenant_id, created_at DESC);

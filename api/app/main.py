@@ -33,7 +33,7 @@ from . import chat_inbox, sms_inbox
 from . import owner_invites
 from . import install_requests
 from . import site_enquiry
-from . import privacy
+from . import privacy, privacy_retention
 from . import platform_billing
 from . import subscription
 from . import api_keys, integrations, owner_mfa, admin_operators
@@ -189,6 +189,7 @@ async def lifespan(_: FastAPI):
                 pass
     workers: list[asyncio.Task] = [
         asyncio.create_task(maintain_voice_records(), name="voice_retention_worker"),
+        asyncio.create_task(privacy_retention.run_forever(stop), name="privacy_retention_worker"),
         asyncio.create_task(email_secretary.run_forever(stop), name="email_worker"),
         asyncio.create_task(calendar_connection.run_forever(stop), name="calendar_worker"),
         asyncio.create_task(subscription.run_forever(stop), name="billing_grace_worker"),
