@@ -11,12 +11,51 @@ import {ChatLayout, ChatMessageList, ChatMessage, ChatMessageBubble, ChatMessage
 import {createApi} from './api';
 import {StatusLine} from './StatusLine';
 
-type Channel = 'all' | 'sms' | 'chat' | 'email' | 'phone';
+type Channel = 'all' | 'sms' | 'chat' | 'email' | 'phone' | 'messenger' | 'instagram' | 'whatsapp';
+type MetaChannel = 'whatsapp' | 'messenger' | 'instagram';
 type Phone = {transport: string; paired: boolean; online: boolean; last_seen: string | null; receive_verified: boolean | null};
 type Conversation = {id: string; phone: string; name: string; lead_id: string | null; last_text: string;
   last_author: 'customer' | 'ai' | 'owner'; last_at: string; message_count: number; paused: boolean};
 type Message = {id: number; author: 'customer' | 'ai' | 'owner'; text: string; at: string};
 type Thread = {id: string; phone: string; paused: boolean; opted_out: boolean; messages: Message[]};
+
+type MetaConversation = {
+  channel: MetaChannel;
+  sender_id: string;
+  sender_name: string;
+  channel_external_id: string;
+  last_text: string;
+  last_direction: 'in' | 'out';
+  last_at: string;
+  last_inbound_at: string | null;
+  window_open: boolean;
+  window_expires_at: string | null;
+  message_count: number;
+};
+
+type MetaMessage = {
+  id: string;
+  direction: 'in' | 'out';
+  text: string;
+  template_name?: string;
+  created_at: string;
+};
+
+type MetaThread = {
+  channel: MetaChannel;
+  sender_id: string;
+  sender_name: string;
+  channel_external_id: string;
+  window_open: boolean;
+  window_expires_at: string | null;
+  messages: MetaMessage[];
+};
+
+type WaTemplate = {
+  name: string;
+  language: string;
+  category: string;
+};
 
 type EmailDraft = {
   id: number;
@@ -48,13 +87,14 @@ type Recording = {
 type UnifiedItem =
   | {kind: 'sms' | 'chat'; key: string; at: string; title: string; preview: string; paused: boolean; conv: Conversation}
   | {kind: 'email'; key: string; at: string; title: string; preview: string; draft: EmailDraft}
-  | {kind: 'phone'; key: string; at: string; title: string; preview: string; call: PhoneCall; recording?: Recording};
+  | {kind: 'phone'; key: string; at: string; title: string; preview: string; call: PhoneCall; recording?: Recording}
+  | {kind: MetaChannel; key: string; at: string; title: string; preview: string; meta: MetaConversation};
 
 const AUTHOR_LABEL = {customer: 'Customer', ai: 'Concierge (AI)', owner: 'You'} as const;
 
 /**
- * Unified omnichannel inbox: SMS, Website chat, Email drafts, and Phone calls + voicemail playback
- * in one list. Owners can take over SMS/chat, approve/discard email replies, and play recordings.
+ * Unified omnichannel inbox: SMS, Website chat, Email drafts, Phone calls + voicemail playback,
+ * and Meta messaging (Messenger, Instagram DMs, WhatsApp) in one list.
  */
 export function Texts({token}: {token: string}) {
   const api = createApi(token);
@@ -63,6 +103,8 @@ export function Texts({token}: {token: string}) {
   const [items, setItems] = useState<UnifiedItem[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [thread, setThread] = useState<Thread | null>(null);
+  const [metaThread, setMetaThread] = useState<MetaThread | null>(null);
+  const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([]);
   const [draft, setDraft] = useState('');
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -81,12 +123,14 @@ export function Texts({token}: {token: string}) {
       const wantChat = channel === 'all' || channel === 'chat';
       const wantEmail = channel === 'all' || channel === 'email';
       const wantPhone = channel === 'all' || channel === 'phone';
+      const wantMeta = channel === 'all' || channel === 'messenger' || channel === 'instagram' || channel === 'whatsapp';
 
-      const [smsRes, chatRes, emailRes, callsRes] = await Promise.all([
+      const [smsRes, chatRes, emailRes, callsRes, metaRes] = await Promise.all([
         wantSms ? api('/owner/sms/inbox').catch(() => ({conversations: []})) : Promise.resolve({conversations: []}),
         wantChat ? api('/owner/chat/inbox').catch(() => ({conversations: []})) : Promise.resolve({conversations: []}),
         wantEmail ? api('/owner/email-drafts').catch(() => ([])) : Promise.resolve([]),
         wantPhone ? api('/owner/phone-calls').catch(() => ([])) : Promise.resolve([]),
+        wantMeta ? api('/owner/meta-messaging/conversations').catch(() => ({conversations: []})) : Promise.resolve({conversations: []}),
       ]);
 
       const smsData = smsRes as {phone?: Phone; conversations?: Conversation[]};
@@ -94,6 +138,7 @@ export function Texts({token}: {token: string}) {
       const chatData = chatRes as {conversations?: Conversation[]};
       const drafts = Array.isArray(emailRes) ? (emailRes as EmailDraft[]) : ((emailRes as {drafts?: EmailDraft[]}).drafts || []);
       const calls = Array.isArray(callsRes) ? (callsRes as PhoneCall[]) : ((callsRes as {calls?: PhoneCall[]}).calls || []);
+      const metaConvs = ((metaRes as {conversations?: MetaConversation[]}).conversations || []);
 
       const merged: UnifiedItem[] = [];
       for (const c of smsData.conversations || []) {
@@ -131,6 +176,17 @@ export function Texts({token}: {token: string}) {
           call, recording: rec,
         });
       }
+      for (const mc of metaConvs) {
+        if (channel !== 'all' && channel !== mc.channel) continue;
+        merged.push({
+          kind: mc.channel,
+          key: `meta:${mc.channel}:${mc.sender_id}`,
+          at: mc.last_at || '',
+          title: mc.sender_name || mc.sender_id,
+          preview: `${mc.last_direction === 'out' ? 'You' : 'Customer'}: ${mc.last_text}`,
+          meta: mc,
+        });
+      }
       merged.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
       setItems(merged);
       if (!selectedRef.current && merged.length) setSelectedKey(merged[0].key);
@@ -140,9 +196,36 @@ export function Texts({token}: {token: string}) {
   }
 
   const activeItem = items.find((i) => i.key === selectedKey) || null;
+  const isMetaItem = (item: UnifiedItem | null): item is Extract<UnifiedItem, {kind: MetaChannel}> =>
+    Boolean(item && (item.kind === 'whatsapp' || item.kind === 'messenger' || item.kind === 'instagram'));
 
   async function loadThread(item: UnifiedItem | null) {
-    if (!item || (item.kind !== 'sms' && item.kind !== 'chat')) {
+    if (!item) {
+      setThread(null);
+      setMetaThread(null);
+      return;
+    }
+    if (isMetaItem(item)) {
+      setThread(null);
+      try {
+        const mt = await api(
+          `/owner/meta-messaging/conversations/${item.meta.channel}/${encodeURIComponent(item.meta.sender_id)}`,
+        ) as MetaThread;
+        setMetaThread(mt);
+        if (item.meta.channel === 'whatsapp' && !mt.window_open) {
+          const tplRes = await api('/owner/meta-messaging/whatsapp/templates').catch(() => ({templates: []})) as {templates?: WaTemplate[]};
+          setWaTemplates(tplRes.templates || []);
+        } else {
+          setWaTemplates([]);
+        }
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : 'Could not load that conversation');
+      }
+      return;
+    }
+    setMetaThread(null);
+    setWaTemplates([]);
+    if (item.kind !== 'sms' && item.kind !== 'chat') {
       setThread(null);
       return;
     }
@@ -204,6 +287,30 @@ export function Texts({token}: {token: string}) {
     finally { setBusy(false); }
   }
 
+  async function sendMetaReply(value: string, template?: WaTemplate) {
+    if (!metaThread || !activeItem || !isMetaItem(activeItem)) return;
+    const text = value.trim();
+    if (!text && !template) return;
+    setBusy(true);
+    setStatus('');
+    try {
+      await api(
+        `/owner/meta-messaging/conversations/${metaThread.channel}/${encodeURIComponent(metaThread.sender_id)}/reply`,
+        'POST',
+        template
+          ? {template_name: template.name, template_language: template.language}
+          : {text},
+      );
+      setDraft('');
+      setStatus(template ? `Sent WhatsApp template "${template.name}".` : 'Reply sent.');
+      await Promise.all([loadThread(activeItem), loadInbox()]);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not send Meta reply');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleEmailAction(draftId: number, action: 'approve' | 'discard') {
     setBusy(true);
     try {
@@ -227,6 +334,9 @@ export function Texts({token}: {token: string}) {
         <Button label="Website chat" variant={channel === 'chat' ? 'primary' : 'secondary'} onClick={() => setChannel('chat')} />
         <Button label="Email" variant={channel === 'email' ? 'primary' : 'secondary'} onClick={() => setChannel('email')} />
         <Button label="Phone & Voicemail" variant={channel === 'phone' ? 'primary' : 'secondary'} onClick={() => setChannel('phone')} />
+        <Button label="Messenger" variant={channel === 'messenger' ? 'primary' : 'secondary'} onClick={() => setChannel('messenger')} />
+        <Button label="Instagram" variant={channel === 'instagram' ? 'primary' : 'secondary'} onClick={() => setChannel('instagram')} />
+        <Button label="WhatsApp" variant={channel === 'whatsapp' ? 'primary' : 'secondary'} onClick={() => setChannel('whatsapp')} />
       </HStack>
       {(channel === 'sms' || channel === 'all') && phone ? (
         <HStack gap={2} style={{alignItems: 'center', flexWrap: 'wrap'}}>
@@ -325,6 +435,52 @@ export function Texts({token}: {token: string}) {
                 <Text>No audio recording stored for this call.</Text>
               )}
             </VStack>
+          ) : isMetaItem(activeItem) && metaThread ? (
+            <>
+              <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', paddingBottom: 8, flexWrap: 'wrap'}}>
+                <Heading level={3}>{activeItem.title}</Heading>
+                <HStack gap={2} style={{alignItems: 'center'}}>
+                  <Badge label={metaThread.channel.toUpperCase()} variant="info" />
+                  <Badge
+                    label={metaThread.window_open ? '24h reply window open' : '24h window closed'}
+                    variant={metaThread.window_open ? 'success' : 'warning'}
+                  />
+                </HStack>
+              </HStack>
+              <div style={{flex: 1, minHeight: 420}}>
+                <ChatLayout
+                  composer={role === 'viewer'
+                    ? <ChatSystemMessage>View-only account: editors and owners can reply.</ChatSystemMessage>
+                    : metaThread.window_open
+                    ? <ChatComposer value={draft} onChange={setDraft} onSubmit={(v) => void sendMetaReply(v)} isDisabled={busy}
+                                    placeholder={`Reply on ${metaThread.channel}`} />
+                    : metaThread.channel === 'whatsapp' && waTemplates.length > 0
+                    ? <VStack gap={2} style={{padding: 8}}>
+                        <Text>WhatsApp&apos;s 24-hour window has closed. Send an approved template:</Text>
+                        <HStack gap={2} style={{flexWrap: 'wrap'}}>
+                          {waTemplates.map((tpl) => (
+                            <Button key={`${tpl.name}:${tpl.language}`} label={`${tpl.name} (${tpl.language})`}
+                                    variant="secondary" isDisabled={busy} onClick={() => void sendMetaReply('', tpl)} />
+                          ))}
+                        </HStack>
+                      </VStack>
+                    : <ChatSystemMessage>
+                        {metaThread.channel === 'whatsapp'
+                          ? 'WhatsApp’s 24-hour customer service window has closed and no approved WhatsApp templates are configured yet. You can reply once the customer messages again.'
+                          : 'Meta’s 24-hour customer messaging window has closed. You can reply once the customer messages you again.'}
+                      </ChatSystemMessage>}>
+                  <ChatMessageList emptyState={<Text>No messages yet.</Text>}>
+                    {metaThread.messages.map((m) => (
+                      <ChatMessage key={m.id} sender={m.direction === 'in' ? 'assistant' : 'user'}
+                                   name={m.direction === 'in' ? (metaThread.sender_name || 'Customer') : 'You'}
+                                   metadata={<ChatMessageMetadata timestamp={<Timestamp value={m.created_at} />} />}>
+                        <ChatMessageBubble variant={m.direction === 'in' ? 'ghost' : 'filled'}>{m.text}</ChatMessageBubble>
+                      </ChatMessage>
+                    ))}
+                  </ChatMessageList>
+                </ChatLayout>
+              </div>
+            </>
           ) : (
             <Text>Select a conversation on the left to read it or reply.</Text>
           )}

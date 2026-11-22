@@ -203,7 +203,14 @@ async def owner_social_meta_finish(network: str, body: OwnerOAuthCallback,
     owner_auth.require_role(user, "owner")
     if network not in ("facebook", "instagram"):
         raise HTTPException(404, "Unsupported social network")
-    return await social_bridge.finish_meta_oauth(user, network, body.state, body.code)
+    result = await social_bridge.finish_meta_oauth(user, network, body.state, body.code)
+    # Persist Page / IG business IDs and encrypted Page tokens for inbound/outbound Meta messaging,
+    # and strip access tokens before returning anything to the browser.
+    channels = result.pop("channels", None) if isinstance(result, dict) else None
+    if channels:
+        from .. import meta_inbound
+        await meta_inbound.sync_social_meta_channels(user["tenant_id"], channels)
+    return result
 
 
 @router.delete("/owner/social/oauth/meta/{network}/accounts/{account_id}")
@@ -212,6 +219,8 @@ async def owner_social_meta_disconnect(network: str, account_id: str,
     owner_auth.require_role(user, "owner")
     if network not in ("facebook", "instagram"):
         raise HTTPException(404, "Unsupported social network")
+    from .. import meta_inbound
+    await meta_inbound.unsubscribe_and_remove_social_channels(user["tenant_id"], network, account_id)
     return await social_bridge.unlink_meta(user, network, account_id)
 
 
