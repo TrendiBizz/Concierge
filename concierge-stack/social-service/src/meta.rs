@@ -898,11 +898,7 @@ async fn facebook_finish(
         .scopes
         .iter()
         .any(|s| s == "pages_manage_metadata")
-        && granted
-            .data
-            .scopes
-            .iter()
-            .any(|s| s == "pages_messaging");
+        && granted.data.scopes.iter().any(|s| s == "pages_messaging");
     let mut result = Vec::new();
     let mut channels = Vec::new();
     for page in pages {
