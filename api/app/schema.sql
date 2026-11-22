@@ -1523,3 +1523,15 @@ CREATE TABLE IF NOT EXISTS tenant_email_oauth (
     updated_at      timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, provider)
 );
+
+-- N12: Customer satisfaction (CSAT) responses for analytics reporting.
+CREATE TABLE IF NOT EXISTS csat_responses (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,
+    channel         text NOT NULL DEFAULT 'chat',
+    rating          smallint NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment         text NOT NULL DEFAULT '',
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS csat_responses_tenant_idx ON csat_responses(tenant_id, created_at DESC);
