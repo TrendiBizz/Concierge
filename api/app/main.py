@@ -36,7 +36,7 @@ from . import site_enquiry
 from . import privacy, privacy_retention
 from . import platform_billing
 from . import subscription
-from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing
+from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing, crawl_scheduler
 from .routers import (
     admin as admin_router, crm, email, owner_portal, owner_signin, public, social, telephony,
 )
@@ -194,6 +194,7 @@ async def lifespan(_: FastAPI):
         asyncio.create_task(calendar_connection.run_forever(stop), name="calendar_worker"),
         asyncio.create_task(subscription.run_forever(stop), name="billing_grace_worker"),
         asyncio.create_task(portability.run_forever(stop), name="webhook_retry_worker"),
+        asyncio.create_task(crawl_scheduler.run_forever(stop), name="crawl_scheduler_worker"),
     ]
     if settings.outbox_enabled:
         workers.extend([
@@ -237,6 +238,7 @@ app.include_router(voice_internal.router)
 app.include_router(owner_signin.router)
 app.include_router(owner_mfa.router)
 app.include_router(owner_portal.router)
+app.include_router(crawl_scheduler.router)
 app.include_router(admin_operators.router)
 app.include_router(social.router)
 app.include_router(telephony.router)

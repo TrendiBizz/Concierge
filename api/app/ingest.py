@@ -52,6 +52,8 @@ async def _store(tenant_id, pages: list[Page], replace_crawled: bool,
                     for (url, title, text), vec in zip(records, vectors)
                 ],
             )
+    from . import rag
+    rag.invalidate_cache(tenant_id)
     return len(records)
 
 
