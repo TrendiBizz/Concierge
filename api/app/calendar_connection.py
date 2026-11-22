@@ -168,6 +168,65 @@ async def disconnect(user=Depends(owner_auth.current_user)):
     return {'connected': False}
 
 
+async def pull_changes_for_tenant(tenant_id) -> dict[str, int]:
+    """Two-way Google Calendar sync: pull external cancellations or time moves into appointments."""
+    cal = await connection(tenant_id)
+    if not cal:
+        return {'updated': 0, 'cancelled': 0}
+    params = {
+        'privateExtendedProperty': f'concierge_tenant={tenant_id}',
+        'showDeleted': 'true',
+        'singleEvents': 'true',
+        'maxResults': '50',
+    }
+    if cal.get('last_pulled_at'):
+        params['updatedMin'] = cal['last_pulled_at'].astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+    path = '/calendars/' + quote(cal['calendar_id'], safe='') + '/events'
+    resp = await request(tenant_id, 'GET', path, params=params)
+    if resp.status_code != 200:
+        return {'updated': 0, 'cancelled': 0}
+    items = resp.json().get('items', [])
+    updated = cancelled = 0
+    for item in items:
+        appt_id = (item.get('extendedProperties') or {}).get('private', {}).get('concierge_appointment')
+        if not appt_id:
+            continue
+        if item.get('status') == 'cancelled':
+            res = await db.pool().execute(
+                "UPDATE appointments SET status='cancelled', calendar_state='cancelled' "
+                "WHERE id=$1 AND tenant_id=$2 AND status='booked'",
+                appt_id, tenant_id,
+            )
+            if res.endswith(' 1'):
+                cancelled += 1
+            continue
+        start_raw = (item.get('start') or {}).get('dateTime')
+        end_raw = (item.get('end') or {}).get('dateTime')
+        if start_raw and end_raw:
+            new_start = datetime.fromisoformat(start_raw.replace('Z', '+00:00'))
+            new_end = datetime.fromisoformat(end_raw.replace('Z', '+00:00'))
+            res = await db.pool().execute(
+                "UPDATE appointments SET starts_at=$3, ends_at=$4, calendar_synced_at=now() "
+                "WHERE id=$1 AND tenant_id=$2 AND status='booked' "
+                "AND (abs(extract(epoch from (starts_at - $3))) >= 10 OR abs(extract(epoch from (ends_at - $4))) >= 10)",
+                appt_id, tenant_id, new_start, new_end,
+            )
+            if res.endswith(' 1'):
+                updated += 1
+    await db.pool().execute("UPDATE calendar_connections SET last_pulled_at=now() WHERE tenant_id=$1", tenant_id)
+    return {'updated': updated, 'cancelled': cancelled}
+
+
+@router.post('/sync-now')
+async def sync_now(user=Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, 'editor')
+    try:
+        pulled = await pull_changes_for_tenant(user['tenant_id'])
+    except (CalendarUnavailable, httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(503, str(exc)) from None
+    return {'ok': True, **pulled}
+
+
 async def busy(tenant_id, start, end):
     row = await connection(tenant_id)
     if not row:
@@ -270,6 +329,15 @@ async def process_once():
     notices = await db.pool().fetch(f"SELECT id FROM appointments WHERE {NOTICE_READY} AND status='booked' AND NOT calendar_notice_done AND calendar_sync_requested AND ends_at>now() LIMIT 10")
     for row in notices:
         await notify_synced(row['id'])
+    cals = await db.pool().fetch(
+        "SELECT tenant_id FROM calendar_connections WHERE enabled "
+        "AND (last_pulled_at IS NULL OR last_pulled_at < now() - interval '2 minutes') LIMIT 10"
+    )
+    for row in cals:
+        try:
+            await pull_changes_for_tenant(row['tenant_id'])
+        except (CalendarUnavailable, httpx.HTTPError, ValueError):
+            pass
 
 
 async def run_forever(stop):

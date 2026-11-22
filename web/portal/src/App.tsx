@@ -27,6 +27,7 @@ import {Knowledge} from './Knowledge';
 import {Privacy} from './Privacy';
 import {Billing} from './Billing';
 import {Invoices} from './Invoices';
+import {Integrations} from './Integrations';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
 import {createApi, isGenericFailure} from './api';
@@ -1880,6 +1881,7 @@ function Shell() {
       {tab: 'permissions', label: 'Channels and permissions', glyph: 'shield'},
       {tab: 'team', label: 'Team', glyph: 'handshake'},
       {tab: 'yourcrm', label: 'Your CRM', glyph: 'folder'},
+      {tab: 'integrations', label: 'Integrations & API', glyph: 'folder'},
       {tab: 'replies', label: 'Saved replies', glyph: 'chat'},
       {tab: 'knowledge', label: 'What Concierge knows', glyph: 'folder'},
       {tab: 'privacy', label: 'Privacy requests', glyph: 'shield'},
@@ -1910,6 +1912,7 @@ function Shell() {
     privacy: {title: 'Privacy requests', line: 'Customers asking what you hold on them, or asking you to delete it. The legal limit is 20 working days.'},
     billing: {title: 'Billing and invoices', line: 'Your Concierge subscription, your card, and every tax invoice.'},
     yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},
+    integrations: {title: 'Integrations and API keys', line: 'Connect Xero, Microsoft 365, ServiceM8, Tradify or Fergus, and manage API keys for Zapier or Make.'},
   };
 
   const hero = HERO[tab] || {title: '', line: ''};
@@ -1927,7 +1930,7 @@ function Shell() {
       {tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']} question="handle your texts" /> : null}
       {tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']} question="answer and record calls" /> : null}
       {tab === 'social' ? <ChannelAsk token={token} channels={['social']} question="publish your social posts" /> : null}
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'invoices' ? <Invoices token={token} /> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'invoices' ? <Invoices token={token} /> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'integrations' ? <Integrations token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
     </>
   );
 
@@ -1973,6 +1976,7 @@ function Shell() {
           <Tab value="replies" label={tr('Saved replies')} />
           <Tab value="team" label={tr('Team')} />
           <Tab value="yourcrm" label={tr('Your CRM')} />
+          <Tab value="integrations" label={tr('Integrations & API')} />
           <Tab value="knowledge" label={tr('What Concierge knows')} />
           <Tab value="privacy" label={tr('Privacy requests')} />
           <Tab value="billing" label={tr('Billing and invoices')} />
