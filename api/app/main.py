@@ -36,7 +36,7 @@ from . import site_enquiry
 from . import privacy, privacy_retention
 from . import platform_billing
 from . import subscription
-from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing, crawl_scheduler
+from . import api_keys, integrations, owner_mfa, admin_operators, voice_routing, crawl_scheduler, booking_links
 from .routers import (
     admin as admin_router, crm, email, owner_portal, owner_signin, public, social, telephony,
 )
@@ -269,6 +269,8 @@ app.include_router(api_keys.owner_router)
 app.include_router(api_keys.api_router)
 app.include_router(integrations.owner_router)
 app.include_router(integrations.callback_router)
+app.include_router(booking_links.owner_router)
+app.include_router(booking_links.public_router)
 app.include_router(designs.router)
 app.include_router(designs.public_router)
 app.include_router(designs.page_router)

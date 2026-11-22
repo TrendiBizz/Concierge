@@ -289,13 +289,66 @@ async def _servicem8(tenant_id, event: str, p: dict) -> None:
         await _set_link(tenant_id, "servicem8", "job", lead, r.headers.get("x-record-uuid", ""))
 
 
-async def _partner_only(tenant_id, event: str, p: dict) -> None:
-    """Tradify and Fergus: the code path is intentionally absent until partner API access is granted."""
-    return None
+TRADIFY_API = "https://api.tradifyhq.com/v1"
+FERGUS_API = "https://api.fergus.com/v1"
+
+
+async def _tradify(tenant_id, event: str, p: dict) -> None:
+    """Tradify partner connector (disabled until TRADIFY_PARTNER_KEY is configured)."""
+    s = get_settings()
+    if not s.tradify_partner_key:
+        return None
+    creds = await _fresh(tenant_id, "tradify")
+    headers = {
+        "X-Partner-Key": s.tradify_partner_key,
+        "Authorization": "Bearer " + creds.get("api_key", ""),
+        "Content-Type": "application/json",
+    }
+    if event == "customer.enquiry":
+        lead = p.get("lead_id", "")
+        if not lead or await _link(tenant_id, "tradify", "job", lead):
+            return
+        r = await http("POST", TRADIFY_API + "/jobs", headers=headers, content=json.dumps({
+            "customer_name": _name(p),
+            "email": p.get("email", ""),
+            "phone": p.get("phone", ""),
+            "description": f"[{p.get('channel', '')}] {p.get('message', '')}".strip()[:2000],
+        }))
+        if r.status_code >= 300:
+            raise RuntimeError(f"Tradify job create failed (HTTP {r.status_code})")
+        ext_id = str((r.json() or {}).get("id") or lead)
+        await _set_link(tenant_id, "tradify", "job", lead, ext_id)
+
+
+async def _fergus(tenant_id, event: str, p: dict) -> None:
+    """Fergus partner connector (disabled until FERGUS_PARTNER_KEY is configured)."""
+    s = get_settings()
+    if not s.fergus_partner_key:
+        return None
+    creds = await _fresh(tenant_id, "fergus")
+    headers = {
+        "X-Partner-Key": s.fergus_partner_key,
+        "Authorization": "Bearer " + creds.get("api_key", ""),
+        "Content-Type": "application/json",
+    }
+    if event == "customer.enquiry":
+        lead = p.get("lead_id", "")
+        if not lead or await _link(tenant_id, "fergus", "job", lead):
+            return
+        r = await http("POST", FERGUS_API + "/jobs", headers=headers, content=json.dumps({
+            "title": f"Enquiry from {_name(p)}",
+            "customer_email": p.get("email", ""),
+            "customer_phone": p.get("phone", ""),
+            "description": f"[{p.get('channel', '')}] {p.get('message', '')}".strip()[:2000],
+        }))
+        if r.status_code >= 300:
+            raise RuntimeError(f"Fergus job create failed (HTTP {r.status_code})")
+        ext_id = str((r.json() or {}).get("id") or lead)
+        await _set_link(tenant_id, "fergus", "job", lead, ext_id)
 
 
 CONNECTORS = {"xero": _xero, "m365": _m365, "servicem8": _servicem8,
-              "tradify": _partner_only, "fergus": _partner_only}
+              "tradify": _tradify, "fergus": _fergus}
 
 
 async def dispatch(tenant_id, event: str, payload: dict) -> None:

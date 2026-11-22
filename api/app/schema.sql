@@ -1486,3 +1486,6 @@ CREATE INDEX IF NOT EXISTS chunks_content_tsv_idx ON chunks USING GIN (content_t
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS crawl_interval_hours integer NOT NULL DEFAULT 0;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS last_crawled_at timestamptz;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rag_min_score double precision NOT NULL DEFAULT 0.25;
+
+-- N6 remainder: two-way Google Calendar pull timestamp.
+ALTER TABLE calendar_connections ADD COLUMN IF NOT EXISTS last_pulled_at timestamptz;
