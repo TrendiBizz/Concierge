@@ -39,17 +39,20 @@ export function Integrations({token}: {token: string}) {
   const [keyName, setKeyName] = useState('');
   const [newKey, setNewKey] = useState('');
   const [sm8Key, setSm8Key] = useState('');
+  const [teamWebhook, setTeamWebhook] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function load() {
     try {
-      const [intRes, keyRes] = await Promise.all([
+      const [intRes, keyRes, hookRes] = await Promise.all([
         api('/owner/integrations') as Promise<{integrations: IntegrationItem[]}>,
         api('/owner/api-keys') as Promise<{keys: ApiKeyRow[]}>,
+        api('/owner/team-chat-webhook').catch(() => ({url: ''})) as Promise<{url?: string}>,
       ]);
       setItems(intRes.integrations || []);
       setKeys(keyRes.keys || []);
+      setTeamWebhook(hookRes.url || '');
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Could not load integrations');
     }
@@ -129,9 +132,34 @@ export function Integrations({token}: {token: string}) {
     }
   }
 
+  async function saveTeamWebhook() {
+    setBusy(true);
+    setStatus('');
+    try {
+      const res = await api('/owner/team-chat-webhook', 'PUT', {url: teamWebhook.trim()}) as {url: string};
+      setTeamWebhook(res.url || '');
+      setStatus(res.url ? 'Slack / Microsoft Teams webhook saved.' : 'Slack / Microsoft Teams webhook cleared.');
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not save webhook URL');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <VStack gap={4} style={{padding: 16}}>
       <StatusLine text={status} />
+      <Heading level={3}>Slack &amp; Microsoft Teams Alerts</Heading>
+      <Card>
+        <VStack gap={2} style={{padding: 16}}>
+          <Text>Paste a Slack or Microsoft Teams incoming webhook HTTPS URL to receive real-time enquiry alerts.</Text>
+          <HStack gap={2} style={{alignItems: 'flex-end', flexWrap: 'wrap'}}>
+            <TextInput label="Slack / Teams webhook URL" value={teamWebhook} onChange={setTeamWebhook} placeholder="https://hooks.slack.com/services/..." />
+            <Button label="Save webhook" variant="primary" isDisabled={busy} onClick={() => void saveTeamWebhook()} />
+          </HStack>
+        </VStack>
+      </Card>
+
       <Heading level={3}>NZ / AU Business Integrations</Heading>
       {items.map((item) => (
         <Card key={item.provider}>

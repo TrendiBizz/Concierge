@@ -1587,3 +1587,89 @@ CREATE TABLE IF NOT EXISTS meta_inbound_messages (
     UNIQUE (channel, external_message_id)
 );
 CREATE INDEX IF NOT EXISTS meta_inbound_messages_tenant_idx ON meta_inbound_messages(tenant_id, created_at DESC);
+
+-- Tier 2 (H1, H2, H3, H5, H10, H11): uploads, GBP reviews, staff scheduling, custom CRM stages/tags, outbound AI calls, partner RBAC.
+CREATE TABLE IF NOT EXISTS chat_uploads (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    session_id   text NOT NULL DEFAULT '',
+    filename     text NOT NULL,
+    content_type text NOT NULL,
+    size_bytes   integer NOT NULL,
+    sha256       text NOT NULL,
+    data         bytea NOT NULL CHECK (octet_length(data) <= 5242880),
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS chat_uploads_tenant_idx ON chat_uploads(tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS gbp_reviews (
+    id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id          uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    external_review_id text NOT NULL,
+    reviewer_name      text NOT NULL DEFAULT '',
+    rating             smallint NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment            text NOT NULL DEFAULT '',
+    ai_draft_reply     text NOT NULL DEFAULT '',
+    reply_status       text NOT NULL DEFAULT 'pending' CHECK (reply_status IN ('pending','approved','posted','ignored')),
+    replied_at         timestamptz,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, external_review_id)
+);
+
+CREATE TABLE IF NOT EXISTS staff_resources (
+    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id      uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name           text NOT NULL,
+    email          text NOT NULL DEFAULT '',
+    service_types  jsonb NOT NULL DEFAULT '[]'::jsonb,
+    slot_minutes   integer NOT NULL DEFAULT 30,
+    buffer_minutes integer NOT NULL DEFAULT 10,
+    active         boolean NOT NULL DEFAULT true,
+    created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_crm_stages (
+    id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    slug      text NOT NULL,
+    label     text NOT NULL,
+    position  integer NOT NULL DEFAULT 0,
+    colour    text NOT NULL DEFAULT '#6366f1',
+    UNIQUE (tenant_id, slug)
+);
+
+CREATE TABLE IF NOT EXISTS contact_tags (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    case_id    uuid NOT NULL REFERENCES customer_cases(id) ON DELETE CASCADE,
+    tag        text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, case_id, tag)
+);
+
+CREATE TABLE IF NOT EXISTS outbound_ai_calls (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    to_number    text NOT NULL,
+    purpose      text NOT NULL DEFAULT 'booking_confirmation',
+    script_notes text NOT NULL DEFAULT '',
+    status       text NOT NULL DEFAULT 'queued',
+    initiated_by text NOT NULL DEFAULT '',
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS partner_accounts (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name       text NOT NULL,
+    email      text NOT NULL,
+    token_hash text NOT NULL UNIQUE,
+    active     boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS partner_tenant_links (
+    partner_id uuid NOT NULL REFERENCES partner_accounts(id) ON DELETE CASCADE,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    role       text NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer','editor','owner')),
+    PRIMARY KEY (partner_id, tenant_id)
+);

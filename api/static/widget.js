@@ -24,6 +24,19 @@
   var NUDGE_PATHS = (script.getAttribute("data-nudge-paths") || "").split(",")
     .map(function (p) { return p.trim(); }).filter(Boolean);
   var NUDGE_TEXT = (script.getAttribute("data-nudge-text") || "").slice(0, 140);
+  // H4 opt-in pre-chat form & H9 widget UI i18n (data-prechat="true", data-lang="en|mi|fr|es|de|zh")
+  var PRECHAT_ENABLED = script.getAttribute("data-prechat") === "true" || script.getAttribute("data-prechat") === "1";
+  var WIDGET_LANG = (script.getAttribute("data-lang") || "en").slice(0, 5).toLowerCase();
+  var WIDGET_I18N = {
+    en: { placeholder: "Ask a question…", send: "Send", prechatTitle: "Before we start", nameLabel: "Your name", contactLabel: "Email or phone", startChat: "Start chat" },
+    mi: { placeholder: "Pātai mai…", send: "Tukua", prechatTitle: "I mua i te tīmatanga", nameLabel: "Tō ingoa", contactLabel: "Īmēra, waea rānei", startChat: "Tīmata kōrero" },
+    fr: { placeholder: "Posez une question…", send: "Envoyer", prechatTitle: "Avant de commencer", nameLabel: "Votre nom", contactLabel: "E-mail ou téléphone", startChat: "Démarrer" },
+    es: { placeholder: "Haz una pregunta…", send: "Enviar", prechatTitle: "Antes de empezar", nameLabel: "Tu nombre", contactLabel: "Correo o teléfono", startChat: "Iniciar chat" },
+    de: { placeholder: "Stellen Sie eine Frage…", send: "Senden", prechatTitle: "Bevor wir starten", nameLabel: "Ihr Name", contactLabel: "E-Mail oder Telefon", startChat: "Chat starten" },
+    zh: { placeholder: "请输入您的问题…", send: "发送", prechatTitle: "开始之前", nameLabel: "您的姓名", contactLabel: "邮箱或电话", startChat: "开始对话" }
+  };
+  var T = WIDGET_I18N[WIDGET_LANG] || WIDGET_I18N[WIDGET_LANG.split("-")[0]] || WIDGET_I18N.en;
+  if (typeof window !== "undefined") window.__ccWidgetI18n = { lang: WIDGET_LANG, prechat: PRECHAT_ENABLED, strings: T };
   function nudgeAppliesToPath(path) {
     if (!NUDGE_PATHS.length) return true;
     return NUDGE_PATHS.some(function (p) { var base = p.replace(/\/+$/, "") || "/"; return path === base || path.indexOf(base + "/") === 0; });
