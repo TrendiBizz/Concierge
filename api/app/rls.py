@@ -74,6 +74,7 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "tenant_integrations",
     "integration_links",
     "billing_events",
+    "csat_responses",
 )
 
 
