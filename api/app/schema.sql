@@ -1489,3 +1489,37 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rag_min_score double precision NOT 
 
 -- N6 remainder: two-way Google Calendar pull timestamp.
 ALTER TABLE calendar_connections ADD COLUMN IF NOT EXISTS last_pulled_at timestamptz;
+
+-- N10 remainder: per-tenant DKIM keys, email attachment byte storage, Gmail/M365 send-as OAuth.
+CREATE TABLE IF NOT EXISTS tenant_email_dkim (
+    tenant_id       uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    domain          text NOT NULL,
+    selector        text NOT NULL DEFAULT 'concierge',
+    public_txt      text NOT NULL,
+    private_key_enc text NOT NULL,
+    verified        boolean NOT NULL DEFAULT false,
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS email_attachments (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    draft_id     bigint REFERENCES email_drafts(id) ON DELETE CASCADE,
+    filename     text NOT NULL,
+    content_type text NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes   integer NOT NULL,
+    sha256       text NOT NULL,
+    data         bytea NOT NULL CHECK (octet_length(data) <= 10485760),
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_attachments_draft_idx ON email_attachments(tenant_id, draft_id);
+
+CREATE TABLE IF NOT EXISTS tenant_email_oauth (
+    tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    provider        text NOT NULL CHECK (provider IN ('gmail','m365')),
+    status          text NOT NULL DEFAULT 'disconnected',
+    email_address   text NOT NULL DEFAULT '',
+    credentials_enc text NOT NULL DEFAULT '',
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, provider)
+);

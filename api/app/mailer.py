@@ -17,7 +17,7 @@ class EmailRateLimited(RuntimeError):
 
 def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = None,
                from_name: str | None = None, html: str | None = None,
-               from_addr: str | None = None) -> None:
+               from_addr: str | None = None, dkim: dict | None = None) -> None:
     s = get_settings()
     msg = EmailMessage()
     sender = from_addr or s.smtp_from
@@ -34,6 +34,11 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
         # A plain-text part is mandatory: it is what a text-only client shows and what a spam
         # filter expects to find alongside the HTML.
         msg.add_alternative(html, subtype="html")
+    if dkim and dkim.get("domain") and dkim.get("selector") and dkim.get("private_key_pem"):
+        from . import email_domain
+        msg["DKIM-Signature"] = email_domain.dkim_sign_header(
+            msg, domain=dkim["domain"], selector=dkim["selector"], private_key_pem=dkim["private_key_pem"],
+        )
 
     if s.smtp_security == "ssl":
         server: smtplib.SMTP = smtplib.SMTP_SSL(s.smtp_host, s.smtp_port, timeout=20)
@@ -59,7 +64,7 @@ def _send_sync(to_addr: str, subject: str, body: str, headers: dict | None = Non
 
 async def send_email(to_addr: str, subject: str, body: str, headers: dict | None = None,
                      from_name: str | None = None, html: str | None = None,
-                     from_addr: str | None = None) -> None:
+                     from_addr: str | None = None, dkim: dict | None = None) -> None:
     if not get_settings().email_configured:
         raise EmailNotConfigured("SMTP_HOST / SMTP_FROM are not configured")
     # Last resort for anything that bypasses the outbox: the same address, and the whole process.
@@ -67,4 +72,4 @@ async def send_email(to_addr: str, subject: str, body: str, headers: dict | None
         raise EmailRateLimited("Too many emails to this address in 10 minutes")
     if not flood_guard.memory_allow("email:all", "all", 200, 3600):
         raise EmailRateLimited("Too many emails in the last hour")
-    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name, html, from_addr)
+    await asyncio.to_thread(_send_sync, to_addr, subject, body, headers, from_name, html, from_addr, dkim)
