@@ -1,7 +1,7 @@
-"""N8 Tenant Online Payments on Quotes & Invoices (Stripe Connect Standard + Deposit/Balance flow).
+"""N8 Tenant Online Payments on Quotes & Invoices (Stripe Connect Express + Deposit/Balance flow).
 
-Bank transfer remains the zero-fee default. Stripe Connect ships DISABLED until
-`STRIPE_SECRET_KEY` and `STRIPE_CONNECT_CLIENT_ID` are configured on the VPS.
+Bank transfer remains the zero-fee default. Stripe Connect uses Express accounts via Account Links,
+so only `STRIPE_SECRET_KEY` is required (no separate OAuth `STRIPE_CONNECT_CLIENT_ID`).
 The deposit -> follow-up balance invoice generator works for both bank transfer and card payments.
 """
 from __future__ import annotations
@@ -11,11 +11,10 @@ import hmac
 import json
 import secrets
 from typing import Literal
-from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from . import db, owner_auth
 from .config import get_settings
@@ -27,7 +26,7 @@ webhook_router = APIRouter(tags=["tenant-payments"])
 
 def platform_configured() -> bool:
     s = get_settings()
-    return bool((s.stripe_secret_key or "").strip() and (s.stripe_connect_client_id or "").strip())
+    return bool((s.stripe_secret_key or "").strip())
 
 
 async def http(method: str, url: str, **kwargs) -> httpx.Response:
@@ -46,8 +45,9 @@ async def connect_status(user: dict = Depends(owner_auth.current_user)):
     enabled = platform_configured()
     return {
         "platform_configured": enabled,
-        "unavailable_reason": "" if enabled else "needs STRIPE_SECRET_KEY and STRIPE_CONNECT_CLIENT_ID",
+        "unavailable_reason": "" if enabled else "needs STRIPE_SECRET_KEY",
         "connected": bool(row and row["status"] == "connected"),
+        "status": row["status"] if row else "disconnected",
         "stripe_account_id": row["stripe_account_id"] if row else "",
         "charges_enabled": bool(row and row["charges_enabled"]),
         "payouts_enabled": bool(row and row["payouts_enabled"]),
@@ -58,17 +58,98 @@ async def connect_status(user: dict = Depends(owner_auth.current_user)):
 async def connect_start(user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
     if not platform_configured():
-        raise HTTPException(409, "Stripe Connect is disabled until STRIPE_SECRET_KEY and STRIPE_CONNECT_CLIENT_ID are configured")
+        raise HTTPException(409, "Stripe Connect is disabled until STRIPE_SECRET_KEY is configured")
     s = get_settings()
-    redirect_uri = f"{s.public_base_url.rstrip('/')}/owner/payments/connect/callback"
-    url = "https://connect.stripe.com/oauth/authorize?" + urlencode({
-        "response_type": "code",
-        "client_id": s.stripe_connect_client_id,
-        "scope": "read_write",
-        "redirect_uri": redirect_uri,
-        "state": str(user["tenant_id"]),
-    })
-    return {"authorize_url": url}
+    headers = {"Authorization": f"Bearer {s.stripe_secret_key.strip()}"}
+    row = await db.pool().fetchrow(
+        "SELECT stripe_account_id FROM tenant_stripe_connect WHERE tenant_id=$1",
+        user["tenant_id"],
+    )
+    acct_id = (row["stripe_account_id"] or "").strip() if row else ""
+    if not acct_id:
+        acct_resp = await http(
+            "POST",
+            "https://api.stripe.com/v1/accounts",
+            headers=headers,
+            data={
+                "type": "express",
+                "country": "NZ",
+                "capabilities[card_payments][requested]": "true",
+                "capabilities[transfers][requested]": "true",
+                "metadata[tenant_id]": str(user["tenant_id"]),
+            },
+        )
+        if acct_resp.status_code >= 300:
+            raise HTTPException(502, "Could not create Stripe Express account")
+        acct_id = acct_resp.json().get("id") or ""
+        if not acct_id:
+            raise HTTPException(502, "Stripe returned no account id")
+        await db.pool().execute(
+            """INSERT INTO tenant_stripe_connect(tenant_id, stripe_account_id, status, charges_enabled, payouts_enabled)
+               VALUES($1, $2, 'pending', false, false)
+               ON CONFLICT (tenant_id) DO UPDATE
+                 SET stripe_account_id=$2, status='pending', updated_at=now()""",
+            user["tenant_id"], acct_id,
+        )
+    base = s.public_base_url.rstrip("/")
+    link_resp = await http(
+        "POST",
+        "https://api.stripe.com/v1/account_links",
+        headers=headers,
+        data={
+            "account": acct_id,
+            "type": "account_onboarding",
+            "refresh_url": f"{base}/studio/?stripe_connect=refresh",
+            "return_url": f"{base}/studio/?stripe_connect=return",
+        },
+    )
+    if link_resp.status_code >= 300:
+        raise HTTPException(502, "Could not create Stripe Connect onboarding link")
+    url = link_resp.json().get("url") or ""
+    if not url:
+        raise HTTPException(502, "Stripe returned no onboarding URL")
+    return {"authorize_url": url, "stripe_account_id": acct_id}
+
+
+@owner_router.post("/connect/sync")
+async def connect_sync(user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    if not platform_configured():
+        raise HTTPException(409, "Stripe Connect is disabled until STRIPE_SECRET_KEY is configured")
+    row = await db.pool().fetchrow(
+        "SELECT stripe_account_id FROM tenant_stripe_connect WHERE tenant_id=$1",
+        user["tenant_id"],
+    )
+    acct_id = (row["stripe_account_id"] or "").strip() if row else ""
+    if not acct_id:
+        return {"connected": False, "status": "disconnected", "stripe_account_id": "", "charges_enabled": False, "payouts_enabled": False}
+    s = get_settings()
+    resp = await http(
+        "GET",
+        f"https://api.stripe.com/v1/accounts/{acct_id}",
+        headers={"Authorization": f"Bearer {s.stripe_secret_key.strip()}"},
+    )
+    if resp.status_code >= 300:
+        raise HTTPException(502, "Could not fetch Stripe Express account status")
+    acct = resp.json()
+    charges = bool(acct.get("charges_enabled"))
+    payouts = bool(acct.get("payouts_enabled"))
+    status = "connected" if charges else "pending"
+    await db.pool().execute(
+        """UPDATE tenant_stripe_connect
+           SET charges_enabled=$2, payouts_enabled=$3, status=$4,
+               connected_at=CASE WHEN $2 THEN COALESCE(connected_at, now()) ELSE connected_at END,
+               updated_at=now()
+           WHERE tenant_id=$1""",
+        user["tenant_id"], charges, payouts, status,
+    )
+    return {
+        "connected": status == "connected",
+        "status": status,
+        "stripe_account_id": acct_id,
+        "charges_enabled": charges,
+        "payouts_enabled": payouts,
+    }
 
 
 @owner_router.post("/connect/disconnect")
@@ -210,7 +291,23 @@ async def stripe_connect_webhook(request: Request):
     if not _verify_stripe_sig(payload, sig, secret):
         raise HTTPException(400, "Invalid Stripe signature")
     event = json.loads(payload.decode("utf-8"))
-    if event.get("type") == "checkout.session.completed":
+    ev_type = event.get("type")
+    if ev_type == "account.updated":
+        obj = (event.get("data") or {}).get("object") or {}
+        acct_id = obj.get("id") or ""
+        if acct_id:
+            charges = bool(obj.get("charges_enabled"))
+            payouts = bool(obj.get("payouts_enabled"))
+            status = "connected" if charges else "pending"
+            await db.pool().execute(
+                """UPDATE tenant_stripe_connect
+                   SET charges_enabled=$2, payouts_enabled=$3, status=$4,
+                       connected_at=CASE WHEN $2 THEN COALESCE(connected_at, now()) ELSE connected_at END,
+                       updated_at=now()
+                   WHERE stripe_account_id=$1""",
+                acct_id, charges, payouts, status,
+            )
+    elif ev_type == "checkout.session.completed":
         obj = (event.get("data") or {}).get("object") or {}
         sess_id = obj.get("id") or ""
         meta = obj.get("metadata") or {}
