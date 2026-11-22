@@ -26,14 +26,78 @@ def tag_url(url: str, channel: str = "chat") -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
-async def retrieve(tenant_id, query: str, k: int = 6) -> list[dict]:
-    key = (str(tenant_id), " ".join(query.lower().split()), k)
+def invalidate_cache(tenant_id=None) -> None:
+    """Clear cached RAG query results for one tenant (or all tenants when None)."""
+    if tenant_id is None:
+        _QUERY_CACHE.clear()
+        return
+    tid = str(tenant_id)
+    for k in [key for key in _QUERY_CACHE if key[0] == tid]:
+        _QUERY_CACHE.pop(k, None)
+
+
+def fuse_hybrid_hits(
+    dense_rows: list[dict],
+    lexical_rows: list[dict],
+    *,
+    k: int = 6,
+    min_score: float = 0.25,
+) -> list[dict]:
+    """Reciprocal Rank Fusion (RRF) of dense vector hits + Postgres full-text hits.
+
+    Exact lexical matches (e.g. SKU codes, NZ suburb names) are kept even if dense similarity
+    is below `min_score`; pure dense hits below `min_score` are filtered out to prevent
+    irrelevant context injection.
+    """
+    rrf_k = 60.0
+    combined: dict[tuple[str, str], dict] = {}
+    for rank, row in enumerate(dense_rows, start=1):
+        key = (row["url"], row["content"])
+        entry = combined.setdefault(
+            key,
+            {"url": row["url"], "title": row["title"], "content": row["content"],
+             "dense_score": 0.0, "lexical_score": 0.0, "rrf": 0.0},
+        )
+        entry["dense_score"] = max(entry["dense_score"], float(row.get("score") or 0.0))
+        entry["rrf"] += 0.65 / (rrf_k + rank)
+    for rank, row in enumerate(lexical_rows, start=1):
+        key = (row["url"], row["content"])
+        entry = combined.setdefault(
+            key,
+            {"url": row["url"], "title": row["title"], "content": row["content"],
+             "dense_score": 0.0, "lexical_score": 0.0, "rrf": 0.0},
+        )
+        entry["lexical_score"] = max(entry["lexical_score"], float(row.get("lex_score") or 0.0))
+        entry["rrf"] += 0.35 / (rrf_k + rank)
+
+    filtered = [
+        item for item in combined.values()
+        if item["lexical_score"] > 0.0 or item["dense_score"] >= min_score
+    ]
+    filtered.sort(key=lambda x: (x["rrf"], x["dense_score"], x["lexical_score"]), reverse=True)
+    out = []
+    for item in filtered[:k]:
+        out.append({
+            "url": item["url"],
+            "title": item["title"],
+            "content": item["content"],
+            "score": round(max(item["dense_score"], item["rrf"] * 50.0), 4),
+            "dense_score": round(item["dense_score"], 4),
+            "lexical_score": round(item["lexical_score"], 4),
+        })
+    return out
+
+
+async def retrieve(tenant_id, query: str, k: int = 6, min_score: float | None = None) -> list[dict]:
+    threshold = 0.25 if min_score is None else float(min_score)
+    key = (str(tenant_id), " ".join(query.lower().split()), k, round(threshold, 3))
     now = time.monotonic()
     cached = _QUERY_CACHE.get(key)
     if cached and now - cached[0] < _QUERY_TTL:
         return cached[1]
     vector = to_pgvector(await embed_query(query))
-    rows = await db.pool().fetch(
+    pool_size = max(k * 3, 12)
+    dense_rows = await db.pool().fetch(
         """
         SELECT url, title, content, 1 - (embedding <=> $2::text::vector) AS score
         FROM chunks
@@ -43,9 +107,33 @@ async def retrieve(tenant_id, query: str, k: int = 6) -> list[dict]:
         """,
         tenant_id,
         vector,
-        k,
+        pool_size,
     )
-    result = [dict(r) for r in rows]
+    lexical_rows = []
+    if query.strip():
+        try:
+            lexical_rows = await db.pool().fetch(
+                """
+                SELECT url, title, content,
+                       ts_rank_cd(content_tsv, plainto_tsquery('english', $2)) AS lex_score
+                FROM chunks
+                WHERE tenant_id = $1
+                  AND content_tsv @@ plainto_tsquery('english', $2)
+                ORDER BY lex_score DESC
+                LIMIT $3
+                """,
+                tenant_id,
+                query,
+                pool_size,
+            )
+        except Exception:
+            lexical_rows = []
+    result = fuse_hybrid_hits(
+        [dict(r) for r in dense_rows],
+        [dict(r) for r in lexical_rows],
+        k=k,
+        min_score=threshold,
+    )
     _QUERY_CACHE[key] = (now, result)
     if len(_QUERY_CACHE) > _QUERY_MAX:
         _QUERY_CACHE.pop(next(iter(_QUERY_CACHE)))

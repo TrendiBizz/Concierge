@@ -1478,3 +1478,11 @@ CREATE TABLE IF NOT EXISTS voice_warm_transfers (
     created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS voice_warm_transfers_tenant_idx ON voice_warm_transfers(tenant_id, created_at DESC);
+
+-- N13: Hybrid search full-text column + GIN index, RAG relevance threshold, scheduled re-crawl.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))) STORED;
+CREATE INDEX IF NOT EXISTS chunks_content_tsv_idx ON chunks USING GIN (content_tsv);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS crawl_interval_hours integer NOT NULL DEFAULT 0;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS last_crawled_at timestamptz;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rag_min_score double precision NOT NULL DEFAULT 0.25;
