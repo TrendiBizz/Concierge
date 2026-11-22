@@ -569,14 +569,16 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
             problems.append(f"yearly card says ${card}, plan data says ${expected}")
 
     for name, html in (pages or {}).items():
-        if "GST" in html:
-            problems.append(f"{name} mentions GST; the site must not discuss it")
+        if re.search(r"\b(?:plus|\+)\s*GST\b|\bGST\s*(?:extra|excluded|added)\b", html, re.IGNORECASE):
+            problems.append(f"{name} says GST is added on top; NZ GST must be included in the price")
         for dead in RETIRED_PAYMENT_LINKS:
             if dead in html:
                 problems.append(f"{name} links to retired Stripe link {dead}")
         question = "Do prices include tax?"
-        if name == "/pricing" and question in html and "include tax" not in html.split(question, 1)[1][:600]:
-            problems.append("/pricing tax FAQ is a non-answer; it must say prices include tax")
+        if name == "/pricing" and question in html:
+            snippet = html.split(question, 1)[1][:600]
+            if "include tax" not in snippet and "GST is included" not in snippet:
+                problems.append("/pricing tax FAQ is a non-answer; it must say NZ GST is included and non-NZ is 0%")
     return problems
 
 

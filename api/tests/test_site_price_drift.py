@@ -33,11 +33,14 @@ def test_a_stale_yearly_card_is_reported():
     assert problems and "yearly card says $4080" in problems[0]
 
 
-def test_any_gst_wording_comes_back_as_a_problem():
+def test_gst_addon_wording_comes_back_as_a_problem_while_inclusive_nz_gst_is_allowed():
     problems = healthcheck.site_price_drift(
         CARDS, PLANS,
-        {"/pricing": "Prices in USD, including GST.", "/terms": "Prices in USD."})
-    assert problems == ["/pricing mentions GST; the site must not discuss it"]
+        {"/pricing": "Prices in USD, plus GST.", "/terms": "NZ customers: 15% GST included. Outside NZ: 0% GST."})
+    assert problems == ["/pricing says GST is added on top; NZ GST must be included in the price"]
+    assert healthcheck.site_price_drift(
+        CARDS, PLANS,
+        {"/pricing": "Prices in USD. NZ customers: 15% GST included. Outside NZ: 0% GST."}) == []
 
 
 def test_a_page_without_cards_does_not_invent_problems():
@@ -53,6 +56,9 @@ def test_a_retired_stripe_link_is_reported():
 def test_a_non_answer_tax_faq_is_reported_and_a_real_answer_is_not():
     faq = "<summary>Do prices include tax?</summary><p>Prices are in USD. </p>"
     assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": faq}) == [
-        "/pricing tax FAQ is a non-answer; it must say prices include tax"]
-    good = faq.replace("Prices are in USD. ", "Yes. Prices are in USD and include tax.")
+        "/pricing tax FAQ is a non-answer; it must say NZ GST is included and non-NZ is 0%"]
+    good = faq.replace(
+        "Prices are in USD. ",
+        "Yes — the price shown is the full amount you pay. Prices are in USD. For New Zealand customers, 15% GST is included in the price (not added on top); customers outside New Zealand are GST-exempt (0%).",
+    )
     assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": good}) == []
