@@ -96,15 +96,28 @@ QUICK_QUESTIONS = (
     'and call end_call. Do not end with an open question.')
 
 
-def phone_instructions(name: str, *, recording_ok: bool, listen_in: bool, sms_ok: bool) -> str:
+def phone_instructions(name: str, *, recording_ok: bool, listen_in: bool, sms_ok: bool,
+                       consent_mode: str = 'opt_out') -> str:
     """The telephone receptionist's instructions after the shared business prompt.
 
     The opening is two short sentences. "Recorded" is only ever said when recording will really happen
     (the business authorised it and the platform has it switched on); otherwise the notice says
     "transcribed", which is always true. Listen-in is added only while a human really can listen in.
+    In `strict_opt_in` mode (AU all-party consent states), recording stays OFF until the caller
+    explicitly says yes.
     """
     business = (name or 'the business').replace('"', '').strip() or 'the business'
     listen = ' and a team member may listen in' if listen_in else ''
+    if recording_ok and consent_mode == 'strict_opt_in':
+        text = (
+            "\nYou are this business's automated receptionist. Open the call with exactly this, warmly and with "
+            f'nothing added: "Hello, I\'m the AI assistant for {business}. May I record this call for quality '
+            f'and training purposes{listen}?" '
+            'Wait for the caller\'s explicit answer before calling set_call_recording. '
+            'ONLY call set_call_recording with enabled=true and confirmed=true if they explicitly say yes. '
+            'If they decline, hesitate, or do not clearly agree, call set_call_recording with enabled=false '
+            'and confirmed=false, say "No problem, this call will not be recorded," and carry on. ')
+        return text + QUICK_QUESTIONS + READBACK_RULES + ('' if sms_ok else SMS_OFFLINE_RULE)
     verb = 'recorded' if recording_ok else 'transcribed'
     text = (
         "\nYou are this business's automated receptionist. Open the call with exactly this, warmly and with "
@@ -476,7 +489,8 @@ async def prepare(route, call_id):
     recording_ok = bool(get_settings().voice_recording_enabled
                         and await channel_authorization.is_authorized(tenant['id'], 'call_recording'))
     session['instructions'] = build_system_prompt(tenant, None, channel='phone') + phone_instructions(
-        tenant['name'], recording_ok=recording_ok, listen_in=call_control.enabled(), sms_ok=sms_ok)
+        tenant['name'], recording_ok=recording_ok, listen_in=call_control.enabled(), sms_ok=sms_ok,
+        consent_mode=tenant.get('call_recording_consent_mode') or 'opt_out')
     session['tools'].append({'type':'function','name':'end_call','description':'End after saying goodbye.',
                              'parameters':{'type':'object','properties':{},'additionalProperties':False}})
     session['tools'].append({'type':'function','name':'set_call_recording',
