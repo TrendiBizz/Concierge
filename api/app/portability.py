@@ -21,7 +21,7 @@ import time
 
 import httpx
 
-from . import db, public_fetch
+from . import crypto_vault, db, public_fetch
 
 log = logging.getLogger("concierge.portability")
 
@@ -139,12 +139,13 @@ async def import_contacts(tenant_id, rows: list[dict], default_cc: str = "1") ->
 async def set_webhook(tenant_id, url: str, secret: str) -> dict:
     clean_url = url.strip()
     public_fetch.validate_public_https_url(clean_url)
+    enc_secret = crypto_vault.encrypt_text(secret, aad=f"webhook:{tenant_id}")
     await db.pool().execute(
         """
         INSERT INTO tenant_webhooks (tenant_id, url, secret, active) VALUES ($1,$2,$3,true)
         ON CONFLICT (tenant_id) DO UPDATE SET url=$2, secret=$3, active=true
         """,
-        tenant_id, clean_url, secret)
+        tenant_id, clean_url, enc_secret)
     return {"url": clean_url, "active": True}
 
 
@@ -217,12 +218,13 @@ async def deliver_pending(tenant_id, limit: int = 20) -> dict:
             body = json.dumps({"event": row["event"], "data": payload,
                                "sent_at": int(time.time())}).encode()
             try:
+                plain_secret = crypto_vault.decrypt_text(hook["secret"], aad=f"webhook:{tenant_id}", allow_plaintext=True)
                 response = await public_fetch.post_public(
                     hook["url"],
                     content=body,
                     headers={"Content-Type": "application/json",
                              "X-Concierge-Event": row["event"],
-                             "X-Concierge-Signature": signature(hook["secret"], body)},
+                             "X-Concierge-Signature": signature(plain_secret, body)},
                     timeout=10.0,
                     client=client,
                 )

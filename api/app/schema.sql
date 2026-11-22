@@ -1339,3 +1339,67 @@ CREATE TABLE IF NOT EXISTS billing_events (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS billing_events_tenant_idx ON billing_events(tenant_id, created_at DESC);
+
+-- N9: Owner MFA (TOTP + recovery codes), WebAuthn passkeys, and per-operator admin auth/audit.
+CREATE TABLE IF NOT EXISTS tenant_user_mfa (
+    user_id         uuid PRIMARY KEY REFERENCES tenant_users(id) ON DELETE CASCADE,
+    totp_secret_enc text NOT NULL DEFAULT '',
+    totp_enabled    boolean NOT NULL DEFAULT false,
+    totp_last_step  bigint,
+    recovery_hashes jsonb NOT NULL DEFAULT '[]'::jsonb,
+    enabled_at      timestamptz,
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_mfa_challenges (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash  text NOT NULL UNIQUE,
+    user_id     uuid NOT NULL REFERENCES tenant_users(id) ON DELETE CASCADE,
+    expires_at  timestamptz NOT NULL,
+    used_at     timestamptz,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_user_passkeys (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         uuid NOT NULL REFERENCES tenant_users(id) ON DELETE CASCADE,
+    credential_id   text NOT NULL UNIQUE,
+    public_key_spki text NOT NULL,
+    sign_count      bigint NOT NULL DEFAULT 0,
+    name            text NOT NULL DEFAULT 'Passkey',
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    last_used_at    timestamptz
+);
+CREATE INDEX IF NOT EXISTS tenant_user_passkeys_user_idx ON tenant_user_passkeys(user_id);
+
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+    challenge   text PRIMARY KEY,
+    user_id     uuid REFERENCES tenant_users(id) ON DELETE CASCADE,
+    purpose     text NOT NULL CHECK (purpose IN ('register','authenticate')),
+    expires_at  timestamptz NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS admin_operators (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         text NOT NULL,
+    email        text NOT NULL,
+    role         text NOT NULL DEFAULT 'operator' CHECK (role IN ('operator','superadmin')),
+    token_hash   text NOT NULL UNIQUE,
+    active       boolean NOT NULL DEFAULT true,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    last_used_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id            bigserial PRIMARY KEY,
+    operator_id   uuid REFERENCES admin_operators(id) ON DELETE SET NULL,
+    operator_name text NOT NULL DEFAULT '',
+    action        text NOT NULL DEFAULT '',
+    path          text NOT NULL DEFAULT '',
+    method        text NOT NULL DEFAULT '',
+    ip            text NOT NULL DEFAULT '',
+    detail        text NOT NULL DEFAULT '',
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(created_at DESC);

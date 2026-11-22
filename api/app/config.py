@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/concierge"
     admin_token: str = ""
+    # N9: AES-256-GCM key material for encrypting OAuth tokens, webhook secrets & TOTP seeds at rest.
+    # Leave unset to derive from ADMIN_TOKEN; set a dedicated 32+ char random secret in production.
+    token_encryption_key: str = ""
     public_base_url: str = "http://localhost:8000"
     owner_portal_url: str = "https://concierge.trendibizz.com/owner-ui"
     onboarding_url: str = "https://concierge.trendibizz.com/studio"
