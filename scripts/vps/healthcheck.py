@@ -47,7 +47,7 @@ CRITICAL_CONTAINERS = {
     "trendi-api-1": "healthy",
     "trendi-email-auth-1": "healthy",
     "trendi-gateway-1": "running",
-    "trendi-social-1": "running",
+    # Standalone social container retired 2026-11-22: social publishing now runs inside trendi-api-1.
     "trendi-website-1": "running",
     "trendi-public-main-1": "running",
     "trendi-public-owner-1": "running",
@@ -498,25 +498,19 @@ def check_sidecar(api_env: dict) -> list[dict]:
     results = [_ok("email-auth:health", "ok") if code == 0 and "200" in out
                else _fail("email-auth:health", out[:160] or "unreachable")]
 
-    # social shares trendi-api-1's network namespace (`network_mode: service:api`). If api was
-    # recreated without recreating social, `podman ps` still shows social Up while api gets
-    # Connection refused on 127.0.0.1:4390. Probe from inside trendi-api-1 so a detached social
-    # cannot hide behind a green container list.
-    social_base = (api_env.get("SOCIAL_SERVICE_URL") or "http://127.0.0.1:4390").rstrip("/")
+    # Verify the unified built-in social module inside trendi-api-1.
     social_code, social_out = run(
         ["podman", "exec", "trendi-api-1", "python3", "-c",
-         f"import urllib.request,urllib.error\n"
-         f"try:\n"
-         f"    print(urllib.request.urlopen('{social_base}/v1/customers',timeout=3).status)\n"
-         f"except urllib.error.HTTPError as e:\n"
-         f"    print(e.code)\n"],
+         "from app import social\n"
+         "st = social.config.provider_status()\n"
+         "print('enabled=' + str(social.config.is_social_enabled()) + ' providers=' + str(sum(1 for v in st.values() if v)))\n"],
         timeout=20,
     )
     status_text = social_out.strip().splitlines()[-1] if social_out.strip() else ""
     results.append(
-        _ok("social:reachable", f"HTTP {status_text}")
-        if social_code == 0 and status_text.isdigit()
-        else _fail("social:reachable", social_out[:160] or "unreachable from trendi-api-1")
+        _ok("social:module", status_text)
+        if social_code == 0 and "enabled=True" in status_text
+        else _fail("social:module", social_out[:160] or "unified social module check failed")
     )
     return results
 
