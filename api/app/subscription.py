@@ -173,7 +173,8 @@ async def on_invoice_paid(invoice: dict, event_id: str = "") -> None:
         return
     from . import platform_billing  # local: platform_billing imports this module
     currency = (invoice.get("currency") or "nzd").upper()[:3]
-    gst_rate = platform_billing.GST_RATE if currency == "NZD" else 0.0
+    customer_country = ((invoice.get("customer_address") or {}).get("country") or "").strip().upper()
+    gst_rate = platform_billing.gst_rate_for(currency, customer_country)
     gst, _net = platform_billing.gst_split(amount, rate=gst_rate)
     email = (invoice.get("customer_email") or tenant.get("notify_email") or "").strip().lower()
     number = await platform_billing.next_number()

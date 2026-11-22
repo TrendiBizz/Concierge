@@ -12,7 +12,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal
 from urllib.parse import parse_qs
-from xml.sax.saxutils import escape as xml_escape
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket
@@ -34,68 +33,6 @@ admin = [Depends(require_admin)]
 
 def _main():
     return sys.modules[__package__.rsplit(".", 1)[0] + ".main"]
-
-
-def _twiml(text: str) -> Response:
-    body = '<?xml version="1.0" encoding="UTF-8"?><Response>'
-    if text:
-        body += f"<Message>{xml_escape(text[:1500])}</Message>"
-    body += "</Response>"
-    return Response(content=body, media_type="application/xml")
-
-
-@router.post("/api/v1/sms/{public_key}")
-async def sms_inbound(public_key: str, request: Request):
-    """Twilio inbound-SMS webhook: a visitor texts the client's number and the AI replies."""
-    m = _main()
-    settings = m.settings
-    tenant = await tenants.get_by_key(public_key)
-    if tenant is None:
-        raise HTTPException(status_code=404, detail="Unknown key")
-    if sms.provider() != "twilio" or not settings.twilio_auth_token:
-        raise HTTPException(status_code=503, detail="SMS is not configured")
-
-    raw = (await request.body()).decode("utf-8", errors="replace")
-    params = {k: v[0] for k, v in parse_qs(raw, keep_blank_values=True).items()}
-    url = settings.public_base_url.rstrip("/") + request.url.path
-    if not sms.validate_signature(settings.twilio_auth_token, url, params, request.headers.get("X-Twilio-Signature", "")):
-        raise HTTPException(status_code=403, detail="Invalid signature")
-
-    if not tenant.get("sms_enabled"):
-        raise HTTPException(status_code=403, detail="SMS is not enabled for this business")
-    if not await channel_authorization.is_authorized(tenant["id"], "sms_read"):
-        raise HTTPException(status_code=403, detail="Business has not authorized inbound SMS")
-    sender = normalize_phone(params.get("From", ""), casetimeline.tenant_country_code(tenant))
-    body = (params.get("Body") or "").strip()
-    if not sender or not body:
-        return _twiml("")
-    # Twilio sends its own opt-out confirmation, so STOP gets no reply of ours here.
-    reply = await m._sms_reply(tenant, sender, body, confirm_stop=False)
-    is_compliance = body.upper() in (m.STOP_WORDS | m.START_WORDS | {"HELP"})
-    if reply and not is_compliance and not await channel_authorization.is_authorized(tenant["id"], "sms_send"):
-        return _twiml("")
-    return _twiml(reply)
-
-
-@router.post("/api/v1/sms/status/{outbox_id}")
-async def sms_status(outbox_id: int, request: Request):
-    """Existing Twilio transport only; signed callbacks never trigger another SMS."""
-    settings = _main().settings
-    if sms.provider() != "twilio" or not settings.twilio_auth_token:
-        raise HTTPException(503, "SMS delivery callbacks disabled")
-    params = await _phone_webhook_form(request)
-    url = settings.public_base_url.rstrip("/") + request.url.path
-    if request.url.query:
-        url += "?" + request.url.query
-    if not sms.validate_signature(settings.twilio_auth_token, url, params,
-                                  request.headers.get("X-Twilio-Signature", "")):
-        raise HTTPException(403, "Invalid signature")
-    if params.get("AccountSid") != settings.twilio_account_sid:
-        raise HTTPException(403, "Invalid account")
-    from .. import sms_delivery
-    if not await sms_delivery.twilio_receipt(outbox_id, params):
-        raise HTTPException(400, "Unmatched or invalid SMS receipt")
-    return {"ok": True}
 
 
 @router.post("/api/v1/smsgate/{public_key}")

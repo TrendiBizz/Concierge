@@ -28,7 +28,7 @@
 
 ### 4. Billing, Minimum Term, Tax & Offboarding
 - Subscription pricing is published in USD (3-month minimum term, then month to month).
-- New Zealand GST (15%) applies to taxable domestic NZ supplies; eligible exported services to non-NZ businesses are zero-rated (0% GST) subject to NZ GST Act 1985 rules (*accountant review required*).
+- New Zealand GST (15%) applies only to New Zealand customers and is included in the stated price (not added on top); customers outside New Zealand are GST-exempt (0% GST) subject to NZ GST Act 1985 rules (*accountant review required*).
 - On failed renewal payment, Trendi provides a grace period (default 7 days) before pausing automated outbound/AI replies while continuing to capture incoming leads.
 - Upon cancellation or offboarding, the customer may request export or deletion of workspace data within 30 days, subject to statutory tax and accounting retention obligations.
 

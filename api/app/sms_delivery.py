@@ -22,36 +22,6 @@ async def accepted(outbox_id: int, provider: str, message_id: str) -> None:
         outbox_id, provider, message_id)
 
 
-async def twilio_receipt(outbox_id: int, params: dict[str, str]) -> bool:
-    sid = params.get("MessageSid", "")
-    state = params.get("MessageStatus", "")
-    if not sid or len(sid) > 100 or state not in {
-        "accepted", "queued", "sending", "sent", "delivered", "undelivered", "failed", "canceled",
-    }:
-        return False
-    # Only delivered means confirmed. 'sent' means handed to the downstream carrier.
-    final = "sent" if state == "delivered" else (
-        "failed" if state in {"undelivered", "failed", "canceled"} else "awaiting_receipt")
-    rank = {"accepted": 1, "queued": 2, "sending": 3, "sent": 4}.get(state, 5)
-    row = await db.pool().fetchrow(
-        "UPDATE outbox SET sms_provider_id=$2, sms_delivery_status=$3, status=$4, "
-        "sent_at=CASE WHEN $3='delivered' THEN COALESCE(sent_at,now()) ELSE sent_at END, "
-        "last_error=CASE WHEN $4='failed' THEN 'Carrier reported SMS delivery failure' ELSE '' END "
-        "WHERE id=$1 AND channel='sms' AND sms_provider='twilio' AND to_addr=$5 "
-        "AND (sms_provider_id IS NULL OR sms_provider_id=$2) "
-        "AND status IN ('awaiting_receipt','held') "
-        "AND $6 >= CASE sms_delivery_status WHEN 'accepted' THEN 1 WHEN 'queued' THEN 2 "
-        "WHEN 'sending' THEN 3 WHEN 'sent' THEN 4 ELSE 0 END RETURNING id",
-        outbox_id, sid, state, final, params.get("To", ""), rank)
-    # Duplicate / reordered callbacks for an already terminal row are harmless.
-    if row:
-        return True
-    return bool(await db.pool().fetchval(
-        "SELECT 1 FROM outbox WHERE id=$1 AND channel='sms' AND sms_provider='twilio' "
-        "AND sms_provider_id=$2 AND to_addr=$3 AND status IN ('sent','failed','awaiting_receipt','held')",
-        outbox_id, sid, params.get("To", "")))
-
-
 async def smsgate_receipt(tenant_id, event: str, payload: dict) -> bool:
     """Apply signed smsgate delivery callbacks (sms:sent / sms:delivered / sms:failed)."""
     msg_id = str(payload.get("messageId") or payload.get("id") or "").strip()

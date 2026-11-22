@@ -1,10 +1,12 @@
 """SMS sending and webhook verification behind one provider switch.
 
 Providers (SMS_PROVIDER):
-  twilio   Twilio REST API. Use a Messaging Service SID when the sender is a short code or a pool.
   smsgate  A self-hosted Android phone running capcom6/android-sms-gateway (Apache-2.0). The phone's
            own SIM is the sender, so a real local mobile number works with no short code.
   none     SMS disabled. Queued texts are skipped, not failed.
+
+Per-tenant `sms_transport='device'` uses the customer's paired smartphone (`device_sms`)
+independently of `SMS_PROVIDER`.
 
 Everything outside this file (the outbox, the inbound routes) calls send_sms() and sender_ready() and
 does not care which provider is behind them.
@@ -47,9 +49,6 @@ def sender_ready(tenant: dict | None = None) -> bool:
     if (tenant or {}).get("sms_transport") == "device":
         return bool(tenant.get("sms_enabled") and tenant.get("sms_from"))
     name = provider()
-    if name == "twilio":
-        has_sender = bool(s.twilio_messaging_service_sid or (tenant or {}).get("sms_from") or s.twilio_from_number)
-        return bool(s.twilio_account_sid and s.twilio_auth_token and has_sender)
     if name == "smsgate":
         return bool(s.smsgate_base_url and s.smsgate_username and s.smsgate_password)
     return False
@@ -69,7 +68,7 @@ async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
             raise SmsNotConfigured("Phone sender does not belong to this business")
         return await device_sms.enqueue(tenant, to_e164, body, request_key, outbox_id)
     name = provider()
-    if name in {"smsgate", "twilio"}:
+    if name == "smsgate":
         from . import sms_delivery
         if not sender_ready(tenant):
             raise SmsNotConfigured("SMS credentials / sender are not configured")
@@ -77,8 +76,7 @@ async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
             if not await sms_delivery.begin(outbox_id, tenant["id"], name):
                 raise SmsUncertain("SMS already submitted; reconcile before retry")
         try:
-            message_id = (await _send_smsgate(to_e164, body) if name == "smsgate" else
-                          await _send_twilio(to_e164, body, from_number, outbox_id=outbox_id))
+            message_id = await _send_smsgate(to_e164, body)
         except SmsRejected:
             raise
         except Exception:
@@ -91,33 +89,12 @@ async def send_sms(to_e164: str, body: str, from_number: str | None = None, *,
     raise SmsNotConfigured("SMS_PROVIDER is not set to a sending provider")
 
 
-# ---- Twilio ----------------------------------------------------------------
-async def _send_twilio(to_e164: str, body: str, from_number: str | None, *, outbox_id: int | None = None) -> str:
-    s = get_settings()
-    sender = from_number or s.twilio_from_number
-    if not (s.twilio_account_sid and s.twilio_auth_token and (sender or s.twilio_messaging_service_sid)):
-        raise SmsNotConfigured("Twilio credentials / sender are not configured")
-    data = {"To": to_e164, "Body": body[:1500]}
-    if s.twilio_messaging_service_sid:
-        data["MessagingServiceSid"] = s.twilio_messaging_service_sid
-    else:
-        data["From"] = sender
-    if outbox_id is not None:
-        data["StatusCallback"] = s.public_base_url.rstrip("/") + f"/api/v1/sms/status/{outbox_id}"
-    url = f"{s.twilio_api_base.rstrip('/')}/2010-04-01/Accounts/{s.twilio_account_sid}/Messages.json"
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(url, data=data, auth=(s.twilio_account_sid, s.twilio_auth_token))
-    if 400 <= resp.status_code < 500:
-        raise SmsRejected("SMS provider rejected submission")
-    resp.raise_for_status()
-    sid = resp.json().get("sid", "")
-    if not sid:
-        raise SmsUncertain("SMS submission returned no identifier")
-    return sid
-
-
 def validate_signature(auth_token: str, url: str, params: dict[str, str], signature: str) -> bool:
-    """Verify Twilio's X-Twilio-Signature (HMAC-SHA1 of the URL plus sorted POST params)."""
+    """Verify Twilio's X-Twilio-Signature (HMAC-SHA1 of the URL plus sorted POST params).
+
+    Kept for optional Twilio voice relay webhooks (`phone_relay.py`, `managed_phone.py`); Twilio SMS
+    routes and sending have been removed.
+    """
     data = url + "".join(key + params[key] for key in sorted(params))
     mac = hmac.new(auth_token.encode(), data.encode(), hashlib.sha1).digest()
     expected = base64.b64encode(mac).decode()
