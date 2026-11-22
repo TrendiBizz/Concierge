@@ -85,7 +85,7 @@ A configured channel still needs Trendi's verification before it is activated.</
 
 <section class="panel" id="media-panel">
 <h2>Marketing media</h2>
-<p class="muted">Branded images, short videos and AI images for your social drafts. Nothing is published automatically; review everything here first.</p>
+<p class="muted">Your brand kit and uploaded media assets. Automated image/video generation has been retired — upload your own photos directly in your social drafts.</p>
 <h3>Brand kit</h3>
 <div class="row">
 <div><label for="media-brand-name">Brand name</label><input id="media-brand-name" maxlength="120"></div>
@@ -94,26 +94,6 @@ A configured channel still needs Trendi's verification before it is activated.</
 </div>
 <label for="media-logo">Logo (PNG or JPG, optional)</label><input id="media-logo" type="file" accept="image/png,image/jpeg">
 <button type="button" id="media-save-brand">Save brand kit</button>
-
-<h3>Branded image</h3>
-<div class="row">
-<div><label for="media-template">Template</label><select id="media-template"><option value="showcase">Project showcase</option><option value="before_after">Before / after</option><option value="quote">Quote card</option><option value="service">Service card</option></select></div>
-<div><label for="media-format">Format</label><select id="media-format"><option value="square">Square 1080×1080</option><option value="portrait">Portrait 1080×1350</option><option value="story">Story 1080×1920</option></select></div>
-</div>
-<label for="media-headline">Headline</label><input id="media-headline" maxlength="240" placeholder="Nu-Wall re-cladding in Auckland">
-<label for="media-subline">Subline or bullets (one per line)</label><textarea id="media-subline" maxlength="600"></textarea>
-<label for="media-photos">Photos (up to 20; large phone photos are resized automatically)</label><input id="media-photos" type="file" accept="image/*" multiple>
-<button type="button" id="media-image">Generate image</button>
-
-<h3>Short video</h3>
-<label for="media-video-headline">Headline</label><input id="media-video-headline" maxlength="200">
-<label for="media-video-photos">Photos (up to 20)</label><input id="media-video-photos" type="file" accept="image/*" multiple>
-<label for="media-music">Background music (optional, MP3/M4A/WAV)</label><input id="media-music" type="file" accept="audio/*">
-<button type="button" id="media-video">Generate video</button>
-
-<h3>AI image</h3>
-<label for="media-ai-prompt">Prompt</label><textarea id="media-ai-prompt" maxlength="2000" placeholder="A modern Auckland villa with new aluminium cladding, dusk, architectural photo"></textarea>
-<button type="button" id="media-ai">Generate AI image</button>
 
 <p class="muted" id="media-status" aria-live="polite"></p>
 <div id="media-gallery"></div>
@@ -1225,38 +1205,9 @@ async function saveMediaBrand(){
     statusEl.textContent="Brand kit saved.";
   }catch(e){statusEl.textContent=e.message;}
 }
-async function generateMediaImage(){
-  const statusEl=$("media-status"); statusEl.textContent="Rendering image…";
-  try{
-    const photos=await mediaPhotos("media-photos",6);
-    const asset=await request("/owner/media/image","POST",{template:$("media-template").value,format:$("media-format").value,headline:$("media-headline").value.trim(),subline:$("media-subline").value.trim(),photos});
-    await attachToSocial(asset.id);
-    statusEl.textContent="Image ready and added to your social composer."; await refreshMedia();
-  }catch(e){statusEl.textContent=e.message;}
-}
-async function generateMediaVideo(){
-  const statusEl=$("media-status"); statusEl.textContent="Rendering video… this can take a minute.";
-  try{
-    const photos=await mediaPhotos("media-video-photos",8);
-    if(!photos.length)throw new Error("Choose at least one photo");
-    const musicInput=$("media-music");const music=musicInput&&musicInput.files&&musicInput.files[0]?await mediaData(musicInput.files[0]):undefined;
-    const asset=await request("/owner/media/video","POST",{format:"portrait",headline:$("media-video-headline").value.trim(),photos,music});
-    await attachToSocial(asset.id);
-    statusEl.textContent="Video ready and added to your social composer."; await refreshMedia();
-  }catch(e){statusEl.textContent=e.message;}
-}
-async function generateMediaAi(){
-  const statusEl=$("media-status"); statusEl.textContent="Generating AI image…";
-  try{
-    const asset=await request("/owner/media/ai-image","POST",{prompt:$("media-ai-prompt").value.trim()});
-    await attachToSocial(asset.id);
-    statusEl.textContent="AI image ready and added to your social composer."; await refreshMedia();
-  }catch(e){statusEl.textContent=e.message;}
-}
 document.addEventListener("DOMContentLoaded",()=>{
   const bind=(id,fn)=>{const el=$(id); if(el)el.addEventListener("click",fn);};
-  bind("media-save-brand",saveMediaBrand); bind("media-image",generateMediaImage);
-  bind("media-video",generateMediaVideo); bind("media-ai",generateMediaAi);
+  bind("media-save-brand",saveMediaBrand);
 });
 
 /* ---- Phone alerts (Web Push) ---- */
