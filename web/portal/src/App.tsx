@@ -26,6 +26,7 @@ import {SavedReplies} from './SavedReplies';
 import {Knowledge} from './Knowledge';
 import {Privacy} from './Privacy';
 import {Billing} from './Billing';
+import {Invoices} from './Invoices';
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
 import {createApi, isGenericFailure} from './api';
@@ -1863,6 +1864,7 @@ function Shell() {
     {group: 'Sales', colour: '#fbbf24', items: [
       {tab: 'pipeline', label: 'Pipeline', glyph: 'chart'},
       {tab: 'quotes', label: 'Quotes', glyph: 'quote'},
+      {tab: 'invoices', label: 'Invoices', glyph: 'folder'},
       {tab: 'products', label: 'Products', glyph: 'box'},
       {tab: 'designs', label: 'Designs and CAD', glyph: 'compass'},
     ]},
@@ -1894,6 +1896,7 @@ function Shell() {
     companies: {title: 'Companies', line: 'The businesses behind your contacts, with the work and the value that belongs to each one.'},
     bookings: {title: 'Bookings', line: 'Your calendar, with the jobs that customers booked themselves.'},
     quotes: {title: 'Quotes', line: 'What you have quoted, what was accepted, and what is still with the customer.'},
+    invoices: {title: 'Invoices', line: 'Customer invoices issued from accepted quotes, their balances, and payment links.'},
     products: {title: 'Products', line: 'Your prices and rates. Concierge never invents one of these.'},
     designs: {title: 'Designs and CAD', line: 'Plans and models, with measured areas when you have them.'},
     social: {title: 'Social', line: 'Draft posts in your voice — nothing publishes until you say so.'},
@@ -1924,7 +1927,7 @@ function Shell() {
       {tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']} question="handle your texts" /> : null}
       {tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']} question="answer and record calls" /> : null}
       {tab === 'social' ? <ChannelAsk token={token} channels={['social']} question="publish your social posts" /> : null}
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <Setup token={token} brand={brand} setBrand={setBrand} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'invoices' ? <Invoices token={token} /> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
     </>
   );
 
@@ -1954,14 +1957,20 @@ function Shell() {
         </select>
         {layout === 'tabs' ? <TabList value={tab} onChange={setTab}>
           <Tab value="home" label={tr('Home')} />
-          <Tab value="setup" label={tr('Setup')} />
-          <Tab value="designs" label={tr('Designs')} />
-          <Tab value="products" label={tr('Products')} />
-          <Tab value="bookings" label={tr('Bookings')} />
-          <Tab value="reports" label={tr('Reports')} />
-          <Tab value="quotes" label={tr('Quotes')} />
+          <Tab value="texts" label={tr('Inbox')} />
           <Tab value="crm" label={tr('Enquiries')} />
+          <Tab value="pipeline" label={tr('Pipeline')} />
+          <Tab value="quotes" label={tr('Quotes')} />
+          <Tab value="invoices" label={tr('Invoices')} />
+          <Tab value="bookings" label={tr('Bookings')} />
           <Tab value="contacts" label={tr('Contacts')} />
+          <Tab value="companies" label={tr('Companies')} />
+          <Tab value="products" label={tr('Products')} />
+          <Tab value="designs" label={tr('Designs')} />
+          <Tab value="reports" label={tr('Reports')} />
+          <Tab value="setup" label={tr('Setup')} />
+          <Tab value="permissions" label={tr('Permissions')} />
+          <Tab value="replies" label={tr('Saved replies')} />
           <Tab value="team" label={tr('Team')} />
           <Tab value="yourcrm" label={tr('Your CRM')} />
           <Tab value="knowledge" label={tr('What Concierge knows')} />
@@ -1972,6 +1981,26 @@ function Shell() {
         </TabList> : null}
         <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
         <div className="c-topbar-spacer" />
+        <Button label={tr('Enable alerts')} variant="secondary" onClick={() => {
+          void (async () => {
+            if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') return;
+            const api = createApi(token);
+            const keyRes = await api('/owner/push/key') as {public_key?: string};
+            if (!keyRes.public_key) return;
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: keyRes.public_key});
+            const json = sub.toJSON();
+            if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
+              await api('/owner/push/subscribe', 'POST', {
+                endpoint: json.endpoint,
+                keys: {p256dh: json.keys.p256dh, auth: json.keys.auth},
+                user_agent: navigator.userAgent.slice(0, 200),
+              });
+            }
+          })().catch(() => {});
+        }} />
         <Button label={tr('Install app')} variant="secondary" onClick={() => {
           if (canInstall) void promptInstall();
           else location.href = '/studio/install';
