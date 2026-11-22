@@ -64,6 +64,8 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "missed_call_recoveries",
     "call_insights",
     "invoices",
+    "invoice_payments",
+    "tenant_stripe_connect",
     "privacy_requests",
     "privacy_breaches",
     "privacy_audit_log",

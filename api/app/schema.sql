@@ -1535,3 +1535,29 @@ CREATE TABLE IF NOT EXISTS csat_responses (
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS csat_responses_tenant_idx ON csat_responses(tenant_id, created_at DESC);
+
+-- N8: Tenant Stripe Connect online payments & deposit/balance payment tracking.
+CREATE TABLE IF NOT EXISTS tenant_stripe_connect (
+    tenant_id         uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    stripe_account_id text NOT NULL DEFAULT '',
+    charges_enabled   boolean NOT NULL DEFAULT false,
+    payouts_enabled   boolean NOT NULL DEFAULT false,
+    status            text NOT NULL DEFAULT 'disconnected',
+    connected_at      timestamptz,
+    updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_payments (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    invoice_id        uuid NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    kind              text NOT NULL DEFAULT 'full' CHECK (kind IN ('deposit','balance','full','partial')),
+    method            text NOT NULL DEFAULT 'stripe' CHECK (method IN ('stripe','bank_transfer')),
+    amount_cents      bigint NOT NULL,
+    currency          text NOT NULL DEFAULT 'NZD',
+    stripe_session_id text NOT NULL DEFAULT '',
+    status            text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','failed','refunded')),
+    paid_at           timestamptz,
+    created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments(tenant_id, invoice_id);
