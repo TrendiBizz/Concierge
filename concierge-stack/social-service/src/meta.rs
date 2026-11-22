@@ -11,10 +11,28 @@ use serde::Deserialize;
 
 const CALLBACK: &str = "/owner/social/oauth/callback";
 const FB_SCOPE: &str =
-    "pages_show_list,pages_manage_posts,pages_read_engagement,business_management";
+    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,pages_manage_metadata,business_management";
 const IG_SCOPE: &str = "instagram_business_basic,instagram_business_content_publish";
 const IG_FACEBOOK_SCOPE: &str =
-    "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,business_management";
+    "pages_show_list,pages_read_engagement,pages_messaging,pages_manage_metadata,instagram_basic,instagram_content_publish,instagram_manage_messages,business_management";
+const META_WEBHOOK_FIELDS: &str = "messages,messaging_postbacks";
+
+#[derive(Clone, serde::Serialize)]
+pub struct MetaChannelGrant {
+    pub account_id: String,
+    pub channel: String,
+    pub external_id: String,
+    pub page_id: String,
+    pub display_name: String,
+    pub access_token: String,
+    pub webhook_subscribed: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct MetaFinishResult {
+    pub account_ids: Vec<String>,
+    pub channels: Vec<MetaChannelGrant>,
+}
 
 #[derive(Clone)]
 pub struct Config {
@@ -98,6 +116,8 @@ fn authorized_page_candidates(grant: &DebugData) -> Vec<String> {
             "pages_show_list",
             "pages_manage_posts",
             "pages_read_engagement",
+            "pages_messaging",
+            "pages_manage_metadata",
         ]
         .contains(&entry.scope.as_str())
         {
@@ -398,13 +418,44 @@ fn check_id(value: &str) -> Result<(), String> {
     }
     Ok(())
 }
+async fn subscribe_page_webhooks(
+    http: &reqwest::Client,
+    graph: &str,
+    page_id: &str,
+    page_token: &str,
+) -> bool {
+    let Ok(resp) = http
+        .post(format!("{graph}/{page_id}/subscribed_apps"))
+        .form(&[("subscribed_fields", META_WEBHOOK_FIELDS)])
+        .bearer_auth(page_token)
+        .send()
+        .await
+    else {
+        return false;
+    };
+    resp.status().is_success()
+}
+
+async fn unsubscribe_page_webhooks(
+    http: &reqwest::Client,
+    graph: &str,
+    page_id: &str,
+    page_token: &str,
+) {
+    let _ = http
+        .delete(format!("{graph}/{page_id}/subscribed_apps"))
+        .bearer_auth(page_token)
+        .send()
+        .await;
+}
+
 async fn instagram_finish(
     store: &Store,
     vault: &Vault,
     customer: &str,
     cfg: &Config,
     code: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<MetaFinishResult, String> {
     let http = client()?;
     let resp = http
         .post("https://api.instagram.com/oauth/access_token")
@@ -463,21 +514,33 @@ async fn instagram_finish(
     check_id(&profile.id)?;
     let label = account_label(customer, "instagram", &profile.id);
     let sealed = vault.seal(&long.access_token, &label)?;
+    let display_name = if profile.username.trim().is_empty() {
+        "Instagram professional account"
+    } else {
+        &profile.username
+    };
     let id = store.upsert_verified_account(VerifiedAccount {
         customer,
         network: "instagram",
         external_id: &profile.id,
-        display_name: if profile.username.trim().is_empty() {
-            "Instagram professional account"
-        } else {
-            &profile.username
-        },
+        display_name,
         token_enc: &sealed,
         refresh_enc: None,
         expires_at: expiry(long.expires_in),
         granted_scopes: IG_SCOPE,
     })?;
-    Ok(vec![id])
+    Ok(MetaFinishResult {
+        account_ids: vec![id.clone()],
+        channels: vec![MetaChannelGrant {
+            account_id: id,
+            channel: "instagram".into(),
+            external_id: profile.id,
+            page_id: String::new(),
+            display_name: display_name.into(),
+            access_token: long.access_token,
+            webhook_subscribed: false,
+        }],
+    })
 }
 /// Instagram Graph API with Facebook Login (the product installed in SocialSync).
 /// Only Pages containing a linked professional Instagram account are eligible.
@@ -487,7 +550,7 @@ async fn instagram_facebook_finish(
     customer: &str,
     cfg: &Config,
     code: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<MetaFinishResult, String> {
     let http = client()?;
     let graph = format!("https://graph.facebook.com/{}", cfg.version);
     let short_resp = http
@@ -549,13 +612,27 @@ async fn instagram_facebook_finish(
         .map_err(|_| "Meta permission response invalid")?;
     let _validated_expiry = validated_meta_expiry(long.expires_in, &granted.data, &cfg.id)?;
     if !granted.data.is_valid
-        || !IG_FACEBOOK_SCOPE
-            .split(',')
-            .filter(|required| *required != "business_management")
-            .all(|required| granted.data.scopes.iter().any(|actual| actual == required))
+        || ![
+            "pages_show_list",
+            "pages_read_engagement",
+            "instagram_basic",
+            "instagram_content_publish",
+        ]
+        .iter()
+        .all(|required| granted.data.scopes.iter().any(|actual| actual == required))
     {
         return Err("Instagram Graph API permissions not granted".into());
     }
+    let can_subscribe_ig_webhooks = granted
+        .data
+        .scopes
+        .iter()
+        .any(|s| s == "pages_manage_metadata")
+        && granted
+            .data
+            .scopes
+            .iter()
+            .any(|s| s == "instagram_manage_messages" || s == "pages_messaging");
     // First discover authorized Page credentials independently. The Instagram
     // link field can be absent from the Page-list projection even when Meta
     // exposes it on a direct Page query under the same user grant.
@@ -630,7 +707,7 @@ async fn instagram_facebook_finish(
             // The returned Page ID and OAuth scope were verified above, and
             // Meta itself supplied the professional-only Page relationship.
             // Retain an explicit label if Meta omitted username.
-            eligible.push((profile, page.access_token));
+            eligible.push((profile, page.id, page.access_token));
             continue;
         }
         // connected_instagram_account may refer to a personal account.
@@ -665,7 +742,7 @@ async fn instagram_facebook_finish(
         let Some(verified) = verified_profile else {
             return Err("Instagram professional identity not verified".into());
         };
-        eligible.push((verified, page.access_token));
+        eligible.push((verified, page.id, page.access_token));
     }
     if eligible.is_empty() {
         if accessible_pages == 0 {
@@ -674,26 +751,45 @@ async fn instagram_facebook_finish(
         return Err("Facebook Page returned without accessible Instagram professional link".into());
     }
     let mut linked = Vec::new();
-    for (profile, page_token) in eligible {
+    let mut channels = Vec::new();
+    for (profile, page_id, page_token) in eligible {
+        let subscribed = if can_subscribe_ig_webhooks {
+            subscribe_page_webhooks(&http, &graph, &page_id, &page_token).await
+        } else {
+            false
+        };
         let label = account_label(customer, "instagram", &profile.id);
         let sealed = vault.seal(&page_token, &label)?;
+        let display_name = if profile.username.trim().is_empty() {
+            "Instagram professional account"
+        } else {
+            &profile.username
+        };
         let id = store.upsert_verified_account(VerifiedAccount {
             customer,
             network: "instagram",
             external_id: &profile.id,
-            display_name: if profile.username.trim().is_empty() {
-                "Instagram professional account"
-            } else {
-                &profile.username
-            },
+            display_name,
             token_enc: &sealed,
             refresh_enc: None,
             expires_at: None,
             granted_scopes: IG_FACEBOOK_SCOPE,
         })?;
-        linked.push(id);
+        linked.push(id.clone());
+        channels.push(MetaChannelGrant {
+            account_id: id,
+            channel: "instagram".into(),
+            external_id: profile.id,
+            page_id,
+            display_name: display_name.into(),
+            access_token: page_token,
+            webhook_subscribed: subscribed,
+        });
     }
-    Ok(linked)
+    Ok(MetaFinishResult {
+        account_ids: linked,
+        channels,
+    })
 }
 async fn facebook_finish(
     store: &Store,
@@ -701,7 +797,7 @@ async fn facebook_finish(
     customer: &str,
     cfg: &Config,
     code: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<MetaFinishResult, String> {
     let http = client()?;
     let graph = format!("https://graph.facebook.com/{}", cfg.version);
     let resp = http
@@ -797,8 +893,24 @@ async fn facebook_finish(
             return Err("Facebook Page lacks content management access".into());
         }
     }
+    let can_subscribe_fb_webhooks = granted
+        .data
+        .scopes
+        .iter()
+        .any(|s| s == "pages_manage_metadata")
+        && granted
+            .data
+            .scopes
+            .iter()
+            .any(|s| s == "pages_messaging");
     let mut result = Vec::new();
+    let mut channels = Vec::new();
     for page in pages {
+        let subscribed = if can_subscribe_fb_webhooks {
+            subscribe_page_webhooks(&http, &graph, &page.id, &page.access_token).await
+        } else {
+            false
+        };
         let label = account_label(customer, "facebook", &page.id);
         let sealed = vault.seal(&page.access_token, &label)?;
         let id = store.upsert_verified_account(VerifiedAccount {
@@ -812,9 +924,21 @@ async fn facebook_finish(
             expires_at: verified_expiry,
             granted_scopes: FB_SCOPE,
         })?;
-        result.push(id);
+        result.push(id.clone());
+        channels.push(MetaChannelGrant {
+            account_id: id,
+            channel: "messenger".into(),
+            external_id: page.id.clone(),
+            page_id: page.id,
+            display_name: page.name,
+            access_token: page.access_token,
+            webhook_subscribed: subscribed,
+        });
     }
-    Ok(result)
+    Ok(MetaFinishResult {
+        account_ids: result,
+        channels,
+    })
 }
 pub async fn finish(
     store: &Store,
@@ -823,7 +947,7 @@ pub async fn finish(
     cfg: &Config,
     state: &str,
     code: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<MetaFinishResult, String> {
     if code.is_empty() || code.len() > 2048 {
         return Err("Invalid Meta authorization code".into());
     }
@@ -837,15 +961,26 @@ pub async fn finish(
         _ => Err("Unsupported Meta provider".into()),
     }
 }
-pub fn disconnect(
+pub async fn disconnect(
     store: &Store,
+    vault: &Vault,
     customer: &str,
     account_id: &str,
     network: &str,
 ) -> Result<(), String> {
-    let (found, _, _, _) = store.account(customer, account_id)?;
+    let (found, external_id, token_enc, _) = store.account(customer, account_id)?;
     if found != network {
         return Err("Incorrect social provider".into());
+    }
+    // Best-effort unsubscribe Facebook Page webhooks before destroying the local token.
+    if network == "facebook" {
+        if let (Ok(cfg), Ok(http)) = (from_env("facebook"), client()) {
+            let label = account_label(customer, "facebook", &external_id);
+            if let Ok(page_token) = vault.open(&token_enc, &label) {
+                let graph = format!("https://graph.facebook.com/{}", cfg.version);
+                unsubscribe_page_webhooks(&http, &graph, &external_id, &page_token).await;
+            }
+        }
     }
     // Destroy the local token immediately. Provider-level withdrawal is done in Meta's apps/settings.
     store.disconnect_account(customer, account_id)
@@ -1050,6 +1185,22 @@ mod tests {
         };
         let a = start(&store, &vault, "a", &cfg).unwrap();
         assert!(a.authorization_url.contains("pages_manage_posts"));
+        assert!(a.authorization_url.contains("pages_messaging"));
+        assert!(a.authorization_url.contains("pages_manage_metadata"));
         assert!(a.authorization_url.contains("www.facebook.com"));
+
+        let ig_cfg = Config {
+            network: "instagram",
+            id: "123456".into(),
+            secret: "some-secret".into(),
+            callback: "https://example.com/owner/social/oauth/callback".into(),
+            version: "v27.0".into(),
+            via_facebook: true,
+        };
+        let ig = start(&store, &vault, "a", &ig_cfg).unwrap();
+        assert!(ig.authorization_url.contains("instagram_basic"));
+        assert!(ig.authorization_url.contains("instagram_manage_messages"));
+        assert!(ig.authorization_url.contains("pages_messaging"));
+        assert!(ig.authorization_url.contains("pages_manage_metadata"));
     }
 }

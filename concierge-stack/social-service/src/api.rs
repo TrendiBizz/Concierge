@@ -829,7 +829,7 @@ async fn meta_oauth_finish(
     Path((c, network)): Path<(String, String)>,
     h: HeaderMap,
     Json(input): Json<OAuthFinish>,
-) -> ApiResult<MetaAccounts> {
+) -> ApiResult<crate::meta::MetaFinishResult> {
     role(&h, &s, true, Some(&c))?;
     let kind = match network.as_str() {
         "instagram" => "instagram",
@@ -838,11 +838,11 @@ async fn meta_oauth_finish(
     };
     let cfg = crate::meta::from_env(kind)
         .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "Meta OAuth not configured"))?;
-    Ok(Json(MetaAccounts {
-        account_ids: crate::meta::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
+    Ok(Json(
+        crate::meta::finish(&s.store, &s.vault, &c, &cfg, &input.state, &input.code)
             .await
             .map_err(server_err)?,
-    }))
+    ))
 }
 async fn meta_oauth_disconnect(
     State(s): State<AppState>,
@@ -853,7 +853,9 @@ async fn meta_oauth_disconnect(
     if network != "facebook" && network != "instagram" {
         return Err(err(StatusCode::NOT_FOUND, "Unsupported social network"));
     }
-    crate::meta::disconnect(&s.store, &c, &id, &network).map_err(server_err)?;
+    crate::meta::disconnect(&s.store, &s.vault, &c, &id, &network)
+        .await
+        .map_err(server_err)?;
     Ok(Json(Health { ok: true }))
 }
 

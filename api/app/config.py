@@ -177,10 +177,13 @@ class Settings(BaseSettings):
     # N10 remainder: Gmail send-as OAuth (disabled until credentials are supplied).
     gmail_oauth_client_id: str = ""
     gmail_oauth_client_secret: str = ""
-    # N7: Meta WhatsApp / FB Messenger / IG DM inbound (disabled until Meta app approval).
+    # N7: Meta WhatsApp / FB Messenger / IG DM messaging (disabled until Meta app approval).
     meta_messaging_enabled: bool = False
+    meta_app_id: str = ""
     meta_app_secret: str = ""
     meta_webhook_verify_token: str = ""
+    meta_graph_version: str = "v22.0"
+    meta_wa_embedded_signup_config_id: str = ""
     # Tier 2 (H2/H10): disabled by default until explicitly enabled.
     gbp_reviews_enabled: bool = False
     outbound_ai_calls_enabled: bool = False

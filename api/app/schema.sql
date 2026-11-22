@@ -1562,15 +1562,20 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
 );
 CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments(tenant_id, invoice_id);
 
--- N7: WhatsApp Business, Facebook Messenger, and Instagram DM inbound (disabled until Meta approval).
+-- N7: WhatsApp Business, Facebook Messenger, and Instagram DM inbound & outbound.
 CREATE TABLE IF NOT EXISTS tenant_meta_channels (
-    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    channel          text NOT NULL CHECK (channel IN ('whatsapp','messenger','instagram')),
-    external_id      text NOT NULL,
-    access_token_enc text NOT NULL,
-    enabled          boolean NOT NULL DEFAULT true,
-    created_at       timestamptz NOT NULL DEFAULT now(),
+    id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id          uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel            text NOT NULL CHECK (channel IN ('whatsapp','messenger','instagram')),
+    external_id        text NOT NULL,
+    page_id            text NOT NULL DEFAULT '',
+    waba_id            text NOT NULL DEFAULT '',
+    display_name       text NOT NULL DEFAULT '',
+    social_account_id  text NOT NULL DEFAULT '',
+    webhook_subscribed boolean NOT NULL DEFAULT false,
+    access_token_enc   text NOT NULL,
+    enabled            boolean NOT NULL DEFAULT true,
+    created_at         timestamptz NOT NULL DEFAULT now(),
     UNIQUE (channel, external_id)
 );
 
@@ -1578,10 +1583,12 @@ CREATE TABLE IF NOT EXISTS meta_inbound_messages (
     id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     channel             text NOT NULL CHECK (channel IN ('whatsapp','messenger','instagram')),
+    channel_external_id text NOT NULL DEFAULT '',
     external_message_id text NOT NULL,
     sender_id           text NOT NULL,
     sender_name         text NOT NULL DEFAULT '',
     text                text NOT NULL DEFAULT '',
+    template_name       text NOT NULL DEFAULT '',
     direction           text NOT NULL DEFAULT 'in' CHECK (direction IN ('in','out')),
     created_at          timestamptz NOT NULL DEFAULT now(),
     UNIQUE (channel, external_message_id)

@@ -32,10 +32,30 @@ type ApiKeyRow = {
   revoked: boolean;
 };
 
+type MetaChannelRow = {
+  id: string;
+  channel: 'whatsapp' | 'messenger' | 'instagram';
+  external_id: string;
+  page_id?: string;
+  waba_id?: string;
+  display_name?: string;
+  webhook_subscribed?: boolean;
+  enabled: boolean;
+  created_at: string;
+};
+
+type MetaOverview = {
+  platform_enabled: boolean;
+  unavailable_reason: string;
+  wa_embedded_signup?: {enabled: boolean; unavailable_reason: string};
+  channels: MetaChannelRow[];
+};
+
 export function Integrations({token}: {token: string}) {
   const api = createApi(token);
   const [items, setItems] = useState<IntegrationItem[]>([]);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
+  const [metaOverview, setMetaOverview] = useState<MetaOverview | null>(null);
   const [keyName, setKeyName] = useState('');
   const [newKey, setNewKey] = useState('');
   const [sm8Key, setSm8Key] = useState('');
@@ -45,14 +65,16 @@ export function Integrations({token}: {token: string}) {
 
   async function load() {
     try {
-      const [intRes, keyRes, hookRes] = await Promise.all([
+      const [intRes, keyRes, hookRes, metaRes] = await Promise.all([
         api('/owner/integrations') as Promise<{integrations: IntegrationItem[]}>,
         api('/owner/api-keys') as Promise<{keys: ApiKeyRow[]}>,
         api('/owner/team-chat-webhook').catch(() => ({url: ''})) as Promise<{url?: string}>,
+        api('/owner/meta-messaging').catch(() => null) as Promise<MetaOverview | null>,
       ]);
       setItems(intRes.integrations || []);
       setKeys(keyRes.keys || []);
       setTeamWebhook(hookRes.url || '');
+      setMetaOverview(metaRes);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Could not load integrations');
     }
@@ -132,6 +154,96 @@ export function Integrations({token}: {token: string}) {
     }
   }
 
+  async function connectWhatsApp() {
+    const popup = window.open('about:blank', 'concierge-wa-signup', 'width=620,height=760');
+    if (!popup) {
+      setStatus('Allow popups for this page to connect WhatsApp Business.');
+      return;
+    }
+    setBusy(true);
+    setStatus('');
+    try {
+      const start = await api('/owner/meta-messaging/whatsapp/embedded-signup/start', 'POST', {}) as {
+        authorization_url: string;
+        state: string;
+      };
+      const url = new URL(start.authorization_url);
+      if (url.protocol !== 'https:' || !start.state) throw new Error('Invalid WhatsApp signup response');
+      let capturedWabaId = '';
+      let capturedPhoneId = '';
+      let finished = false;
+      const bc = typeof BroadcastChannel !== 'undefined'
+        ? new BroadcastChannel('concierge-social-oauth:' + start.state)
+        : null;
+
+      const onWindowMessage = (event: MessageEvent) => {
+        if (event.origin === 'https://www.facebook.com' || event.origin === 'https://web.facebook.com') {
+          try {
+            const payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            if (payload?.type === 'WA_EMBEDDED_SIGNUP' && payload?.data) {
+              if (payload.data.waba_id) capturedWabaId = String(payload.data.waba_id);
+              if (payload.data.phone_number_id) capturedPhoneId = String(payload.data.phone_number_id);
+            }
+          } catch { /* ignore unrelated postMessage payloads */ }
+          return;
+        }
+        if (event.origin === location.origin && event.data?.type === 'concierge-social-oauth') {
+          void finish(event.data);
+        }
+      };
+
+      const finish = async (data: {state?: string; code?: string; error?: string}) => {
+        if (finished || !data || data.state !== start.state) return;
+        finished = true;
+        bc?.close();
+        window.removeEventListener('message', onWindowMessage);
+        try { popup.close(); } catch { /* ignore */ }
+        if (data.error || !data.code) {
+          setStatus('WhatsApp signup was cancelled or denied.');
+          setBusy(false);
+          return;
+        }
+        try {
+          await api('/owner/meta-messaging/whatsapp/embedded-signup/complete', 'POST', {
+            state: data.state,
+            code: data.code,
+            waba_id: capturedWabaId,
+            phone_number_id: capturedPhoneId,
+          });
+          setStatus('WhatsApp Business connected and subscribed.');
+          await load();
+        } catch (e) {
+          setStatus(e instanceof Error ? e.message : 'Could not complete WhatsApp signup');
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      if (bc) bc.onmessage = (event) => { void finish(event.data); };
+      window.addEventListener('message', onWindowMessage);
+      popup.location.href = url.href;
+      setStatus('Continue in the Meta window to connect your WhatsApp Business Account.');
+    } catch (e) {
+      try { popup.close(); } catch { /* ignore */ }
+      setStatus(e instanceof Error ? e.message : 'WhatsApp Embedded Signup is unavailable');
+      setBusy(false);
+    }
+  }
+
+  async function disconnectMetaChannel(id: string) {
+    setBusy(true);
+    setStatus('');
+    try {
+      await api(`/owner/meta-messaging/channels/${id}`, 'DELETE');
+      setStatus('Meta messaging channel disconnected and unsubscribed.');
+      await load();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not disconnect Meta channel');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveTeamWebhook() {
     setBusy(true);
     setStatus('');
@@ -157,6 +269,46 @@ export function Integrations({token}: {token: string}) {
             <TextInput label="Slack / Teams webhook URL" value={teamWebhook} onChange={setTeamWebhook} placeholder="https://hooks.slack.com/services/..." />
             <Button label="Save webhook" variant="primary" isDisabled={busy} onClick={() => void saveTeamWebhook()} />
           </HStack>
+        </VStack>
+      </Card>
+
+      <Heading level={3}>Meta Messaging (Messenger, Instagram DMs &amp; WhatsApp)</Heading>
+      <Card>
+        <VStack gap={3} style={{padding: 16}}>
+          <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
+            <HStack gap={2} style={{alignItems: 'center'}}>
+              <Heading level={4}>WhatsApp Business (Embedded Signup)</Heading>
+              <Badge
+                label={metaOverview?.wa_embedded_signup?.enabled ? 'Available' : 'Disabled'}
+                variant={metaOverview?.wa_embedded_signup?.enabled ? 'info' : 'warning'}
+              />
+            </HStack>
+            {metaOverview?.wa_embedded_signup?.enabled ? (
+              <Button label="Connect WhatsApp Business" variant="primary" isDisabled={busy} onClick={() => void connectWhatsApp()} />
+            ) : null}
+          </HStack>
+          {metaOverview && !metaOverview.wa_embedded_signup?.enabled && metaOverview.wa_embedded_signup?.unavailable_reason ? (
+            <Text>{metaOverview.wa_embedded_signup.unavailable_reason}</Text>
+          ) : null}
+          <Text>
+            Facebook Messenger and Instagram DMs are connected automatically when you link your Facebook Page or Instagram business account in the Social tab.
+          </Text>
+          {metaOverview && metaOverview.channels.length > 0 ? (
+            <VStack gap={2}>
+              {metaOverview.channels.map((ch) => (
+                <HStack key={ch.id} gap={2} style={{justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
+                  <HStack gap={2} style={{alignItems: 'center'}}>
+                    <Badge label={ch.channel.toUpperCase()} variant="info" />
+                    <Text><strong>{ch.display_name || ch.external_id}</strong></Text>
+                    <Badge label={ch.webhook_subscribed ? 'Webhook active' : 'Pending webhook'} variant={ch.webhook_subscribed ? 'success' : 'warning'} />
+                  </HStack>
+                  <Button label="Disconnect" variant="secondary" isDisabled={busy} onClick={() => void disconnectMetaChannel(ch.id)} />
+                </HStack>
+              ))}
+            </VStack>
+          ) : (
+            <Text>No Meta messaging channels connected yet.</Text>
+          )}
         </VStack>
       </Card>
 
