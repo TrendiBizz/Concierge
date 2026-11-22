@@ -170,6 +170,9 @@ class Settings(BaseSettings):
     ms_tenant: str = "common"
     fergus_partner_key: str = ""      # Fergus and Tradify only open their APIs to approved partners
     tradify_partner_key: str = ""
+    # N10 remainder: Gmail send-as OAuth (disabled until credentials are supplied).
+    gmail_oauth_client_id: str = ""
+    gmail_oauth_client_secret: str = ""
     unsubscribe_secret: str = ""      # signs unsubscribe links; falls back to ADMIN_TOKEN
     campaign_max_recipients: int = 200
     campaign_cooldown_days: int = 30    # nobody is messaged by two campaigns inside this window
