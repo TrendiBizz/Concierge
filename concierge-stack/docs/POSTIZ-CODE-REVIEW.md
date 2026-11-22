@@ -25,13 +25,13 @@ Organization, not the "customer" label.** A self-hosted install also has no bill
 
 ## What this means for the plan
 
-- **We do not need to build the connectors into SocialSync.** Postiz already has them. Our work becomes: get Trendi's developer apps
+- **We do not need to build the connectors into Trendi Concierge Social.** Postiz already has them. Our work becomes: get Trendi's developer apps
   approved (the same approvals listed in `SOCIAL-NETWORKS-ACCESS.md`), provision one organization per customer, and put our
   guardrails and approval gate in front of publishing.
 - **Provisioning per customer:** create their organization (sign-up), get its API key, send them a connect (invite) link per
   network, then call the public API or MCP with THAT customer's key. A table in our stack maps customer to Postiz organization
   and key. Not yet tested: whether sign-up can be driven headlessly without email activation.
-- **SocialSync's role narrows** to what Postiz lacks: per-customer guardrails (verified facts, forbidden claims, platform
+- **Trendi Concierge Social's role narrows** to what Postiz lacks: per-customer guardrails (verified facts, forbidden claims, platform
   limits), the approval step, and the manual-publish path Pukeko uses today.
 
 ## Cautions (read these)

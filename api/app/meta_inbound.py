@@ -41,32 +41,63 @@ _WA_STATE_TTL = 600
 _WA_USED_NONCES: dict[str, float] = {}
 
 
+def _main_app_credentials() -> tuple[str, str]:
+    s = get_settings()
+    app_id = (s.meta_app_id or getattr(s, "social_facebook_client_id", "") or "").strip()
+    app_secret = (s.meta_app_secret or getattr(s, "social_facebook_client_secret", "") or "").strip()
+    return app_id, app_secret
+
+
+def _wa_app_credentials() -> tuple[str, str]:
+    """WhatsApp Meta app ('Trendi Messaging') credentials, falling back to the main Meta app."""
+    s = get_settings()
+    main_id, main_secret = _main_app_credentials()
+    wa_id = (getattr(s, "meta_wa_app_id", "") or "").strip()
+    wa_secret = (getattr(s, "meta_wa_app_secret", "") or "").strip()
+    if wa_id and wa_id != main_id:
+        # Distinct WhatsApp app configured: require its own secret rather than silently mixing apps.
+        return wa_id, wa_secret
+    return wa_id or main_id, wa_secret or main_secret
+
+
+def _webhook_secrets() -> list[str]:
+    """All configured Meta app secrets accepted for X-Hub-Signature-256 verification."""
+    _, main_secret = _main_app_credentials()
+    _, wa_secret = _wa_app_credentials()
+    out: list[str] = []
+    for sec in (main_secret, wa_secret):
+        if sec and sec not in out:
+            out.append(sec)
+    return out
+
+
 def is_enabled() -> bool:
     s = get_settings()
     return bool(
         s.meta_messaging_enabled
-        and (s.meta_app_secret or "").strip()
+        and _webhook_secrets()
         and (s.meta_webhook_verify_token or "").strip()
     )
 
 
 def graph_base_url() -> str:
-    ver = (get_settings().meta_graph_version or "v22.0").strip()
-    if not ver.startswith("v"):
-        ver = "v22.0"
-    return f"https://graph.facebook.com/{ver}"
+    from .social import config as social_config
+
+    return f"https://graph.facebook.com/{social_config.meta_graph_version()}"
 
 
 def wa_embedded_signup_info() -> dict:
     s = get_settings()
-    app_id = (s.meta_app_id or "").strip()
+    app_id, app_secret = _wa_app_credentials()
     config_id = (s.meta_wa_embedded_signup_config_id or "").strip()
-    enabled = bool(is_enabled() and app_id and config_id)
+    enabled = bool(is_enabled() and app_id and app_secret and config_id)
     missing: list[str] = []
     if not is_enabled():
         missing.append("META_MESSAGING_ENABLED / META_APP_SECRET / META_WEBHOOK_VERIFY_TOKEN")
     if not app_id:
-        missing.append("META_APP_ID")
+        missing.append("META_WA_APP_ID (or META_APP_ID)")
+    if not app_secret:
+        missing.append("META_WA_APP_SECRET (or META_APP_SECRET)")
     if not config_id:
         missing.append("META_WA_EMBEDDED_SIGNUP_CONFIG_ID")
     return {
@@ -79,10 +110,14 @@ def wa_embedded_signup_info() -> dict:
 
 
 def _verify_hub_signature(payload: bytes, header_value: str, secret: str) -> bool:
-    if not header_value or not header_value.startswith("sha256="):
+    if not secret or not header_value or not header_value.startswith("sha256="):
         return False
     expected = "sha256=" + hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(header_value, expected)
+
+
+def _verify_any_hub_signature(payload: bytes, header_value: str) -> bool:
+    return any(_verify_hub_signature(payload, header_value, sec) for sec in _webhook_secrets())
 
 
 async def _graph_request(
@@ -114,7 +149,7 @@ async def _graph_request(
 
 
 def _make_wa_state(tenant_id: str) -> str:
-    secret = (get_settings().meta_app_secret or "").strip()
+    _, secret = _wa_app_credentials()
     ts = str(int(time.time()))
     nonce = secrets.token_urlsafe(18)
     msg = f"wa:{tenant_id}:{ts}:{nonce}".encode("utf-8")
@@ -138,7 +173,7 @@ def _consume_wa_state(state: str, tenant_id: str) -> None:
         raise HTTPException(400, "Invalid or expired WhatsApp signup state") from None
     if now - ts > _WA_STATE_TTL or ts - now > 60:
         raise HTTPException(400, "WhatsApp signup state expired; please try again")
-    secret = (get_settings().meta_app_secret or "").strip()
+    _, secret = _wa_app_credentials()
     expected = hmac.new(
         secret.encode("utf-8"),
         f"wa:{tenant_id}:{ts_str}:{nonce}".encode("utf-8"),
@@ -302,7 +337,7 @@ async def meta_webhook_inbound(request: Request):
         raise HTTPException(503, "Meta messaging is disabled on this server")
     payload = await request.body()
     sig = request.headers.get("x-hub-signature-256") or ""
-    if not _verify_hub_signature(payload, sig, get_settings().meta_app_secret):
+    if not _verify_any_hub_signature(payload, sig):
         raise HTTPException(401, "Invalid X-Hub-Signature-256")
     try:
         body = json.loads(payload.decode("utf-8"))
@@ -426,12 +461,15 @@ async def owner_wa_embedded_signup_start(user: dict = Depends(owner_auth.current
     if not info["enabled"]:
         raise HTTPException(409, info["unavailable_reason"])
     s = get_settings()
+    wa_app_id, _ = _wa_app_credentials()
     state = _make_wa_state(str(user["tenant_id"]))
-    ver = (s.meta_graph_version or "v22.0").strip()
+    from .social import config as social_config
+
+    ver = social_config.meta_graph_version()
     redirect_uri = s.public_base_url.rstrip("/") + "/owner/social/oauth/callback"
     extras = json.dumps({"setup": {}, "featureType": "", "sessionInfoVersion": "3"}, separators=(",", ":"))
     params = urlencode({
-        "client_id": s.meta_app_id.strip(),
+        "client_id": wa_app_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "config_id": s.meta_wa_embedded_signup_config_id.strip(),
@@ -464,8 +502,7 @@ async def owner_wa_embedded_signup_complete(
         raise HTTPException(409, info["unavailable_reason"])
     _consume_wa_state(body.state, str(user["tenant_id"]))
     s = get_settings()
-    app_id = s.meta_app_id.strip()
-    app_secret = s.meta_app_secret.strip()
+    app_id, app_secret = _wa_app_credentials()
     redirect_uri = s.public_base_url.rstrip("/") + "/owner/social/oauth/callback"
 
     status_code, tok_data = await _graph_request(

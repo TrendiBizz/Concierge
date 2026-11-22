@@ -53,36 +53,25 @@ class OwnerSocialCompose(OwnerSocialDraft):
 @router.post("/owner/social/media")
 async def owner_social_media_upload(request: Request, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "editor")
-    base, key = social_bridge._configuration()
+    from .. import social as social_mod
+
     slug = await social_bridge.ensure_tenant(user)
     content = bytearray()
     async for chunk in request.stream():
         content.extend(chunk)
         if len(content) > 64 * 1024 * 1024:
             raise HTTPException(413, "Upload a file smaller than 64 MB")
-    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
-        result = await client.post(
-            base + f"/v1/customers/{slug}/media",
-            headers={"Authorization": "Bearer " + key, "Content-Type": "application/octet-stream"},
-            content=bytes(content),
-        )
-    if result.status_code != 200:
-        raise HTTPException(400, "Media could not be processed; use a JPG/PNG image or MP4/MOV video under 64 MB")
-    return result.json()
+    return await social_mod.media.save_media(slug, bytes(content))
 
 
 @router.get("/api/v1/social-media/{token}")
 async def social_media_download(token: str):
-    if len(token) > 2048:
-        raise HTTPException(404, "Media unavailable")
-    base, _ = social_bridge._configuration()
-    async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-        result = await client.get(base + "/public-media/" + token)
-    if result.status_code != 200:
-        raise HTTPException(404, "Media unavailable")
+    from .. import social as social_mod
+
+    mime, data = await social_mod.media.resolve_download_token(token)
     return Response(
-        content=result.content,
-        media_type=result.headers.get("content-type", "application/octet-stream"),
+        content=data,
+        media_type=mime,
         headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow"},
     )
 
@@ -100,20 +89,26 @@ class OwnerSocialSchedule(BaseModel):
 
 @router.get("/owner/social/status")
 async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
-    # No credentials, client IDs, access tokens or backend hostname in the response.
-    settings = _main().settings
+    # No credentials, client IDs, access tokens or internal hostnames in the response.
+    from .. import social as social_mod
+
+    enabled = social_mod.config.is_social_enabled()
     providers = {"linkedin_organization": False, "linkedin": False, "facebook": False, "instagram": False, "google_business": False, "tiktok": False, "x": False}
-    if settings.social_service_enabled:
+    publish_enabled = {name: False for name in providers}
+    if enabled:
         try:
             status = await social_bridge.provider_status()
             providers = {name: status.get(name) is True for name in providers}
+            publish_enabled = social_mod.config.publish_status()
         except HTTPException:
             pass
-    return {"enabled": bool(settings.social_service_enabled),
+    live_pub = social_mod.config.is_live_publishing_enabled()
+    return {"enabled": enabled,
             "customer": user["slug"],
             "providers": providers,
+            "publish_enabled": publish_enabled,
             "callback_path": "/owner/social/oauth/callback",
-            "live_publishing": bool(settings.social_service_enabled and settings.social_live_publishing)}
+            "live_publishing": live_pub}
 
 
 @router.post("/owner/social/oauth/renew/{account_id}")
@@ -298,3 +293,32 @@ async def owner_social_approve(token: str, user: dict = Depends(owner_auth.curre
 async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
     return await social_bridge.decide(user, token, False)
+
+
+@router.post("/owner/social/posts/{post_id}/dry-run")
+async def owner_social_dry_run(post_id: str, user: dict = Depends(owner_auth.current_user)):
+    """Validate guardrails, account credentials, and exact network payloads without posting."""
+    owner_auth.require_role(user, "editor")
+    from .. import social as social_mod
+
+    if not social_bridge.POST_ID.fullmatch(post_id):
+        raise HTTPException(400, "Invalid post identifier")
+    slug = await social_bridge.ensure_tenant(user)
+    posts = await social_mod.store.list_posts(slug, limit=200)
+    post = next((p for p in posts if p["id"] == post_id), None)
+    if not post:
+        raise HTTPException(404, "Social post not found")
+    results = []
+    for aid in post["account_ids"]:
+        acct = await social_mod.store.get_account_credentials(slug, aid, allow_expired=False)
+        outcome = await social_mod.publishers.publish_to_account(
+            customer_slug=slug, post=post, account=acct, dry_run=True
+        )
+        results.append({
+            "account_id": aid,
+            "network": acct["network"],
+            "ok": outcome.ok,
+            "error": outcome.error,
+            "payload": outcome.dry_run_payload,
+        })
+    return {"post_id": post_id, "dry_run": True, "results": results}

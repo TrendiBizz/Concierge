@@ -44,7 +44,7 @@ No AI image or video generation. No queue server. Nothing the customer sees.
 | Piece | Job |
 |---|---|
 | `vault` | AES-256-GCM encryption of every access and refresh token at rest, bound to its account (Postiz keeps channel tokens as plain strings, as far as the schema shows) |
-| `guardrails` | SocialSync's core idea, ported from Jo's own code: platform limits, verified facts, forbidden phrases, warnings, per customer |
+| `guardrails` | Trendi Concierge Social's core idea, ported from Jo's own code: platform limits, verified facts, forbidden phrases, warnings, per customer |
 | `model` | The post lifecycle as a state machine: draft, pending approval, approved, scheduled, publishing, published, failed, rejected |
 | `store` | SQLite. Every query is scoped by customer. Audit log of every step. |
 | `connector` | One small trait per network (`publish`), honest errors: retryable, permanent, needs re-login |

@@ -25,8 +25,9 @@ import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/Segment
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string; original_name?: string};
-type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean};
-type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string};
+type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean; expires_at?: number | null};
+type PostResult = {account_id: string; network: string; account_name: string; external_post_id?: string | null; external_url?: string | null; error?: string | null; ok: boolean; at?: string | null};
+type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string; results?: PostResult[]};
 type Variant = {account_id: string; account_name: string; network: string; content: string; link?: string; hashtags?: string; media?: string[]; video?: string | null; limit?: number; warnings?: string[]; errors?: string[]};
 
 function useApi(token: string) {
@@ -372,6 +373,17 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     return oauthPath(provider) + '/accounts/' + accountId;
   }
 
+  async function renewAccount(account: Account) {
+    if (role !== 'owner') { setStatus('Only the business owner can renew account tokens.'); return; }
+    setBusy(true); setStatus('');
+    try {
+      await api('/owner/social/oauth/renew/' + account.id, 'POST');
+      setStatus((account.display_name || networkLabel(account.network)) + ' token renewed.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not renew token; reconnect the account.'); }
+    setBusy(false);
+  }
+
   async function disconnectAccount(account: Account) {
     if (role !== 'owner') { setStatus('Only the business owner can disconnect accounts.'); return; }
     if (!window.confirm('Disconnect ' + (account.display_name || networkLabel(account.network)) + '?')) return;
@@ -542,6 +554,10 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                     ? <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
                               isDisabled={busy} onClick={() => void connect(network.id)} />
                     : <Badge label="setup" variant="neutral" />}
+                  {role === 'owner' && linked.length && linked[0].needs_reauth ? (
+                    <Button label="Renew" variant="secondary" isDisabled={busy}
+                            onClick={() => void renewAccount(linked[0])} />
+                  ) : null}
                   {role === 'owner' && linked.length ? (
                     <Button label="Disconnect" variant="ghost" isDisabled={busy}
                             onClick={() => void disconnectAccount(linked[0])} />
@@ -680,6 +696,22 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
             <Badge label={post.status.replaceAll('_', ' ')} variant={post.status === 'published' ? 'success' : post.status === 'failed' ? 'error' : 'neutral'} />
             <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
             {post.last_error ? <p role="alert">{post.last_error}</p> : null}
+            {post.results && post.results.length ? (
+              <div style={{marginTop: 6, fontSize: 12}}>
+                {post.results.map((r) => (
+                  <div key={r.account_id + ':' + String(r.ok)} style={{marginTop: 3}}>
+                    <strong>{r.account_name || networkLabel(r.network)}</strong>:{' '}
+                    {r.ok ? (
+                      r.external_url
+                        ? <a href={r.external_url} target="_blank" rel="noopener noreferrer">Published</a>
+                        : 'Published'
+                    ) : (
+                      <span role="alert">{r.error || 'Delivery failed'}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <HStack gap={2} style={{flexWrap: 'wrap', marginTop: 8}}>
               {post.status === 'draft' ? (
                 <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />

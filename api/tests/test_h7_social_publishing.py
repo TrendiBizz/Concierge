@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-from app import main, social_bridge
+from app import main, social, social_bridge
 from app.config import get_settings
 
 
@@ -22,8 +22,9 @@ def _owner_override(role: str = "owner"):
 
 
 def test_social_status_reflects_live_publishing_flag(monkeypatch):
-    monkeypatch.setattr(main.settings, "social_service_enabled", True, raising=False)
-    monkeypatch.setattr(main.settings, "social_live_publishing", True, raising=False)
+    s = get_settings()
+    monkeypatch.setattr(s, "social_service_enabled", True, raising=False)
+    monkeypatch.setattr(s, "social_live_publishing", True, raising=False)
     monkeypatch.setattr(
         social_bridge,
         "provider_status",
@@ -48,7 +49,7 @@ def test_social_status_reflects_live_publishing_flag(monkeypatch):
         for net in ("facebook", "instagram", "linkedin", "linkedin_organization", "x", "tiktok", "google_business"):
             assert body["providers"][net] is True
 
-        monkeypatch.setattr(main.settings, "social_live_publishing", False, raising=False)
+        monkeypatch.setattr(s, "social_live_publishing", False, raising=False)
         resp2 = client.get("/owner/social/status")
         assert resp2.status_code == 200
         assert resp2.json()["live_publishing"] is False
@@ -57,15 +58,13 @@ def test_social_status_reflects_live_publishing_flag(monkeypatch):
 
 
 def test_social_oauth_start_routes_all_seven_networks(monkeypatch):
-    calls: list[tuple[str, str]] = []
-
-    async def fake_request(method: str, path: str, data=None):
-        calls.append((method, path))
-        if path.endswith("/rules"):
-            return {"ok": True}
-        return {"authorization_url": f"https://provider.example/auth?path={path}", "state": "s" * 40}
-
-    monkeypatch.setattr(social_bridge, "_request", fake_request)
+    monkeypatch.setattr(get_settings(), "social_service_enabled", True, raising=False)
+    monkeypatch.setattr(social.store, "ensure_customer", AsyncMock(return_value="test-biz"))
+    monkeypatch.setattr(
+        social.oauth,
+        "start_oauth",
+        AsyncMock(side_effect=lambda slug, net: {"authorization_url": f"https://provider.example/auth?net={net}", "state": "s" * 40}),
+    )
     main.app.dependency_overrides[main.owner_auth.current_user] = lambda: _owner_override("owner")
     try:
         client = TestClient(main.app)
@@ -89,24 +88,34 @@ def test_social_oauth_start_routes_all_seven_networks(monkeypatch):
 
 
 def test_social_draft_submit_approval_and_reject_flow(monkeypatch):
-    async def fake_request(method: str, path: str, data=None):
-        if path.endswith("/rules"):
-            return {"ok": True}
-        if path.endswith("/compose"):
-            return [{"account_id": "acct_1234567890123456", "account_name": "Trendi", "network": "facebook", "content": data["content"]}]
-        if path.endswith("/posts") and method == "POST":
-            return {"id": "post_1234567890123456", "status": "draft"}
-        if path.endswith("/submit"):
-            return {"id": "post_1234567890123456", "status": "pending_approval"}
-        if path.endswith("/approval-request"):
-            return {"token": "a" * 24}
-        if path.endswith("/approve"):
-            return {"id": "post_1234567890123456", "status": "scheduled"}
-        if path.endswith("/reject"):
-            return {"id": "post_1234567890123456", "status": "draft"}
-        return {}
-
-    monkeypatch.setattr(social_bridge, "_request", fake_request)
+    monkeypatch.setattr(get_settings(), "social_service_enabled", True, raising=False)
+    monkeypatch.setattr(social.store, "ensure_customer", AsyncMock(return_value="test-biz"))
+    monkeypatch.setattr(
+        social.store,
+        "list_accounts",
+        AsyncMock(return_value=[{"id": "acct_1234567890123456", "network": "facebook", "display_name": "Trendi", "needs_reauth": False}]),
+    )
+    monkeypatch.setattr(social.store, "get_rules", AsyncMock(return_value={}))
+    monkeypatch.setattr(
+        social.store,
+        "create_draft",
+        AsyncMock(return_value={"id": "post_1234567890123456", "status": "draft"}),
+    )
+    monkeypatch.setattr(
+        social.store,
+        "submit_draft",
+        AsyncMock(return_value={"id": "post_1234567890123456", "status": "pending_approval"}),
+    )
+    monkeypatch.setattr(
+        social.store,
+        "request_approval",
+        AsyncMock(return_value={"token": "a" * 24}),
+    )
+    monkeypatch.setattr(
+        social.store,
+        "decide_approval",
+        AsyncMock(side_effect=lambda slug, tok, approve: {"id": "post_1234567890123456", "status": "scheduled" if approve else "draft"}),
+    )
     main.app.dependency_overrides[main.owner_auth.current_user] = lambda: _owner_override("owner")
     try:
         client = TestClient(main.app)

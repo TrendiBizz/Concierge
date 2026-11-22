@@ -37,7 +37,7 @@ In the **private** Mac.hub `.private/oauth-staging/social.env`, set only the pla
 - Google Business: inspect the existing `google_business.rs` env schema before adding provider credentials.
 - Mastodon: inspect the existing `oauth.rs` env schema and ensure per-instance permissions.
 
-Do NOT reuse Meta's SocialSync App Secret for LinkedIn, TikTok or Google. Each provider app is independent.
+Do NOT reuse Meta's Trendi Concierge Social App Secret for LinkedIn, TikTok or Google. Each provider app is independent.
 
 ## Required acceptance per platform
 

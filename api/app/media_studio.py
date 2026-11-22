@@ -194,18 +194,10 @@ async def to_social(asset_id: UUID, user=Depends(owner_auth.current_user)):
         user["tenant_id"], asset_id)
     if not row or not Path(row["storage_path"]).is_file():
         raise HTTPException(404, "Media not found")
-    from . import social_bridge
-    base, key = social_bridge._configuration()
+    from . import social, social_bridge
     slug = await social_bridge.ensure_tenant(user)
     data = Path(row["storage_path"]).read_bytes()
-    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
-        result = await client.post(
-            base + f"/v1/customers/{slug}/media",
-            headers={"Authorization": "Bearer " + key, "Content-Type": "application/octet-stream"},
-            content=data)
-    if result.status_code != 200:
-        raise HTTPException(502, "Social media upload failed")
-    return result.json()
+    return await social.media.save_media(slug, data)
 
 
 @router.get("/assets/{asset_id}/file")

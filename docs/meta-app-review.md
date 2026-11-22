@@ -1,10 +1,10 @@
-# Meta App Review — Screencast & Use-Case Notes (Trendi Concierge / SocialSync)
+# Meta App Review — Screencast & Use-Case Notes (Trendi Concierge / Trendi Concierge Social)
 
 > **Status:** Ready for Jo's review and submission in the Meta App Dashboard. Every claim below describes implemented behaviour in this repository; nothing is invented.
 
 ## 1. App & Webhook Summary
 - **Product:** Trendi Concierge (`https://concierge.trendibizz.com/studio`)
-- **Meta App:** SocialSync (existing Meta app configured on the Trendi Concierge server)
+- **Meta App:** Trendi Concierge Social (existing Meta app configured on the Trendi Concierge server)
 - **Webhook Callback URL:** `https://concierge.trendibizz.com/webhooks/meta/messaging`
 - **Webhook Objects Active:**
   - `page` (`messages`, `messaging_postbacks`)

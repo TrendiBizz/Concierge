@@ -68,7 +68,7 @@ cd ~/Concierge/calendars/server && npm test
 
 ## Next steps (not built yet)
 
-- Shared identity with Concierge's other modules. This module, like CRM and SocialSync, has its OWN separate `tenants` table and passcode. Creating a customer here does not create them anywhere else. A central identity/tenant service is the real next step once enough modules exist.
+- Shared identity with Concierge's other modules. This module, like CRM and Trendi Concierge Social, has its OWN separate `tenants` table and passcode. Creating a customer here does not create them anywhere else. A central identity/tenant service is the real next step once enough modules exist.
 - Link an appointment's contact to a CRM contact record instead of free-text name/email/phone, once that integration is designed.
 - Timezone support.
 - HTTPS and an internet-reachable deployment.

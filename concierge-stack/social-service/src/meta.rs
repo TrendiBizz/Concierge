@@ -542,7 +542,7 @@ async fn instagram_finish(
         }],
     })
 }
-/// Instagram Graph API with Facebook Login (the product installed in SocialSync).
+/// Instagram Graph API with Facebook Login (the product installed in Trendi Concierge Social).
 /// Only Pages containing a linked professional Instagram account are eligible.
 async fn instagram_facebook_finish(
     store: &Store,
@@ -1010,7 +1010,7 @@ mod tests {
         assert!(store.oauth_consume("a", "instagram", &a.state).is_err());
     }
     #[test]
-    fn socialsync_uses_facebook_login_for_linked_instagram() {
+    fn concierge-social_uses_facebook_login_for_linked_instagram() {
         let store = Store::open_memory().unwrap();
         let vault =
             Vault::from_base64_key(&base64::engine::general_purpose::STANDARD.encode([9u8; 32]))

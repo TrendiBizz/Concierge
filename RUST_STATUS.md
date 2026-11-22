@@ -55,7 +55,7 @@ They no longer burn CI minutes and can no longer drift red for reasons unrelated
 | Kept job | What it covers |
 | --- | --- |
 | `rust-social-locked` | `social-service`, which *is* deployed — also runs the Python `customer_onboarding_integration` suite |
-| `socialsync-node` | `socialsync` plus the widget and owner-journey tests |
+| `concierge-social-node` | `concierge-social` plus the widget and owner-journey tests |
 
 Do not remove those two as "Rust jobs". A blanket removal of every Rust-named job would drop
 coverage of shipped functionality — `rust-social-locked` is named "rust-" but tests the social

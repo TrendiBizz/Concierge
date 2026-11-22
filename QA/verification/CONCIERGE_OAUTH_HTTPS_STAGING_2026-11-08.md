@@ -4,7 +4,7 @@
 
 - Owner portal: **https://concierge.trendibizz.com/owner-ui**
 - Meta OAuth callback: **https://concierge.trendibizz.com/owner/social/oauth/callback**
-- The exact callback must be appended to the existing SocialSync Facebook Login **Valid OAuth Redirect URIs** list; preserve the legacy `https://trendibizz.github.io/SocialSync/` redirect until independently retired.
+- The exact callback must be appended to the existing Trendi Concierge Social Facebook Login **Valid OAuth Redirect URIs** list; preserve the legacy `https://concierge.trendibizz.com/owner/social/oauth/callback` redirect until independently retired.
 - Authenticated owner APIs are exposed only below `/owner/*`. All other paths through this tunnel return 404.
 - HTTPS was confirmed with Cloudflare's certificate verification (`TLS=0`) for the portal and callback. Unauthenticated `/owner/social/status` returned 401, and `/healthz`, `/docs`, and non-owner API routes returned 404.
 - Public Cloudflare DNS resolver resolved `concierge.trendibizz.com`; Mac.hub's system DNS was temporarily stale, so tests used `curl --resolve` and full TLS verification. Do **not** disable TLS checks.
@@ -42,7 +42,7 @@ The Rust service's large Docker release build was **canceled** to protect produc
 
 The staging API was recreated **without changing the production API**, using `SOCIAL_SERVICE_ENABLED=true`, `SOCIAL_SERVICE_URL=http://host.docker.internal:4390`, and a matching private API-to-Rust key. Docker's host gateway reaches the native service; publishing is explicitly disabled. End-to-end API-to-Rust provider readiness returned `facebook=true`, `instagram=true`, and other providers false as expected.
 
-The user-supplied SocialSync App Secret has been stored in private staging configuration without disclosure. HTTPS portal and callback both passed public Cloudflare checks, and production `/healthz` returned 200. **Provider readiness means credentials and configuration are present, not that Meta has accepted the redirect or customer consent.** Before final certification, use an authorized real account to complete the Meta OAuth browser flow, check permissions and account discovery, and test unlink/relink. No live posting was enabled.
+The user-supplied Trendi Concierge Social App Secret has been stored in private staging configuration without disclosure. HTTPS portal and callback both passed public Cloudflare checks, and production `/healthz` returned 200. **Provider readiness means credentials and configuration are present, not that Meta has accepted the redirect or customer consent.** Before final certification, use an authorized real account to complete the Meta OAuth browser flow, check permissions and account discovery, and test unlink/relink. No live posting was enabled.
 
 Resource note: Mac.hub had approximately 17 GB swap in use with an idle ~5.2 GB LM Studio model and Docker VM. Do not rebuild the Rust image on this host while production is running without strict resource constraints.
 
@@ -62,9 +62,9 @@ Before using Meta, check both portal and callback return 200, the private API re
 
 ## Remaining owner-only tasks
 
-1. In existing SocialSync Meta app (`676274422041376`), Facebook Login > Settings, **add** the exact URL `https://concierge.trendibizz.com/owner/social/oauth/callback` under Valid OAuth Redirect URIs. **Do not delete** `https://trendibizz.github.io/SocialSync/`.
+1. In existing Trendi Concierge Social Meta app (`676274422041376`), Facebook Login > Settings, **add** the exact URL `https://concierge.trendibizz.com/owner/social/oauth/callback` under Valid OAuth Redirect URIs. **Do not delete** `https://concierge.trendibizz.com/owner/social/oauth/callback`.
 2. In App Settings > Basic, reveal App Secret and enter it ONLY into the private `SOCIAL_FACEBOOK_CLIENT_SECRET` configuration through an approved secure local process. Never paste into chat or Git.
-3. Confirm SocialSync's Meta app roles, Facebook Page grants, linked Instagram professional account and applicable advanced access / review. Stay in Development mode for the pilot.
+3. Confirm Trendi Concierge Social's Meta app roles, Facebook Page grants, linked Instagram professional account and applicable advanced access / review. Stay in Development mode for the pilot.
 4. The native Rust social backend and staging API integration are now active and locally verified. Test real tenant-scoped OAuth in Meta after registering the callback; leave publishing disabled.
 5. Independently certify two customer logins and permissions before production approval.
 

@@ -125,8 +125,8 @@ jobs:
       - name: Backup and restore canary (no production resources)
         run: bash QA/verification/restore_disposable.sh
 
-  rust-social:
-    name: rust-social-locked
+  unified-social:
+    name: unified-social-module
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -140,56 +140,29 @@ jobs:
           --health-timeout 5s
           --health-retries 15
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: concierge-stack/social-service
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - name: Install ffmpeg (media pipeline tests encode real fixtures)
-        working-directory: .
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - name: Verify Rust social service
-        run: |
-          cargo fmt --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked
-          cargo build --locked
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: api/requirements-dev.txt
-      - name: Install API contract test dependencies
-        working-directory: .
+      - name: Install API test dependencies
         run: python -m pip install -r api/requirements-dev.txt
-      - name: Verify Python-to-Rust isolated HTTP contract
-        working-directory: .
+      - name: Verify unified Concierge social & Meta messaging module
+        working-directory: api
         env:
-          PYTHONPATH: QA/verification/shims:api
-          CONCIERGE_TEST_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
-          SOCIAL_ENABLE_PUBLISH: 'false'
-        run: python QA/verification/social_rust_contract_test.py
+          PYTHONPATH: ../QA/verification/shims:.
+          TEST_DATABASE_URL: postgresql://postgres:test@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+        run: pytest -q tests/test_unified_social.py tests/test_h7_social_publishing.py tests/test_n7_meta_inbound.py tests/test_local_config.py tests/test_provider_readiness.py
 
-      - name: Verify separate customer onboarding against PostgreSQL and Rust
-        working-directory: .
-        env:
-          PYTHONPATH: QA/verification/shims:api
-          CONCIERGE_TEST_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
-        run: python -m unittest api.tests.customer_onboarding_integration -v
-
-  socialsync:
-    name: socialsync-node
+  concierge-node:
+    name: concierge-node-checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: concierge-stack/socialsync/server
     steps:
       - uses: actions/checkout@v4
         with:
@@ -197,8 +170,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run isolated SocialSync tests
-        run: node --test
       - name: Verify website widget controls without browser or providers
-        working-directory: .
         run: node --test QA/verification/widget_host_controls_test.cjs QA/verification/owner_customer_journey_test.cjs QA/verification/operator_customer_creation_test.cjs

@@ -1,9 +1,9 @@
-# SocialSync OAuth smoke verification — 8 November 2026
+# Trendi Concierge Social OAuth smoke verification — 8 November 2026
 
 Verified on Mac.hub against the isolated staging deployment `concierge.trendibizz.com`.
 
 ## Results
-- Private SocialSync App Secret is stored (not printed), app ID matches `676274422041376`.
+- Private Trendi Concierge Social App Secret is stored (not printed), app ID matches `676274422041376`.
 - OAuth staging API -> native Rust service works; `facebook=true` and `instagram=true` in provider readiness.
 - Created a synthetic Rust-only OAuth smoke-test tenant using a random identifier, then invoked each provider's `start` route.
 - Both provider routes returned a correctly formed `www.facebook.com/dialog/oauth` URL with the exact registered callback `https://concierge.trendibizz.com/owner/social/oauth/callback` and a new state value.
@@ -16,7 +16,7 @@ Verified on Mac.hub against the isolated staging deployment `concierge.trendibiz
 
 ## Still needed
 1. Provision a staging business and owner invitation against the isolated staging API using an authorized test owner's actual email. Do not copy production user databases or send invitation tokens via logs or Git.
-2. Owner signs into `https://concierge.trendibizz.com/owner-ui`, clicks Connect Facebook and authorizes in Meta while the SocialSync app remains in Development mode.
+2. Owner signs into `https://concierge.trendibizz.com/owner-ui`, clicks Connect Facebook and authorizes in Meta while the Trendi Concierge Social app remains in Development mode.
 3. Confirm the authorized Meta account is an app Administrator/Developer/Tester with appropriate Page access; inspect Meta's actual permission grants and verify authorized Facebook Page identity.
 4. Repeat for Instagram professional account linked to an authorized Facebook Page, then test disconnect/reconnect and tenant isolation.
 5. Obtain documented approval before enabling any real posting. Keep all publish flags false for this verification.
