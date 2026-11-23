@@ -90,6 +90,29 @@ if ! curl -fsS -o /dev/null --max-time 15 "${SITE_URL:-https://trendibizz.com}/"
   exit 1
 fi
 
+# 3c. HTML is cached at the Cloudflare edge (Cache-Control s-maxage in website/_headers plus the zone cache
+#     rule), so a deploy that does not purge would serve the old pages for up to an hour. Purge everything for
+#     the zone: the site is small and every deploy can change any page. The token comes from the environment
+#     (CF_API_TOKEN) or the macOS Keychain item trendi-cloudflare-token; it is never printed. Set
+#     SKIP_CF_PURGE=1 only when you know the edge holds nothing stale.
+if [ "${SKIP_CF_PURGE:-0}" = "1" ]; then
+  echo "WARNING: SKIP_CF_PURGE=1, Cloudflare cache NOT purged" >&2
+else
+  CF_TOKEN="${CF_API_TOKEN:-$(security find-generic-password -s trendi-cloudflare-token -w 2>/dev/null || true)}"
+  if [ -z "$CF_TOKEN" ]; then
+    echo "FAILED: no Cloudflare token (set CF_API_TOKEN or the Keychain item trendi-cloudflare-token); the edge may serve stale HTML" >&2
+    exit 1
+  fi
+  CF_ZONE="${CF_ZONE_ID:-$(curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/zones?name=trendibizz.com" | python3 -c 'import sys,json;r=json.load(sys.stdin)["result"];print(r[0]["id"] if r else "")' 2>/dev/null || true)}"
+  if [ -z "$CF_ZONE" ]; then echo "FAILED: could not find the trendibizz.com zone for the cache purge" >&2; exit 1; fi
+  if curl -fsS --max-time 30 -X POST -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+       --data '{"purge_everything":true}' "https://api.cloudflare.com/client/v4/zones/$CF_ZONE/purge_cache" | python3 -c 'import sys,json;sys.exit(0 if json.load(sys.stdin).get("success") else 1)'; then
+    echo "Cloudflare cache purged"
+  else
+    echo "FAILED: Cloudflare cache purge was refused; the edge may serve stale HTML" >&2; exit 1
+  fi
+fi
+
 # 4. Tell IndexNow (Bing, Yandex, Seznam and Bing's partners — which feed ChatGPT search) which pages
 #    changed since the previous deploy. Google does not use IndexNow, so this is not a ranking step;
 #    it is the difference between a change being noticed in hours rather than weeks.

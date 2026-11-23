@@ -884,13 +884,15 @@ def check_site_seo() -> list[dict]:
                 current = groups.setdefault(value, [])
             elif field in ("allow", "disallow") and current is not None:
                 current.append(f"{field}: {value}")
-        for agent in ("googlebot", "bingbot", "oai-searchbot", "perplexitybot", "claude-searchbot"):
+        # Policy changed 2026-11-23 (Jo): the major AI crawlers are allowed so the brand can be discovered.
+        for agent in ("googlebot", "bingbot", "oai-searchbot", "perplexitybot", "claude-searchbot",
+                      "gptbot", "claudebot", "google-extended", "applebot-extended", "ccbot", "amazonbot"):
             rules = groups.get(agent)
             if rules is None:
                 problems.append(f"robots.txt has no {agent} group")
             elif any(rule == "disallow: /" for rule in rules):
                 problems.append(f"robots.txt blocks {agent}")
-        for agent in ("gptbot", "ccbot", "bytespider", "claudebot", "google-extended"):
+        for agent in ("bytespider",):
             if not any(rule.startswith("disallow: /") for rule in groups.get(agent, [])):
                 problems.append(f"robots.txt no longer blocks training crawler {agent}")
         if "sitemap:" not in text.lower():

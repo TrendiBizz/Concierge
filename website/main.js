@@ -402,19 +402,19 @@
     select(Math.max(fromHash(), 0));
   })();
 
-  // Concierge sign-up: if a Stripe Payment Link is set in products.js, the plan button goes to Stripe.
-  // Otherwise it stays an email link. Only real Stripe links are accepted.
+  // Concierge payment: ONLY an explicit pay button (a[data-concierge-pay]) is pointed at the Stripe Payment
+  // Link in products.js. Setup buttons ("Request setup", "Start with the setup form below") are never
+  // rewritten: the setup form comes first and payment is a separate, deliberate step. Only real Stripe links
+  // are accepted; without one the pay button stays on its fallback href (the setup form).
   (function initConciergeCheckout() {
     var plans = T.concierge;
     if (!plans || plans.checkout === false) return;
-    document.querySelectorAll('a[data-concierge-plan]').forEach(function (a) {
-      var plan = plans[a.getAttribute('data-concierge-plan')];
+    document.querySelectorAll('a[data-concierge-pay]').forEach(function (a) {
+      var plan = plans[a.getAttribute('data-concierge-pay')];
       var url = plan && typeof plan.stripeLink === 'string' ? plan.stripeLink.trim() : '';
       if (url.indexOf('https://buy.stripe.com/') !== 0 || url.indexOf('REPLACE') !== -1) return;
       a.setAttribute('href', url);
       a.setAttribute('rel', 'noopener');
-      var label = a.getAttribute('data-pay-label');
-      if (label) a.textContent = label;
     });
   })();
 })();

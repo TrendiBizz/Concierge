@@ -359,8 +359,11 @@ def find_type(node, wanted: str):
 
 
 
-ROBOTS_MUST_ALLOW = ("Googlebot", "Bingbot", "OAI-SearchBot", "PerplexityBot", "Claude-SearchBot")
-ROBOTS_MUST_BLOCK = ("GPTBot", "CCBot", "Bytespider", "ClaudeBot", "Google-Extended")
+# Policy changed 2026-11-23 (Jo): the major AI crawlers are welcome so the brand can be discovered and
+# cited. Only Bytespider (ignores robots.txt, very heavy crawler) stays blocked.
+ROBOTS_MUST_ALLOW = ("Googlebot", "Bingbot", "OAI-SearchBot", "PerplexityBot", "Claude-SearchBot",
+                     "GPTBot", "ClaudeBot", "Google-Extended", "Applebot-Extended", "CCBot", "Amazonbot")
+ROBOTS_MUST_BLOCK = ("Bytespider",)
 
 
 def parse_robots(text: str) -> dict[str, list[str]]:
