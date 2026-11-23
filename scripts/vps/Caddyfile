@@ -1,6 +1,9 @@
 {
     auto_https off
-    admin off
+    # The admin API listens on the container's own loopback only (the gateway publishes just 8080), so no other
+    # container or host process can reach it. It exists so reload-gateway.sh can do a graceful `caddy reload`
+    # (no restart, no dropped connections) instead of restarting the container for every Caddyfile change.
+    admin localhost:2019
 }
 :8080 {
     header X-Trendi-Release "20261108-vps"
@@ -34,6 +37,21 @@
         path /api/enquiry
     }
     handle @enquiry {
+        reverse_proxy api:8000 {
+            lb_try_duration 10s
+            lb_try_interval 250ms
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
+    # The public site tools call the API: AI-robots checker (/api/robots), site snapshot (/api/site-check) and
+    # light security check (/api/security-check). scripts/verify/check_page_api_contract.py keeps this list in
+    # step with the fetch('/api/...') calls in website/ (every called path needs a route here and in the API).
+    @tools {
+        host trendibizz.com
+        path /api/robots /api/site-check /api/security-check
+    }
+    handle @tools {
         reverse_proxy api:8000 {
             lb_try_duration 10s
             lb_try_interval 250ms

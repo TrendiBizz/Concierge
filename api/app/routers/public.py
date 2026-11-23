@@ -16,13 +16,13 @@ from urllib.parse import quote_plus
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import RedirectResponse
 
 from .. import (
     channel_authorization, chat as chat_engine, cloudflare_auth, convo, db, llm,
-    site_enquiry, tenants,
+    robots_fetch, site_enquiry, site_tools, tenants,
 )
 from ..security import html_with_script_nonce
 
@@ -592,3 +592,76 @@ async def website_enquiry(body: SiteEnquiry, request: Request):
             **body.model_dump(), ip=ip, user_agent=request.headers.get("user-agent", ""))
     except site_enquiry.Refused as error:
         raise HTTPException(error.status, str(error)) from None
+
+
+@router.get("/api/robots", include_in_schema=False)
+async def robots_check(request: Request, url: str = ""):
+    """The public AI-robots checker's fetch: https://<host>/robots.txt as text/plain (see robots_fetch)."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "unknown")
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Trendi-Served-By": "api"}
+    if not robots_fetch.limiter.check(ip):
+        return JSONResponse({"error": "rate_limited", "message": "Too many checks. Try again in a minute."},
+                            status_code=429, headers={**headers, "Retry-After": "60"})
+    try:
+        text, source, truncated = await robots_fetch.fetch_robots(url)
+    except robots_fetch.RobotsError as error:
+        return JSONResponse({"error": error.code, "message": error.message}, status_code=error.status, headers=headers)
+    return Response(text, media_type="text/plain", headers={
+        **headers, "X-Trendi-Source": source, "X-Trendi-Truncated": "1" if truncated else "0"})
+
+
+# The public site tools (website/tools/site-check.js and security-check.js). They were served only by the untracked
+# deploy_known_good/_worker.js on the box; see site_tools.py for the contract and limits.
+# X-Trendi-Served-By lets the smoke test and health check tell this API from any legacy file answering the same path.
+_TOOL_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Trendi-Served-By": "api"}
+_TOOL_CORS = {"access-control-allow-origin": "https://trendibizz.com", "access-control-allow-methods": "POST, OPTIONS",
+              "access-control-allow-headers": "content-type", "access-control-max-age": "86400"}
+
+
+def _visitor_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+async def _run_tool(request: Request, limiter, runner):
+    if not limiter.check(_visitor_ip(request)):
+        return JSONResponse({"error": "rate_limited", "message": site_tools.RATE_MESSAGE}, status_code=429, headers=_TOOL_HEADERS)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError
+    except ValueError:
+        return JSONResponse({"error": "bad_json", "message": "POST JSON { url }."}, status_code=400, headers=_TOOL_HEADERS)
+    try:
+        return JSONResponse(await runner(body.get("url")), headers=_TOOL_HEADERS)
+    except site_tools.ToolError as error:
+        return JSONResponse({"error": error.code, "message": error.message, **error.extra}, status_code=error.status, headers=_TOOL_HEADERS)
+
+
+@router.get("/api/site-check", include_in_schema=False)
+async def site_check_info():
+    return JSONResponse({"ok": True, "endpoint": "/api/site-check", "method": "POST", "body": {"url": "https://example.com"}}, headers=_TOOL_HEADERS)
+
+
+@router.options("/api/site-check", include_in_schema=False)
+@router.options("/api/security-check", include_in_schema=False)
+async def site_tools_options():
+    return Response(status_code=204, headers=_TOOL_CORS)
+
+
+@router.post("/api/site-check", include_in_schema=False)
+async def site_check_run(request: Request):
+    return await _run_tool(request, site_tools.site_limiter,
+                           lambda url: site_tools.site_check(url, site_tools.pagespeed_key()))
+
+
+@router.get("/api/security-check", include_in_schema=False)
+async def security_check_info():
+    return JSONResponse({"ok": True, "endpoint": "/api/security-check", "method": "POST", "body": {"url": "https://example.com"},
+                         "honesty": "Light check \u2260 penetration testing. Presence/absence only. Not a hack-proof guarantee."}, headers=_TOOL_HEADERS)
+
+
+@router.post("/api/security-check", include_in_schema=False)
+async def security_check_run(request: Request):
+    return await _run_tool(request, site_tools.security_limiter, site_tools.security_check)
