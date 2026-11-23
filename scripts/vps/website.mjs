@@ -125,6 +125,16 @@ http.createServer(async(incoming,outgoing)=>{
     const method=incoming.method;
     const request=new Request('https://'+incoming.headers.host+incoming.url,{method,headers:incoming.headers,
       ...(method!=='GET'&&method!=='HEAD'?{body:Buffer.concat(body)}:{})});
+    // The website serves no /api/* routes. They belong to the FastAPI app (in git) and the gateway sends them
+    // there. The legacy worker file below is not in git: letting it answer /api/* is how /api/robots broke
+    // silently, and how site-check and security-check came to depend on an untracked file. verify-deploy.sh
+    // probes this container to prove it stays 404.
+    const apiPath=new URL(request.url).pathname;
+    if (apiPath==='/api' || apiPath.startsWith('/api/')) {
+      outgoing.writeHead(404,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Trendi-Served-By':'website'})
+        .end(JSON.stringify({error:'not_found',message:'No such API route on the website.'}));
+      return;
+    }
     const response=await worker.fetch(request,{PAGESPEED_API_KEY:process.env.PAGESPEED_API_KEY,ASSETS:{fetch:asset}},{waitUntil:promise=>promise.catch(()=>{})});
     outgoing.writeHead(response.status,withCspNonce(Object.fromEntries(response.headers)));
     if(method==='HEAD'||!response.body)outgoing.end();

@@ -31,6 +31,16 @@ recreating `api`: they share a private network namespace. API dependencies are
 locked to the verified production versions; Containerfile-specific ignore files
 exclude private settings, keys, dumps and unrelated source from build contexts.
 
+### Public tool endpoints (`/api/robots`, `/api/site-check`, `/api/security-check`)
+
+They are served by the FastAPI app (`api/app/site_tools.py`, `robots_fetch.py`) and routed by the Caddyfile's
+`@tools` matcher, never by the website container or the untracked `deploy_known_good/_worker.js`. Guards that keep it so:
+the page-contract scan (`scripts/verify/check_page_api_contract.py`, run by the test suite and `seo-gate.sh`);
+the post-deploy smoke and the website-container drift guard (both in `verify-deploy.sh`; the list of endpoints is
+`tool_endpoints.py`); the 5-minute `tool:*` checks in `healthcheck.py`. A Caddyfile change goes live through
+`sync-tooling.sh`, which calls `reload-gateway.sh` (validate, then graceful `caddy reload`). `restart-website.sh`
+restarts only the website container, for when `website.mjs` changes.
+
 Secrets live in `/opt/trendi/shared`, mode 700 directory / 600 files. Never commit
 that directory or print Compose's resolved environment. The existing PageSpeed credential is retained in `website.env`. Social tokens stay
 ciphertext, with the original vault key preserved in `social.env`. SMTP uses the

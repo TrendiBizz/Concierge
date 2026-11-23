@@ -56,5 +56,11 @@ echo "syncing container build files"
 echo "--- moving files removed from the repo aside on the box"
 KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/prune-removed.sh"
 
+# The Caddyfile is only read when the gateway starts, so a route added to it stays dead until the gateway
+# loads it. Validate it and load it gracefully (reload-gateway.sh aborts on an invalid file and touches
+# nothing). This is why a Caddyfile change always goes live through this script (2026-11-24).
+echo "--- validating and reloading the gateway"
+KEY="$KEY" VPS_HOST="$HOST" VPS_RELEASE="$RELEASE" "$REPO_ROOT/scripts/vps/reload-gateway.sh"
+
 echo "--- verifying parity"
 KEY="$KEY" "$REPO_ROOT/scripts/vps/verify-deploy.sh"

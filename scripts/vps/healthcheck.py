@@ -308,6 +308,32 @@ def check_public_urls() -> list[dict]:
     return results
 
 
+# The public tool endpoints (site-check, security-check, AI-robots checker). They once broke silently because the
+# file serving them was removed and nothing watched them (2026-11-24). tool_endpoints.py is the shared list.
+# Every run probes the cheap GETs through the public URL (Cloudflare -> gateway -> API), with the 30 s timeout and
+# one retry the inbound check uses. The real engines (one outbound fetch each, limited to 5/hour/IP) run once an
+# hour, straight at the API on this box, so the probe never uses a visitor's allowance.
+TOOL_FUNCTIONAL_MINUTE_WINDOW = 5   # minutes past the hour in which the hourly engine probe runs
+
+
+def check_tool_endpoints(now: datetime | None = None) -> list[dict]:
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import tool_endpoints  # next to this file
+    results = []
+    for endpoint in tool_endpoints.ENDPOINTS:
+        ok, detail = tool_endpoints.probe(endpoint, SITE, timeout=INBOUND_READINESS_TIMEOUT,
+                                          retry_pause=INBOUND_READINESS_RETRY_PAUSE)
+        results.append(_ok(f"tool:{endpoint['name']}", detail) if ok else _fail(f"tool:{endpoint['name']}", detail[:300]))
+    if (now or datetime.now(timezone.utc)).minute < TOOL_FUNCTIONAL_MINUTE_WINDOW:
+        for endpoint in tool_endpoints.FUNCTIONAL:
+            ok, detail = tool_endpoints.probe(endpoint, "http://127.0.0.1:8000", timeout=INBOUND_READINESS_TIMEOUT,
+                                              retry_pause=INBOUND_READINESS_RETRY_PAUSE)
+            results.append(_ok(f"tool:{endpoint['name']}", detail) if ok else _fail(f"tool:{endpoint['name']}", detail[:300]))
+    return results
+
+
 def check_api_internal() -> list[dict]:
     results = []
     status, _, elapsed = http("http://127.0.0.1:8000/healthz")
@@ -1306,7 +1332,7 @@ def main(argv: list[str] | None = None) -> int:
     env = {**compose_env, **api_env}
 
     results: list[dict] = []
-    for step in (check_containers, check_public_urls, check_api_internal, check_database, check_host,
+    for step in (check_containers, check_public_urls, check_tool_endpoints, check_api_internal, check_database, check_host,
                  check_tls, check_local_services):
         try:
             results.extend(step())

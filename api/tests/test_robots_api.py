@@ -219,9 +219,9 @@ def test_the_server_truncation_cap_matches_what_the_page_tells_the_visitor():
 def test_the_gateway_routes_api_robots_to_the_api_before_the_static_site():
     caddy = (ROOT / "scripts" / "vps" / "Caddyfile").read_text()
     assert "path /api/robots" in caddy
-    block = caddy[caddy.index("handle @robots"):caddy.index("@website host")]
+    block = caddy[caddy.index("handle @tools"):caddy.index("@website host")]
     assert "reverse_proxy api:8000" in block and "Cf-Connecting-Ip" in block
-    assert caddy.index("handle @robots") < caddy.index("handle @website")
+    assert caddy.index("handle @tools") < caddy.index("handle @website")
 
 
 def test_page_still_has_a_form_and_csp_stays_self_only():

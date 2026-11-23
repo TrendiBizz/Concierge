@@ -199,6 +199,15 @@ else
   fail "GET /favicon.ico → HTTP $STATUS (want 200)"
 fi
 
+# --- i) every /api/ endpoint a page calls is served and routed (the /api/robots 404 class) ---
+CONTRACT_OUT="$(python3 -I "${ROOT}/scripts/verify/check_page_api_contract.py" "$ROOT" 2>&1)" && CONTRACT_RC=0 || CONTRACT_RC=$?
+if [[ "$CONTRACT_RC" -eq 0 ]]; then
+  pass "page API contract: $(echo "$CONTRACT_OUT" | tail -1)"
+else
+  fail "page API contract: a page calls an endpoint nothing serves"
+  echo "$CONTRACT_OUT" | sed 's/^/      /'
+fi
+
 printf '\n=== SUMMARY ===\n'
 printf 'PASS=%s FAIL=%s WARN=%s\n' "$PASS" "$FAIL" "$WARN"
 if [[ "$FAIL" -gt 0 ]]; then
