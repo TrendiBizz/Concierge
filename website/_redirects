@@ -4,6 +4,8 @@
 /concierge/ /concierge 301
 /tools/security-check /security-check 301
 /tools/security-check/ /security-check 301
+/get-mentioned /get-mentioned-chatgpt-perplexity 301
+/get-mentioned/ /get-mentioned-chatgpt-perplexity 301
 
 # Concierge stays part of the Trendi website; authenticated access uses its secure app host.
 /concierge/sign-in https://concierge.trendibizz.com/studio/ 302
