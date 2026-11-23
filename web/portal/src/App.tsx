@@ -1942,7 +1942,7 @@ function Shell() {
     <InternationalizationProvider locale={locale} messages={{...CATALOGS, [locale]: catalog}}>
     <div className="c-shell">
       <div className="c-brand">
-        {brand.logo ? <img src={brand.logo} alt="" style={{height: 42, width: 'auto', borderRadius: 12}} /> : <div className="c-brand-mark">{initials || 'C'}</div>}
+        {brand.logo ? <img src={brand.logo} alt="" style={{height: 42, width: 'auto', borderRadius: 12}} /> : brand.name ? <div className="c-brand-mark">{initials || 'C'}</div> : <svg width="42" height="42" viewBox="0 0 100 100" aria-hidden="true" style={{flex: 'none', borderRadius: 11}}><rect width="100" height="100" rx="22" fill="#7142d6"/><circle cx="50" cy="31" r="5" fill="#fff"/><path d="M22 68 A28 28 0 0 1 78 68 Z" fill="#fff"/><rect x="16" y="72" width="68" height="8" rx="4" fill="#fff"/><circle cx="39" cy="57" r="4" fill="#7142d6"/><circle cx="50" cy="57" r="4" fill="#7142d6"/><circle cx="61" cy="57" r="4" fill="#7142d6"/></svg>}
         <div>
           <div className="c-brand-name">{brand.name || 'Concierge'}</div>
           <div className="c-brand-sub">

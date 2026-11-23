@@ -49,8 +49,9 @@ CONCIERGE_CORE = (
 
 # Brand assets are cached 30 days immutable at Cloudflare: a restyled image needs a new query string.
 IMAGE_QUERY = {
-    "trendi-concierge-monthly": "?v=20261120b",
-    "trendi-seo-ai-visibility-monthly": "?v=20261120b",
+    "trendi-concierge-monthly": "?v=20261124",
+    "trendi-concierge-yearly": "?v=20261124",
+    "trendi-seo-ai-visibility-monthly": "?v=20261124",
 }
 
 PRODUCTS = [
@@ -153,17 +154,12 @@ def write_images() -> None:
         return ImageFont.load_default()
 
     # Refresh palette (website/brand/BRAND.md): Page #FCFBFF, Purple #7142D6, Purple Deep #5830AE,
-    # Aubergine Ink #30243E, Muted #71657E. The tile is website/brand/mark-refresh.svg drawn in Pillow.
+    # Aubergine Ink #30243E, Muted #71657E. The tile is the official Concierge bell tile.
+    bell_src = Image.open(ROOT / "scripts" / "brand" / "concierge-icon" / "icon-tile-1024.png").convert("RGBA")
+
     def tile(img, x, y, size):
-        u = size / 48
-        d = ImageDraw.Draw(img)
-        d.rounded_rectangle([x, y, x + size, y + size], radius=15 * u, fill="#7142d6")
-        w = round(4 * u)
-        for (x1, y1), (x2, y2) in (((14, 34), (34, 14)), ((18, 14), (34, 14)), ((34, 14), (34, 30))):
-            d.line([(x + x1 * u, y + y1 * u), (x + x2 * u, y + y2 * u)], fill="#ffffff", width=w)
-            for cx, cy in ((x1, y1), (x2, y2)):
-                d.ellipse([x + cx * u - w / 2, y + cy * u - w / 2, x + cx * u + w / 2, y + cy * u + w / 2],
-                          fill="#ffffff")
+        icon = bell_src.resize((size, size), Image.LANCZOS)
+        img.paste(icon, (x, y), icon)
 
     IMG_DIR.mkdir(parents=True, exist_ok=True)
     for p in PRODUCTS:

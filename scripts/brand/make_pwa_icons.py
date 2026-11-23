@@ -4,7 +4,9 @@ Source (not redrawn): scripts/brand/concierge-icon/icon-tile-1024.png (+ icon-ti
 ~/jo-jobs/concierge-icon-swap/concierge-logo/concierge-logo-1a/. The old purple arrow script is retired.
 
 Writes: web/portal/public/{icon-192,icon-512,icon-maskable-512,apple-touch-icon}.png and favicon.svg,
-api/static/favicon.svg, website/brand/{favicon.svg,apple-touch-icon.png}, website/favicon.ico.
+api/static/favicon.svg, website/brand/{favicon.svg,apple-touch-icon.png,icon-512.png}, website/favicon.ico,
+crm/web/favicon.svg, workflows/web/favicon.svg, calendars/web/favicon.svg, payments/web/favicon.svg,
+sites/web/favicon.svg, concierge-stack/platform-website/favicon.svg.
 Every PNG is opaque RGB: "any" icons get white corners (as before), the apple-touch-icon and the maskable icon
 are full-bleed purple (iOS rounds the corners itself; transparency becomes black). Maskable: tile at 80%.
 
@@ -46,9 +48,20 @@ def main() -> int:
     touch = flat(tile, PURPLE, 180)
     save(touch, PORTAL / "apple-touch-icon.png")
     save(touch, ROOT / "website" / "brand" / "apple-touch-icon.png")
+    save(tile.resize((512, 512), Image.LANCZOS), ROOT / "website" / "brand" / "icon-512.png")
     ico = [tile.resize((s, s), Image.LANCZOS) for s in (48, 32, 16)]
     ico[0].save(ROOT / "website" / "favicon.ico", format="ICO", sizes=[(48, 48), (32, 32), (16, 16)], append_images=ico[1:])
-    for dest in (PORTAL / "favicon.svg", ROOT / "api" / "static" / "favicon.svg", ROOT / "website" / "brand" / "favicon.svg"):
+    for dest in (
+        PORTAL / "favicon.svg",
+        ROOT / "api" / "static" / "favicon.svg",
+        ROOT / "website" / "brand" / "favicon.svg",
+        ROOT / "crm" / "web" / "favicon.svg",
+        ROOT / "workflows" / "web" / "favicon.svg",
+        ROOT / "calendars" / "web" / "favicon.svg",
+        ROOT / "payments" / "web" / "favicon.svg",
+        ROOT / "sites" / "web" / "favicon.svg",
+        ROOT / "concierge-stack" / "platform-website" / "favicon.svg",
+    ):
         shutil.copyfile(SRC / "favicon.svg", dest)
         print(f"{dest.relative_to(ROOT)}: copied from concierge-icon/favicon.svg")
     return 0

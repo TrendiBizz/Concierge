@@ -357,6 +357,7 @@ const STATIC_TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
 };
 
 function serveStatic(req, res, pathname) {
