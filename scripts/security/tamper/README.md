@@ -26,16 +26,18 @@ site "tamper" after the Concierge cutover.
 `run-snapshot.sh` is the **only** place a token enters the process:
 
 ```
-security find-generic-password -s trendi-cf-readonly-token -w
+security find-generic-password -s trendi-cf-tamperwatch-readonly -w
   -> CF_READONLY_TOKEN=<env, this process only>
   -> cf-run-snapshot.js (GET-only fetch, never prints or writes the token)
 ```
 
 `~/.config/trendi/cloudflare_token` is a **copy**, not the watch's input. If it
 and the Keychain differ, the Keychain wins. To rotate: update the Keychain item
-`trendi-cf-readonly-token` first, then the file, then re-run the scope probe.
+`trendi-cf-tamperwatch-readonly` first, then the file, then re-run the scope probe.
 
 ## Token scopes (read-only)
+
+Keychain item `trendi-cf-tamperwatch-readonly` (account-owned token created 2026-11-23, zone trendibizz.com plus account reads, no write permission anywhere). Account-owned tokens cannot hold User scopes, so the `/user` 2FA check stays "could not check". Cache purge and cache rules use a different item, `trendi-cf-deploy-cache-token`, read only by `scripts/vps/deploy-site.sh`. The old `trendi-cf-readonly-token` had write powers (WAF, cache rules, purge) despite its name; never point the watch at it.
 
 Required for a complete run:
 

@@ -655,7 +655,7 @@ in a routine does not change the report date.
 1. A **read-only** Cloudflare API token on the Mac, with DNS, Zone, Zone Settings,
    SSL and Certificates, Firewall and Workers Routes Read; Pages, Workers Scripts,
    Account Settings and Notifications Read; User Details Read. It lives in the
-   Keychain item `trendi-cf-readonly-token` — that is what the watch reads;
+   Keychain item `trendi-cf-tamperwatch-readonly` (GET-only; replaced the over-privileged `trendi-cf-readonly-token` on 2026-11-23) — that is what the watch reads;
    `~/.config/trendi/cloudflare_token` is a copy. Inside the container there is no
    Keychain, so `run-snapshot.sh` reads the mounted copy
    `the Keychain`; on the Mac it reads the Keychain.

@@ -54,3 +54,11 @@ what Jo last stated.
 ## Gaps
 - Pen Test bot (kept by Jo on 15 Nov): no written scope, unreachable.
 - Omega Canary and Omega Scout: only in the Omega Floor group, no written duties.
+
+## Cloudflare tokens (Jo, 2026-11-23): least privilege, honest names
+Each token has one job. Values live only in the macOS Keychain and are never printed, committed or pasted.
+| Keychain item | Can do | Read by |
+|---|---|---|
+| `trendi-cf-tamperwatch-readonly` | GET only: zone trendibizz.com (DNS, settings, SSL, WAF, transform, cache, redirects, Workers routes) and account reads (Pages, Workers scripts, settings, notifications, Page Shield) | `scripts/security/tamper/run-snapshot.sh` (and the job copy under `~/OpenBot/Shared/workwatch/tamper-watch/security/`) |
+| `trendi-cf-deploy-cache-token` | zone trendibizz.com only: Cache Purge, Cache Settings Write (cache rules), Zone Read | `scripts/vps/deploy-site.sh` |
+`trendi-cf-readonly-token` is retired: despite its name it had write powers (WAF, cache rules, purge). Do not use it. WAF or DNS edits need a separate, deliberate token Jo creates for that change.
