@@ -67,19 +67,25 @@ User-agent: Claude-SearchBot
 Allow: /
 
 User-agent: GPTBot
-Disallow: /
+Allow: /
 
 User-agent: CCBot
-Disallow: /
+Allow: /
 
 User-agent: Bytespider
 Disallow: /
 
 User-agent: ClaudeBot
-Disallow: /
+Allow: /
 
 User-agent: Google-Extended
-Disallow: /
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
 
 User-agent: *
 Allow: /
@@ -255,9 +261,14 @@ def test_a_robots_file_that_blocks_google_is_reported(tmp_path):
     assert any("robots.txt: Googlebot is blocked" in p for p in site_seo.audit(root))
 
 
-def test_a_training_crawler_that_stopped_being_blocked_is_reported(tmp_path):
-    root = make_site(tmp_path, robots=ROBOTS.replace("User-agent: GPTBot\nDisallow: /", ""))
-    assert any("training crawler GPTBot is not blocked" in p for p in site_seo.audit(root))
+def test_a_blocked_bytespider_that_stopped_being_blocked_is_reported(tmp_path):
+    root = make_site(tmp_path, robots=ROBOTS.replace("User-agent: Bytespider\nDisallow: /", ""))
+    assert any("training crawler Bytespider is not blocked" in p for p in site_seo.audit(root))
+
+
+def test_an_ai_crawler_that_gets_blocked_again_is_reported(tmp_path):
+    root = make_site(tmp_path, robots=ROBOTS.replace("User-agent: GPTBot\nAllow: /", "User-agent: GPTBot\nDisallow: /"))
+    assert any("robots.txt: GPTBot is blocked" in p for p in site_seo.audit(root))
 
 
 def test_the_sitemap_is_deterministic_and_starts_with_the_homepage(tmp_path):
