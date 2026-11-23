@@ -12,6 +12,7 @@ the Cloudflare API and the sidecar.
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 
@@ -111,19 +112,25 @@ def evaluate(facts: dict) -> dict:
     }
 
 
-async def _worker_rule(settings, reply_address: str) -> str:
-    """enabled | missing | unknown — 'unknown' when we cannot ask Cloudflare."""
+async def _cloudflare_rules(settings) -> list | None:
+    """The zone's routing rules, or None when we cannot ask Cloudflare. Same for every tenant."""
     if not (settings.cloudflare_zone_id and cloudflare_auth.configured(settings)):
-        return "unknown"
+        return None
     url = (f"https://api.cloudflare.com/client/v4/zones/{settings.cloudflare_zone_id}"
            "/email/routing/rules?per_page=50")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url, headers=cloudflare_auth.headers(settings))
         if response.status_code != 200:
-            return "unknown"
-        rules = (response.json() or {}).get("result") or []
+            return None
+        return (response.json() or {}).get("result") or []
     except (httpx.HTTPError, ValueError):
+        return None
+
+
+def _worker_rule_from(rules: list | None, reply_address: str) -> str:
+    """enabled | missing | unknown — 'unknown' when we could not ask Cloudflare."""
+    if rules is None:
         return "unknown"
     for rule in rules:
         values = {(m or {}).get("value") for m in rule.get("matchers") or []}
@@ -131,6 +138,10 @@ async def _worker_rule(settings, reply_address: str) -> str:
             workers = [a for a in rule.get("actions") or [] if a.get("type") == "worker"]
             return "enabled" if rule.get("enabled") and workers else "missing"
     return "missing"
+
+
+async def _worker_rule(settings, reply_address: str) -> str:
+    return _worker_rule_from(await _cloudflare_rules(settings), reply_address)
 
 
 async def _sidecar_ok(settings) -> bool | None:
@@ -146,8 +157,18 @@ async def _sidecar_ok(settings) -> bool | None:
         return False
 
 
-async def check(tenant_id) -> dict:
-    """Gather live facts for one tenant and evaluate the whole chain."""
+_UNSET = object()
+
+# Upper bound for one tenant's whole inspection; a stuck probe must not hold the endpoint hostage.
+PER_TENANT_TIMEOUT = 12.0
+
+
+async def check(tenant_id, *, cf_rules=_UNSET, sidecar=_UNSET) -> dict:
+    """Gather live facts for one tenant and evaluate the whole chain.
+
+    `cf_rules` / `sidecar` let `check_all` probe Cloudflare and the sidecar once for every tenant
+    (the answers do not depend on the tenant); alone, `check` probes them itself.
+    """
     settings = get_settings()
     tenant = await tenants.get_by_id(tenant_id)
     if tenant is None:
@@ -172,8 +193,10 @@ async def check(tenant_id) -> dict:
         "consent_authorized": bool(consent),
         "reply_address": reply_address,
         "mailbox_enabled": mailbox_enabled,
-        "worker_rule": await _worker_rule(settings, reply_address) if reply_address else "missing",
-        "sidecar_ok": await _sidecar_ok(settings),
+        "worker_rule": (
+            (_worker_rule_from(cf_rules, reply_address) if cf_rules is not _UNSET
+             else await _worker_rule(settings, reply_address)) if reply_address else "missing"),
+        "sidecar_ok": sidecar if sidecar is not _UNSET else await _sidecar_ok(settings),
         "last_success_at": last_success.isoformat() if last_success else None,
         "rejected_24h": int(rejected or 0),
     }
@@ -212,19 +235,28 @@ def summarise(tenants: list[dict]) -> dict:
 
 
 async def check_all() -> dict:
-    """Operator view: every tenant with a reply address, or that has ever had a draft."""
+    """Operator view: every tenant with a reply address, or that has ever had a draft.
+
+    Cloudflare and the sidecar are asked once (not once per tenant) and the tenants are inspected
+    concurrently, each bounded by PER_TENANT_TIMEOUT. Output order and shape are unchanged.
+    """
     rows = await db.pool().fetch(
         "SELECT id, slug, is_test FROM tenants WHERE reply_address IS NOT NULL "
         "OR EXISTS (SELECT 1 FROM email_drafts d WHERE d.tenant_id = tenants.id) ORDER BY slug")
-    results = []
-    for row in rows:
+    settings = get_settings()
+    cf_rules, sidecar = await asyncio.gather(_cloudflare_rules(settings), _sidecar_ok(settings))
+
+    async def one(row) -> dict:
         try:
-            results.append(await check(row["id"]))
+            return await asyncio.wait_for(
+                check(row["id"], cf_rules=cf_rules, sidecar=sidecar), PER_TENANT_TIMEOUT)
         except Exception as exc:  # noqa: BLE001 - one broken tenant must not hide the rest
             log.exception("inbound readiness failed for %s", row["slug"])
-            results.append({"slug": row["slug"], "ok": False, "is_test": bool(row.get("is_test")),
-                            "blocked": [{"check": "inspection",
-                                         "message": f"could not inspect tenant: {exc}"}]})
+            return {"slug": row["slug"], "ok": False, "is_test": bool(row.get("is_test")),
+                    "blocked": [{"check": "inspection",
+                                 "message": f"could not inspect tenant: {exc or type(exc).__name__}"}]}
+
+    results = list(await asyncio.gather(*(one(r) for r in rows)))
     summary = summarise(results)
     return {
         "ok": summary["ok"],
