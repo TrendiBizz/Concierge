@@ -25,11 +25,20 @@ def test_caddyfile_routes_chat_poll_and_n6_public_api():
         assert route in caddyfile, f"N6 public route {route} missing from Caddyfile"
 
 
-def test_reload_gateway_script_restarts_when_admin_off():
+def test_reload_gateway_script_reloads_gracefully_and_restarts_only_when_admin_is_off():
+    """2026-11-24: the Caddyfile now enables a loopback-only admin API, so a Caddyfile change goes live with a
+    graceful `caddy reload` (no restart). The restart is kept ONLY as the one-time fallback for a gateway that was
+    started while the config still said `admin off` (a reload cannot work there), and `caddy reload` must never be
+    attempted without first probing that the admin API answers."""
     script = (REPO_ROOT / "scripts/vps/reload-gateway.sh").read_text(encoding="utf-8")
-    assert "caddy validate --config /etc/caddy/Caddyfile" in script
-    assert "podman restart trendi-gateway-1" in script
-    assert "caddy reload" not in script
+    assert "caddy validate --config /tmp/Caddyfile.new" in script
+    probe = script.index("localhost:2019/config/")
+    reload_at = script.index("caddy reload --config")
+    restart_at = script.index('podman restart \\"')
+    assert script.index("caddy validate --config") < probe < reload_at < restart_at
+    assert "else" in script[reload_at:restart_at], "the restart sits in the admin-off branch only"
+    caddyfile = (REPO_ROOT / "scripts/vps/Caddyfile").read_text(encoding="utf-8")
+    assert "admin localhost:2019" in caddyfile and "admin off" not in caddyfile.split(":8080 {")[0]
 
 
 def test_healthcheck_sms_inbound_counts_existing_inbound_table():
