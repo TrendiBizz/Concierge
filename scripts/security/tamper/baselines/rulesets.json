@@ -30,34 +30,27 @@
   },
   {
     "kind": "zone",
-    "name": "Block AI training crawlers",
-    "phase": "http_request_firewall_custom",
+    "name": "default",
+    "phase": "http_request_cache_settings",
     "rules": [
       {
-        "action": "block",
-        "action_parameters": null,
-        "description": "Block AI training crawlers",
+        "action": "set_cache_settings",
+        "action_parameters": {
+          "browser_ttl": {
+            "mode": "respect_origin"
+          },
+          "cache": true,
+          "edge_ttl": {
+            "mode": "respect_origin"
+          }
+        },
+        "description": "Trendi: cache static site HTML at the edge, honour origin TTL (s-maxage); keep /api/ and /cdn-cgi/ dynamic",
         "enabled": true,
-        "expression": "((http.user_agent contains \"GPTBot\") or (http.user_agent contains \"CCBot\") or (http.user_agent contains \"Bytespider\") or (http.user_agent contains \"ClaudeBot\") or (http.user_agent contains \"Google-Extended\") or (http.user_agent contains \"Applebot-Extended\") or (http.user_agent contains \"Amazonbot\") or (http.user_agent contains \"FacebookBot\")) and http.request.uri.path ne \"/robots.txt\"",
-        "id": "ebb1863a2e9344d1a3ba93b583f9ff92",
+        "expression": "(http.host in {\"trendibizz.com\" \"www.trendibizz.com\"}) and not starts_with(http.request.uri.path, \"/api/\") and not starts_with(http.request.uri.path, \"/cdn-cgi/\")",
+        "id": "7ae163f68a374ba1afd66ae9bb0346fc",
         "ratelimit": null
       }
     ]
-  },
-  {
-    "kind": "managed",
-    "name": "Cloudflare Managed Free Ruleset",
-    "phase": "http_request_firewall_managed"
-  },
-  {
-    "kind": "managed",
-    "name": "Cloudflare Normalization Ruleset",
-    "phase": "http_request_sanitize"
-  },
-  {
-    "kind": "managed",
-    "name": "Cloudflare Managed Response Firewall Default",
-    "phase": "http_response_firewall_custom"
   },
   {
     "kind": "zone",
@@ -116,5 +109,36 @@
         "ratelimit": null
       }
     ]
+  },
+  {
+    "kind": "zone",
+    "name": "Block AI training crawlers",
+    "phase": "http_request_firewall_custom",
+    "rules": [
+      {
+        "action": "block",
+        "action_parameters": null,
+        "description": "Block AI training crawlers",
+        "enabled": true,
+        "expression": "(http.user_agent contains \"Bytespider\") and http.request.uri.path ne \"/robots.txt\"",
+        "id": "ebb1863a2e9344d1a3ba93b583f9ff92",
+        "ratelimit": null
+      }
+    ]
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Managed Free Ruleset",
+    "phase": "http_request_firewall_managed"
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Normalization Ruleset",
+    "phase": "http_request_sanitize"
+  },
+  {
+    "kind": "managed",
+    "name": "Cloudflare Managed Response Firewall Default",
+    "phase": "http_response_firewall_custom"
   }
 ]
