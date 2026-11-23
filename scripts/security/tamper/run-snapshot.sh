@@ -1,5 +1,7 @@
 #!/bin/bash
 # Reads the read-only token from the macOS Keychain straight into this process env. Never printed or logged.
+# Keychain item trendi-cf-tamperwatch-readonly (created 2026-11-23, GET-only scopes, zone trendibizz.com + account reads).
+# The old trendi-cf-readonly-token had write powers despite its name; do not use it here.
 # The Keychain item is the watch's source of truth; ~/.config/trendi/cloudflare_token is only a copy.
 # Usage: bash run-snapshot.sh [out.json]   (default ~/.workwatch/tamper-snapshot.json)
 set -euo pipefail
@@ -10,7 +12,7 @@ cd "$(dirname "$0")"
 mkdir -p "$(dirname "$OUT")"
 # macOS: Keychain. Container (no `security` CLI): the mounted 0600 copy.
 if command -v security >/dev/null 2>&1; then
-  TOKEN="$(security find-generic-password -s trendi-cf-readonly-token -w)"
+  TOKEN="$(security find-generic-password -s "${CF_WATCH_KEYCHAIN_ITEM:-trendi-cf-tamperwatch-readonly}" -w)"
 else
   TOKEN="$(cat "${CF_TOKEN_FILE:-$HOME/.config/trendi/cloudflare_token}")"
 fi
