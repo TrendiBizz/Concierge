@@ -16,13 +16,13 @@ from urllib.parse import quote_plus
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import RedirectResponse
 
 from .. import (
     channel_authorization, chat as chat_engine, cloudflare_auth, convo, db, llm,
-    site_enquiry, tenants,
+    robots_fetch, site_enquiry, tenants,
 )
 from ..security import html_with_script_nonce
 
@@ -592,3 +592,20 @@ async def website_enquiry(body: SiteEnquiry, request: Request):
             **body.model_dump(), ip=ip, user_agent=request.headers.get("user-agent", ""))
     except site_enquiry.Refused as error:
         raise HTTPException(error.status, str(error)) from None
+
+
+@router.get("/api/robots", include_in_schema=False)
+async def robots_check(request: Request, url: str = ""):
+    """The public AI-robots checker's fetch: https://<host>/robots.txt as text/plain (see robots_fetch)."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "unknown")
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    if not robots_fetch.limiter.check(ip):
+        return JSONResponse({"error": "rate_limited", "message": "Too many checks. Try again in a minute."},
+                            status_code=429, headers={**headers, "Retry-After": "60"})
+    try:
+        text, source, truncated = await robots_fetch.fetch_robots(url)
+    except robots_fetch.RobotsError as error:
+        return JSONResponse({"error": error.code, "message": error.message}, status_code=error.status, headers=headers)
+    return Response(text, media_type="text/plain", headers={
+        **headers, "X-Trendi-Source": source, "X-Trendi-Truncated": "1" if truncated else "0"})

@@ -41,6 +41,19 @@
             header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
         }
     }
+    # The AI-robots checker (website/tools/robots-ai-check.js) fetches a site's robots.txt through the API.
+    @robots {
+        host trendibizz.com
+        path /api/robots
+    }
+    handle @robots {
+        reverse_proxy api:8000 {
+            lb_try_duration 10s
+            lb_try_interval 250ms
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+        }
+    }
     @website host trendibizz.com
     handle @website {
         @static path /brand/* /fonts/* /assets/* /images/*
