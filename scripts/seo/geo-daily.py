@@ -87,6 +87,22 @@ def bing_visibility(query: str) -> tuple[bool, int | None]:
     return "trendibizz" in text.lower(), None
 
 
+def report_path(today: str) -> Path:
+    """Today's report, never overwritten.
+
+    The state file is saved at the end of a run, so a second run on the same day reports
+    "0 changed" — it has nothing left to compare against. Writing that over the first run's
+    report replaced the day's real delta (44 pages, IndexNow pinged) with "nothing changed",
+    and the file is the only record of it. Runs after the first get `YYYY-MM-DD-2.md`, `-3`, …
+    """
+    candidate = OUT / f"{today}.md"
+    run = 2
+    while candidate.exists():
+        candidate = OUT / f"{today}-{run}.md"
+        run += 1
+    return candidate
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     today = dt.date.today().isoformat()
@@ -145,10 +161,11 @@ def main() -> None:
     report += ["", "## Manual AI checks (weekly)", "",
                "Ask each prompt in ChatGPT, Perplexity and Gemini; record whether Trendi is",
                "named or linked. Bing visibility above is a proxy, not the AI answer.", ""]
-    (OUT / f"{today}.md").write_text("\n".join(report))
+    target = report_path(today)
+    target.write_text("\n".join(report))
     STATE.write_text(json.dumps(state, indent=1))
     print("\n".join(report[:1] + [line for line in report if line.startswith("- ")]))
-    print(f"report: {OUT / (today + '.md')}")
+    print(f"report: {target}")
 
 
 if __name__ == "__main__":

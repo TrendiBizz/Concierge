@@ -99,3 +99,16 @@ def test_fingerprint_notices_a_new_date_modified():
     new = geo.fingerprint(served("a5b02818dae9d993", modified="2026-11-16"))
     assert old != new
     assert new.endswith(":2026-11-16"), "the page's own dateModified must be carried in the state"
+
+
+def test_second_run_on_the_same_day_does_not_overwrite_the_first_report(tmp_path, monkeypatch):
+    """A same-day re-run reports "0 changed" — it must not erase the day's real delta."""
+    monkeypatch.setattr(geo, "OUT", tmp_path)
+    first = geo.report_path("2026-11-24")
+    assert first == tmp_path / "2026-11-24.md"
+    first.write_text("# GEO daily check — 2026-11-24\n\n- changed since last run: 44\n")
+    second = geo.report_path("2026-11-24")
+    assert second == tmp_path / "2026-11-24-2.md", "a re-run must get its own file"
+    second.write_text("# GEO daily check — 2026-11-24\n\n- changed since last run: 0\n")
+    assert geo.report_path("2026-11-24") == tmp_path / "2026-11-24-3.md"
+    assert "44" in first.read_text(), "the first run's report is the day's evidence and must survive"
