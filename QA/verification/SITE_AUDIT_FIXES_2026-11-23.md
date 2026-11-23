@@ -16,3 +16,13 @@ Proof: `api/tests/test_site_audit_fixes_20261123.py` (13 tests); mutation check:
 to main.js and disallowing GPTBot made 2 tests fail, restored, all pass. Full suite 1755 passed, 42 skipped.
 `site_seo.py check` OK. Stripe links and prices untouched. Concierge legal drafts (docs/legal) untouched.
 Live verification: see ~/Reports/trendi-audit-fixes/report.md.
+
+## Cloudflare (applied via API on 23 Nov 2026, not in the repo)
+- Cache rule (phase http_request_cache_settings): cache everything on trendibizz.com / www except `/api/*` and
+  `/cdn-cgi/*`; edge and browser TTL respect the origin `Cache-Control` (`s-maxage=3600`). To undo: delete that
+  one rule in the zone's Cache Rules.
+- The Keychain item `trendi-cf-readonly-token` can write cache rules and purge the cache (its name says read-only;
+  `trendi-cloudflare-token` and `trendi-cf-pages-token` cannot). `deploy-site.sh` purges with it.
+- The WAF custom rule "Block AI training crawlers" still returns 403 to GPTBot, ClaudeBot and Google-Extended, so
+  robots.txt allowing them has no effect until that rule is narrowed. NOT changed: it is a security rule Jo did not
+  order touched.
