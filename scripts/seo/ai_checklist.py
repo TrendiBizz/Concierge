@@ -257,10 +257,11 @@ def audit_html(name: str, html: str, today: date) -> Result:
 
 def audit_site(site: Path, today: date) -> list[Result]:
     out = []
-    for f in sorted(site.glob("*.html")):
-        if f.name in SKIP_FILES:
+    # rglob, not glob: /tools, /research and /news hold indexable pages too (T-04, 2026-11-24).
+    for f in sorted(site.rglob("*.html")):
+        if f.name in SKIP_FILES or f.name.startswith("._"):
             continue
-        out.append(audit_html(f.name, f.read_text(encoding="utf-8", errors="replace"), today))
+        out.append(audit_html(f.relative_to(site).as_posix(), f.read_text(encoding="utf-8", errors="replace"), today))
     return out
 
 

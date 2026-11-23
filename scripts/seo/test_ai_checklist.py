@@ -94,6 +94,18 @@ class SiteTests(unittest.TestCase):
             self.assertIn("a.html", (out / "2026-11-20.md").read_text())
             self.assertNotIn("404.html", (out / "2026-11-20.csv").read_text())
 
+    def test_subdirectory_pages_are_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            site, out = Path(d, "site"), Path(d, "out")
+            (site / "tools").mkdir(parents=True)
+            (site / "a.html").write_text(GOOD)
+            (site / "tools" / "t.html").write_text(GOOD)
+            (site / "tools" / "404.html").write_text(BAD)
+            self.assertEqual(ac.main(["--site", str(site), "--out", str(out), "--today", "2026-11-20"]), 0)
+            csv_text = (out / "2026-11-20.csv").read_text()
+            self.assertIn("tools/t.html", csv_text)
+            self.assertNotIn("404.html", csv_text)
+
     def test_fail_under_exits_one_and_ignores_noindex_pages(self):
         with tempfile.TemporaryDirectory() as d:
             site = Path(d)
