@@ -96,3 +96,28 @@ def test_the_database_check_does_not_reference_inbound_state(monkeypatch):
     monkeypatch.setattr(healthcheck, "run", lambda *args, **kwargs: (0, "1"))
     results = healthcheck.check_database()
     assert [r["check"] for r in results] == ["postgres:query", "postgres:tenants"]
+
+
+def test_inbound_readiness_gets_a_long_timeout_and_one_retry(monkeypatch):
+    """2026-11-24: the endpoint takes ~8 s; a 10 s timeout turned any slow moment into "HTTP 0" mail."""
+    seen = []
+
+    def fake_http(url, timeout=10.0, **kwargs):
+        seen.append(timeout)
+        if len(seen) == 1:
+            return 0, b"timed out", timeout
+        return 200, json.dumps({"tenants": [{"slug": "a", "ok": True}]}).encode(), 8.0
+
+    monkeypatch.setattr(healthcheck, "http", fake_http)
+    monkeypatch.setattr(healthcheck, "INBOUND_READINESS_RETRY_PAUSE", 0)
+    results = healthcheck.check_inbound({"ADMIN_TOKEN": "t"})
+    assert len(seen) == 2 and all(t >= 30 for t in seen)
+    assert not [r for r in results if r["status"] == "fail"]
+
+
+def test_inbound_readiness_failure_says_why_after_the_retry(monkeypatch):
+    monkeypatch.setattr(healthcheck, "http", lambda url, **kw: (0, b"timed out", 30.0))
+    monkeypatch.setattr(healthcheck, "INBOUND_READINESS_RETRY_PAUSE", 0)
+    results = healthcheck.check_inbound({"ADMIN_TOKEN": "t"})
+    assert results[0]["status"] == "fail"
+    assert "timed out" in results[0]["detail"]

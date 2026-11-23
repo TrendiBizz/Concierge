@@ -420,14 +420,32 @@ def chain_split(tenants: list[dict]) -> tuple[list[dict], list[dict], list[dict]
             [t for t in broken if t.get("is_new") and not t.get("is_test")])
 
 
+# /admin/inbound-readiness runs a live probe per tenant and takes 7.4-8.8 s on the box (measured
+# 2026-11-24, 8 tenants), so the old 10 s default left 1-2 s of headroom: any slow moment turned into
+# "HTTP 0" and a mail (17 times since 2026-11-13). Allow 30 s, and retry once before calling it a failure.
+INBOUND_READINESS_TIMEOUT = 30.0
+INBOUND_READINESS_RETRY_PAUSE = 5.0
+
+
+def read_inbound_readiness(admin: str) -> tuple[int, bytes]:
+    url = "http://127.0.0.1:8000/admin/inbound-readiness"
+    status, body, _ = http(url, timeout=INBOUND_READINESS_TIMEOUT, headers={"X-Admin-Token": admin})
+    if status == 0:  # no HTTP answer at all: one retry rules out a single dropped/slow request
+        time.sleep(INBOUND_READINESS_RETRY_PAUSE)
+        status, body, _ = http(url, timeout=INBOUND_READINESS_TIMEOUT, headers={"X-Admin-Token": admin})
+    return status, body
+
+
 def check_inbound(api_env: dict) -> list[dict]:
     admin = api_env.get("ADMIN_TOKEN") or ""
     if not admin:
         return [_fail("inbound:readiness", "ADMIN_TOKEN missing")]
     results = []
-    status, body, _ = http("http://127.0.0.1:8000/admin/inbound-readiness", headers={"X-Admin-Token": admin})
+    status, body = read_inbound_readiness(admin)
     if status != 200:
-        return [_fail("inbound:readiness", f"HTTP {status}")]
+        # Status 0 means urllib raised (timeout, refused, reset); `body` then holds the reason.
+        reason = f": {body.decode(errors='replace')[:120]}" if status == 0 and body else ""
+        return [_fail("inbound:readiness", f"HTTP {status}{reason}")]
     try:
         data = json.loads(body.decode())
     except ValueError:
