@@ -5,3 +5,4 @@
 2026-11-10 04:12 NZDT	dns,pages_project,deployments,public_dns	run 2026-11-09T15:11:09.496480+00:00	Jo yes 10 Nov 00:52 NZDT via Omega Boss HANDOVER s42: Concierge cutover (VPS 20261108-vps, Pages 6bcc4248, crm/chat/concierge + Brevo DNS accepted as baseline state)
 2026-11-17 21:05 NZDT	dns,public_dns,zone_settings,rulesets,worker_scripts,notifications,page_shield	run 2026-11-17T08:04:31.621188+00:00	Jo confirmed mail DNS/DMARC 2026-11-17 21:05 NZDT; config drift reviewed; per-item revert in baselines/CHANGES.md
 2026-11-17 21:08 NZDT	rulesets	run 2026-11-17T08:07:37.694792+00:00	remove stale pytest test ruleset from rulesets baseline; redirect rules kept from baseline (no scope); see baselines/CHANGES.md
+2026-11-23 15:31 NZDT	rulesets	run 2026-11-23T02:20:57.244401+00:00	Jo approved allowing AI crawlers 23 Nov (WAF rule now blocks Bytespider only; section also records the 23 Nov edge cache rule from PR 87/88)
