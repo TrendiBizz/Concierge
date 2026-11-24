@@ -29,7 +29,8 @@ def test_stripe_links_and_prices_are_unchanged():
     products = text("products.js")
     assert "https://buy.stripe.com/eVq28s2qj9jfdxugHm04805" in products
     assert "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" not in products
-    assert "price: 199" in products and "price: 500" in products
+    assert "price: 199" in products and "price: 499" in products
+    assert "price: 500" not in products
 
 
 def test_pricing_leads_with_concierge_not_the_seo_package():
@@ -42,16 +43,21 @@ def test_pricing_leads_with_concierge_not_the_seo_package():
 def test_no_stale_phone_number_or_voicemail_copy():
     banned = ["cannot be created for you", "number cannot be created", "Voicemail notices are planned",
               "planned, not live", "separate terms", "own page and terms", "TRENDI LIMITED, a company",
-              "including worldwide"]
+              "including worldwide", "rents the phone number", "rented business phone number",
+              "rented phone number", "number rental", "real ongoing cost", "set up for you in minutes",
+              "in minutes, so you do not need to find a phone provider"]
     for page in PAGES:
         body = page.read_text(encoding="utf-8")
         for phrase in banned:
             assert phrase not in body, f"{page.name}: {phrase}"
 
 
-def test_three_month_minimum_is_kept_with_an_honest_reason():
+def test_three_month_minimum_is_kept_with_implementation_reason():
     html = text("pricing.html")
-    assert "3-month minimum" in html and "rents the phone number on your behalf" in html
+    assert "3-month minimum" in html
+    assert "setup, testing and implementation" in html
+    assert "rents the phone number" not in html.lower()
+    assert "number rental" not in html.lower()
     assert "trial" not in html.lower()
 
 
@@ -64,12 +70,25 @@ def test_integrations_listed_are_the_ones_in_code():
             assert name in body, f"{page}: {name}"
 
 
-def test_pen_testing_is_not_in_the_top_nav_and_concierge_is_first():
-    for page in PAGES:
+def test_pen_testing_is_in_the_top_nav_and_concierge_is_first():
+    all_pages = sorted(SITE.rglob("*.html"))
+    for page in all_pages:
         nav = re.search(r'<nav aria-label="Main".*?</nav>', page.read_text(encoding="utf-8"), re.S)
         if nav:
-            assert "penetration-testing" not in nav.group(0), page.name
-            assert nav.group(0).index("/concierge") < nav.group(0).index("/seo"), page.name
+            assert 'href="/penetration-testing"' in nav.group(0), page.relative_to(SITE)
+            assert nav.group(0).index("/concierge") < nav.group(0).index("/seo"), page.relative_to(SITE)
+    assert 'id="svc-pen"' in text("index.html")
+
+
+def test_seo_plan_price_is_499_everywhere():
+    banned = ("USD $500", "$500 / month", "$500 per month", "$500 a month", "$500 deposit",
+              '"price":"500"', "500.00 USD")
+    for path in list(SITE.rglob("*.html")) + [SITE / "llms.txt", SITE / "chatgpt-products.csv", SITE / "products.js"]:
+        body = path.read_text(encoding="utf-8")
+        for phrase in banned:
+            assert phrase not in body, f"{path.relative_to(SITE)}: {phrase}"
+    assert "USD $499" in text("pricing.html") and "USD $499" in text("seo.html")
+    assert "499.00 USD" in text("chatgpt-products.csv")
 
 
 def test_terms_is_one_standard_document():

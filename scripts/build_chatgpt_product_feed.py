@@ -51,7 +51,7 @@ CONCIERGE_CORE = (
 IMAGE_QUERY = {
     "trendi-concierge-monthly": "?v=20261124b",
     "trendi-concierge-yearly": "?v=20261124b",
-    "trendi-seo-ai-visibility-monthly": "?v=20261124",
+    "trendi-seo-ai-visibility-monthly": "?v=20261124b",
 }
 
 PRODUCTS = [
@@ -91,10 +91,10 @@ PRODUCTS = [
             "Prices are in USD, tax included."
         ),
         "url": f"{BASE}/seo",
-        "price": "500.00 USD",
+        "price": "499.00 USD",
         "headline": "SEO + AI visibility",
         "sub": "Done for you - monthly",
-        "price_label": "USD $500 / month",
+        "price_label": "USD $499 / month",
     },
 ]
 

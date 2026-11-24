@@ -29,7 +29,7 @@ window.TRENDI = {
     {
       id: "monthly",
       tab: "Monthly",
-      price: 500,
+      price: 499,
       per: "per month",
       terms: "3-month minimum, then month to month.",
       cta: "Start monthly",
@@ -38,7 +38,7 @@ window.TRENDI = {
     {
       id: "deposit",
       tab: "Deposit",
-      price: 500,
+      price: 499,
       per: "deposit",
       terms: "Secures your start date. Credited against your first invoice.",
       cta: "Pay deposit",
