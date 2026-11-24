@@ -209,7 +209,7 @@ TOTAL_STAGES=6
 banner "Buy the Concierge phone number (Telnyx DID)"
 
 note "This is the one paid, human-only step left for a customer-dialable number."
-note "Everything after it - Asterisk, the Grok bridge, CRM capture, owner SMS/email -"
+note "Everything after it - Asterisk, the Gemini Live bridge, CRM capture, owner SMS/email -"
 note "is already built and tested; the number is the missing ingress."
 pause "Ready?"
 
@@ -299,7 +299,7 @@ pause
 # ── Stage 5 ───────────────────────────────────────────────────────────────
 stage "Call it from a real phone"
 say "Use a phone that is NOT on the VPS network so the call comes in over the carrier."
-step "Dial $DID_E164 and let the Grok receptionist answer."
+step "Dial $DID_E164 and let the Gemini Live receptionist answer."
 step "Say a test enquiry (e.g. 'I need a quote for cladding a 40 square metre wall')."
 step "Accept the confirmation by email or text when asked."
 step "End the call."

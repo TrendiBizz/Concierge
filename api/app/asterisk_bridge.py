@@ -636,10 +636,6 @@ async def prepare(route, call_id):
     session['model'] = cfg.gemini_live_model
     session['gemini_voice'] = cfg.gemini_live_voice
     session['thinking_level'] = cfg.gemini_thinking_level
-    for direction in ('input', 'output'):
-        session['audio'][direction]['format'] = {'type': 'audio/pcm', 'rate': 8000}
-    session['turn_detection'] = {'type': 'server_vad', 'silence_duration_ms': SILENCE_DURATION_MS,
-                                 'prefix_padding_ms': 300}
     sms_ok = await sms_copy_available(tenant['id'])
     recording_ok = bool(cfg.voice_recording_enabled
                         and await channel_authorization.is_authorized(tenant['id'], 'call_recording'))

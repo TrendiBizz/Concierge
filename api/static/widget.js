@@ -1,5 +1,5 @@
 /*
- * Website AI Concierge - embeddable chat + Grok Voice widget.
+ * Website AI Concierge - embeddable chat + Gemini Live voice widget.
  *
  * Install on a client's site with one line:
  *   <script src="https://api.example.com/widget.js" data-key="pk_..." defer></script>
@@ -495,8 +495,10 @@
     var completedInputIds = new Set();
     var assistantText = "";
     var voiceActive = false;
+    var voiceReady = false;
     var sampleBuffer = [];
     var sampleCount = 0;
+    var textDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
 
     function wsSend(obj) {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -550,10 +552,10 @@
     }
 
     function onSamples(f32) {
-      if (!voiceActive || !actx) return;
+      if (!voiceActive || !voiceReady || !actx) return;
       sampleBuffer.push(f32);
       sampleCount += f32.length;
-      // Send ~100ms batches.
+      // Send ~100ms batches at 16kHz PCM16 LE mono (Gemini Live input format).
       if (sampleCount < Math.floor(actx.sampleRate / 10)) return;
       var merged = new Float32Array(sampleCount);
       var offset = 0;
@@ -563,8 +565,15 @@
       });
       sampleBuffer = [];
       sampleCount = 0;
-      var pcm = resample(merged, actx.sampleRate, 24000);
-      wsSend({ type: "input_audio_buffer.append", audio: f32ToB64Pcm16(pcm) });
+      var pcm = resample(merged, actx.sampleRate, 16000);
+      wsSend({
+        realtimeInput: {
+          audio: {
+            data: f32ToB64Pcm16(pcm),
+            mimeType: "audio/pcm;rate=16000",
+          },
+        },
+      });
     }
 
     async function startMic() {
@@ -635,10 +644,12 @@
     }
 
     async function runToolCall(ev) {
-      var args = {};
-      try {
-        args = JSON.parse(ev.arguments || "{}");
-      } catch (e) {}
+      var args = ev.args && typeof ev.args === "object" ? ev.args : {};
+      if (typeof ev.arguments === "string") {
+        try {
+          args = JSON.parse(ev.arguments || "{}");
+        } catch (e) {}
+      }
       var result;
       try {
         var res = await post("/api/v1/tools/" + encodeURIComponent(ev.name), {
@@ -658,7 +669,7 @@
       if (ev.name === "request_conversation_copy" && result.ok) addMsg("note", "Your copy is requested for after the conversation is saved. Delivery has not been confirmed yet.");
       if (ev.name === "book_appointment" && result.ok && result.confirmation) addMsg("note", "✓ " + result.confirmation);
       if (ev.name === "get_booking_link" && result.ok && result.booking_url) addMsg("assistant", "Book here: " + result.booking_url);
-      return { call_id: ev.call_id, output: JSON.stringify(result) };
+      return { id: ev.call_id, name: ev.name, response: result };
     }
 
     function onServerEvent(raw) {
@@ -668,74 +679,91 @@
       } catch (e) {
         return;
       }
-      switch (ev.type) {
-        case "response.output_audio.delta":
-        case "response.audio.delta":
-          if (ev.delta) {
-            if (userText) {
-              logVoice("user", userText);
-              userText = "";
-            }
-            setStatus("Speaking…");
-            playChunk(ev.delta);
-          }
-          break;
-        case "input_audio_buffer.speech_started":
-          // Barge-in: stop talking when the visitor starts. (Event name per the common realtime
-          // convention; harmless if the server never sends it.)
+      if (ev.setupComplete) {
+        if (!voiceReady) {
+          voiceReady = true;
+          wsSend({
+            clientContent: {
+              turns: [{
+                role: "user",
+                parts: [{ text: "[The visitor just started a voice conversation. Greet them briefly as the AI guide and ask how you can help.]" }],
+              }],
+              turnComplete: true,
+            },
+          });
+          setStatus("Listening…");
+        }
+        return;
+      }
+      if (ev.error) {
+        console.warn("[concierge] voice error", ev);
+        setStatus("Voice hit a problem.");
+        return;
+      }
+      if (ev.serverContent) {
+        var sc = ev.serverContent;
+        if (sc.interrupted) {
           interrupt();
-          break;
-        case "conversation.item.input_audio_transcription.completed":
-          if (ev.item_id && completedInputIds.has(ev.item_id)) break;
-          if (ev.item_id) {
-            completedInputIds.add(ev.item_id);
-            if (completedInputIds.size > 500) completedInputIds.delete(completedInputIds.values().next().value);
-          }
-          var finalInput = ev.transcript || ev.text || userText;
-          userText = "";
-          if (finalInput) logVoice("user", finalInput);
-          break;
-        case "conversation.item.input_audio_transcription.updated":
-          // Cumulative transcript of what the visitor said.
-          userText = ev.transcript || ev.text || userText;
-          break;
-        case "response.output_audio_transcript.delta":
-        case "response.audio_transcript.delta":
-          assistantText += ev.delta || "";
-          break;
-        case "response.function_call_arguments.done":
-          if (!ev.call_id || voiceToolIds.has(ev.call_id) || voiceToolIds.size >= 40) break;
-          voiceToolIds.add(ev.call_id);
-          var toolRequest = runToolCall(ev);
-          pendingCalls.push(toolRequest);
-          voiceToolRequests.push(toolRequest);
-          break;
-        case "response.done":
           if (assistantText) {
             logVoice("assistant", assistantText);
             assistantText = "";
           }
-          if (pendingCalls.length) {
-            var calls = pendingCalls;
-            pendingCalls = [];
-            // All outputs must be sent before a single response.create.
-            Promise.all(calls).then(function (outputs) {
-              outputs.forEach(function (o) {
-                wsSend({
-                  type: "conversation.item.create",
-                  item: { type: "function_call_output", call_id: o.call_id, output: o.output },
-                });
-              });
-              wsSend({ type: "response.create" });
-            });
+        }
+        if (sc.inputTranscription) {
+          if (typeof sc.inputTranscription.text === "string" && sc.inputTranscription.text) {
+            userText += sc.inputTranscription.text;
           }
-          break;
-        case "error":
-          console.warn("[concierge] voice error", ev);
-          setStatus("Voice hit a problem.");
-          break;
-        default:
-          break;
+          if (sc.inputTranscription.finished && userText) {
+            logVoice("user", userText);
+            userText = "";
+          }
+        }
+        if (sc.modelTurn && Array.isArray(sc.modelTurn.parts)) {
+          sc.modelTurn.parts.forEach(function (part) {
+            if (part && part.inlineData && part.inlineData.data) {
+              if (userText) {
+                logVoice("user", userText);
+                userText = "";
+              }
+              setStatus("Speaking…");
+              playChunk(part.inlineData.data);
+            }
+          });
+        }
+        if (sc.outputTranscription) {
+          if (typeof sc.outputTranscription.text === "string" && sc.outputTranscription.text) {
+            if (userText) {
+              logVoice("user", userText);
+              userText = "";
+            }
+            assistantText += sc.outputTranscription.text;
+          }
+          if (sc.outputTranscription.finished && assistantText) {
+            logVoice("assistant", assistantText);
+            assistantText = "";
+          }
+        }
+        if (sc.turnComplete) {
+          if (assistantText) {
+            logVoice("assistant", assistantText);
+            assistantText = "";
+          }
+        }
+      }
+      if (ev.toolCall && Array.isArray(ev.toolCall.functionCalls)) {
+        var calls = [];
+        ev.toolCall.functionCalls.forEach(function (fc) {
+          if (!fc || !fc.id || voiceToolIds.has(fc.id) || voiceToolIds.size >= 40) return;
+          voiceToolIds.add(fc.id);
+          var req = runToolCall({ call_id: fc.id, name: fc.name, args: fc.args || {} });
+          calls.push(req);
+          voiceToolRequests.push(req);
+        });
+        if (calls.length) {
+          Promise.all(calls).then(function (responses) {
+            wsSend({ toolResponse: { functionResponses: responses } });
+          });
+        }
       }
     }
 
@@ -766,6 +794,7 @@
       userText = "";
       assistantText = "";
       voiceActive = false;
+      voiceReady = false;
       if (voiceTimer) { clearTimeout(voiceTimer); voiceTimer = null; }
       var savedSession = voiceSession, savedLogs = voiceLogRequests.slice(), savedTools = voiceToolRequests.slice(), savedRecording = recordingResult;
       voiceSession = null; voiceLogRequests = []; voiceToolRequests = []; recordingResult = Promise.resolve(null);
@@ -830,26 +859,29 @@
         if (!voiceActive) { stopVoice(); return; }
         voiceTimer = setTimeout(stopVoice, 10 * 60 * 1000);
 
-        // The token travels as a WebSocket subprotocol because browsers cannot set headers.
-        var PREFIX = "xai-client-secret.";
-        var protocol = data.token.indexOf(PREFIX) === 0 ? data.token : PREFIX + data.token;
-        var activeSocket = new WebSocket(data.url, [protocol]);
+        // Single-use Gemini Live ephemeral token: model, instructions and tools are locked server-side.
+        var sep = data.url.indexOf("?") >= 0 ? "&" : "?";
+        var activeSocket = new WebSocket(data.url + sep + "access_token=" + encodeURIComponent(data.token));
+        activeSocket.binaryType = "arraybuffer";
         ws = activeSocket;
         ws.onopen = function () {
-          wsSend({ type: "session.update", session: data.session });
           wsSend({
-            type: "conversation.item.create",
-            item: {
-              type: "message",
-              role: "user",
-              content: [{ type: "input_text", text: "[The visitor just started a voice conversation. Greet them briefly as the AI guide and ask how you can help.]" }],
+            setup: {
+              model: data.model || (data.session && data.session.model) || "models/gemini-3.8-live",
             },
           });
-          wsSend({ type: "response.create" });
-          setStatus("Listening…");
         };
         ws.onmessage = function (ev) {
-          if (ws === activeSocket && voiceActive && typeof ev.data === "string") onServerEvent(ev.data);
+          if (ws !== activeSocket || !voiceActive) return;
+          if (typeof ev.data === "string") {
+            onServerEvent(ev.data);
+          } else if (ev.data instanceof ArrayBuffer && textDecoder) {
+            onServerEvent(textDecoder.decode(ev.data));
+          } else if (ev.data && typeof ev.data.text === "function") {
+            ev.data.text().then(function (txt) {
+              if (ws === activeSocket && voiceActive) onServerEvent(txt);
+            });
+          }
         };
         ws.onerror = function () {
           setStatus("Voice connection failed.");

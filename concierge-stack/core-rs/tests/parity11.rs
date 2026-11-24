@@ -1,4 +1,4 @@
-//! Batch 11: telephony rules, the Grok session builder, slugs and the eval checks, against the live Python.
+//! Batch 11: telephony rules, the Gemini Live session builder, slugs and the eval checks.
 use chrono::DateTime;
 use concierge_core::evals::{self, ToolCall, Turn};
 use concierge_core::{telephony as t, voice_session};
@@ -12,11 +12,8 @@ struct V {
     twiml: Vec<Tw>,
     ws: Vec<Ws>,
     patterns: Vec<Pat>,
-    sip_twiml: Vec<ST>,
     forward: Vec<Fw>,
     slugs: Vec<Slug>,
-    sessions: Vec<Sess>,
-    tokens: Vec<Tok>,
     evals: Vec<Ev>,
 }
 #[derive(Deserialize)]
@@ -60,11 +57,6 @@ struct Pat {
     consent: bool,
 }
 #[derive(Deserialize)]
-struct ST {
-    cfg: Value,
-    out: String,
-}
-#[derive(Deserialize)]
 struct Fw {
     dest: String,
     carrier: String,
@@ -76,18 +68,6 @@ struct Slug {
     #[serde(rename = "in")]
     input: String,
     out: String,
-}
-#[derive(Deserialize)]
-struct Sess {
-    tenant: Value,
-    website: bool,
-    now: i64,
-    out: Value,
-}
-#[derive(Deserialize)]
-struct Tok {
-    data: Value,
-    out: Option<String>,
 }
 #[derive(Deserialize)]
 struct Ev {
@@ -205,17 +185,8 @@ fn id_and_consent_patterns_match_python() {
 }
 
 #[test]
-fn sip_twiml_forwarding_and_slugs_match_python() {
+fn forwarding_and_slugs_match_python() {
     let v = load();
-    for c in &v.sip_twiml {
-        let s = |k: &str| c.cfg[k].as_str().unwrap().to_string();
-        assert_eq!(
-            t::sip_twiml(&s("sip_username"), &s("sip_password"), &s("number")),
-            c.out,
-            "{:?}",
-            c.cfg
-        );
-    }
     for c in &v.forward {
         assert_eq!(t::forwarding_steps(&c.dest, &c.carrier, &c.mode), c.out);
     }
@@ -225,20 +196,42 @@ fn sip_twiml_forwarding_and_slugs_match_python() {
 }
 
 #[test]
-fn grok_session_matches_python() {
-    let v = load();
-    for (i, c) in v.sessions.iter().enumerate() {
-        let got = voice_session::build_session(
-            &c.tenant,
-            c.website,
-            "eve",
-            DateTime::from_timestamp(c.now, 0).unwrap(),
-        );
-        assert_eq!(got, c.out, "session case {i} (website {})", c.website);
-    }
-    for c in &v.tokens {
-        assert_eq!(voice_session::extract_token(&c.data), c.out, "{:?}", c.data);
-    }
+fn gemini_session_and_token_extraction() {
+    let tenant = serde_json::json!({
+        "name": "Acme",
+        "slug": "acme",
+        "voice": "Puck",
+        "native_booking": false,
+        "booking_url": ""
+    });
+    let session = voice_session::build_session(
+        &tenant,
+        true,
+        "Aoede",
+        DateTime::from_timestamp(1_700_000_000, 0).unwrap(),
+    );
+    assert_eq!(session["model"], "models/gemini-3.8-live");
+    assert_eq!(session["voice"], "Puck");
+    assert_eq!(session["thinking_level"], "");
+    assert!(session["tools"].as_array().is_some_and(|t| !t.is_empty()));
+
+    let fallback = voice_session::build_session(
+        &serde_json::json!({"name": "Acme", "slug": "acme", "voice": "legacy-unknown"}),
+        false,
+        "Aoede",
+        DateTime::from_timestamp(1_700_000_000, 0).unwrap(),
+    );
+    assert_eq!(fallback["voice"], "Aoede");
+
+    assert_eq!(
+        voice_session::extract_token(&serde_json::json!({"name": "auth_tokens/abc123"})),
+        Some("auth_tokens/abc123".into())
+    );
+    assert_eq!(
+        voice_session::extract_token(&serde_json::json!({"token": "tok"})),
+        Some("tok".into())
+    );
+    assert_eq!(voice_session::extract_token(&serde_json::json!({})), None);
 }
 
 #[test]

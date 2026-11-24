@@ -32,10 +32,9 @@ pub fn owner_portal(value: &Value) -> Result<(), Result<&'static str, Fail>> {
 }
 
 pub struct Settings<'a> {
-    pub xai_api_key: &'a str,
+    pub gemini_api_key: &'a str,
     pub llm_api_key: &'a str,
-    pub voice_model: &'a str,
-    pub xai_realtime_url: &'a str,
+    pub gemini_live_ws_url: &'a str,
     pub sms_provider: &'a str,
     pub twilio_account_sid: &'a str,
     pub twilio_auth_token: &'a str,
@@ -51,22 +50,22 @@ pub struct Settings<'a> {
 impl Settings<'_> {
     pub fn effective_llm_key(&self) -> &str {
         if self.llm_api_key.is_empty() {
-            self.xai_api_key
+            self.gemini_api_key
         } else {
             self.llm_api_key
         }
     }
 
-    pub fn voice_ws_url(&self) -> String {
-        if self.voice_model.is_empty() {
-            return self.xai_realtime_url.to_string();
+    pub fn gemini_ws_url(&self) -> String {
+        if self.gemini_api_key.is_empty() {
+            return self.gemini_live_ws_url.to_string();
         }
-        let sep = if self.xai_realtime_url.contains('?') {
+        let sep = if self.gemini_live_ws_url.contains('?') {
             "&"
         } else {
             "?"
         };
-        format!("{}{}model={}", self.xai_realtime_url, sep, self.voice_model)
+        format!("{}{}key={}", self.gemini_live_ws_url, sep, self.gemini_api_key)
     }
 
     pub fn sms_configured(&self) -> bool {

@@ -28,10 +28,9 @@ fn settings_match_python() {
         let k = &c["kw"];
         let g = |n: &str| k[n].as_str().unwrap();
         let s = Settings {
-            xai_api_key: g("xai_api_key"),
+            gemini_api_key: g("xai_api_key"),
             llm_api_key: g("llm_api_key"),
-            voice_model: g("voice_model"),
-            xai_realtime_url: g("xai_realtime_url"),
+            gemini_live_ws_url: "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
             sms_provider: g("sms_provider"),
             twilio_account_sid: g("twilio_account_sid"),
             twilio_auth_token: g("twilio_auth_token"),
@@ -47,7 +46,11 @@ fn settings_match_python() {
             s.effective_llm_key(),
             c["effective_llm_key"].as_str().unwrap()
         );
-        assert_eq!(s.voice_ws_url(), c["voice_ws_url"].as_str().unwrap());
+        if s.gemini_api_key.is_empty() {
+            assert_eq!(s.gemini_ws_url(), s.gemini_live_ws_url);
+        } else {
+            assert!(s.gemini_ws_url().ends_with(&format!("?key={}", s.gemini_api_key)));
+        }
         assert_eq!(
             s.sms_configured(),
             c["sms_configured"].as_bool().unwrap(),

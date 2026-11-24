@@ -290,7 +290,7 @@ if confirm "Old token deleted in the dashboard?"; then
 else
   warn "Still exposed. Delete it before you consider this done."
 fi
-note "Rotate any other secret that shared the same chat (Stripe, xAI, SMTP)."
+note "Rotate any other secret that shared the same chat (Stripe, Gemini, LLM, SMTP)."
 
 finish
 note "New token stored at $ENV_FILE (0600) and applied to $CF_ENV_KEY on $VPS_HOST."

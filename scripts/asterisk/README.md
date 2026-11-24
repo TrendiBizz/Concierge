@@ -2,7 +2,7 @@
 
 This adds a private AudioSocket service to the existing Concierge API code.
 Each provisioned business receives a different private listener and its own
-Grok session using its existing knowledge/tools. No Twilio SDK/account is used.
+Gemini 3.8 Live session using its existing knowledge/tools. No Twilio SDK/account is used.
 
 ## Configuration
 
@@ -44,7 +44,7 @@ creating any `phone_numbers` row.
 Set `ASTERISK_ROUTES` to the same rows without `source_cidr` (tenant, number,
 port), `CONCIERGE_API_IMAGE`, `CONCIERGE_ENV_FILE` and `CONCIERGE_NETWORK`.
 The environment file is the existing private API environment with database and
-Grok credentials. Enable PHONE_RECEPTIONIST_ENABLED and the specific business's
+Gemini credentials (`GEMINI_API_KEY`). Enable PHONE_RECEPTIONIST_ENABLED and the specific business's
 phone setting/telephone authorization. Register and enable its exact ingress
 in phone_numbers only after the operator has verified the connection.
 
@@ -89,10 +89,8 @@ What the API does with it (`api/app/call_control.py`):
 | whisper | `… ChanSpy(<channel>,qw)` | The owner is audible to the caller only — coaching the caller without the assistant hearing. |
 | join | `… ChanSpy(<channel>,qB)` | The owner barges in as a third party. |
 
-The console sees this per call (`/owner/live-calls`): `engine` is `asterisk` for the carrier line
-and `sip` for Grok SIP calls, and `media_control` states which of the four controls are real for
-that call. Grok SIP calls keep the honest ring-back take-over — that provider exposes no transfer
-or audio join.
+The console sees this per call (`/owner/live-calls`): `engine` is `asterisk` for the carrier line,
+and `media_control` states which of the four controls are real for that call.
 
 Ops gotchas learned the hard way:
 
@@ -107,7 +105,7 @@ Ops gotchas learned the hard way:
 ## Rust telephone shell (live container; Python bridge is the fallback)
 
 The `shell` service in `scripts/vps/compose.yml` runs `asterisk_shell` (`concierge-stack/core-rs`) at
-172.30.91.3 on the phone network. It owns the AudioSocket listeners, 20 ms pacing and the Grok websocket; the
+172.30.91.3 on the phone network. It owns the AudioSocket listeners, 20 ms pacing and the Gemini Live websocket; the
 database, permissions, recordings, CRM and tools stay in Python, reached over `/internal/voice/*`
 (`api/app/voice_internal.py`). The Python bridge keeps running at .4 the whole time. Which one answers calls is
 decided by one thing only: the host in the dialplan's `AudioSocket(...)` line.
@@ -129,13 +127,13 @@ After switching, place one call and check: the greeting, audio both ways, a tran
 explicit consent, `end_call`, and the owner SMS queued once.
 
 Proof that the shell and the real Python API agree: `QA/verification/asterisk_rust_shell_integration.py` runs the
-compiled shell against the real FastAPI app and a real PostgreSQL database with a fake Grok and fake callers
+compiled shell against the real FastAPI app and a real PostgreSQL database with a fake Gemini Live server and fake callers
 (see its docstring for how to run it).
 
 ## Behavior
 
-- Standard AudioSocket PCM16 little-endian mono 8kHz is sent directly to Grok
-  using its supported 8kHz PCM format. No separate STT or TTS service.
+- Standard AudioSocket PCM16 little-endian mono 8kHz is upsampled to 16kHz for Gemini Live
+  and 24kHz Gemini Live audio is downsampled to 8kHz for Asterisk. No separate STT or TTS service.
 - Call UUID replay is rejected globally. Limits and owner consent are checked
   per business; telephone authorization is rechecked during the call.
 - Incoming transcript and tool operations use the route's fixed business ID.
@@ -143,7 +141,7 @@ compiled shell against the real FastAPI app and a real PostgreSQL database with 
   operational owner SMS to its saved owner_number exactly once on finalization.
 - Delivery uses the existing outbox worker and configured business SMS
   transport. Queued is not delivered. The adapter does not create SIM access.
-- Grok asks recording permission before enabling capture. With business recording
+- The Gemini Live receptionist asks recording permission before enabling capture. With business recording
   authorization and an explicit caller yes, actual received/played audio is mixed
   into bounded mono 8kHz WAV and attached to the same CRM enquiry. Withdrawal
   discards captured audio. No pre-consent audio is retained.
@@ -160,7 +158,7 @@ compiled shell against the real FastAPI app and a real PostgreSQL database with 
 
 Unit/regression: `PYTHONPATH=api python -m pytest api/tests/test_asterisk_bridge.py -q`.
 The QA scripts under `QA/verification/asterisk_*integration.py` use a disposable
-fixture database; the live script uses actual Asterisk and Grok but synthetic
+fixture database; the live script uses actual Asterisk and Gemini Live but synthetic
 speech. They never run a send worker, make a PSTN call or send a real message.
 A genuine forwarded mobile call and delivery receipt are separate activation
 gates. An Asterisk container does not itself provide a publicly dialable number.

@@ -1,8 +1,9 @@
-//! Private AudioSocket → Grok telephone shell. The Python bridge remains the
-//! fallback and the only bridge answering calls until cut-over.
+//! Private AudioSocket → Google Gemini 3.8 Live telephone shell.
 use std::sync::Arc;
 
 use concierge_core::shell::{parse_peers, parse_routes, serve, Config};
+
+const DEFAULT_GEMINI_LIVE_WS_URL: &str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
 #[tokio::main]
 async fn main() {
@@ -21,9 +22,9 @@ async fn main() {
             .unwrap_or_else(|_| "http://api:8000".into()),
         internal_token: std::env::var("CONCIERGE_INTERNAL_TOKEN")
             .expect("CONCIERGE_INTERNAL_TOKEN"),
-        xai_key: std::env::var("XAI_API_KEY").expect("XAI_API_KEY"),
-        xai_url: std::env::var("XAI_REALTIME_URL")
-            .unwrap_or_else(|_| "wss://api.x.ai/v1/realtime".into()),
+        gemini_key: std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY"),
+        gemini_url: std::env::var("GEMINI_LIVE_WS_URL")
+            .unwrap_or_else(|_| DEFAULT_GEMINI_LIVE_WS_URL.into()),
         routes: parse_routes(&routes).expect("ASTERISK_ROUTES"),
     };
     if let Err(error) = serve(Arc::new(config)).await {

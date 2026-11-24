@@ -31,4 +31,4 @@ rm -f .env.bak
 
 chmod 600 .env
 echo "Created .env with random secrets."
-echo "Now edit .env and set XAI_API_KEY (and DOMAIN / PUBLIC_BASE_URL for production)."
+echo "Now edit .env and set GEMINI_API_KEY (and LLM_API_KEY / DOMAIN / PUBLIC_BASE_URL for production)."

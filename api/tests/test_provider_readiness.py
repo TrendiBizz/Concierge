@@ -13,12 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app import provider_readiness, phone_sip
-
-
-@pytest.fixture(autouse=True)
-def same_settings_for_sip(monkeypatch):
-    monkeypatch.setattr(phone_sip, "get_settings", lambda: provider_readiness.get_settings())
+from app import provider_readiness
 
 
 def _settings(**over):
@@ -26,7 +21,9 @@ def _settings(**over):
         "social_service_enabled": False,
         "social_concierge_key": "",
         "social_service_url": "http://127.0.0.1:4390",
-        "xai_sip_connections": "",
+        "phone_receptionist_enabled": False,
+        "phone_voice_provider": "gemini_live",
+        "gemini_api_key": "",
     }
     base.update(over)
     return SimpleNamespace(**base)
@@ -88,20 +85,20 @@ def test_the_social_service_step_reflects_the_real_configuration():
     assert on["status"] == "ready"
 
 
-def test_the_telephony_sip_step_reflects_the_real_configuration():
+def test_the_telephony_gemini_step_reflects_the_real_configuration():
     with patch.object(provider_readiness, "get_settings", lambda: _settings()):
         step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
     assert step["status"] == "unconfigured"
 
     with patch.object(provider_readiness, "get_settings",
-                      lambda: _settings(xai_sip_connections='{"11111111-1111-1111-1111-111111111111": {"enabled": true, "tenant": "nz", "number": "+6421555123", "signing_secret": "secret"}}')):
+                      lambda: _settings(phone_receptionist_enabled=True, phone_voice_provider="gemini_live", gemini_api_key="test-key")):
         step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
     assert step["status"] == "ready"
 
 
-def test_an_empty_json_object_is_not_a_sip_connection():
-    """'{}' means nothing was configured, not that something was."""
-    with patch.object(provider_readiness, "get_settings", lambda: _settings(xai_sip_connections="{}")):
+def test_missing_gemini_key_is_not_ready():
+    with patch.object(provider_readiness, "get_settings",
+                      lambda: _settings(phone_receptionist_enabled=True, phone_voice_provider="gemini_live", gemini_api_key="   ")):
         step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
     assert step["status"] == "unconfigured"
 
@@ -135,7 +132,7 @@ def test_a_fully_configured_environment_still_lists_human_steps():
     """Provider approval is never satisfied by configuration, so it must always be listed."""
     with patch.object(provider_readiness, "get_settings",
                       lambda: _settings(social_service_enabled=True, social_concierge_key="k" * 32,
-                                        xai_sip_connections='{"a": 1}')):
+                                        phone_receptionist_enabled=True, gemini_api_key="k")):
         rep = provider_readiness.report()
     whats = " ".join(i["what"] for i in rep["needs_human"]).lower()
     assert "review" in whats or "approval" in whats, "provider approval must never be assumed done"
@@ -171,8 +168,12 @@ def test_existing_stripe_is_not_reported_as_an_account_to_open():
     assert "stripe" in area["summary"].lower()
 
 
-@pytest.mark.parametrize("value", ["[]", "null", "false", "invalid", '{"x": null}'])
-def test_invalid_sip_mapping_does_not_read_as_ready(value):
-    with patch.object(provider_readiness, "get_settings", lambda: _settings(xai_sip_connections=value)):
+@pytest.mark.parametrize("over", [
+    {"phone_receptionist_enabled": False, "gemini_api_key": "k"},
+    {"phone_receptionist_enabled": True, "gemini_api_key": ""},
+    {"phone_receptionist_enabled": True, "phone_voice_provider": "legacy_twilio_tts", "gemini_api_key": "k"},
+])
+def test_incomplete_gemini_telephony_does_not_read_as_ready(over):
+    with patch.object(provider_readiness, "get_settings", lambda: _settings(**over)):
         step = provider_readiness.report()["areas"]["telephony"]["steps"][1]
     assert step["status"] == "unconfigured"

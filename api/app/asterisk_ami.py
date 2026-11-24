@@ -1,6 +1,6 @@
 """Asterisk Manager Interface: the control plane under the media.
 
-The PBX is where the caller's audio lives (AudioSocket → the Grok bridge). That makes it the
+The PBX is where the caller's audio lives (AudioSocket → the Gemini Live bridge). That makes it the
 only place that can act on the *call* rather than the conversation: redirect it to a human, or
 attach a supervisor's phone to the live media with ``ChanSpy``. This module is the single place
 that speaks AMI (the Switchboard's take-over, listen-in and whisper).

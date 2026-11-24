@@ -101,7 +101,7 @@ def _tenant():
             "notify_email": "owner@example.test", "notify_phone": "", "sms_enabled": False}
 
 
-def test_takeover_pauses_first_then_alerts_then_ends(monkeypatch):
+def test_takeover_pauses_first_then_alerts_then_creates_callback_task(monkeypatch):
     pool = OrderPool()
     order = []
 
@@ -117,24 +117,16 @@ def test_takeover_pauses_first_then_alerts_then_ends(monkeypatch):
         order.append("alert")
         assert "+64211234567" in body
 
-    async def call_control(call_id, action):
-        order.append(f"control:{action}")
-        assert call_id == "abc"
-        return True
-
-    import app.phone_sip as phone_sip
-
     monkeypatch.setattr(live_calls.db, "pool", lambda: pool)
     monkeypatch.setattr(live_calls.casetimeline, "reconcile", reconcile)
     monkeypatch.setattr(live_calls.casetimeline, "set_takeover", set_takeover)
     monkeypatch.setattr(live_calls.owner_notifications, "queue", queue)
-    monkeypatch.setattr(phone_sip, "call_control", call_control)
 
     result = asyncio.run(live_calls.take_over(_tenant(), call(), by="owner@example.test"))
 
-    assert result["paused"] is True and result["ended"] is True
-    assert order == ["reconcile", "pause:owner@example.test: live call takeover", "alert",
-                     "control:hangup"]
+    assert result["paused"] is True and result["ended"] is False
+    assert "phone system" in result["note"]
+    assert order == ["reconcile", "pause:owner@example.test: live call takeover", "alert"]
     tasks = [row for row in pool.executed if "INSERT INTO tasks" in row[0]]
     assert len(tasks) == 1 and "Ring back" in tasks[0][1][2]
 
@@ -151,19 +143,16 @@ def test_a_second_takeover_does_not_duplicate_the_callback_task(monkeypatch):
     async def queue(*_a, **_k):
         return None
 
-    import app.phone_sip as phone_sip
-
     monkeypatch.setattr(live_calls.db, "pool", lambda: pool)
     monkeypatch.setattr(live_calls.casetimeline, "reconcile", reconcile)
     monkeypatch.setattr(live_calls.casetimeline, "set_takeover", set_takeover)
     monkeypatch.setattr(live_calls.owner_notifications, "queue", queue)
-    monkeypatch.setattr(phone_sip, "call_control", AsyncMock(return_value=True))
 
     asyncio.run(live_calls.take_over(_tenant(), call()))
     assert [row for row in pool.executed if "INSERT INTO tasks" in row[0]] == []
 
 
-def test_a_hangup_failure_is_reported_not_raised(monkeypatch):
+def test_non_pbx_call_reports_manual_hangup_note(monkeypatch):
     pool = OrderPool()
 
     async def reconcile(*_a, **_k):
@@ -172,42 +161,13 @@ def test_a_hangup_failure_is_reported_not_raised(monkeypatch):
     async def queue(*_a, **_k):
         return None
 
-    import app.phone_sip as phone_sip
-
-    async def boom(*_a, **_k):
-        raise RuntimeError("provider down")
-
     monkeypatch.setattr(live_calls.db, "pool", lambda: pool)
     monkeypatch.setattr(live_calls.casetimeline, "reconcile", reconcile)
     monkeypatch.setattr(live_calls.owner_notifications, "queue", queue)
-    monkeypatch.setattr(phone_sip, "call_control", boom)
-
-    result = asyncio.run(live_calls.take_over(_tenant(), call()))
-    assert result["ended"] is False
-    assert result["note"]
-
-
-def test_a_call_outside_the_sip_path_is_not_hung_up(monkeypatch):
-    pool = OrderPool()
-    control = AsyncMock(return_value=True)
-
-    async def reconcile(*_a, **_k):
-        return None
-
-    async def queue(*_a, **_k):
-        return None
-
-    import app.phone_sip as phone_sip
-
-    monkeypatch.setattr(live_calls.db, "pool", lambda: pool)
-    monkeypatch.setattr(live_calls.casetimeline, "reconcile", reconcile)
-    monkeypatch.setattr(live_calls.owner_notifications, "queue", queue)
-    monkeypatch.setattr(phone_sip, "call_control", control)
 
     result = asyncio.run(live_calls.take_over(_tenant(), call(call_sid="twilio:xyz")))
     assert result["ended"] is False
     assert "phone system" in result["note"]
-    control.assert_not_awaited()
 
 
 # ------------------------------------------------------------------ routes

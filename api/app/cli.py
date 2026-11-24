@@ -3,7 +3,7 @@
 Run inside the container:
   python -m app.cli demo --name "Acme Forklifts" --url https://acme.example
 
-or locally with DATABASE_URL / XAI_API_KEY set:
+or locally with DATABASE_URL / GEMINI_API_KEY (or LLM_API_KEY) set:
   python -m app.cli demo --name "Acme Forklifts" --url https://acme.example
 """
 

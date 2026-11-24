@@ -14,7 +14,7 @@ Rules that keep this cheap and honest:
     `unresolved`, an unusable reply is discarded rather than half-written.
   * An unresolved or callback outcome creates the owner a task, because the whole point is that
     nothing waits for someone to watch a transcript.
-  * Per-tenant daily cap, so a runaway loop cannot spend the operator's xAI budget.
+  * Per-tenant daily cap, so a runaway loop cannot spend the operator's LLM budget.
 """
 
 import json

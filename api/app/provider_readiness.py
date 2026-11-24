@@ -78,34 +78,23 @@ def _social() -> dict:
 
 def _telephony() -> dict:
     s = get_settings()
-    from . import phone_sip
-    from fastapi import HTTPException
-
-    try:
-        connections = json.loads(s.xai_sip_connections or "{}")
-    except (ValueError, TypeError):
-        connections = {}
-    has_sip = False
-    if isinstance(connections, dict):
-        for ident in connections:
-            try:
-                phone_sip.connection_config(ident)
-            except HTTPException:
-                continue
-            has_sip = True
-            break
+    has_gemini_voice = bool(
+        getattr(s, "phone_receptionist_enabled", False)
+        and getattr(s, "phone_voice_provider", "gemini_live") == "gemini_live"
+        and (getattr(s, "gemini_api_key", "") or "").strip()
+    )
     steps = [
         _step(
             "Choose a carrier path",
             "action_needed",
-            "Either a carrier/SIP trunk that forwards a real number here, or an xAI SIP connection. "
-            "Both are accounts to open, not code to write.",
+            "Connect a carrier/SIP trunk or mobile call forwarding into the Asterisk PBX bridge. "
+            "That is a carrier account step, not code to write.",
         ),
         _step(
-            "Record the SIP connection",
-            "ready" if has_sip else "unconfigured",
-            "Maps an inbound connection to a tenant.",
-            "XAI_SIP_CONNECTIONS",
+            "Configure Gemini Live voice bridge",
+            "ready" if has_gemini_voice else "unconfigured",
+            "Enables Gemini 3.8 Live voice answering for routed business lines.",
+            "GEMINI_API_KEY / PHONE_RECEPTIONIST_ENABLED",
         ),
         _step(
             "Enable the tenant phone line",
@@ -127,9 +116,9 @@ def _telephony() -> dict:
     ]
     return {
         "area": "telephony",
-        "summary": "Webhook path and tenant gating exist; blocked on a carrier account and one real call.",
+        "summary": "Asterisk Gemini Live bridge and tenant gating exist; live verification requires a carrier trunk and one real call.",
         "steps": steps,
-        "verifiable_here": ["signature_validation", "route_registration"],
+        "verifiable_here": ["route_registration", "gemini_live_config"],
     }
 
 

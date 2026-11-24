@@ -12,11 +12,11 @@ from unittest.mock import AsyncMock, patch
 os.environ.update({
     "DATABASE_URL":"postgresql://postgres:test@trendi-phone-test-db:5432/postgres",
     "ADMIN_TOKEN":"disposable-phone-test-admin","OUTBOX_ENABLED":"false",
-    "TWENTY_BRIDGE_URL":"","XAI_API_KEY":"not-a-real-key",
+    "TWENTY_BRIDGE_URL":"","GEMINI_API_KEY":"not-a-real-key",
     "SMS_QUIET_START_HOUR":"0","SMS_QUIET_END_HOUR":"24",
 })
 from fastapi.testclient import TestClient
-from app import db, device_sms, outbox, phone_sip, tenants, owner_auth
+from app import db, device_sms, outbox, tenants, owner_auth
 from app.main import app
 
 checks=0
@@ -91,12 +91,12 @@ with TestClient(app) as client:
     run(lambda:p.execute('UPDATE tenants SET sms_enabled=true WHERE id=$1',a['id']))
 
     message={'message_id':'incoming-unique','sender':'+64215550777','to':a['sms_from'],'body':'Business question'}
-    with patch('app.main._sms_reply',new=AsyncMock(return_value='Grok reply queued for native approval')) as grok:
+    with patch('app.main._sms_reply',new=AsyncMock(return_value='AI reply queued for native approval')) as ai_reply:
         check('another SIM cannot inject into business line',client.post('/api/v1/device-sms/inbound',headers=bh,json=message).status_code==403)
         check('own messages cannot create reply loops',client.post('/api/v1/device-sms/inbound',headers=ah,json={**message,'sender':a['sms_from']}).status_code==403)
-        check('new business SMS reaches shared Grok path',client.post('/api/v1/device-sms/inbound',headers=ah,json=message).status_code==200)
-        check('replayed inbound does not generate second reply',client.post('/api/v1/device-sms/inbound',headers=ah,json=message).json().get('duplicate') and grok.await_count==1)
-        check('Grok sees correct tenant and sender',grok.call_args.args[0]['id']==a['id'] and grok.call_args.args[1]==message['sender'])
+        check('new business SMS reaches shared AI path',client.post('/api/v1/device-sms/inbound',headers=ah,json=message).status_code==200)
+        check('replayed inbound does not generate second reply',client.post('/api/v1/device-sms/inbound',headers=ah,json=message).json().get('duplicate') and ai_reply.await_count==1)
+        check('AI reply sees correct tenant and sender',ai_reply.call_args.args[0]['id']==a['id'] and ai_reply.call_args.args[1]==message['sender'])
 
     app.dependency_overrides[owner_auth.current_user]=lambda:{'tenant_id':b['id'],'slug':'b','role':'viewer'}
     check('viewer cannot queue phone test',client.post('/owner/sms-phone/test',json={'acknowledgement':True,'request_id':str(uuid.uuid4())}).status_code==403)
@@ -108,26 +108,4 @@ with TestClient(app) as client:
     check('device credential never returned to owner status',bd['token_hash'] not in json.dumps(own) and 'token' not in json.dumps(own))
     app.dependency_overrides.clear()
 
-    connection=str(uuid.uuid4());call_id=str(uuid.uuid4());key=base64.b64encode(b'k'*32).decode();secret='whsec_'+key
-    phone_sip.get_settings().xai_sip_connections=json.dumps({connection:{'enabled':True,'tenant':'a','number':a['sms_from'],'signing_secret':secret}})
-    hook='/api/v1/phone/xai/'+connection
-    def signed_event(to=None,call=None):
-        raw=json.dumps({'type':'realtime.call.incoming','data':{'call_id':call or call_id,'sip_headers':[{'name':'To','value':to or a['sms_from']},{'name':'From','value':'+64215550666'}]}}).encode()
-        stamp=str(int(time.time()));ident='evt_'+str(uuid.uuid4())
-        sig=base64.b64encode(hmac.new(b'k'*32,(ident+'.'+stamp+'.').encode()+raw,hashlib.sha256).digest()).decode()
-        return raw,{'webhook-id':ident,'webhook-timestamp':stamp,'webhook-signature':'v1,'+sig,'Content-Type':'application/json'}
-    raw,headers=signed_event()
-    check('unsigned SIP cannot reach Grok or call registry',client.post(hook,content=raw,headers={}).status_code==403)
-    check('inactive phone number blocks signed SIP',client.post(hook,content=raw,headers=headers).status_code==403)
-    run(lambda:p.execute('INSERT INTO phone_numbers(e164,tenant_id,enabled) VALUES($1,$2,true)',a['sms_from'],a['id']))
-    with patch.object(phone_sip.events,'spawn',side_effect=lambda coroutine:coroutine.close()):
-        check('verified customer-owned SIP is accepted',client.post(hook,content=raw,headers=headers).status_code==200)
-        check('provider webhook replay does not answer twice',client.post(hook,content=raw,headers=headers).json().get('duplicate'))
-        bad,bad_headers=signed_event(to=b['sms_from'],call=str(uuid.uuid4()))
-        check('SIP destination cannot cross workspace',client.post(hook,content=bad,headers=bad_headers).status_code==403)
-        run(lambda:p.execute('UPDATE tenants SET phone_daily_limit=0 WHERE id=$1',a['id']))
-        quota,quota_headers=signed_event(call=str(uuid.uuid4()))
-        check('SIP daily limit enforced before answering',client.post(hook,content=quota,headers=quota_headers).status_code==429)
-    check('one unique call row persisted',run(lambda:p.fetchval("SELECT count(*) FROM phone_calls WHERE tenant_id=$1",a['id']))==1)
-
-print('Device SMS and carrier-independent SIP:',checks,'checks passed; no external calls or texts sent.')
+print('Device SMS isolation:',checks,'checks passed; no external calls or texts sent.')

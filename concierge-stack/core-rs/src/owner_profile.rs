@@ -287,7 +287,7 @@ pub fn website_channel_status(
     voice_enabled: bool,
     verified_csv: &str,
     effective_llm_key: &str,
-    xai_api_key: &str,
+    gemini_api_key: &str,
 ) -> Value {
     let verified = slug.is_some_and(|s| {
         verified_csv
@@ -296,7 +296,7 @@ pub fn website_channel_status(
             .any(|v| !v.is_empty() && v == s)
     });
     let chat = site_url.is_some_and(|u| !u.is_empty()) && !effective_llm_key.is_empty();
-    let voice = voice_enabled && !xai_api_key.is_empty();
+    let voice = voice_enabled && !gemini_api_key.is_empty();
     json!({"website_chat": {"configured": chat, "verified": chat && verified},
            "website_voice": {"configured": voice, "verified": voice && verified}})
 }

@@ -1,4 +1,4 @@
-"""Telephony routes: SMS webhooks, Grok Voice sessions/tools/recordings, Twilio PSTN relay,
+"""Telephony routes: SMS webhooks, Gemini Live voice sessions/tools/recordings, Twilio PSTN relay,
 live-call supervision/takeover, call insights, missed-call recovery, and phone setup.
 
 Moved out of app/main.py unchanged; paths and behaviour are identical. main.py re-exports the
@@ -159,7 +159,7 @@ class ToolRequest(BaseModel):
 
 @router.post("/api/v1/tools/{name}")
 async def tool_endpoint(name: str, req: ToolRequest, request: Request):
-    """Called by the widget when Grok Voice invokes a function."""
+    """Called by the widget when Gemini Live voice invokes a function."""
     m = _main()
     session_id = convo.clean_session(req.session_id)
     m._rate_limit(request, session_id)
@@ -379,8 +379,7 @@ async def owner_live_calls(user: dict = Depends(owner_auth.current_user)):
 
     Each call says which engine it is on and which controls are real for it (see live_calls.py).
     On the Asterisk line (`ast:`) the PBX owns the media, so take-over, listen-in and whisper are
-    genuine audio actions; on Grok SIP calls (`sip:`) take-over stops the AI and alerts the owner
-    to ring back, because that provider exposes no transfer or audio join.
+    genuine audio actions; on non-PBX calls take-over alerts the owner to ring back.
     """
     return {"calls": await live_calls.active(user["tenant_id"]),
             "media_control": call_control.enabled()}

@@ -3,20 +3,18 @@
 Competitor-gap item B. Octovox's whole pitch is a console where a human watches calls in progress
 and takes over in one click. Two facts shape what is honest to build here:
 
-  * The API is already inside the media path for every Grok SIP call (`phone_sip.serve_call`
-    receives every transcript event and writes it with `convo.save_message`), so a live transcript
-    costs nothing but a read.
-  * The provider's SIP call API exposes call control (accept/hangup), **not** a SIP transfer or
-    an audio join. Pretending otherwise would be a lie in the UI.
+  * The API receives live transcripts for every bridged call (`convo.save_message`), so a live
+    transcript costs nothing but a read.
+  * Real audio supervision (transfer, listen-in, whisper, join) lives on the Asterisk PBX via AMI.
 
-So the console has two engines, and it says which one a call is on:
+So the console reports which engine a call is on:
 
-  * **Grok SIP calls** (`sip:`) — "take over" stops the AI, alerts the owner with the transcript,
-    files a callback task and ends the call. No audio join exists on that path.
-  * **Asterisk calls** (`ast:`, the Hero DID) — the PBX owns the media, so call control is real:
+  * **Asterisk calls** (`ast:`, the carrier DID) — the PBX owns the media, so call control is real:
     the caller is redirected to the owner through the carrier trunk (take-over), or the owner's
     phone is joined to the live call with `ChanSpy` (listen-in, whisper, join). See
     ``call_control``.
+  * **Non-PBX calls** — "take over" alerts the owner with the transcript and files a callback task;
+    no direct audio join exists outside the PBX.
 """
 
 import logging
@@ -344,15 +342,5 @@ async def _callback_task(tenant_id, case, caller: str, tail: str, call: dict,
 
 
 async def _hang_up(call: dict) -> tuple[bool, str]:
-    """End the AI call, if we can. Never raises: the alert already went out."""
-    call_sid = call.get("call_sid") or ""
-    if not call_sid.startswith("sip:"):
-        return False, "This call is not on the Grok SIP path; end it from the phone system."
-    try:
-        from . import phone_sip
-
-        ok = await phone_sip.call_control(call_sid[4:], "hangup")
-        return bool(ok), "" if ok else "The provider did not confirm the hangup."
-    except Exception:
-        log.exception("live takeover hangup failed for %s", call_sid)
-        return False, "The provider did not confirm the hangup."
+    """Non-Asterisk calls do not expose a remote hangup API; instruct the owner cleanly."""
+    return False, "End this call from the phone system."

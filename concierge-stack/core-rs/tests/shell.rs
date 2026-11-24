@@ -1,4 +1,4 @@
-//! End-to-end shell test with a fake internal API, a fake Grok websocket and a
+//! End-to-end shell test with a fake internal API, a fake Gemini 3.8 Live websocket and a
 //! fake Asterisk caller. No database, no network beyond loopback.
 
 use std::net::SocketAddr;
@@ -25,7 +25,7 @@ async fn record(State(calls): State<Calls>, path: &str) -> Value {
             "tenant": {"id": "00000000-0000-0000-0000-000000000001", "name": "Test"},
             "conversation_id": "1",
             "record_session": {"id": "7", "recording_consent": false},
-            "session": {"type": "realtime", "audio": {}},
+            "session": {"model": "models/gemini-3.8-live", "gemini_voice": "Aoede", "instructions": "Test business"},
         }),
         "/internal/voice/tool" => json!({"ok": true, "recording": true}),
         "/internal/voice/monitor" => json!({"telephone": true, "recording": true}),
@@ -68,65 +68,67 @@ async fn fake_internal(calls: Calls) -> SocketAddr {
     addr
 }
 
-async fn fake_grok() -> SocketAddr {
+async fn fake_gemini() -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         let (stream, _) = listener.accept().await.unwrap();
         let mut ws = accept_async(stream).await.unwrap();
-        let _ = ws.next().await; // session.update
+        let first = ws.next().await.unwrap().unwrap();
+        let setup: Value = serde_json::from_str(first.to_text().unwrap()).unwrap();
+        assert_eq!(setup["setup"]["model"], "models/gemini-3.8-live");
+        assert!(setup["setup"]["generationConfig"].get("thinkingConfig").is_none());
+
+        ws.send(Message::Text(json!({"setupComplete": {}}).to_string().into()))
+            .await
+            .unwrap();
+
+        // 24kHz PCM16 audio (960 bytes -> 320 bytes @ 8kHz)
+        let audio24 = STANDARD.encode(vec![1u8; 960]);
         ws.send(Message::Text(
-            json!({"type": "session.updated"}).to_string().into(),
-        ))
-        .await
-        .unwrap();
-        let audio = STANDARD.encode(vec![1u8; 320]);
-        ws.send(Message::Text(
-            json!({"type": "response.audio.delta", "delta": audio})
-                .to_string()
-                .into(),
-        ))
-        .await
-        .unwrap();
-        ws.send(Message::Text(
-            json!({"type": "conversation.item.input_audio_transcription.completed",
-                   "item_id": "i1", "transcript": "hello"})
+            json!({
+                "serverContent": {
+                    "modelTurn": {
+                        "parts": [{"inlineData": {"mimeType": "audio/pcm;rate=24000", "data": audio24}}]
+                    },
+                    "inputTranscription": {"text": "hello", "finished": true},
+                    "turnComplete": true
+                }
+            })
             .to_string()
             .into(),
         ))
         .await
         .unwrap();
+
         ws.send(Message::Text(
-            json!({"type": "response.function_call_arguments.done", "call_id": "c1",
-                   "name": "search_knowledge", "arguments": "{}"})
+            json!({
+                "toolCall": {
+                    "functionCalls": [{"id": "c1", "name": "search_knowledge", "args": {}}]
+                }
+            })
             .to_string()
             .into(),
         ))
         .await
         .unwrap();
-        ws.send(Message::Text(
-            json!({"type": "response.done"}).to_string().into(),
-        ))
-        .await
-        .unwrap();
-        // The shell emits the function_call_output only after response.done.
+
         for _ in 0..10 {
             match tokio::time::timeout(Duration::from_millis(500), ws.next()).await {
-                Ok(Some(Ok(Message::Text(text)))) if text.contains("function_call_output") => break,
+                Ok(Some(Ok(Message::Text(text)))) if text.contains("toolResponse") => break,
                 Ok(Some(Ok(_))) => continue,
                 _ => break,
             }
         }
+
         ws.send(Message::Text(
-            json!({"type": "response.function_call_arguments.done", "call_id": "c2",
-                   "name": "end_call", "arguments": "{}"})
+            json!({
+                "toolCall": {
+                    "functionCalls": [{"id": "c2", "name": "end_call", "args": {}}]
+                }
+            })
             .to_string()
             .into(),
-        ))
-        .await
-        .unwrap();
-        ws.send(Message::Text(
-            json!({"type": "response.done"}).to_string().into(),
         ))
         .await
         .unwrap();
@@ -144,15 +146,15 @@ fn free_port() -> u16 {
 async fn shell_runs_one_call_end_to_end() {
     let calls: Calls = Arc::new(Mutex::new(Vec::new()));
     let api = fake_internal(calls.clone()).await;
-    let grok = fake_grok().await;
+    let gemini = fake_gemini().await;
     let port = free_port();
     let config = Config {
         bind: "127.0.0.1".into(),
         peers: vec!["127.0.0.1/32".parse().unwrap()],
         internal_url: format!("http://{api}"),
         internal_token: "test-token".into(),
-        xai_key: "test-key".into(),
-        xai_url: format!("ws://{grok}"),
+        gemini_key: "test-key".into(),
+        gemini_url: format!("ws://{gemini}"),
         routes: vec![Route {
             tenant: "test".into(),
             number: "+6421000000".into(),

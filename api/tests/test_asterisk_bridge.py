@@ -47,7 +47,8 @@ def test_gemini_config_defaults_and_ws_url():
     )
     assert with_query.gemini_ws_url == 'ws://127.0.0.1:9999/live?alt=json&key=test-key-123'
 
-    assert Settings(_env_file=None, phone_voice_provider='grok').phone_voice_provider == 'grok'
+    with pytest.raises(Exception):
+        Settings(_env_file=None, phone_voice_provider='unsupported_provider')
     assert Settings(_env_file=None, phone_voice_provider='legacy_twilio_tts').phone_voice_provider == 'legacy_twilio_tts'
 
 
@@ -97,7 +98,7 @@ def test_register_requires_gemini_live_provider_and_api_key(monkeypatch):
     route = Route('alpha', '+6495550100', 9101)
     for overrides in (
         {'phone_receptionist_enabled': False, 'phone_voice_provider': 'gemini_live', 'gemini_api_key': 'k'},
-        {'phone_receptionist_enabled': True, 'phone_voice_provider': 'grok', 'gemini_api_key': 'k'},
+        {'phone_receptionist_enabled': True, 'phone_voice_provider': 'legacy_twilio_tts', 'gemini_api_key': 'k'},
         {'phone_receptionist_enabled': True, 'phone_voice_provider': 'gemini_live', 'gemini_api_key': ''},
     ):
         monkeypatch.setattr(asterisk_bridge, 'get_settings', lambda o=overrides: SimpleNamespace(**o))

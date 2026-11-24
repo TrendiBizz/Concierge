@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, phone_sip, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, brand_from_site, releases, owner_ask
 from . import suppressions
@@ -250,7 +250,6 @@ app.include_router(public.router)
 app.include_router(device_sms.router)
 app.include_router(sms_inbox.router)
 app.include_router(chat_inbox.router)
-app.include_router(phone_sip.router)
 app.include_router(voice_routing.router)
 app.include_router(managed_phone.router)
 app.include_router(mobile_connections.router)

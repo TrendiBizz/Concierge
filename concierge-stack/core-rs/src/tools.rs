@@ -47,7 +47,7 @@ pub fn chat_tools(tenant: &Value) -> Vec<Value> {
         .collect()
 }
 
-/// Flat-format tools for Grok Voice; `website_only` tools appear only on the website.
+/// Flat-format tools for Gemini Live voice; `website_only` tools appear only on the website.
 pub fn voice_tools(tenant: &Value, website: bool) -> Vec<Value> {
     specs()
         .iter()

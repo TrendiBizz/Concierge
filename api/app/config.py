@@ -91,11 +91,10 @@ class Settings(BaseSettings):
 
     calendar_credentials_dir: str = ""  # mounted private secret directory, not source control
 
-    # Text chat: any OpenAI-compatible endpoint. Defaults to xAI (Grok).
-    xai_api_key: str = ""
-    llm_base_url: str = "https://api.x.ai/v1"
+    # Text chat: any OpenAI-compatible endpoint. Defaults to Google Gemini (OpenAI-compatible).
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     llm_api_key: str = ""
-    chat_model: str = "grok-4"
+    chat_model: str = "gemini-3.8-flash"
     # N3: resilience. Any OpenAI-compatible provider that supports tool calls can be the secondary
     # (leave the key empty to keep failover off). Never hard-code a vendor or a key here.
     llm_fallback_base_url: str = ""
@@ -112,18 +111,17 @@ class Settings(BaseSettings):
     phone_receptionist_enabled: bool = False
     voice_recording_enabled: bool = False  # web audio: business opt-in plus caller choice
     phone_recording_enabled: bool = False  # separate paid-provider + legal approval
-    phone_voice_provider: Literal['gemini_live', 'grok', 'legacy_twilio_tts'] = 'gemini_live'
-    # Google Gemini 3.8 Live API (telephone voice bridge)
+    phone_voice_provider: Literal['gemini_live', 'legacy_twilio_tts'] = 'gemini_live'
+    # Google Gemini 3.8 Live API (website voice + telephone voice bridge)
     gemini_api_key: str = ""
     gemini_live_model: str = "models/gemini-3.8-live"
     gemini_live_ws_url: str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+    gemini_auth_tokens_url: str = "https://generativelanguage.googleapis.com/v1alpha/auth_tokens"
+    gemini_constrained_ws_url: str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained"
     gemini_live_voice: str = "Aoede"
     # Blank by default: models/gemini-3.8-live rejects thinkingConfig.thinkingLevel with WS 1007.
     # Set explicitly (e.g. "low") only for thinking-capable models like models/gemini-3.8-live-extended-thinking.
     gemini_thinking_level: str = ""
-    # Operator-only JSON mapping connection UUID -> tenant, number, whsec secret.
-    # Any carrier/PBX can route SIP to Grok; blank keeps this path disabled.
-    xai_sip_connections: str = ""
     phone_verified_tenants: str = ""  # populated only after a genuine carrier call test
     # Asterisk Manager Interface — the control plane for take-over/listen-in/whisper.
     # Blank host or secret keeps every media-server action disabled.
@@ -135,13 +133,9 @@ class Settings(BaseSettings):
     # <number> is replaced with the dialled party.
     asterisk_channel_dial: str = "PJSIP/<number>@concierge-reg"
 
-    # Grok Voice Agent API
-    xai_client_secrets_url: str = "https://api.x.ai/v1/realtime/client_secrets"
-    xai_realtime_url: str = "wss://api.x.ai/v1/realtime"
-    voice_model: str = ""  # blank = API default; e.g. "grok-voice-3.0"
     # Operator records tenant slugs only after live website chat + voice checks.
     website_verified_tenants: str = ""
-    voice_default: str = "eve"
+    voice_default: str = "Aoede"
     voice_token_ttl_seconds: int = 300
 
     # Local embeddings (fastembed, free, runs on CPU)
@@ -263,14 +257,7 @@ class Settings(BaseSettings):
 
     @property
     def effective_llm_key(self) -> str:
-        return self.llm_api_key or self.xai_api_key
-
-    @property
-    def voice_ws_url(self) -> str:
-        if self.voice_model:
-            sep = "&" if "?" in self.xai_realtime_url else "?"
-            return f"{self.xai_realtime_url}{sep}model={self.voice_model}"
-        return self.xai_realtime_url
+        return self.llm_api_key or self.gemini_api_key
 
     @property
     def gemini_ws_url(self) -> str:
@@ -278,6 +265,13 @@ class Settings(BaseSettings):
             sep = "&" if "?" in self.gemini_live_ws_url else "?"
             return f"{self.gemini_live_ws_url}{sep}key={self.gemini_api_key}"
         return self.gemini_live_ws_url
+
+    @property
+    def gemini_auth_tokens_endpoint(self) -> str:
+        if self.gemini_api_key:
+            sep = "&" if "?" in self.gemini_auth_tokens_url else "?"
+            return f"{self.gemini_auth_tokens_url}{sep}key={self.gemini_api_key}"
+        return self.gemini_auth_tokens_url
 
     @property
     def sms_configured(self) -> bool:

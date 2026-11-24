@@ -44,7 +44,7 @@ def client() -> AsyncOpenAI:
     if _client is None:
         settings = get_settings()
         if not settings.effective_llm_key:
-            raise LLMNotConfigured("XAI_API_KEY (or LLM_API_KEY) is not set")
+            raise LLMNotConfigured("LLM_API_KEY (or GEMINI_API_KEY) is not set")
         # We own retries (so the breaker sees them): the SDK default of silent retries is off.
         _client = AsyncOpenAI(api_key=settings.effective_llm_key, base_url=settings.llm_base_url,
                               timeout=settings.llm_timeout_seconds, max_retries=0)

@@ -538,7 +538,7 @@ def test_authorizable_channels_and_readiness_keys_are_known_to_differ():
     # The backend readiness map deliberately does not contain them.
     readiness = owner_onboarding.website_channel_status(
         {"slug": "x", "site_url": "https://x.example", "voice_enabled": True},
-        SimpleNamespace(website_verified_tenants="", xai_api_key="k", effective_llm_key="k"))
+        SimpleNamespace(website_verified_tenants="", gemini_api_key="k", effective_llm_key="k"))
     assert "call_recording" not in readiness
     assert "email_read" not in readiness
 

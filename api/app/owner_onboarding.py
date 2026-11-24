@@ -140,7 +140,7 @@ class OwnerBusinessProfile(BaseModel):
 def website_channel_status(tenant: dict, settings) -> dict:
     verified = tenant.get("slug") in {v.strip() for v in settings.website_verified_tenants.split(",") if v.strip()}
     chat = bool(tenant.get("site_url") and settings.effective_llm_key)
-    voice = bool(tenant.get("voice_enabled") and settings.xai_api_key)
+    voice = bool(tenant.get("voice_enabled") and settings.gemini_api_key)
     return {
         "website_chat": {"configured": chat, "verified": chat and verified},
         "website_voice": {"configured": voice, "verified": voice and verified},
@@ -164,9 +164,17 @@ async def overview(tenant_id) -> dict:
     device_online = bool(phone_device and phone_device["last_seen"] and
                          (datetime.now(timezone.utc)-phone_device["last_seen"]).total_seconds()<300)
     device_sms = tenant.get("sms_transport") == "device"
-    from . import phone_relay,phone_sip
-    telephone_ready=bool(tenant.get("phone_enabled") and any(r["enabled"] for r in numbers) and
-                         (phone_relay.configured() or phone_sip.configured_for_tenant(tenant,numbers)))
+    from . import phone_relay
+    gemini_phone_ready = bool(
+        settings.phone_receptionist_enabled
+        and settings.phone_voice_provider == "gemini_live"
+        and settings.gemini_api_key
+    )
+    telephone_ready = bool(
+        tenant.get("phone_enabled")
+        and any(r["enabled"] for r in numbers)
+        and (phone_relay.configured() or gemini_phone_ready)
+    )
     phone_verified=tenant.get("slug") in {v.strip() for v in settings.phone_verified_tenants.split(',') if v.strip()}
     try:
         inbound = await inbound_readiness.check(tenant_id)

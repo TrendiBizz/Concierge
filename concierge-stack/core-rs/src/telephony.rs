@@ -14,7 +14,7 @@ fn eq_ct(a: &str, b: &str) -> bool {
     a.len() == b.len() && bool::from(a.as_bytes().ct_eq(b.as_bytes()))
 }
 
-/// Standard-Webhooks style check used for xAI SIP calls (`phone_sip.valid_signature`): `whsec_<base64 key>`, an id, a
+/// Standard-Webhooks style check (`whsec_<base64 key>`, an id, a
 /// timestamp within 300 s, and any `v1,<base64 HMAC-SHA256>` in the signature header. A timestamp that Python's `int()`
 /// accepts but this port does not (underscores) is refused.
 pub fn sip_signature_valid(
@@ -207,31 +207,6 @@ pub fn twiml(
 }
 
 /// ElementTree attribute escaping (`_escape_attrib`).
-fn attr(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\r', "&#13;")
-        .replace('\n', "&#10;")
-        .replace('\t', "&#09;")
-}
-fn cdata(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-/// `managed_phone.sip_twiml`, serialised exactly as ElementTree does.
-pub fn sip_twiml(username: &str, password: &str, number: &str) -> String {
-    format!(
-        "<Response><Dial answerOnBridge=\"true\" timeout=\"30\" timeLimit=\"600\"><Sip username=\"{}\" password=\"{}\">{}</Sip></Dial><Hangup /></Response>",
-        attr(username),
-        attr(password),
-        cdata(&format!("sip:{number}@sip.voice.x.ai;transport=tls"))
-    )
-}
-
 /// `mobile_connections.forwarding_steps`: Spark's published diversion codes, dialled only by the owner.
 pub fn forwarding_steps(destination: &str, carrier: &str, mode: &str) -> Vec<Value> {
     if carrier != "spark_nz" {

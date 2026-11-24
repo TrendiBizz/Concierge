@@ -2,7 +2,7 @@
 
 Same scenario and same assertions as asterisk_db_integration.py (which drives the Python bridge), but the
 AudioSocket side is the compiled `asterisk_shell` binary and every database/permission/CRM decision is made by the
-real FastAPI app over /internal/voice/*. Only Grok (a local fake websocket) and the caller (a local AudioSocket
+real FastAPI app over /internal/voice/*. Only Gemini Live (a local fake websocket) and the caller (a local AudioSocket
 client) are simulated. No send worker, no real messages, no real calls.
 
 Needs: an empty disposable PostgreSQL database (DATABASE_URL must contain 'fixture-only'), and the release binary
@@ -17,7 +17,7 @@ import uuid
 
 os.environ.setdefault("INTERNAL_TOKEN", "fixture-internal-token-0123456789abcdef")
 os.environ.setdefault("PHONE_RECEPTIONIST_ENABLED", "true")
-os.environ.setdefault("XAI_API_KEY", "fixture-only")
+os.environ.setdefault("GEMINI_API_KEY", "fixture-only")
 os.environ.setdefault("OUTBOX_ENABLED", "false")
 
 import uvicorn
@@ -59,27 +59,29 @@ async def main():
     pool = db.pool()
     assert not await pool.fetchval("SELECT count(*) FROM tenants"), "Empty fixture DB required"
 
-    # 2. A fake Grok, identical in behaviour to the Python test's.
+    # 2. A fake Gemini Live endpoint, identical in behaviour to the Python test's.
     transcripts = {}
 
-    async def fake_grok(ws):
-        update = json.loads(await ws.recv())
-        instructions = update["session"]["instructions"]
+    async def fake_gemini(ws):
+        setup = json.loads(await ws.recv())["setup"]
+        instructions = setup["systemInstruction"]["parts"][0]["text"]
         business = next(n for n in ("Alpha Workshop", "Beta Florist") if n in instructions)
-        assert update["session"]["audio"]["input"]["format"]["rate"] == 8000
-        await ws.send(json.dumps({"type": "session.updated"}))
+        assert setup["model"] == "models/gemini-3.8-live"
+        await ws.send(json.dumps({"setupComplete": {}}))
         emitted = False
         async for raw in ws:
             event = json.loads(raw)
-            if event["type"] == "input_audio_buffer.append" and not emitted:
+            if "realtimeInput" in event and not emitted:
                 emitted = True
                 await ws.send(json.dumps({
-                    "type": "conversation.item.input_audio_transcription.completed",
-                    "item_id": "same-call-local-id", "transcript": f"Message specifically for {business}"}))
+                    "serverContent": {
+                        "inputTranscription": {"text": f"Message specifically for {business}", "finished": True}
+                    }
+                }))
                 transcripts[business] = True
 
-    grok = await websockets.serve(fake_grok, "127.0.0.1", 0)
-    grok_port = grok.sockets[0].getsockname()[1]
+    gemini = await websockets.serve(fake_gemini, "127.0.0.1", 0)
+    gemini_port = gemini.sockets[0].getsockname()[1]
 
     # 3. Two businesses, each with a private route, seeded exactly as the Python test seeds them.
     routes = []
@@ -97,7 +99,7 @@ async def main():
             "VALUES($1,$2,'mobile_forwarding','unanswered',$3)", tenant["id"], number, f"+6421555010{i}")
         routes.append({"tenant": slug, "number": number, "port": free_port()})
 
-    # 4. The Rust shell, pointed at the real API and the fake Grok.
+    # 4. The Rust shell, pointed at the real API and the fake Gemini Live endpoint.
     env = {
         "PATH": os.environ.get("PATH", ""),
         "ASTERISK_ROUTES": json.dumps(routes),
@@ -105,8 +107,8 @@ async def main():
         "ASTERISK_PEERS": "127.0.0.1/32",
         "CONCIERGE_INTERNAL_URL": f"http://127.0.0.1:{api_port}",
         "CONCIERGE_INTERNAL_TOKEN": cfg.internal_token,
-        "XAI_API_KEY": "fixture-only",
-        "XAI_REALTIME_URL": f"ws://127.0.0.1:{grok_port}",
+        "GEMINI_API_KEY": "fixture-only",
+        "GEMINI_LIVE_WS_URL": f"ws://127.0.0.1:{gemini_port}",
     }
     shell = await asyncio.create_subprocess_exec(str(BINARY), env=env, stdout=asyncio.subprocess.PIPE,
                                                  stderr=asyncio.subprocess.STDOUT)
@@ -126,7 +128,7 @@ async def main():
 
         async def both_transcribed():
             return len(transcripts) == 2
-        await wait_for(both_transcribed, "both businesses reached Grok with their own instructions")
+        await wait_for(both_transcribed, "both businesses reached Gemini Live with their own instructions")
 
         for _, w in writers:
             await b.send_packet(w, 0)                        # hangup
@@ -156,7 +158,7 @@ async def main():
             raise AssertionError("Cross-business UUID replay accepted")
         except Exception as error:
             assert type(error).__name__ == "UniqueViolationError", type(error).__name__
-        print("PASS: Rust shell + real API + real DB: two businesses -> Grok protocol -> separate CRM transcripts "
+        print("PASS: Rust shell + real API + real DB: two businesses -> Gemini Live protocol -> separate CRM transcripts "
               "-> correct owner SMS queues; cross-business replay rejected; real sends=0")
     finally:
         for _, w in writers:
@@ -168,8 +170,8 @@ async def main():
                 print(out.decode(errors="replace")[-2000:])
         except asyncio.TimeoutError:
             shell.kill()
-        grok.close()
-        await grok.wait_closed()
+        gemini.close()
+        await gemini.wait_closed()
         server.should_exit = True
         await api_task
 

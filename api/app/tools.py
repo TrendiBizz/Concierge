@@ -1,4 +1,4 @@
-"""Tools the AI can call. Shared by text chat / SMS (OpenAI format) and Grok Voice (flat format).
+"""Tools the AI can call. Shared by text chat / SMS (OpenAI format) and Gemini Live voice.
 
 Every tool executes server-side and is scoped to the tenant that owns the public key, so the
 browser can never read another client's data. Which tools exist depends on the tenant: native

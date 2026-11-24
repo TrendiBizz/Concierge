@@ -1,7 +1,7 @@
 //! Loopback shell around the pure `media_bridge` state machine.
 //!
 //! The shell owns what the state machine deliberately does not: the AudioSocket
-//! TCP listeners, the Grok websocket, the 20 ms clock and the call's recording.
+//! TCP listeners, the Gemini Live websocket, the 20 ms clock and the call's recording.
 //! Database, permissions, CRM and tools stay in Python and are reached over the
 //! private loopback API (`/internal/voice/*`) with a shared token.
 
@@ -25,7 +25,7 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{info, warn};
 
 use crate::media_bridge::{
-    append_event, classify, silence, tool_output, Action, Bridge, Deframer, Inbound, OutputStep,
+    append_event, classify, silence, Action, Bridge, Deframer, Inbound, OutputStep,
     MAX_SECONDS, READY_SECONDS,
 };
 
@@ -49,8 +49,8 @@ pub struct Config {
     pub peers: Vec<IpNet>,
     pub internal_url: String,
     pub internal_token: String,
-    pub xai_key: String,
-    pub xai_url: String,
+    pub gemini_key: String,
+    pub gemini_url: String,
     pub routes: Vec<Route>,
 }
 
@@ -320,9 +320,13 @@ async fn apply_actions(
                         recorder.discard();
                     }
                 }
-                let output = tool_output(&result);
-                if !bridge.tool_result(&call_id, output) {
-                    return Err("tool result arrived out of order".into());
+                if !bridge.ending {
+                    let response_action = Bridge::tool_response(vec![json!({
+                        "id": call_id,
+                        "name": tool_name,
+                        "response": result,
+                    })]);
+                    send_action(sink, response_action).await?;
                 }
             }
         }
@@ -379,17 +383,25 @@ async fn run_call(
         .and_then(Value::as_str)
         .map(str::to_string);
 
-    let mut request = config
-        .xai_url
-        .clone()
+    let ws_url = if config.gemini_key.is_empty() {
+        config.gemini_url.clone()
+    } else {
+        let base = if config.gemini_url.contains('?') {
+            config.gemini_url.clone()
+        } else {
+            let after_scheme = config.gemini_url.find("://").map(|i| i + 3).unwrap_or(0);
+            if config.gemini_url[after_scheme..].contains('/') {
+                config.gemini_url.clone()
+            } else {
+                format!("{}/", config.gemini_url)
+            }
+        };
+        let sep = if base.contains('?') { "&" } else { "?" };
+        format!("{base}{sep}key={}", config.gemini_key)
+    };
+    let request = ws_url
         .into_client_request()
         .map_err(|e| e.to_string())?;
-    request.headers_mut().insert(
-        "Authorization",
-        format!("Bearer {}", config.xai_key)
-            .parse()
-            .map_err(|_| "invalid xAI key".to_string())?,
-    );
     let (ws, _) = connect_async(request).await.map_err(|e| e.to_string())?;
     let (mut sink, mut source) = ws.split();
 
@@ -397,7 +409,7 @@ async fn run_call(
     let start_action = bridge.start(&start.session);
     send_action(&mut sink, start_action).await?;
 
-    // Phase 1: no caller audio is read until Grok accepts the session.
+    // Phase 1: no caller audio is read until Gemini Live accepts the session.
     let ready_deadline = tokio::time::Instant::now() + Duration::from_secs(READY_SECONDS);
     while !bridge.ready {
         match tokio::time::timeout_at(ready_deadline, source.next()).await {
@@ -407,12 +419,19 @@ async fn run_call(
                     .map_err(|e| format!("{e:?}"))?;
                 apply_actions(actions, &mut bridge, &mut sink, internal, state, recorder).await?;
             }
+            Ok(Some(Ok(Message::Binary(bytes)))) => {
+                let text = std::str::from_utf8(&bytes).map_err(|_| "non-utf8 Gemini frame".to_string())?;
+                let actions = bridge
+                    .on_message(text)
+                    .map_err(|e| format!("{e:?}"))?;
+                apply_actions(actions, &mut bridge, &mut sink, internal, state, recorder).await?;
+            }
             Ok(Some(Ok(Message::Close(_)))) | Ok(None) => {
-                return Err("Grok closed before session.updated".into());
+                return Err("Gemini Live closed before setupComplete".into());
             }
             Ok(Some(Ok(_))) => {}
             Ok(Some(Err(e))) => return Err(e.to_string()),
-            Err(_) => return Err("Grok session was not ready in time".into()),
+            Err(_) => return Err("Gemini Live session was not ready in time".into()),
         }
     }
 
@@ -433,10 +452,18 @@ async fn run_call(
             message = source.next() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
-                        if text.as_str().contains("\"type\":\"error\"") {
-                            warn!("grok error: {text}");
+                        if text.as_str().contains("\"error\"") {
+                            warn!("gemini live error: {text}");
                         }
                         let actions = bridge.on_message(text.as_str()).map_err(|e| format!("{e:?}"))?;
+                        apply_actions(actions, &mut bridge, &mut sink, internal, state, recorder).await?;
+                    }
+                    Some(Ok(Message::Binary(bytes))) => {
+                        let text = std::str::from_utf8(&bytes).map_err(|_| "non-utf8 Gemini frame".to_string())?;
+                        if text.contains("\"error\"") {
+                            warn!("gemini live error: {text}");
+                        }
+                        let actions = bridge.on_message(text).map_err(|e| format!("{e:?}"))?;
                         apply_actions(actions, &mut bridge, &mut sink, internal, state, recorder).await?;
                     }
                     Some(Ok(Message::Close(_))) | None => break,

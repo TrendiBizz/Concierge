@@ -1,6 +1,6 @@
 """Loopback API for the Rust telephone shell.
 
-The shell owns sockets, audio and Grok; this API owns the database, permissions,
+The shell owns sockets, audio and Gemini Live; this API owns the database, permissions,
 recordings, CRM and tools, so those rules stay in one place. It is never routed
 publicly: the shell calls http://api:8000 on the private compose network and must
 present the shared internal token.

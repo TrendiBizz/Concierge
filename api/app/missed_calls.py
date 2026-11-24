@@ -205,7 +205,7 @@ CALL_COLUMNS = {"call_sid", "tenant_id", "session_id", "from_number", "to_number
 async def sweep(limit: int = 100) -> int:
     """Find ended calls with no recovery decision yet and evaluate them.
 
-    Covers both providers: the Grok SIP path writes `phone_calls` itself, and a Twilio call that
+    Covers all telephony paths: Asterisk Gemini Live writes `phone_calls` itself, and a Twilio call that
     ends without a session would otherwise be invisible forever.
     """
     rows = await db.pool().fetch(

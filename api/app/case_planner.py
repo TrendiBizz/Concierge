@@ -7,7 +7,7 @@ here sends email, SMS, or a quote.
 
 Turn it on with CASE_PLANNER=claude on a machine where the `claude` command is the Max-plan
 login. The API container does not have that command, so the call no-ops there instead of
-using the xAI key.
+using the configured LLM key.
 """
 from __future__ import annotations
 

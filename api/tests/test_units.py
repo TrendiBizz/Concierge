@@ -120,17 +120,15 @@ def test_tools_depend_on_tenant():
 
 
 def test_voice_session_shape():
-    session = build_session({**NATIVE, "voice": "eve"})
-    assert session["turn_detection"] == {"type": "server_vad"}
-    assert session["audio"]["input"]["format"] == {"type": "audio/pcm", "rate": 24000}
-    assert session["voice"] == "eve"
+    session = build_session({**NATIVE, "voice": "Puck"})
+    assert session["model"] == "models/gemini-3.8-live"
+    assert session["voice"] == "Puck"
+    assert session["gemini_voice"] == "Puck"
     assert any(t["name"] == "book_appointment" for t in session["tools"])
 
 
 def test_extract_token_variants():
-    assert _extract_token({"value": "abc"}) == "abc"
-    assert _extract_token({"client_secret": {"value": "abc"}}) == "abc"
-    assert _extract_token({"client_secret": "abc"}) == "abc"
+    assert _extract_token({"name": "auth_tokens/abc"}) == "auth_tokens/abc"
     assert _extract_token({"token": "abc"}) == "abc"
     assert _extract_token({"nope": 1}) is None
 

@@ -216,7 +216,7 @@ async def inbound(body: Incoming, device: dict = Depends(device_auth)):
         "UPDATE sms_devices SET inbound_verified_at=now(),last_seen=now() WHERE id=$1", device["id"]
     )
     tenant = await tenants.get_by_id(device["tenant_id"])
-    # Reuse the same Grok, CRM, STOP/START and consent path as carrier webhooks.
+    # Reuse the same LLM, CRM, STOP/START and consent path as carrier webhooks.
     from .main import _sms_reply
     reply = await _sms_reply(tenant, body.sender, body.body, confirm_stop=True)
     if reply:

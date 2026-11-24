@@ -80,7 +80,7 @@ def test_x_oauth_bridge_keeps_tenant_and_validates_callback(monkeypatch):
 def test_website_verification_requires_tenant_match_and_actual_credentials():
     from app.owner_onboarding import website_channel_status
     tenant = {"slug": "a", "site_url": "https://example.org", "voice_enabled": True}
-    s = Settings(_env_file=None, xai_api_key="fixture", website_verified_tenants="a")
+    s = Settings(_env_file=None, gemini_api_key="fixture", website_verified_tenants="a")
     assert website_channel_status(tenant, s)["website_voice"] == {"configured": True, "verified": True}
     assert website_channel_status({**tenant, "slug": "b"}, s)["website_voice"]["verified"] is False
     assert website_channel_status({**tenant, "voice_enabled": False}, s)["website_voice"]["configured"] is False

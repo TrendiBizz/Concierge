@@ -1,10 +1,12 @@
-"""Grok Voice Agent API helpers.
+"""Google Gemini 3.8 Live API helpers for website and telephone voice.
 
-Flow: the browser asks us for a short-lived token, then opens the WebSocket to xAI directly
-(browsers cannot send an Authorization header, so the token travels in the WebSocket
-subprotocol). The long-lived XAI_API_KEY never leaves the server.
+Flow (website): the browser asks us for a single-use ephemeral token (`v1alpha/auth_tokens`)
+with the session's model, system instructions and tools locked server-side, then connects
+directly to `BidiGenerateContentConstrained?access_token=<token>`. The long-lived
+`GEMINI_API_KEY` never leaves the server.
 """
 
+from datetime import datetime, timedelta, timezone
 import logging
 
 import httpx
@@ -16,6 +18,10 @@ from .tools import voice_tools
 
 log = logging.getLogger("concierge.voice")
 
+GEMINI_VOICES = frozenset({
+    "Aoede", "Charon", "Fenrir", "Kore", "Puck", "Leda", "Orus", "Zephyr",
+})
+
 
 class VoiceUnavailable(RuntimeError):
     pass
@@ -26,53 +32,121 @@ COPY_DELIVERY_INSTRUCTIONS = (
 )
 
 
-def build_session(tenant: dict, *, website=False, copy_delivery=False) -> dict:
-    """Session config the widget sends as its first `session.update` event.
+def strip_additional_properties(schema):
+    """Recursively strip 'additionalProperties' keys that Gemini Live rejects."""
+    if isinstance(schema, dict):
+        return {
+            k: strip_additional_properties(v)
+            for k, v in schema.items()
+            if k != "additionalProperties"
+        }
+    if isinstance(schema, list):
+        return [strip_additional_properties(item) for item in schema]
+    return schema
 
-    `copy_delivery` states the capability that actually matters: this channel can
-    deliver a copy after the conversation, which requires a voice session in the
-    tool context. It was previously spelled `website`, a channel name standing in
-    for a capability. The Asterisk telephone path already passed `website=True`,
-    while the Grok SIP path was left without the tool only because it never set
-    that flag -- so a caller on the phone could not be sent a summary. `website`
-    is kept as an alias for the existing widget and Asterisk callers.
-    """
+
+def gemini_function_declarations(tools) -> list[dict]:
+    """Convert flat tool specs into Gemini Live `functionDeclarations`."""
+    declarations = []
+    for tool in tools or ():
+        if not isinstance(tool, dict) or not tool.get("name"):
+            continue
+        decl = {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+        }
+        params = strip_additional_properties(tool.get("parameters"))
+        if isinstance(params, dict) and params.get("properties"):
+            decl["parameters"] = params
+        declarations.append(decl)
+    return declarations
+
+
+def resolve_voice_name(requested: str | None, fallback: str | None = None) -> str:
+    if requested in GEMINI_VOICES:
+        return requested
+    if fallback in GEMINI_VOICES:
+        return fallback
+    return "Aoede"
+
+
+def build_session(tenant: dict, *, website=False, copy_delivery=False) -> dict:
+    """Build the Gemini Live voice session descriptor shared by website voice and telephony."""
     settings = get_settings()
     can_deliver = website or copy_delivery
+    voice_name = resolve_voice_name(tenant.get("voice"), settings.gemini_live_voice or settings.voice_default)
     return {
-        "voice": tenant.get("voice") or settings.voice_default,
+        "model": settings.gemini_live_model,
+        "voice": voice_name,
+        "gemini_voice": voice_name,
+        "thinking_level": settings.gemini_thinking_level,
         "instructions": build_system_prompt(tenant, None, channel="voice") + (
             COPY_DELIVERY_INSTRUCTIONS if can_deliver else ""),
-        "turn_detection": {"type": "server_vad"},
-        "audio": {
-            "input": {
-                "format": {"type": "audio/pcm", "rate": 24000},
-                "transcription": {"model": "grok-transcribe"},
-            },
-            "output": {"format": {"type": "audio/pcm", "rate": 24000}},
-        },
         "tools": voice_tools(tenant, website=can_deliver),
     }
 
 
+def build_gemini_setup(session: dict, *, silence_duration_ms: int | None = None,
+                       prefix_padding_ms: int | None = None) -> dict:
+    """Build a Gemini Live `BidiGenerateContentSetup` object from a session dict."""
+    settings = get_settings()
+    voice_name = resolve_voice_name(
+        session.get("gemini_voice") or session.get("voice"),
+        settings.gemini_live_voice or settings.voice_default,
+    )
+    generation_config: dict = {
+        "responseModalities": ["AUDIO"],
+        "speechConfig": {
+            "voiceConfig": {
+                "prebuiltVoiceConfig": {"voiceName": voice_name},
+            },
+        },
+    }
+    thinking_level = session.get("thinking_level") or settings.gemini_thinking_level
+    if thinking_level:
+        generation_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
+
+    realtime_input: dict = {
+        "activityHandling": "START_OF_ACTIVITY_INTERRUPTS",
+    }
+    if silence_duration_ms is not None or prefix_padding_ms is not None:
+        vad: dict = {}
+        if prefix_padding_ms is not None:
+            vad["prefixPaddingMs"] = prefix_padding_ms
+        if silence_duration_ms is not None:
+            vad["silenceDurationMs"] = silence_duration_ms
+        realtime_input["automaticActivityDetection"] = vad
+
+    setup: dict = {
+        "model": session.get("model") or settings.gemini_live_model,
+        "generationConfig": generation_config,
+        "realtimeInputConfig": realtime_input,
+        "inputAudioTranscription": {},
+        "outputAudioTranscription": {},
+        "contextWindowCompression": {"slidingWindow": {}},
+    }
+    instructions = session.get("instructions")
+    if instructions:
+        setup["systemInstruction"] = {"parts": [{"text": instructions}]}
+    declarations = gemini_function_declarations(session.get("tools"))
+    if declarations:
+        setup["tools"] = [{"functionDeclarations": declarations}]
+    return setup
+
+
 def _extract_token(data: dict) -> str | None:
-    # xAI's docs do not spell out the response shape, so accept the common variants.
-    if isinstance(data.get("value"), str):
-        return data["value"]
-    secret = data.get("client_secret")
-    if isinstance(secret, dict) and isinstance(secret.get("value"), str):
-        return secret["value"]
-    if isinstance(secret, str):
-        return secret
-    if isinstance(data.get("token"), str):
-        return data["token"]
+    """Extract the ephemeral token name returned by Google's `v1alpha/auth_tokens`."""
+    if isinstance(data.get("name"), str) and data["name"].strip():
+        return data["name"].strip()
+    if isinstance(data.get("token"), str) and data["token"].strip():
+        return data["token"].strip()
     return None
 
 
 async def mint_token(tenant: dict) -> dict:
     settings = get_settings()
-    if not settings.xai_api_key:
-        raise VoiceUnavailable("XAI_API_KEY is not set")
+    if not settings.gemini_api_key:
+        raise VoiceUnavailable("GEMINI_API_KEY is not set")
     if not tenant["voice_enabled"]:
         raise VoiceUnavailable("Voice is disabled for this site")
 
@@ -83,24 +157,36 @@ async def mint_token(tenant: dict) -> dict:
     if used >= tenant["voice_daily_limit"]:
         raise VoiceUnavailable("Daily voice limit reached")
 
+    session = build_session(tenant, website=True)
+    setup = build_gemini_setup(session)
+    ttl = max(60, int(settings.voice_token_ttl_seconds))
+    now = datetime.now(timezone.utc)
+    expire_time = (now + timedelta(seconds=max(ttl, 600))).isoformat().replace("+00:00", "Z")
+    new_session_expire = (now + timedelta(seconds=ttl)).isoformat().replace("+00:00", "Z")
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
-            settings.xai_client_secrets_url,
-            headers={"Authorization": f"Bearer {settings.xai_api_key}"},
-            json={"expires_after": {"seconds": settings.voice_token_ttl_seconds}},
+            settings.gemini_auth_tokens_endpoint,
+            json={
+                "uses": 1,
+                "expireTime": expire_time,
+                "newSessionExpireTime": new_session_expire,
+                "bidiGenerateContentSetup": setup,
+            },
         )
     if resp.status_code >= 400:
-        log.error("xAI client_secrets failed: %s %s", resp.status_code, resp.text[:300])
+        log.error("Gemini auth_tokens failed: %s %s", resp.status_code, resp.text[:300])
         raise VoiceUnavailable("Voice service rejected the request")
 
     token = _extract_token(resp.json())
     if not token:
-        log.error("Could not find a token in the xAI response keys: %s", list(resp.json().keys()))
+        log.error("Could not find a token in the Gemini auth_tokens response keys: %s", list(resp.json().keys()))
         raise VoiceUnavailable("Voice service returned an unexpected response")
 
     await db.pool().execute("INSERT INTO voice_tokens (tenant_id) VALUES ($1)", tenant["id"])
     return {
         "token": token,
-        "url": settings.voice_ws_url,
-        "session": build_session(tenant, website=True),
+        "url": settings.gemini_constrained_ws_url,
+        "model": session["model"],
+        "session": session,
     }
