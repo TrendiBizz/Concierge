@@ -22,3 +22,8 @@ scripts/vps/podman-migrate-stack.sh
 # Retired xAI / Grok voice and SIP files (replaced by Google Gemini 3.8 Live, 2026-11-24)
 api/app/phone_sip.py
 scripts/vps/check-grok-voice.py
+# 3D viewer / Designs / IFC takeoff removed (Jo, 2026-11-25)
+api/app/designs.py
+api/app/ifc_takeoff.py
+api/app/guides.py
+api/app/quote_profiles.py
