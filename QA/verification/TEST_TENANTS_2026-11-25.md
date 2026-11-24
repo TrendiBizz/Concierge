@@ -9,3 +9,9 @@ Ask (Jo): three customer accounts "Test 1/2/3" so outside users can test the onb
 - Public URL: https://concierge.trendibizz.com/studio = 200. trendibizz.com/studio = 404 (Studio lives on the concierge host; configured onboarding_url).
 - Hand out: run `invite N --email <tester email>` on the box when the tester is ready (links die after 24h).
 - Remove: `python3 scripts/vps/test_tenants.py delete`.
+
+## Follow-up: owner email + public end-to-end check
+- Owner email for test-1/2/3 set to the operator's address (Jo's instruction); links minted, not emailed.
+- https://concierge.trendibizz.com/studio: 200; all 28 /studio/ assets referenced by the page: 200.
+- Sign-in proof: a spare test-3 link redeemed via POST https://concierge.trendibizz.com/owner/auth/invite -> 200, bearer token, role owner, slug test-3. Jo's three links were not consumed.
+- No fix needed: the earlier 404 was the wrong host (trendibizz.com/studio), not a Studio fault.
