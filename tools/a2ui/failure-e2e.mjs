@@ -1,0 +1,35 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+const base='http://127.0.0.1:18765';
+const browser=await chromium.launch({headless:true,channel:'chrome'});
+try {
+ const page=await browser.newPage({viewport:{width:390,height:844}});
+ await page.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+ await page.route('**/a2ui-renderer.js',route=>route.abort());
+ await page.goto(base+'/widget-preview');
+ await page.getByRole('button',{name:'Open AI guide',exact:true}).click();
+ const send=async text=>{await page.getByRole('textbox',{name:'Message',exact:true}).fill(text);await page.getByRole('button',{name:'Send',exact:true}).click();};
+ await send('quote');
+ await page.getByText('You can send a request below, or describe it in chat.',{exact:true}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('#cc-root').shadowRoot.querySelector('.status').textContent.includes('chat'));
+ assert.equal(await page.locator('a2ui-surface').count(),0);
+ await page.close();
+ const retry=await browser.newPage();
+ await retry.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+ let fail=true;
+ await retry.route('**/api/v1/chat/action',route=>fail?(fail=false,route.fulfill({status:503,body:'Unavailable'})):route.continue());
+ await retry.goto(base+'/widget-preview');
+ await retry.getByRole('button',{name:'Open AI guide',exact:true}).click();
+ await retry.getByRole('textbox',{name:'Message',exact:true}).fill('quote');
+ await retry.getByRole('button',{name:'Send',exact:true}).click();
+ const card=retry.locator('a2ui-surface[data-surface-id^="cc-quote-"]');
+ await card.locator('[id="email"] input').fill('request@example.test');
+ await card.locator('[id="details"] input').fill('Example retry request');
+ await Promise.all([retry.waitForResponse(r=>r.url().endsWith('/chat/action')),card.locator('button').click()]);
+ await card.locator('button').evaluate(button=>new Promise(resolve=>{const check=()=>button.disabled?setTimeout(check,10):resolve();check();}));
+ assert.equal(await card.locator('[id="email"] input').inputValue(),'request@example.test');
+ const [response]=await Promise.all([retry.waitForResponse(r=>r.url().endsWith('/chat/action')),card.locator('button').click()]);
+ assert.equal(response.status(),200);
+ await retry.close();
+ console.log('PASS renderer failure retains text; failed submission preserves fields and retries');
+} finally {await browser.close();}
