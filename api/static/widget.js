@@ -16,6 +16,7 @@
   var KEY = script.getAttribute("data-key");
   if (!KEY) return;
   var API = new URL(script.src, location.href).origin;
+  var SCRIPT_NONCE = script.nonce;
   var AUTOOPEN = script.getAttribute("data-autoopen") === "1";
   // Proactive nudge (opt-in, set by the host page): data-nudge-seconds="30" shows a small prompt above
   // the launcher after that many seconds; data-nudge-paths="/pricing,/quote" limits it to those path
@@ -196,6 +197,7 @@
       "height:560px;max-height:calc(100vh - 24px);background:#fff;color:#111;border-radius:16px;display:none;" +
       "flex-direction:column;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.3)}" +
       ".panel.open{display:flex}" +
+      ".a2ui-cards{width:100%;min-width:0;white-space:normal}.a2ui-cards a2ui-surface{margin-block:12px}" +
       ".head{background:" + accent + ";color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}" +
       ".head b{font-size:15px}.head small{display:block;opacity:.85;font-size:12px;font-weight:400}" +
       ".close{background:transparent;border:0;color:#fff;font-size:22px;cursor:pointer;line-height:1}" +
@@ -226,7 +228,7 @@
     ]);
 
     var log = el("div", { class: "log", role: "log", "aria-live": "polite" });
-    var status = el("div", { class: "status" });
+    var status = el("div", { class: "status", role: "status" });
     var input = el("input", { type: "text", placeholder: "Type your question…", "aria-label": "Message", maxlength: "1000" });
     var sendBtn = el("button", { class: "btn", type: "button", "aria-label": "Send", text: "➤" });
     var micBtn = el("button", { class: "btn mic", type: "button", "aria-label": "Talk to the AI guide", text: "\u{1F3A4}" });
@@ -324,6 +326,39 @@
     window.__ccWidgetReady = true;
     window.dispatchEvent(new Event("concierge:ready"));
 
+    // Lazy, same-origin renderer: ordinary text chat pays no A2UI download cost.
+    var rendererPromise;
+    var uiQueue = Promise.resolve();
+    function renderA2UI(message) {
+      uiQueue = uiQueue.then(async function () {
+        if (!rendererPromise) rendererPromise = new Promise(function (resolve, reject) {
+          function ready() {
+            var cards = el("div", {class: "a2ui-cards", "aria-label": "Chat forms"});
+            log.appendChild(cards);
+            resolve(window.ConciergeA2UI.create(cards, async function (action) {
+              setStatus("Saving request…");
+              try {
+                var response = await post("/api/v1/chat/action", Object.assign({key: KEY, session_id: SID, page_url: location.href}, action));
+                if (!response.ok) throw new Error("Request could not be saved. Check the fields and try again.");
+                var result = await response.json();
+                addMsg("assistant", result.reply);
+                (result.a2ui || []).forEach(renderA2UI);
+                setStatus("Request saved.");
+              } catch (error) { setStatus(error.message || "Request could not be saved. Please try again."); throw error; }
+            }));
+          }
+          if (window.ConciergeA2UI) { ready(); return; }
+          var renderer = el("script", {src: API + "/a2ui-renderer.js"});
+          if (SCRIPT_NONCE) renderer.nonce = SCRIPT_NONCE;
+          renderer.onload = ready;
+          renderer.onerror = reject;
+          document.head.appendChild(renderer);
+        });
+        var adapter = await rendererPromise;
+        await adapter.receive(message);
+        log.scrollTop = log.scrollHeight;
+      }).catch(function () { setStatus("Forms are unavailable. Please send your request as a chat message."); });
+    }
     // -------------------------------------------------------------- chat
     var busy = false;
     async function sendText() {
@@ -343,6 +378,7 @@
             key: KEY,
             session_id: SID,
             message: text,
+            a2ui_version: "0.8",
             page_url: location.href,
             utm: UTM,
           }),
@@ -369,7 +405,9 @@
               if (line.indexOf("data: ") !== 0) continue;
               var event;
               try { event = JSON.parse(line.slice(6)); } catch (e) { continue; }
-              if (event.type === "token") {
+              if (event.type === "a2ui") {
+                renderA2UI(event.message);
+              } else if (event.type === "token") {
                 if (!wrote) { typing.textContent = ""; wrote = true; }
                 typing.textContent += event.text;
               } else if (event.type === "replace") {
@@ -429,7 +467,7 @@
     pollTimer = setInterval(pollOwner, 5000);
     sendBtn.addEventListener("click", sendText);
     input.addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter" && !ev.shiftKey) {
+      if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
         ev.preventDefault();
         sendText();
       }

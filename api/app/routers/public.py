@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import RedirectResponse
 
 from .. import (
-    channel_authorization, chat as chat_engine, cloudflare_auth, convo, db, llm,
+    a2ui, channel_authorization, chat as chat_engine, cloudflare_auth, convo, db, llm,
     robots_fetch, site_enquiry, site_tools, tenants,
 )
 from ..security import html_with_script_nonce
@@ -68,6 +68,12 @@ async def widget_js():
         media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=300"},
     )
+
+
+@router.get("/a2ui-renderer.js")
+async def a2ui_renderer_js():
+    return FileResponse(_main().STATIC_DIR / "a2ui-renderer.js", media_type="application/javascript",
+                        headers={"Cache-Control": "public, max-age=300"})
 
 
 class PublicTranslateRequest(BaseModel):
@@ -218,6 +224,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
     page_url: str | None = None
     utm: dict[str, str] = {}
+    a2ui_version: Literal["0.8"] | None = None
 
 
 @router.post("/api/v1/chat")
@@ -238,6 +245,7 @@ async def chat(req: ChatRequest, request: Request):
         log.exception("chat failed for tenant %s", tenant["slug"])
         raise HTTPException(status_code=502, detail="The assistant is temporarily unavailable")
     return {
+        "a2ui": a2ui.card(kind) if req.a2ui_version and not result.get("suppressed") and (kind := a2ui.choose(req.message, tenant)) else [],
         "reply": result["reply"],
         "lead_captured": result["lead_captured"],
         "booking_url": result["booking_url"],
@@ -258,6 +266,11 @@ async def chat_stream(req: ChatRequest, request: Request):
             async for event in chat_engine.run_turn_stream(
                 tenant, session_id, "chat", req.message, page_url=req.page_url, utm=req.utm
             ):
+                if event.get("type") == "done" and req.a2ui_version and not event.get("suppressed"):
+                    kind = a2ui.choose(req.message, tenant)
+                    if kind:
+                        for message in a2ui.card(kind):
+                            yield "data: " + json.dumps({"type": "a2ui", "message": message}) + "\n\n"
                 yield "data: " + json.dumps(event, default=str) + "\n\n"
         except llm.LLMNotConfigured:
             yield 'data: {"type":"error","message":"AI is not configured"}\n\n'
@@ -269,6 +282,49 @@ async def chat_stream(req: ChatRequest, request: Request):
         events(), media_type="text/event-stream",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
+
+
+class A2UIUserAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(max_length=40)
+    surfaceId: str = Field(max_length=100)
+    sourceComponentId: str = Field(max_length=40)
+    timestamp: str = Field(min_length=20, max_length=40)
+    context: dict[str, str] = Field(max_length=5)
+
+
+class A2UIActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(max_length=200)
+    session_id: str = Field(max_length=200)
+    userAction: A2UIUserAction
+    page_url: str | None = Field(default=None, max_length=2000)
+
+
+@router.post("/api/v1/chat/action")
+async def a2ui_action(req: A2UIActionRequest, request: Request):
+    """Save a structured request through the existing enquiry pipeline. Never reserve or charge."""
+    from .. import enquiries
+    m = _main()
+    session_id = convo.clean_session(req.session_id)
+    m._rate_limit(request, session_id)
+    tenant = await m._tenant_for(request, req.key)
+    try:
+        kind, values = a2ui.validate_action(req.userAction.model_dump())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    if kind == "pricing" and tenant.get("slug") not in a2ui.PRICING_TENANTS:
+        raise HTTPException(403, "Plan unavailable")
+    conversation_id = await convo.get_or_create(tenant, session_id, "chat", req.page_url, {})
+    # Store as a visitor request, never execute text as instructions or log contact details.
+    text = "Structured " + kind + " request: " + json.dumps(values, ensure_ascii=False)
+    await convo.save_message(conversation_id, "user", text)
+    if kind != "confirmation":
+        await enquiries.capture(tenant, "chat", str(conversation_id) + ":" + req.userAction.surfaceId, text, conversation_id=conversation_id,
+                                email=values.get("email", ""))
+    reply = "Acknowledgement saved." if kind == "confirmation" else a2ui.TEXT["confirmation"]
+    await convo.save_message(conversation_id, "assistant", reply)
+    return {"reply": reply, "a2ui": [] if kind == "confirmation" else a2ui.card("confirmation")}
 
 
 # -------------------------------------------------------------- demo page
