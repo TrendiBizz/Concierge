@@ -112,7 +112,13 @@ class Settings(BaseSettings):
     phone_receptionist_enabled: bool = False
     voice_recording_enabled: bool = False  # web audio: business opt-in plus caller choice
     phone_recording_enabled: bool = False  # separate paid-provider + legal approval
-    phone_voice_provider: Literal['grok','legacy_twilio_tts'] = 'grok'
+    phone_voice_provider: Literal['gemini_live', 'grok', 'legacy_twilio_tts'] = 'gemini_live'
+    # Google Gemini 3.8 Live API (telephone voice bridge)
+    gemini_api_key: str = ""
+    gemini_live_model: str = "models/gemini-3.8-live"
+    gemini_live_ws_url: str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+    gemini_live_voice: str = "Aoede"
+    gemini_thinking_level: str = "low"
     # Operator-only JSON mapping connection UUID -> tenant, number, whsec secret.
     # Any carrier/PBX can route SIP to Grok; blank keeps this path disabled.
     xai_sip_connections: str = ""
@@ -263,6 +269,13 @@ class Settings(BaseSettings):
             sep = "&" if "?" in self.xai_realtime_url else "?"
             return f"{self.xai_realtime_url}{sep}model={self.voice_model}"
         return self.xai_realtime_url
+
+    @property
+    def gemini_ws_url(self) -> str:
+        if self.gemini_api_key:
+            sep = "&" if "?" in self.gemini_live_ws_url else "?"
+            return f"{self.gemini_live_ws_url}{sep}key={self.gemini_api_key}"
+        return self.gemini_live_ws_url
 
     @property
     def sms_configured(self) -> bool:

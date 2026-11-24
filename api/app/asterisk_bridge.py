@@ -1,9 +1,10 @@
-"""Private Asterisk AudioSocket → native Grok voice bridge.
+"""Private Asterisk AudioSocket → Google Gemini 3.8 Live voice bridge.
 
 One listener per provisioned business: the caller/model never chooses a tenant.
 Run separately from HTTP workers: python -m app.asterisk_bridge.
 AudioSocket is unencrypted: bind loopback or an isolated private container network.
 """
+from array import array
 import asyncio
 import base64
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ import os
 import re
 import secrets
 import struct
+import sys
 import uuid
 
 import websockets
@@ -33,21 +35,16 @@ MAX_SECONDS = 600
 LIVE_LISTEN_DISCLOSURE = (
     ' This line is answered by an automated assistant, and a member of our team may listen to the '
     'call while it happens or join it. Say so in your greeting, in your own words.')
-# A `response.cancel` that races the end of a response comes back as
-# "Cancellation failed: no active response found". That is not a dead call -- the
-# barge-in already achieved what it wanted -- so one error event must never end a
-# session. Only a session that keeps failing is treated as unusable.
 MAX_ERRORS = 5
-# These are not failures at all: xAI refuses a cancel that raced the end of the
-# response, which happens whenever a caller correctly stops the assistant
-# mid-sentence. Counting them ended a real 58-second call.
-BENIGN_ERRORS = ('cancellation failed', 'no active response found')
-# xAI's default VAD ends a turn after 200ms of quiet, which splits a caller
-# dictating a phone number into three "turns" and makes the assistant interrupt.
+# Telephone pacing needs a longer end-of-turn silence than the browser: a caller
+# dictating a phone number or email address pauses mid-sentence.
 SILENCE_DURATION_MS = 700
-# Server VAD normally answers a caller turn on its own. If a cancelled or lost
-# response leaves the caller in silence, ask the model once for that turn.
+# Automatic activity detection normally answers a caller turn on its own. If a
+# cancelled or lost response leaves the caller in silence, ask the model once.
 REPLY_NUDGE_SECONDS = 5.0
+GEMINI_VOICES = frozenset({
+    'Aoede', 'Charon', 'Fenrir', 'Kore', 'Puck', 'Leda', 'Orus', 'Zephyr',
+})
 
 
 from .speech_text import clean_speech
@@ -66,6 +63,80 @@ READBACK_RULES = (
 SMS_OFFLINE_RULE = (
     ' Text messages cannot be sent right now. Do not offer a text copy or a recording link by SMS and '
     'do not promise any text. Offer a callback, or an email copy if the caller gives an email address.')
+
+
+def upsample_8k_to_16k(pcm: bytes) -> bytes:
+    """Upsample 8kHz PCM16 LE mono to 16kHz PCM16 LE mono via 2x linear interpolation."""
+    if len(pcm) % 2:
+        raise ValueError('Invalid PCM16 frame')
+    if not pcm:
+        return b''
+    samples = array('h')
+    samples.frombytes(pcm)
+    if sys.byteorder != 'little':
+        samples.byteswap()
+    n = len(samples)
+    out = array('h', [0]) * (n * 2)
+    for i in range(n - 1):
+        s0 = samples[i]
+        out[2 * i] = s0
+        out[2 * i + 1] = (s0 + samples[i + 1]) >> 1
+    last = samples[n - 1]
+    out[2 * n - 2] = last
+    out[2 * n - 1] = last
+    if sys.byteorder != 'little':
+        out.byteswap()
+    return out.tobytes()
+
+
+def downsample_24k_to_8k(pcm: bytes) -> bytes:
+    """Downsample 24kHz PCM16 LE mono to 8kHz PCM16 LE mono via 3:1 boxcar averaging."""
+    if len(pcm) % 2:
+        raise ValueError('Invalid PCM16 frame')
+    usable = (len(pcm) // 6) * 6
+    if not usable:
+        return b''
+    samples = array('h')
+    samples.frombytes(pcm[:usable])
+    if sys.byteorder != 'little':
+        samples.byteswap()
+    count = len(samples) // 3
+    out = array('h', [0]) * count
+    for i in range(count):
+        base = i * 3
+        out[i] = int((samples[base] + samples[base + 1] + samples[base + 2]) / 3)
+    if sys.byteorder != 'little':
+        out.byteswap()
+    return out.tobytes()
+
+
+def strip_additional_properties(schema):
+    """Recursively strip 'additionalProperties' keys that Gemini Live rejects."""
+    if isinstance(schema, dict):
+        return {
+            k: strip_additional_properties(v)
+            for k, v in schema.items()
+            if k != 'additionalProperties'
+        }
+    if isinstance(schema, list):
+        return [strip_additional_properties(item) for item in schema]
+    return schema
+
+
+def _gemini_function_declarations(tools) -> list[dict]:
+    declarations = []
+    for tool in tools or ():
+        if not isinstance(tool, dict) or not tool.get('name'):
+            continue
+        decl = {
+            'name': tool['name'],
+            'description': tool.get('description', ''),
+        }
+        params = strip_additional_properties(tool.get('parameters'))
+        if isinstance(params, dict) and params.get('properties'):
+            decl['parameters'] = params
+        declarations.append(decl)
+    return declarations
 
 
 async def sms_copy_available(tenant_id) -> bool:
@@ -175,46 +246,97 @@ async def send_packet(writer, kind, body=b''):
 
 
 class MediaBridge:
-    """Bidirectional audio with bounded playback, pacing and barge-in flushing."""
+    """Bidirectional audio bridge between Asterisk AudioSocket (8kHz) and Gemini Live (16kHz in / 24kHz out)."""
     def __init__(self, reader, writer, ws, session, on_transcript, on_tool, recording=None,
                  reply_nudge=REPLY_NUDGE_SECONDS):
         self.recording = recording
         self.reader, self.writer, self.ws = reader, writer, ws
-        self.session = session
+        self.session = session or {}
         self.on_transcript, self.on_tool = on_transcript, on_tool
         self.playback = bytearray()
+        self._pcm24_rem = b''
         self.ready = asyncio.Event()
         self.seen_transcripts, self.seen_tools = {}, set()
         self.ending = False
         self.speaking = False
-        self.pending = []
         self.reply_nudge = reply_nudge
-        # A response is only cancellable while `response.created` is current. VAD
-        # can re-fire `speech_started` for an item that already finished, and the
-        # server may have completed the response before the cancel lands, so track
-        # both the live response and the caller turns that already ended.
-        self.response_id = None
-        self.ended_items = set()
         self.caller_speaking = False
         self.errors = 0
-        self.benign_errors = 0
-        # Only an audible reply is worth cancelling; cancelling one the caller
-        # has not heard yet is what produces the benign error above.
-        self.response_audible = False
-        # A caller turn is owed a reply until the assistant actually produces
-        # audio or speech for it. A cancelled or dropped response keeps the debt,
-        # which is what the reply nudge in `watchdog` pays off.
         self.reply_pending = False
         self.reply_since = 0.0
+        self._user_turn = 1
+        self._user_text = ''
+        self._assistant_turn = 1
+        self._assistant_text = ''
+
+    def _setup_payload(self) -> dict:
+        cfg = get_settings()
+        requested_voice = self.session.get('gemini_voice') or self.session.get('voice')
+        voice_name = requested_voice if requested_voice in GEMINI_VOICES else cfg.gemini_live_voice
+        generation_config = {
+            'responseModalities': ['AUDIO'],
+            'speechConfig': {
+                'voiceConfig': {
+                    'prebuiltVoiceConfig': {'voiceName': voice_name},
+                },
+            },
+        }
+        thinking_level = self.session.get('thinking_level') or cfg.gemini_thinking_level
+        if thinking_level:
+            generation_config['thinkingConfig'] = {'thinkingLevel': thinking_level}
+
+        setup = {
+            'model': self.session.get('model') or cfg.gemini_live_model,
+            'generationConfig': generation_config,
+            'realtimeInputConfig': {
+                'automaticActivityDetection': {
+                    'prefixPaddingMs': 300,
+                    'silenceDurationMs': SILENCE_DURATION_MS,
+                },
+                'activityHandling': 'START_OF_ACTIVITY_INTERRUPTS',
+            },
+            'inputAudioTranscription': {},
+            'outputAudioTranscription': {},
+            'contextWindowCompression': {
+                'slidingWindow': {},
+            },
+        }
+        instructions = self.session.get('instructions')
+        if instructions:
+            setup['systemInstruction'] = {'parts': [{'text': instructions}]}
+        declarations = _gemini_function_declarations(self.session.get('tools'))
+        if declarations:
+            setup['tools'] = [{'functionDeclarations': declarations}]
+        return {'setup': setup}
+
+    async def _emit_transcript(self, role: str, item_id: str, text: str) -> None:
+        if not text or not text.strip():
+            return
+        identity = (item_id, role)
+        if self.seen_transcripts.get(identity) == text:
+            return
+        self.seen_transcripts[identity] = text
+        if self.on_transcript is not None:
+            await self.on_transcript(role, text[:10000], item_id)
+
+    def _finish_user_turn(self) -> None:
+        if self._user_text:
+            self._user_turn += 1
+            self._user_text = ''
+
+    def _finish_assistant_turn(self) -> None:
+        if self._assistant_text:
+            self._assistant_turn += 1
+            self._assistant_text = ''
 
     async def input(self):
         await asyncio.wait_for(self.ready.wait(), 15)
         reading = asyncio.create_task(packet(self.reader))
         try:
             while True:
-                # Wait()/silent endpoints may send no frames. Grok still needs
-                # real-time silence for VAD to finish the caller's turn. Shield
-                # the packet read: cancelling readexactly can lose half a frame.
+                # Wait()/silent endpoints may send no frames. Gemini VAD still needs
+                # real-time silence to finish the caller's turn. Shield the packet
+                # read: cancelling readexactly can lose half a frame.
                 done, _ = await asyncio.wait((reading,), timeout=.02)
                 if done:
                     kind, body = reading.result()
@@ -233,8 +355,15 @@ class MediaBridge:
                     body = b'\0' * FRAME_BYTES
                 if self.recording:
                     self.recording.append(body)
-                await self.ws.send(json.dumps({'type': 'input_audio_buffer.append',
-                                               'audio': base64.b64encode(body).decode()}))
+                pcm16 = upsample_8k_to_16k(body)
+                await self.ws.send(json.dumps({
+                    'realtimeInput': {
+                        'audio': {
+                            'data': base64.b64encode(pcm16).decode(),
+                            'mimeType': 'audio/pcm;rate=16000',
+                        }
+                    }
+                }))
         finally:
             reading.cancel()
             await asyncio.gather(reading, return_exceptions=True)
@@ -248,136 +377,154 @@ class MediaBridge:
                 del self.playback[:FRAME_BYTES]
                 played = body.ljust(FRAME_BYTES, b'\0')
                 await send_packet(self.writer, 0x10, played)
-                if self.response_id is not None:
-                    self.response_audible = True
                 if self.recording:
                     self.recording.append(played)
                 idle_since = None
             elif self.ending and not self.speaking:
                 idle_since = idle_since or started
-                if started-idle_since >= .4:
+                if started - idle_since >= .4:
                     return
-            await asyncio.sleep(max(0, .02-(asyncio.get_running_loop().time()-started)))
+            await asyncio.sleep(max(0, .02 - (asyncio.get_running_loop().time() - started)))
 
-    async def grok(self):
-        await self.ws.send(json.dumps({'type': 'session.update', 'session': self.session}))
+    async def gemini(self):
+        await self.ws.send(json.dumps(self._setup_payload()))
         async for message in self.ws:
             event = json.loads(message)
-            kind = event.get('type')
-            if kind == 'session.updated':
+            if 'setupComplete' in event:
                 if not self.ready.is_set():
                     self.ready.set()
-                    await self.ws.send(json.dumps({'type': 'response.create'}))
-            elif kind == 'error':
-                # Log the server's words: the old code swallowed them and every
-                # failed call ended up as an undiagnosable "RuntimeError".
+                    await self.ws.send(json.dumps({
+                        'clientContent': {
+                            'turns': [{
+                                'role': 'user',
+                                'parts': [{'text': 'A caller has just connected. Greet them now.'}],
+                            }],
+                            'turnComplete': True,
+                        }
+                    }))
+                continue
+
+            if 'error' in event:
                 error = event.get('error') if isinstance(event.get('error'), dict) else {}
-                detail = str(error.get('message') or event.get('message') or '')[:500]
-                code = str(error.get('code') or error.get('type') or 'unknown')
-                if any(marker in f'{code} {detail}'.lower() for marker in BENIGN_ERRORS):
-                    self.benign_errors += 1
-                    if self.benign_errors <= 3:
-                        log.info('Benign Grok cancel race (%s): %s', self.benign_errors, detail)
+                detail = str(error.get('message') or event.get('message') or event.get('error') or '')[:500]
+                code = str(error.get('code') or error.get('status') or 'unknown')
+                self.errors += 1
+                log.warning('Gemini Live telephone session error %s/%s: %s', code, self.errors, detail)
+                if self.errors >= MAX_ERRORS:
+                    raise RuntimeError(f'Gemini Live telephone session failed {self.errors} times: {code} {detail}')
+                if self.reply_pending:
+                    self.reply_since = asyncio.get_running_loop().time()
+                continue
+
+            if 'goAway' in event:
+                info = event.get('goAway') if isinstance(event.get('goAway'), dict) else {}
+                log.warning('Gemini Live session goAway received (timeLeft=%s)', info.get('timeLeft'))
+                continue
+
+            if 'serverContent' in event:
+                sc = event.get('serverContent') or {}
+                if sc.get('interrupted'):
+                    self.playback.clear()
+                    self._pcm24_rem = b''
+                    self.speaking = False
+                    self.ending = False
+                    self._finish_assistant_turn()
+
+                in_tx = sc.get('inputTranscription')
+                if isinstance(in_tx, dict):
+                    chunk = in_tx.get('text')
+                    if isinstance(chunk, str) and chunk:
+                        self._finish_assistant_turn()
+                        self._user_text += chunk
+                        self.reply_pending = True
+                        self.reply_since = asyncio.get_running_loop().time()
+                        await self._emit_transcript('user', f'user-{self._user_turn}', self._user_text)
+                    if in_tx.get('finished'):
+                        self._finish_user_turn()
+
+                model_turn = sc.get('modelTurn')
+                if isinstance(model_turn, dict):
+                    for part in model_turn.get('parts') or ():
+                        if not isinstance(part, dict):
+                            continue
+                        inline = part.get('inlineData')
+                        if isinstance(inline, dict) and inline.get('data'):
+                            audio24 = base64.b64decode(inline['data'], validate=True)
+                            if len(audio24) % 2:
+                                raise ValueError('Invalid Gemini audio frame')
+                            buf = self._pcm24_rem + audio24
+                            usable = (len(buf) // 6) * 6
+                            self._pcm24_rem = buf[usable:]
+                            audio8 = downsample_24k_to_8k(buf[:usable]) if usable else b''
+                            if len(self.playback) + len(audio8) > 16000 * 30:
+                                raise ValueError('Invalid or excessive Gemini audio')
+                            if audio8:
+                                self.playback.extend(audio8)
+                            self._finish_user_turn()
+                            self.speaking = True
+                            self.reply_pending = False
+
+                out_tx = sc.get('outputTranscription')
+                if isinstance(out_tx, dict):
+                    chunk = out_tx.get('text')
+                    if isinstance(chunk, str) and chunk:
+                        self._finish_user_turn()
+                        self._assistant_text += chunk
+                        self.reply_pending = False
+                        await self._emit_transcript('assistant', f'assistant-{self._assistant_turn}', self._assistant_text)
+                    if out_tx.get('finished'):
+                        self._finish_assistant_turn()
+
+                if sc.get('turnComplete'):
+                    self.speaking = False
+                    self._finish_assistant_turn()
                     if self.reply_pending:
                         self.reply_since = asyncio.get_running_loop().time()
-                    continue
-                self.errors += 1
-                log.warning('Grok telephone session error %s/%s: %s', code, self.errors, detail)
-                if self.errors >= MAX_ERRORS:
-                    raise RuntimeError(f'Grok telephone session failed {self.errors} times: {code} {detail}')
-                if self.reply_pending:
-                    self.reply_since = asyncio.get_running_loop().time()
-            elif kind == 'response.created':
-                self.speaking = True
-                self.response_id = event.get('response_id') or 'active'
-                self.response_audible = False
-            elif kind in ('response.canceled', 'response.cancelled'):
-                self.speaking = False
-                self.response_id = None
-                # The cancelled reply never reached the caller; keep the debt so
-                # the nudge can rebuild it if the caller stays silent.
-                self.reply_pending = True
-                self.reply_since = asyncio.get_running_loop().time()
-            elif kind in ('response.output_audio.delta', 'response.audio.delta'):
-                audio = base64.b64decode(event['delta'], validate=True)
-                if len(audio) % 2 or len(self.playback)+len(audio) > 16000*30:
-                    raise ValueError('Invalid or excessive Grok audio')
-                self.playback.extend(audio)
-                self.reply_pending = False
-            elif kind == 'input_audio_buffer.speech_started':
-                item = event.get('item_id')
-                # The server can re-fire speech_started for a turn that already
-                # stopped. Cancelling then races the next response and, worse,
-                # leaves the caller with a half-played reply and no follow-up.
-                if item and item in self.ended_items:
-                    continue
-                self.caller_speaking = True
-                self.playback.clear()
-                self.ending = False
-                if self.response_id is not None and self.speaking and self.response_audible:
-                    self.response_id = None
-                    self.response_audible = False
-                    self.reply_pending = True
-                    self.reply_since = asyncio.get_running_loop().time()
-                    await self.ws.send(json.dumps({'type': 'response.cancel'}))
-            elif kind == 'input_audio_buffer.speech_stopped':
-                self.caller_speaking = False
-                if event.get('item_id'):
-                    self.ended_items.add(event['item_id'])
-            elif kind in ('conversation.item.input_audio_transcription.completed',
-                          'response.output_audio_transcript.done', 'response.audio_transcript.done'):
-                identity = (event.get('item_id') or event.get('response_id'),
-                            'user' if kind.startswith('conversation') else 'assistant')
-                text = event.get('transcript')
-                if identity[1] == 'user':
-                    self.reply_pending = True
-                    self.reply_since = asyncio.get_running_loop().time()
-                if isinstance(text, str) and text and (not identity[0] or self.seen_transcripts.get(identity) != text):
-                    # Grok can emit successive cumulative COMPLETED events for
-                    # the same item. Replace that turn, rather than freezing its
-                    # first few words or appending duplicate partial messages.
-                    self.seen_transcripts[identity] = text
-                    if identity[1] == 'assistant':
-                        self.reply_pending = False
-                    await self.on_transcript(identity[1], text[:10000], identity[0])
-            elif kind == 'response.function_call_arguments.done':
-                ident = event.get('call_id')
-                if not isinstance(ident, str) or not ident or len(ident)>200 or ident in self.seen_tools:
-                    continue
-                if len(self.seen_tools)>=40:
-                    raise ValueError('Tool limit')
-                self.seen_tools.add(ident)
-                args = json.loads(event.get('arguments', '{}'))
-                if not isinstance(args, dict):
-                    raise ValueError('Invalid tool arguments')
-                if event.get('name') == 'end_call':
-                    self.ending = True
-                    result = {'ok': True, 'ending': True}
-                else:
-                    result = await self.on_tool(event.get('name', ''), args)
-                self.pending.append((ident, result))
-            elif kind == 'response.done':
-                self.speaking = False
-                self.response_id = None
-                if self.reply_pending:
-                    # The response finished without saying anything the caller
-                    # could hear; start the nudge clock now.
-                    self.reply_since = asyncio.get_running_loop().time()
-                pending, self.pending = self.pending, []
-                for ident, result in pending:
-                    await self.ws.send(json.dumps({'type': 'conversation.item.create', 'item': {
-                        'type': 'function_call_output', 'call_id': ident,
-                        'output': json.dumps(result, default=str)}}))
-                if pending and not self.ending:
-                    await self.ws.send(json.dumps({'type': 'response.create'}))
+
+            if 'toolCallCancellation' in event:
+                cancel_ids = (event.get('toolCallCancellation') or {}).get('ids') or ()
+                for cid in cancel_ids:
+                    if isinstance(cid, str) and cid:
+                        self.seen_tools.add(cid)
+
+            if 'toolCall' in event:
+                calls = (event.get('toolCall') or {}).get('functionCalls') or ()
+                responses = []
+                for fc in calls:
+                    if not isinstance(fc, dict):
+                        continue
+                    ident = fc.get('id')
+                    if not isinstance(ident, str) or not ident or len(ident) > 200 or ident in self.seen_tools:
+                        continue
+                    if len(self.seen_tools) >= 40:
+                        raise ValueError('Tool limit')
+                    self.seen_tools.add(ident)
+                    name = fc.get('name', '')
+                    args = fc.get('args')
+                    if args is None:
+                        args = {}
+                    elif isinstance(args, str):
+                        args = json.loads(args)
+                    if not isinstance(args, dict):
+                        raise ValueError('Invalid tool arguments')
+                    if name == 'end_call':
+                        self.ending = True
+                        self.speaking = False
+                        result = {'ok': True, 'ending': True}
+                    else:
+                        result = await self.on_tool(name, args)
+                    responses.append({'id': ident, 'name': name, 'response': result})
+                if responses and not self.ending:
+                    await self.ws.send(json.dumps({
+                        'toolResponse': {'functionResponses': responses},
+                    }, default=str))
 
     async def watchdog(self):
         """Give a caller whose turn went unanswered one nudge, not dead air.
 
-        The cancel-versus-completion race, a lost response or a silently dropped
-        turn all leave the caller in silence. Re-asking the model once per turn
-        turns that into an answer; repeated nudges could talk over the caller, so
-        the debt is cleared when the nudge is sent.
+        A lost response or a silently dropped turn leaves the caller in silence.
+        Re-asking the model once per turn turns that into an answer; repeated
+        nudges could talk over the caller, so the debt is cleared when sent.
         """
         while True:
             await asyncio.sleep(.25)
@@ -389,13 +536,21 @@ class MediaBridge:
             log.warning('Caller turn went unanswered for %.0fs; prompting the model',
                         self.reply_nudge)
             try:
-                await self.ws.send(json.dumps({'type': 'response.create'}))
+                await self.ws.send(json.dumps({
+                    'clientContent': {
+                        'turns': [{
+                            'role': 'user',
+                            'parts': [{'text': 'Please reply to the caller.'}],
+                        }],
+                        'turnComplete': True,
+                    }
+                }))
             except Exception:
                 log.exception('Reply nudge could not be sent')
                 return
 
     async def run(self):
-        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, self.grok, self.watchdog)]
+        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, self.gemini, self.watchdog)]
         try:
             async with asyncio.timeout(MAX_SECONDS):
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -441,7 +596,7 @@ async def caller_number(call_id: str) -> str:
 
 async def register(route, call_id):
     cfg = get_settings()
-    if not cfg.phone_receptionist_enabled or cfg.phone_voice_provider != 'grok' or not cfg.xai_api_key:
+    if not cfg.phone_receptionist_enabled or cfg.phone_voice_provider != 'gemini_live' or not cfg.gemini_api_key:
         raise ValueError('Phone receptionist is disabled')
     tenant = await tenants.get_by_slug(route.tenant)
     if not tenant or not tenant['phone_enabled']:
@@ -462,10 +617,10 @@ async def register(route, call_id):
     return tenant
 
 
-
 async def prepare(route, call_id):
-    """Create the call records and the Grok session for one route. Shared by the
+    """Create the call records and the Gemini Live session for one route. Shared by the
     Python bridge and the internal voice shell."""
+    cfg = get_settings()
     tenant = await register(route, call_id)
     conversation = await convo.get_or_create(tenant, call_id, 'phone', None, None)
     # The number recorded at register() is the caller's; capture against it so the case is the
@@ -478,15 +633,15 @@ async def prepare(route, call_id):
     capability = await voice_records.start(tenant, call_id, channel='phone')
     record_session = await voice_records.authenticate(capability['id'], capability['token'])
     session = voice.build_session(tenant, website=True)
+    session['model'] = cfg.gemini_live_model
+    session['gemini_voice'] = cfg.gemini_live_voice
+    session['thinking_level'] = cfg.gemini_thinking_level
     for direction in ('input', 'output'):
         session['audio'][direction]['format'] = {'type': 'audio/pcm', 'rate': 8000}
-    # Telephone pacing needs a longer end-of-turn silence than the browser: a
-    # caller dictating a number or an email address pauses mid-sentence. xAI
-    # echoes these values back in session.updated.
     session['turn_detection'] = {'type': 'server_vad', 'silence_duration_ms': SILENCE_DURATION_MS,
                                  'prefix_padding_ms': 300}
     sms_ok = await sms_copy_available(tenant['id'])
-    recording_ok = bool(get_settings().voice_recording_enabled
+    recording_ok = bool(cfg.voice_recording_enabled
                         and await channel_authorization.is_authorized(tenant['id'], 'call_recording'))
     session['instructions'] = build_system_prompt(tenant, None, channel='phone') + phone_instructions(
         tenant['name'], recording_ok=recording_ok, listen_in=call_control.enabled(), sms_ok=sms_ok,
@@ -603,9 +758,8 @@ async def handle(reader, writer, route, networks):
                     record_session['recording_consent'] = False
                 if not await channel_authorization.is_authorized(tenant['id'], 'telephone'):
                     raise ValueError('Business telephone authorization revoked')
-        async with websockets.connect(get_settings().xai_realtime_url,
-                additional_headers={'Authorization':'Bearer '+get_settings().xai_api_key}, open_timeout=15,
-                max_size=2**20) as ws:
+        async with websockets.connect(get_settings().gemini_ws_url, open_timeout=15,
+                max_size=4 * 1024 * 1024) as ws:
             media = asyncio.create_task(MediaBridge(reader, writer, ws, session, transcript, tool, recording).run())
             guard = asyncio.create_task(monitor())
             try:
