@@ -27,7 +27,7 @@ for spec in "${volumes[@]}"; do
 done
 printf '%s\n' "${SKIPPED[@]:-}" > "$WORK/SKIPPED.txt"
 
-tar czf "$WORK/shared.tgz" --exclude="shared/media" --exclude="shared/designs" -C "$ROOT" shared
+tar czf "$WORK/shared.tgz" --exclude="shared/media" -C "$ROOT" shared
 tar czf "$WORK/website.tgz" -C "$ROOT/releases/20261108-vps" website/site
 tar czf "$WORK/asterisk.tgz" -C "$ROOT/releases/20261108-vps/product/scripts" asterisk/generated
 

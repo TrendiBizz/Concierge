@@ -91,7 +91,7 @@ services:
       # PAGESPEED_API_KEY only (the file holds nothing else): site-check's PageSpeed scores. It moved here from
       # the website container when /api/site-check moved into this API.
       - {path: /opt/trendi/shared/website.env, format: raw}
-    volumes: [api-model-cache:/opt/fastembed, /opt/trendi/shared/calendar:/run/concierge-calendar, /opt/trendi/shared/designs:/data/designs, /opt/trendi/shared/media:/data/media, /opt/trendi/shared/studio:/srv/studio:ro, /opt/trendi/backups:/backups:ro]
+    volumes: [api-model-cache:/opt/fastembed, /opt/trendi/shared/calendar:/run/concierge-calendar, /opt/trendi/shared/media:/data/media, /opt/trendi/shared/studio:/srv/studio:ro, /opt/trendi/backups:/backups:ro]
     ports: [127.0.0.1:8000:8000]
     depends_on:
       postgres: {condition: service_healthy}

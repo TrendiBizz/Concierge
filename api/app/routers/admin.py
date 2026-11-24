@@ -186,7 +186,6 @@ async def admin_status():
         "(SELECT count(*) FROM leads) AS leads, "
         "(SELECT count(*) FROM quotations) AS quotations, "
         "(SELECT count(*) FROM media_assets) AS media_assets, "
-        "(SELECT count(*) FROM design_uploads) AS designs, "
         "pg_database_size(current_database()) AS database_bytes")
     backups = []
     root = Path("/backups")

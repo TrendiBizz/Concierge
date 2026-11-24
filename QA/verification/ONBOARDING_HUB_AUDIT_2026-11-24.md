@@ -23,3 +23,18 @@ Mutation check: before the fixes, the hub test failed on both 500s (documents, a
 - Left on purpose (irreversible, Jo to decide): DB tables `design_uploads` and `quote_profiles` with their data, `/opt/trendi/shared/designs` volume mount and files, orphaned i18n strings.
 - Proof: `npm run build` clean, no o3dv chunk, main chunk 779 kB; pytest 1922 passed, 42 skipped (suite shrank by the deleted tests). Mutation check: removing the 422 refusal fails test_quotation_draft_route.
 - Deploy: deploy-api.sh + deploy-studio.sh. First verify showed DRIFT (rsync never deletes); added the four api files to `scripts/vps/removed-paths.txt`, redeployed, prune moved them to `removed/<date>/` on the box. `verify-deploy.sh`: "OK: repo and box agree".
+
+## 3D/Designs removal, part 2 (2026-11-25): tables, uploads, copy sweep
+
+Jo approved dropping the data. Production before the change (read-only): `design_uploads` 0 rows, `quote_profiles` 1 row
+(tenant 271485f2…, "Nu-Wall cladding", rate 0, default), `design_links` 1 row (created 2026-11-11, expired 2026-11-18).
+`/opt/trendi/shared/designs`: 4 files, 28K (3 test .stl/.ifc files, no customer data).
+
+- **Migration `0006_drop_design_tables`**: drops `design_uploads`, `quote_profiles`, `design_links` (downgrade recreates structure only).
+  Verified locally: stamp 0005, upgrade, downgrade, upgrade all succeed. Removed the three tables from `schema.sql`, `rls.py`, `admin.py` status count.
+- **Uploads**: `scripts/vps/archive-designs.sh` moves the folder to `/opt/trendi/shared/removed/designs-<date>/` (reversible, nothing deleted).
+  Removed the `/data/designs` mount from `compose.yml` and the `shared/designs` backup exclude. `probe_owner_routes.py` no longer reads a `designs` table.
+- **Copy sweep**: `website/ai-office-builders.html` still offered plan upload, DWG review and IFC wall-area cladding quotes (two FAQ pairs in JSON-LD and
+  visible text, one attachments bullet): removed. Orphan i18n keys removed from all portal locales (6 `copy` keys + nav `Designs`, 210 entries).
+  No other offer found in website/, api/app, api/static, docs, scripts.
+- **Proof**: suite 1922 passed / 42 skipped; portal build clean; `seo-gate.sh` GATE RESULT: PASS.

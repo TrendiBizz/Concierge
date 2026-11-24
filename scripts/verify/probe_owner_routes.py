@@ -26,7 +26,7 @@ def psql(sql):
         input=sql, capture_output=True, text=True)
     return r.stdout.strip()
 
-TABLES = ["contacts","leads","cases","quotes","bookings","designs","products","media_assets",
+TABLES = ["contacts","leads","cases","quotes","bookings","products","media_assets",
           "email_drafts","knowledge_documents","tasks","email_suppressions","conversations",
           "tenant_users","invoices","social_posts","products_page","voice_calls"]
 VALUES = {"slug": SLUG, "address": "nobody@example.invalid"}
@@ -40,7 +40,7 @@ for t in TABLES:
     except Exception:
         pass
 VALUES.update({"contact_id": VALUES.get("contact"), "lead_id": VALUES.get("lead"),
-               "quote_id": VALUES.get("quote"), "design_id": VALUES.get("design"),
+               "quote_id": VALUES.get("quote"),
                "product_id": VALUES.get("product"), "draft_id": VALUES.get("email_draft"),
                "doc_id": VALUES.get("knowledge_document"), "task_id": VALUES.get("task"),
                "conversation_id": VALUES.get("conversation"), "token": "x"*40})

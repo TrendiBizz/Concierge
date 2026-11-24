@@ -670,21 +670,6 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reply_address text;
 CREATE UNIQUE INDEX IF NOT EXISTS tenants_reply_address_idx ON tenants (reply_address) WHERE reply_address IS NOT NULL;
 
 -- Customer design/plan uploads for quotation takeoff.
-CREATE TABLE IF NOT EXISTS design_uploads (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    uploaded_by text NOT NULL DEFAULT '',
-    filename text NOT NULL,
-    content_type text NOT NULL DEFAULT 'application/octet-stream',
-    size_bytes bigint NOT NULL CHECK (size_bytes >= 0),
-    sha256 text NOT NULL,
-    storage_path text NOT NULL,
-    status text NOT NULL DEFAULT 'uploaded' CHECK (status IN ('uploaded','parsed','failed')),
-    summary jsonb,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS design_uploads_tenant_idx ON design_uploads (tenant_id, created_at DESC);
-
 
 -- Marketing media: branded images and short videos rendered server-side.
 CREATE TABLE IF NOT EXISTS media_brand (
@@ -722,14 +707,6 @@ ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declined_at timestamptz;
 UPDATE quotations SET public_token = replace(gen_random_uuid()::text, '-', '') WHERE public_token IS NULL;
 ALTER TABLE quotations ALTER COLUMN public_token SET DEFAULT replace(gen_random_uuid()::text, '-', '');
 CREATE UNIQUE INDEX IF NOT EXISTS quotations_public_token_idx ON quotations (public_token);
-
-CREATE TABLE IF NOT EXISTS design_links (
-    token text PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    created_by text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL DEFAULT now(),
-    expires_at timestamptz NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS ui_translation_cache (
     locale text NOT NULL,
@@ -1026,27 +1003,6 @@ ALTER TABLE customer_cases ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAUL
 -- How a business turns a measurement into money. One row per quoting method the owner offers, so a
 -- cladding contractor can price by net clad area per m2 while another business prices per hour or as
 -- a fixed callout. Kept separate from products: a rate per square metre is not a stock item.
-CREATE TABLE IF NOT EXISTS quote_profiles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name text NOT NULL,
-    unit text NOT NULL DEFAULT 'm²',
-    rate_cents bigint NOT NULL DEFAULT 0 CHECK (rate_cents >= 0 AND rate_cents <= 100000000),
-    waste_percent numeric(5,2) NOT NULL DEFAULT 0 CHECK (waste_percent >= 0 AND waste_percent <= 100),
-    minimum_cents bigint NOT NULL DEFAULT 0 CHECK (minimum_cents >= 0),
-    measurement text NOT NULL DEFAULT 'net_cladding'
-        CHECK (measurement IN ('net_cladding','net_wall','gross_wall')),
-    currency text NOT NULL DEFAULT 'NZD',
-    tax_basis_points integer NOT NULL DEFAULT 1500 CHECK (tax_basis_points BETWEEN 0 AND 10000),
-    is_default boolean NOT NULL DEFAULT false,
-    active boolean NOT NULL DEFAULT true,
-    notes text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS quote_profiles_tenant_idx ON quote_profiles(tenant_id, created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS quote_profiles_one_default ON quote_profiles(tenant_id) WHERE is_default;
-
 -- A quotation a business can hand a customer must be a document: who issued it, their GST number,
 -- a reference, and how long the price stands. Without these a "quote" is a price on a screen.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS gst_number text NOT NULL DEFAULT '';
