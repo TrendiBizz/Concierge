@@ -1783,3 +1783,11 @@ CREATE TABLE IF NOT EXISTS social_media_assets (
     created_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_social_media_customer ON social_media_assets(customer_slug);
+
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+    tenant_id        uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    completed_steps  jsonb NOT NULL DEFAULT '[]'::jsonb,
+    current_stage    integer NOT NULL DEFAULT 1,
+    launched_at      timestamptz,
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);

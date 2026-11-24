@@ -60,4 +60,5 @@ def test_a_company_can_be_opened_and_edited_not_only_deleted():
 def test_the_setup_wizard_does_not_count_five_steps_when_it_has_three():
     shell = (ROOT / "App.tsx").read_text()
     assert "Five short steps" not in shell, "the wizard says five steps and shows three"
-    assert "Three short steps" in shell
+    # The 3-step wizard was replaced by the 7-stage Onboarding Hub (2026-11-24); the tab header must match it.
+    assert "Walk through all 7 stages" in shell

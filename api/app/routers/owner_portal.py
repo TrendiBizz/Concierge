@@ -5,6 +5,8 @@ Moved out of app/main.py unchanged; paths and behaviour are identical. main.py r
 handlers, helpers, and request models so existing imports (tests, tooling) keep working.
 """
 import asyncio
+from datetime import datetime, timezone
+import json
 import logging
 import sys
 import uuid
@@ -457,6 +459,187 @@ async def owner_channel_readiness(user: dict = Depends(owner_auth.current_user))
         "channels": channel_authorization.readiness(declarations, checks),
         "customer_activation_enabled": False,
     }
+
+
+class OnboardingProgressUpdate(BaseModel):
+    completed_steps: list[str] | None = None
+    current_stage: int | None = Field(default=None, ge=1, le=7)
+    launched: bool | None = None
+
+
+class OnboardingTestChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=600)
+
+
+@router.get("/owner/onboarding/progress")
+async def owner_onboarding_progress(user: dict = Depends(owner_auth.current_user)):
+    """Return saved 7-stage onboarding progress plus live server-verified readiness checks."""
+    tid = user["tenant_id"]
+    row = await db.pool().fetchrow(
+        "SELECT completed_steps, current_stage, launched_at, updated_at "
+        "FROM onboarding_progress WHERE tenant_id=$1",
+        tid,
+    )
+    completed = []
+    current_stage = 1
+    launched_at = None
+    if row:
+        raw_steps = row["completed_steps"]
+        completed = json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps or [])
+        current_stage = int(row["current_stage"] or 1)
+        launched_at = row["launched_at"].isoformat() if row["launched_at"] else None
+
+    overview = await owner_onboarding.overview(tid)
+    biz = overview.get("business") or {}
+    channels = overview.get("channels") or {}
+    doc_count = await db.pool().fetchval(
+        "SELECT count(DISTINCT url) FROM chunks WHERE tenant_id=$1", tid
+    ) or 0
+    cal_connected = bool(await db.pool().fetchval(
+        "SELECT 1 FROM calendar_connections WHERE tenant_id=$1 AND enabled LIMIT 1", tid
+    ))
+    int_connected = await db.pool().fetchval(
+        "SELECT count(*) FROM tenant_integrations WHERE tenant_id=$1 AND status='connected'", tid
+    ) or 0
+    pause_state = await tenant_pause.state(tid)
+
+    auto_checks = {
+        "identity": bool((biz.get("name") or "").strip() and (biz.get("site_url") or "").strip()),
+        "knowledge_docs": int(doc_count),
+        "alerts_configured": bool((biz.get("notify_email") or "").strip()),
+        "booking_enabled": bool(biz.get("native_booking")),
+        "calendar_connected": cal_connected,
+        "phone_configured": bool((channels.get("telephone") or {}).get("configured")),
+        "email_configured": bool((channels.get("email") or {}).get("configured")),
+        "sms_configured": bool((channels.get("sms") or {}).get("configured")),
+        "integrations_connected": int(int_connected),
+        "paused": bool(pause_state.get("paused")),
+    }
+    return {
+        "completed_steps": completed,
+        "current_stage": current_stage,
+        "launched_at": launched_at,
+        "auto_checks": auto_checks,
+    }
+
+
+@router.put("/owner/onboarding/progress")
+async def owner_onboarding_progress_save(
+    body: OnboardingProgressUpdate,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Persist the owner's 7-stage onboarding progress so they can pause and resume anywhere."""
+    owner_auth.require_role(user, "editor")
+    tid = user["tenant_id"]
+    existing = await db.pool().fetchrow(
+        "SELECT completed_steps, current_stage, launched_at FROM onboarding_progress WHERE tenant_id=$1",
+        tid,
+    )
+    cur_steps = []
+    cur_stage = 1
+    launched_at = None
+    if existing:
+        raw = existing["completed_steps"]
+        cur_steps = json.loads(raw) if isinstance(raw, str) else list(raw or [])
+        cur_stage = int(existing["current_stage"] or 1)
+        launched_at = existing["launched_at"]
+
+    if body.completed_steps is not None:
+        allowed = {"identity", "alerts", "widget", "bookings", "phone", "channels", "launch"}
+        cur_steps = sorted({s for s in body.completed_steps if s in allowed})
+    if body.current_stage is not None:
+        cur_stage = body.current_stage
+    if body.launched is True:
+        launched_at = datetime.now(timezone.utc)
+        if "launch" not in cur_steps:
+            cur_steps.append("launch")
+    elif body.launched is False:
+        launched_at = None
+
+    row = await db.pool().fetchrow(
+        """INSERT INTO onboarding_progress(tenant_id, completed_steps, current_stage, launched_at, updated_at)
+           VALUES($1, $2::jsonb, $3, $4, now())
+           ON CONFLICT (tenant_id) DO UPDATE
+           SET completed_steps=EXCLUDED.completed_steps,
+               current_stage=EXCLUDED.current_stage,
+               launched_at=EXCLUDED.launched_at,
+               updated_at=now()
+           RETURNING completed_steps, current_stage, launched_at""",
+        tid, json.dumps(cur_steps), cur_stage, launched_at,
+    )
+    raw_out = row["completed_steps"]
+    steps_out = json.loads(raw_out) if isinstance(raw_out, str) else list(raw_out or [])
+    return {
+        "completed_steps": steps_out,
+        "current_stage": int(row["current_stage"]),
+        "launched_at": row["launched_at"].isoformat() if row["launched_at"] else None,
+    }
+
+
+@router.post("/owner/onboarding/test-chat")
+async def owner_onboarding_test_chat(
+    body: OnboardingTestChatRequest,
+    user: dict = Depends(owner_auth.current_user),
+):
+    """Run a safe dry-run chat turn against this business's knowledge base without creating CRM leads or alerts."""
+    from .. import chat as chat_mod
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    res = await chat_mod.run_turn(
+        tenant,
+        f"onboarding-sandbox:{tenant['id']}",
+        "chat",
+        body.message.strip(),
+        dry_run=True,
+    )
+    return {"reply": res.get("reply") or "", "dry_run": True}
+
+
+@router.post("/owner/onboarding/test-alert")
+async def owner_onboarding_test_alert(user: dict = Depends(owner_auth.current_user)):
+    """Queue a clearly labeled [TEST] owner alert email to verify alert routing (never sends real SMS/calls)."""
+    owner_auth.require_role(user, "editor")
+    from .. import outbox as outbox_mod
+    from ..contact import is_email
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    to_addr = (tenant.get("notify_email") or "").strip()
+    if not is_email(to_addr):
+        raise HTTPException(422, "Add a valid notification email address first.")
+    subj = f"[TEST] Concierge alert check for {tenant.get('name') or 'your business'}"
+    body_txt = (
+        f"This is a test alert from Trendi Concierge for {tenant.get('name') or 'your business'}.\n\n"
+        "When a real customer enquires via website chat, phone, voicemail, SMS, or email, "
+        "you will receive one clear summary alert here with their details and a link to Studio.\n\n"
+        "No action is needed — your alert inbox is connected."
+    )
+    await outbox_mod.enqueue(
+        tenant["id"], "owner_alert", "email", to_addr, body_txt,
+        subject=subj, dedupe_key=f"onboarding-test:{tenant['id']}:{int(datetime.now(timezone.utc).timestamp() // 30)}",
+    )
+    return {"queued": True, "channel": "email", "to": to_addr}
+
+
+@router.get("/owner/onboarding/preview-slots")
+async def owner_onboarding_preview_slots(days: int = 7, user: dict = Depends(owner_auth.current_user)):
+    """Preview the business's next available booking slots based on opening hours and connected calendars."""
+    from .. import booking as booking_mod
+    tenant = await tenants.get_by_id(user["tenant_id"])
+    if tenant is None:
+        raise HTTPException(404, "Business not found")
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo(tenant["timezone"])).date()
+    slots: list[str] = []
+    for offset in range(min(max(days, 1), 14)):
+        day = today + timedelta(days=offset)
+        found = await booking_mod._slots_on(tenant, day)
+        slots += [s.astimezone(ZoneInfo(tenant["timezone"])).strftime("%Y-%m-%d %H:%M") for s in found]
+        if len(slots) >= 24:
+            break
+    return {"timezone": tenant.get("timezone") or "UTC", "slots": slots[:24]}
 
 
 @router.post("/owner/invitations", status_code=201)
