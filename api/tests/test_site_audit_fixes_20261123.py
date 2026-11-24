@@ -32,6 +32,31 @@ def test_stripe_links_and_prices_are_unchanged():
     assert "price: 199" in products and "price: 499" in products
     assert "price: 500" not in products
 
+    assert "https://buy.stripe.com/14A3cw1mfdzv9he1Ms04806" in products
+    assert "https://buy.stripe.com/14A8wQ4yr2UR2SQgHm04807" in products
+    assert "00wcN70IP4hJdwU8FpcEw06" not in products
+    assert "7sY7sNgHN6pR50obRBcEw05" not in products
+
+
+def test_old_seo_stripe_links_and_portal_are_gone():
+    banned = (
+        "00wcN70IP4hJdwU8FpcEw06",
+        "7sY7sNgHN6pR50obRBcEw05",
+        "00w3cxcrxg0r78wdZJcEw00",
+    )
+    for path in list(SITE.rglob("*.html")) + [SITE / "products.js", SITE / "llms.txt", SITE / "site-i18n.json"]:
+        if not path.exists():
+            continue
+        body = path.read_text(encoding="utf-8")
+        for phrase in banned:
+            assert phrase not in body, f"{path.relative_to(SITE)}: {phrase}"
+    pricing = text("pricing.html")
+    seo = text("seo.html")
+    assert "https://buy.stripe.com/14A3cw1mfdzv9he1Ms04806" in pricing and "https://buy.stripe.com/14A3cw1mfdzv9he1Ms04806" in seo
+    assert "https://buy.stripe.com/14A8wQ4yr2UR2SQgHm04807" in pricing and "https://buy.stripe.com/14A8wQ4yr2UR2SQgHm04807" in seo
+    assert "Manage SEO billing in Stripe" not in pricing
+    assert "https://concierge.trendibizz.com/studio/" in pricing
+
 
 def test_pricing_leads_with_concierge_not_the_seo_package():
     html = text("pricing.html")
