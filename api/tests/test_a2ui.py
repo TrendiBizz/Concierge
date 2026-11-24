@@ -55,7 +55,7 @@ def test_trendi_price_never_offered_for_other_tenants():
     assert a2ui.choose('pricing', {'slug':'concierge'}) == 'pricing'
     assert a2ui.choose('pricing', {'slug':'trendi-oauth-staging'}) == 'pricing'
     assert a2ui.choose('pricing', {'slug':'example-business'}) is None
-    assert 'USD $250/month' in a2ui.TEXT['pricing']
+    assert 'USD $199/month' in a2ui.TEXT['pricing']
     assert '3-month minimum' in a2ui.TEXT['pricing']
     assert 'no slot is reserved' in a2ui.TEXT['booking']
 

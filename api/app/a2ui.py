@@ -15,7 +15,7 @@ TITLES = {"quote": "Request a quote", "booking": "Request a booking", "contact":
 TEXT = {"quote": "Tell us what you need. The team will prepare a quote.",
         "booking": "Choose a preferred time and time zone. This is a request; no slot is reserved.",
         "contact": "Leave your details for the team to follow up.",
-        "pricing": "Concierge: USD $250/month. 3-month minimum. Prices are in USD. No payment is taken here.",
+        "pricing": "Concierge: USD $199/month. 3-month minimum. Prices are in USD. No payment is taken here.",
         "confirmation": "Your request was saved for the team. A booking or delivery is not confirmed."}
 BUTTONS = {"quote": "Send quote request", "booking": "Send booking request", "contact": "Send contact details",
            "pricing": "Ask about this plan", "confirmation": "Acknowledge"}
