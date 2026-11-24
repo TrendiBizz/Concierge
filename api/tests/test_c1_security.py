@@ -65,7 +65,7 @@ def test_owner_billing_invoices_is_strictly_scoped_to_callers_tenant():
             )
             await platform_billing.issue(
                 email="a@alpha.test", name="Alice", business="Alpha Ltd",
-                plan="Concierge", amount_cents=25000, currency="USD", tenant_id=t_a,
+                plan="Concierge", amount_cents=19900, currency="USD", tenant_id=t_a,
             )
             await platform_billing.issue(
                 email="b@beta.test", name="Bob", business="Beta Ltd",

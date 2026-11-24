@@ -12,9 +12,9 @@ _spec = importlib.util.spec_from_file_location("concierge_healthcheck_prices", S
 healthcheck = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(healthcheck)
 
-PLANS = 'monthly: { price: 250, stripeLink: "" },\n  yearly: { price: 2700, stripeLink: "" }'
-CARDS = ('<p class="price"><span class="currency">USD</span> $250<small>/ month</small></p>'
-         '<p class="price"><span class="currency">USD</span> $2,700<small>/ year</small></p>')
+PLANS = 'monthly: { price: 199, stripeLink: "" },\n  yearly: { price: 2149, stripeLink: "" }'
+CARDS = ('<p class="price"><span class="currency">USD</span> $199<small>/ month</small></p>'
+         '<p class="price"><span class="currency">USD</span> $2,149<small>/ year</small></p>')
 
 
 def test_matching_cards_and_plans_are_clean():
@@ -22,13 +22,13 @@ def test_matching_cards_and_plans_are_clean():
 
 
 def test_a_stale_monthly_card_is_reported():
-    stale = CARDS.replace("$250", "$400", 1)
+    stale = CARDS.replace("$199", "$400", 1)
     problems = healthcheck.site_price_drift(stale, PLANS)
     assert problems and "monthly card says $400" in problems[0]
 
 
 def test_a_stale_yearly_card_is_reported():
-    stale = CARDS.replace("$2,700", "$4,080")
+    stale = CARDS.replace("$2,149", "$4,080")
     problems = healthcheck.site_price_drift(stale, PLANS)
     assert problems and "yearly card says $4080" in problems[0]
 
@@ -51,6 +51,9 @@ def test_a_retired_stripe_link_is_reported():
     problems = healthcheck.site_price_drift(
         CARDS, PLANS, {"/pricing": '<a href="https://buy.stripe.com/28E8wRbntdSjcsQg7RcEw03">Buy</a>'})
     assert problems == ["/pricing links to retired Stripe link 28E8wRbntdSjcsQg7RcEw03"]
+    old_250 = healthcheck.site_price_drift(
+        CARDS, PLANS, {"/products.js": 'stripeLink: "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802"'})
+    assert old_250 == ["/products.js links to retired Stripe link dRm7sM6GzeDz9he3UA04802"]
 
 
 def test_a_non_answer_tax_faq_is_reported_and_a_real_answer_is_not():

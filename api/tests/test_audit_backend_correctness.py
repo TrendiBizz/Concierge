@@ -47,7 +47,7 @@ def test_handle_checkout_mutates_invoice_so_link_checkout_runs(monkeypatch):
             "customer_name": "Buyer",
             "business_name": "Buyer Co",
             "plan": "Concierge",
-            "amount_cents": 25000,
+            "amount_cents": 19900,
             "currency": "USD",
             "public_token": "tok123",
             "tenant_id": None,
@@ -76,7 +76,7 @@ def test_handle_checkout_mutates_invoice_so_link_checkout_runs(monkeypatch):
     session = {
         "id": "cs_test_1",
         "payment_status": "paid",
-        "amount_total": 25000,
+        "amount_total": 19900,
         "currency": "usd",
         "customer": "cus_99",
         "subscription": "sub_99",
