@@ -1,0 +1,3 @@
+
+# Generated Lit bundle contains intentional whitespace inside JavaScript template literals.
+api/static/a2ui-renderer.js whitespace=-blank-at-eol
