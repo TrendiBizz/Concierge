@@ -1,5 +1,5 @@
 """One foreground command owns the local mock server, browser checks and SEO gate.
-Only model/database/tenant lookup are replaced; public chat/action handlers are real.
+Model/database/tenant lookup and rate limiting are replaced; public chat/action handlers are real.
 No outbound calls, production data, LLM spend, mail or SMS.
 """
 import asyncio

@@ -16,7 +16,8 @@ try {
   await context.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
   for (const file of ['widget-preview',...pages.map(p=>p.file)]) {
    const page=await context.newPage();
-   const errors=[]; const violations=[];
+   const errors=[];
+   const shotPrefix=file==='widget-preview'?'concierge':file==='index.html'?'site':'page-'+file.replace(/\.html$/,'').replaceAll('/','--');
    page.on('pageerror',e=>{errors.push(e.message);console.log('BROWSER ERROR',e.message)});
    page.setDefaultTimeout(10000);
    page.on('response',async r=>{if(r.url().endsWith('/chat/action')&&r.status()!==200)console.log('ACTION ERROR',r.request().postData(),await r.text())});
@@ -43,9 +44,9 @@ try {
       assert.equal((await (await page.request.get(base+'/__evidence')).json()).saved.length, initial);
       await card.locator('[id="email"] input').fill(fields[kind].email);
     }
-    if(file==='widget-preview'||file==='index.html') {
+    {
       await card.scrollIntoViewIfNeeded();
-      await page.screenshot({path:`${out}/shots/${file==='index.html'?'site':'concierge'}-${kind}-${mobile?'mobile':'desktop'}.png`});
+      await page.screenshot({path:`${out}/shots/${shotPrefix}-${kind}-${mobile?'mobile':'desktop'}.png`});
     }
     const before=(await (await page.request.get(base+'/__evidence')).json()).saved.length;
     const [response] = await Promise.all([page.waitForResponse(r=>r.url().endsWith('/chat/action')),card.locator('button').click()]);
@@ -53,9 +54,9 @@ try {
     const ack=await response.json();
     const confirmation=page.locator(`a2ui-surface[data-surface-id="${ack.a2ui.at(-1).beginRendering.surfaceId}"]`);
     await confirmation.locator('button').waitFor();
-    if(kind==='quote'&&(file==='widget-preview'||file==='index.html')) {
+    if(kind==='quote') {
       await confirmation.scrollIntoViewIfNeeded();
-      await page.screenshot({path:`${out}/shots/${file==='index.html'?'site':'concierge'}-confirmation-${mobile?'mobile':'desktop'}.png`});
+      await page.screenshot({path:`${out}/shots/${shotPrefix}-confirmation-${mobile?'mobile':'desktop'}.png`});
     }
     const [ackResponse] = await Promise.all([page.waitForResponse(r=>r.url().endsWith('/chat/action')),confirmation.locator('button').click()]);
     assert.equal(ackResponse.status(),200);
@@ -72,7 +73,7 @@ try {
    const scriptViolations=csp.filter(v=>v.directive.startsWith('script')||v.directive.startsWith('style'));
    assert.deepEqual(scriptViolations,[],file+' CSP script violations');
    assert.deepEqual(errors,[],file+' browser errors');
-   results.push({page:file,viewport:mobile?'mobile':'desktop',cards:['quote','booking','contact','pricing','confirmation'],submissions:8,pass:true,cspViolations:csp});
+   results.push({page:file,viewport:mobile?'mobile':'desktop',cards:['quote','booking','contact','pricing','confirmation'],submissions:8,pass:true,cspViolations:csp,screenshots:['quote','booking','contact','pricing','confirmation'].map(kind=>`shots/${shotPrefix}-${kind}-${mobile?'mobile':'desktop'}.png`)});
    console.log('PASS',mobile?'mobile':'desktop',file);
    await page.close();
   }
