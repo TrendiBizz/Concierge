@@ -33,7 +33,7 @@ def test_gemini_config_defaults_and_ws_url():
     assert s.phone_voice_provider == 'gemini_live'
     assert s.gemini_live_model == 'models/gemini-3.8-live'
     assert s.gemini_live_voice == 'Aoede'
-    assert s.gemini_thinking_level == 'low'
+    assert s.gemini_thinking_level == ''
     assert 'BidiGenerateContent' in s.gemini_live_ws_url
     assert s.gemini_ws_url == s.gemini_live_ws_url
 
@@ -103,6 +103,20 @@ def test_register_requires_gemini_live_provider_and_api_key(monkeypatch):
         monkeypatch.setattr(asterisk_bridge, 'get_settings', lambda o=overrides: SimpleNamespace(**o))
         with pytest.raises(ValueError, match='Phone receptionist is disabled'):
             asyncio.run(asterisk_bridge.register(route, 'ast:test'))
+
+
+def test_setup_payload_omits_thinking_config_by_default_and_includes_when_configured():
+    default_bridge = MediaBridge(None, None, None, {'instructions': 'hi'}, None, None)
+    default_setup = default_bridge._setup_payload()['setup']
+    assert 'thinkingConfig' not in default_setup['generationConfig']
+
+    opt_in_bridge = MediaBridge(
+        None, None, None,
+        {'instructions': 'hi', 'thinking_level': 'low', 'model': 'models/gemini-3.8-live-extended-thinking'},
+        None, None,
+    )
+    opt_in_setup = opt_in_bridge._setup_payload()['setup']
+    assert opt_in_setup['generationConfig']['thinkingConfig'] == {'thinkingLevel': 'low'}
 
 
 class Socket:
@@ -183,7 +197,7 @@ def test_two_concurrent_businesses_audio_transcript_tools_and_barge_in_are_isola
                 assert setup['systemInstruction']['parts'][0]['text'] == business
                 assert setup['model'] == 'models/gemini-3.8-live'
                 assert setup['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'] == 'Aoede'
-                assert setup['generationConfig']['thinkingConfig']['thinkingLevel'] == 'low'
+                assert 'thinkingConfig' not in setup['generationConfig']
                 assert setup['inputAudioTranscription'] == {}
                 assert setup['outputAudioTranscription'] == {}
                 assert setup['contextWindowCompression'] == {'slidingWindow': {}}

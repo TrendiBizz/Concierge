@@ -70,6 +70,7 @@ PUBLIC_URLS = [
     ("https://trendibizz.com/", (200,)),
     ("https://chat.trendibizz.com/demo/pukeko-construction", (200,)),
     ("https://chat.trendibizz.com/widget.js", (200,)),
+    ("https://chat.trendibizz.com/a2ui-renderer.js", (200,)),
     ("https://concierge.trendibizz.com/studio/", (200,)),
     ("https://concierge.trendibizz.com/owner-ui", (200,)),
 ]

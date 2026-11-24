@@ -118,7 +118,9 @@ class Settings(BaseSettings):
     gemini_live_model: str = "models/gemini-3.8-live"
     gemini_live_ws_url: str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
     gemini_live_voice: str = "Aoede"
-    gemini_thinking_level: str = "low"
+    # Blank by default: models/gemini-3.8-live rejects thinkingConfig.thinkingLevel with WS 1007.
+    # Set explicitly (e.g. "low") only for thinking-capable models like models/gemini-3.8-live-extended-thinking.
+    gemini_thinking_level: str = ""
     # Operator-only JSON mapping connection UUID -> tenant, number, whsec secret.
     # Any carrier/PBX can route SIP to Grok; blank keeps this path disabled.
     xai_sip_connections: str = ""

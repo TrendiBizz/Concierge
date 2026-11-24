@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
-PRICING_TENANTS = {"trendi-oauth-staging", "trendi", "trendi-concierge", "concierge"}
+PRICING_TENANTS = {"trendi-oauth-staging", "trendi", "trendibizz", "trendi-concierge", "concierge"}
 FIELDS = {
     "quote": {"email": "Email (required)", "details": "What do you need? (required)"},
     "booking": {"email": "Email (required)", "when": "Preferred date and time (required)", "timezone": "Time zone, e.g. Pacific/Auckland (required)"},

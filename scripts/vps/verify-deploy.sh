@@ -85,7 +85,12 @@ tool_smoke() {
   fi
 }
 
-echo "verify-deploy against $HOST"
+BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "verify-deploy against $HOST (local: $BRANCH @ $HEAD_SHA)"
+if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "unknown" ]; then
+  echo "  WARNING: local checkout is on branch '$BRANCH' (not 'main'); drift may reflect branch state rather than live box drift"
+fi
 compare "$REPO_ROOT/api/app"            "$RELEASE/product/api/app"              "api/app"
 compare "$REPO_ROOT/api/static"         "$RELEASE/product/api/static"           "api/static"
 compare "$REPO_ROOT/api/migrations"     "$RELEASE/product/api/migrations"       "api/migrations"

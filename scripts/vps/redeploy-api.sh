@@ -74,4 +74,16 @@ st = social.config.provider_status()
 assert isinstance(st, dict) and len(st) == 7
 print('unified social module ready:', sum(1 for v in st.values() if v), 'of 7 providers configured')
 "
+
+# Recreate the Python telephone bridge if installed so it picks up updated api/app and api.env.
+if [ -f "$REL/scripts/asterisk/compose.yml" ] && [ -f /opt/trendi/shared/phone.env ] && \
+   podman ps -a --format '{{.Names}}' | grep -qE '^([0-9a-f]+_)?asterisk-bridge-1$'; then
+  echo "==> recreating asterisk-bridge from updated api image and api.env"
+  (cd "$REL/scripts/asterisk" && podman compose -f compose.yml --env-file /opt/trendi/shared/phone.env up -d --force-recreate --no-deps bridge)
+  TEMP_BRIDGE="$(podman ps -a --format '{{.Names}}' | grep -E '^[0-9a-f]+_asterisk-bridge-1$' | head -1 || true)"
+  if [ -n "$TEMP_BRIDGE" ]; then
+    echo "    normalising container name $TEMP_BRIDGE -> asterisk-bridge-1"
+    podman rename "$TEMP_BRIDGE" asterisk-bridge-1
+  fi
+fi
 echo "==> done"
