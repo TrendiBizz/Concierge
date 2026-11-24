@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import (
     automation, campaigns, chat as chat_engine, convo, db, email_drafts, enquiries, events, ical, ingest, llm, outbox, sales, scoring, sla,
-    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, designs, media_studio,
+    phone_relay, owner_auth, owner_onboarding, owner_knowledge, channel_authorization, social_bridge, sms, tasks, tenants, tenant_pause, unsub, voice, cloudflare_inbound, device_sms, managed_phone, voice_records, inbound_policy, voice_internal, products, reply_address, media_studio,
 )
 from . import cloudflare_auth, inbound_readiness, mobile_connections, quotations, calendar_connection, email_secretary, brand_from_site, releases, owner_ask
 from . import suppressions
@@ -140,8 +140,6 @@ from .routers.telephony import (  # noqa: F401 - re-exported for tests and tooli
     voice_recording_upload, voice_session_finish, voice_token,
 )
 from . import invoices
-from . import guides
-from . import quote_profiles
 from . import portability
 from . import channel_health, flood_guard, mailer
 from . import asterisk_ami, call_control, call_insights, casetimeline, case_policy, live_calls, missed_calls, provider_readiness, voicemail_fallback, quote_payments, revenue, supervision
@@ -256,8 +254,6 @@ app.include_router(mobile_connections.router)
 app.include_router(quotations.router)
 app.include_router(quotations.public_router)
 app.include_router(products.router)
-app.include_router(guides.router)
-app.include_router(quote_profiles.router)
 app.include_router(invoices.router)
 app.include_router(invoices.public_router)
 app.include_router(tenant_payments.owner_router)
@@ -274,9 +270,6 @@ app.include_router(integrations.owner_router)
 app.include_router(integrations.callback_router)
 app.include_router(booking_links.owner_router)
 app.include_router(booking_links.public_router)
-app.include_router(designs.router)
-app.include_router(designs.public_router)
-app.include_router(designs.page_router)
 app.include_router(media_studio.router)
 app.include_router(calendar_connection.router)
 app.include_router(email_secretary.router)

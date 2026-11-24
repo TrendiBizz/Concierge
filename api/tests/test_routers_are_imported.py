@@ -12,5 +12,4 @@ def test_the_app_imports_and_exposes_the_new_routes():
     assert app.main.app is not None
     # openapi() flattens included routers; app.routes keeps them nested in this FastAPI version.
     paths = set(app.main.app.openapi()["paths"])
-    assert "/owner/quote-profiles" in paths, "quote profiles router not registered"
-    assert "/owner/designs/{design_id}/quote" in paths, "quote-from-model route not registered"
+    assert not [p for p in paths if "/owner/designs" in p or "/owner/quote-profiles" in p], "3D/designs routes must stay removed"

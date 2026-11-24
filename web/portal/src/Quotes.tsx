@@ -110,7 +110,7 @@ const STATUS_LABEL: Record<string, string> = {
   declined: 'declined', void: 'void',
 };
 
-export function Quotes({token, onOpenDesigns}: {token: string; brand: Brand; onOpenDesigns?: () => void}) {
+export function Quotes({token}: {token: string; brand: Brand}) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -257,7 +257,7 @@ export function Quotes({token, onOpenDesigns}: {token: string; brand: Brand; onO
       setLines(result.lines.map(lineFromStored));
       setDraftNote((result.warnings || []).join(' ') || (result.source === 'model'
         ? 'Drafted from your catalogue and this enquiry. Check every line, unit price and quantity — you are signing it off, not the AI.'
-        : 'Drafted from the measured takeoff. Check every line before you approve it.'));
+        : 'Check every line before you approve it.'));
     } catch (e) { setDraftNote(e instanceof Error ? e.message : 'Could not draft the quotation'); }
     setBusy(false);
   }
@@ -407,7 +407,6 @@ export function Quotes({token, onOpenDesigns}: {token: string; brand: Brand; onO
           <Text type="supporting">{quotes.length} on file · {money(openValue, 'NZD')} awaiting a decision · {money(wonValue, 'NZD')} accepted</Text>
         </VStack>
         <HStack gap={2} align="center" style={{flexWrap: 'wrap'}}>
-          <Button label="Quote from a plan or 3D model" variant="secondary" onClick={() => onOpenDesigns?.()} />
           <Button label="New quotation" variant="primary" onClick={openNew} />
         </HStack>
       </HStack>

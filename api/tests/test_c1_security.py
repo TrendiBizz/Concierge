@@ -330,7 +330,7 @@ def test_studio_and_public_html_endpoints_emit_security_headers(tmp_path, monkey
     client = TestClient(app_main.app)
 
     # Studio shell
-    for path in ("/studio", "/studio/", "/privacy", "/guide/bonsai-cladding"):
+    for path in ("/studio", "/studio/", "/privacy"):
         resp = client.get(path)
         assert resp.status_code == 200, path
         assert resp.headers.get("x-frame-options") == "DENY", path

@@ -1,7 +1,7 @@
 """Route-level checks for the AI quote draft.
 
 The draft must use only catalogue prices, never write to the database, and still
-produce a usable draft when the model is unavailable (the takeoff fallback).
+refuse cleanly when the model is unavailable.
 """
 import asyncio
 from types import SimpleNamespace
@@ -14,7 +14,6 @@ from app import llm, quotations
 
 TENANT = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa"
 LEAD = UUID("11111111-1111-4111-8111-111111111111")
-DESIGN = UUID("22222222-2222-4222-8222-222222222222")
 
 CATALOG = [
     {"id": "p1", "name": "Wall cladding (installed)", "description": "", "unit": "m2", "sale_price_cents": 18500},
@@ -23,8 +22,7 @@ CATALOG = [
 
 
 class FakePool:
-    def __init__(self, design_summary=None):
-        self.design_summary = design_summary
+    def __init__(self):
         self.statements = []
 
     async def fetch(self, sql, *args):
@@ -36,8 +34,6 @@ class FakePool:
         if "FROM leads" in sql:
             return {"name": "Conrad", "email": "conrad@example.com", "phone": "", "channel": "email",
                     "message": "We need the workshop clad."}
-        if "FROM design_uploads" in sql:
-            return {"filename": "workshop.ifc", "summary": self.design_summary}
         return None
 
 
@@ -71,19 +67,16 @@ def test_draft_uses_model_lines_and_never_writes(monkeypatch):
         "INSERT" not in s[1].upper() and "UPDATE" not in s[1].upper() for s in pool.statements)
 
 
-def test_model_failure_falls_back_to_measured_takeoff(monkeypatch):
-    pool = FakePool(design_summary={"net_cladding_area_m2": 10.0, "net_wall_area_m2": 14.0})
-    wire(monkeypatch, pool)
+def test_model_failure_is_refused_not_invented(monkeypatch):
+    wire(monkeypatch, FakePool())
 
     async def boom(messages, **kwargs):
         raise RuntimeError("model down")
 
     monkeypatch.setattr(llm, "complete", boom)
-    result = asyncio.run(quotations.draft_quotation(quotations.DraftRequest(design_id=DESIGN), user=user()))
-    assert result["source"] == "measured"
-    assert result["warnings"]
-    assert result["lines"][0]["quantity"] == "10"
-    assert result["lines"][0]["unit_price_cents"] == 18500
+    with pytest.raises(fastapi.HTTPException) as exc:
+        asyncio.run(quotations.draft_quotation(quotations.DraftRequest(brief="clad the shed"), user=user()))
+    assert exc.value.status_code == 422
 
 
 def test_model_output_without_catalogue_items_cannot_invent_prices(monkeypatch):
@@ -99,14 +92,6 @@ def test_model_output_without_catalogue_items_cannot_invent_prices(monkeypatch):
     assert result["lines"][0]["product_id"] is None
     assert result["lines"][0]["unit_price_cents"] == 999999  # kept but unknown to the catalogue
     assert "price to confirm" not in result["notes"].lower()  # the server does not edit the model's wording
-
-
-def test_design_without_takeoff_is_refused(monkeypatch):
-    pool = FakePool(design_summary=None)
-    wire(monkeypatch, pool)
-    with pytest.raises(fastapi.HTTPException) as exc:
-        asyncio.run(quotations.draft_quotation(quotations.DraftRequest(design_id=DESIGN), user=user()))
-    assert exc.value.status_code == 409
 
 
 def test_empty_request_is_refused(monkeypatch):

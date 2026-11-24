@@ -1,4 +1,4 @@
-from app.quotations import clean_lines, json_from_model, measured_lines
+from app.quotations import clean_lines, json_from_model
 
 CATALOG = [
     {"id": "p1", "name": "Wall cladding (installed)", "unit": "m2", "sale_price_cents": 18500},
@@ -37,23 +37,3 @@ def test_clean_lines_rejects_junk_and_clamps_values():
 def test_clean_lines_is_total_on_non_lists():
     assert clean_lines(None, CATALOG) == []
     assert clean_lines({"description": "x"}, CATALOG) == []
-
-
-def test_measured_lines_uses_net_cladding_area_and_catalogue_price():
-    lines = measured_lines({"net_cladding_area_m2": 42.0, "net_wall_area_m2": 60.0}, CATALOG)
-    assert len(lines) == 1
-    assert lines[0]["quantity"] == "42"
-    assert lines[0]["unit_price_cents"] == 18500
-    assert lines[0]["product_id"] == "p1"
-    assert lines[0]["amount_cents"] == 777000
-
-
-def test_measured_lines_falls_back_to_net_wall_area_and_works_without_catalogue():
-    lines = measured_lines({"net_wall_area_m2": 15}, [])
-    assert lines[0]["quantity"] == "15"
-    assert lines[0]["unit_price_cents"] == 0
-
-
-def test_measured_lines_without_measurements():
-    assert measured_lines({}, CATALOG) == []
-    assert measured_lines(None, CATALOG) == []

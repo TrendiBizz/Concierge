@@ -109,7 +109,6 @@ def test_pages_say_something_encouraging_when_there_is_nothing_yet():
         "Products.tsx": "No products yet",
         "CrmQuotes.tsx": "that is normal on day one",
         "Engage.tsx": "No drafts yet",
-        "Designs.tsx": "No enquiries yet",
     }.items():
         source = read(page)
         assert "c-empty" in source, f"{page} has a bare empty state"

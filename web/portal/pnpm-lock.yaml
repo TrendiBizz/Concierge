@@ -17,9 +17,6 @@ importers:
       '@stylexjs/stylex':
         specifier: ^0.19.1
         version: 0.19.2
-      online-3d-viewer:
-        specifier: ^0.18.0
-        version: 0.18.0
       qrcode-generator:
         specifier: ^2.0.4
         version: 2.0.4
@@ -338,9 +335,6 @@ packages:
   '@rolldown/pluginutils@1.1.0':
     resolution: {integrity: sha512-K+NU2HDCEem4sClgHH4ZZXwdJeNFkJo+hRk479DIwdIviAPN2hFJH1KHHwg8CxHQXvi0M5XY4deTXINfIiSG6w==}
 
-  '@simonwep/pickr@1.9.0':
-    resolution: {integrity: sha512-oEYvv15PyfZzjoAzvXYt3UyNGwzsrpFxLaZKzkOSd0WYBVwLd19iJerePDONxC1iF6+DpcswPdLIM2KzCJuYFg==}
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -534,9 +528,6 @@ packages:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
 
-  core-js@3.32.2:
-    resolution: {integrity: sha512-pxXSw1mYZPDGvTQqEc5vgIb83jGQKFGYWY76z4a7weZXUolw3G+OvpZqSRcfYOoOVUQJYEPsWeQK8pKEnUtWxQ==}
-
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
@@ -605,9 +596,6 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
-
-  fflate@0.8.2:
-    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -712,12 +700,6 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  nanopop@2.3.0:
-    resolution: {integrity: sha512-fzN+T2K7/Ah25XU02MJkPZ5q4Tj5FpjmIYq4rvoHX4yb16HzFdCO6JxFFn5Y/oBhQ8no8fUZavnyIv9/+xkBBw==}
-
-  online-3d-viewer@0.18.0:
-    resolution: {integrity: sha512-y7ZlV/zkakNUyjqcXz6XecA7vXgLEUnaAey9tyx8o6/wcdV64RfjXAQOjGXGY2JOZoDi4Cg1ic9icSWMWAvRQA==}
-
   oxlint@1.93.0:
     resolution: {integrity: sha512-19JMsQFX+YvEbcUTFQxjTwhvs0Ibg0D6CFneSLgpwnACWcY/6LjhpGpkPodh0T5aIT1pjMTLlYaeBFzaVgugTA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -802,9 +784,6 @@ packages:
 
   styleq@0.2.1:
     resolution: {integrity: sha512-L0TR0NQb+X4/ktDEKmjWyp27gla+LUYi/by5k5SjKXf6/pvZP7wbwEB5J+tqxdFVPgzbsuz+d4RTScO/QZquBw==}
-
-  three@0.176.0:
-    resolution: {integrity: sha512-PWRKYWQo23ojf9oZSlRGH8K09q7nRSWx6LY/HF/UUrMdYgN9i1e2OwJYHoQjwc6HF/4lvvYLC5YC1X8UJL2ZpA==}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -1049,11 +1028,6 @@ snapshots:
 
   '@rolldown/pluginutils@1.1.0': {}
 
-  '@simonwep/pickr@1.9.0':
-    dependencies:
-      core-js: 3.32.2
-      nanopop: 2.3.0
-
   '@standard-schema/spec@1.1.0': {}
 
   '@standard-schema/utils@0.3.0': {}
@@ -1172,8 +1146,6 @@ snapshots:
 
   clsx@2.1.1: {}
 
-  core-js@3.32.2: {}
-
   csstype@3.2.3: {}
 
   d3-array@3.2.5:
@@ -1225,8 +1197,6 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
-
-  fflate@0.8.2: {}
 
   fsevents@2.3.3:
     optional: true
@@ -1296,14 +1266,6 @@ snapshots:
       '@types/react': 19.3.0
 
   nanoid@3.3.20: {}
-
-  nanopop@2.3.0: {}
-
-  online-3d-viewer@0.18.0:
-    dependencies:
-      '@simonwep/pickr': 1.9.0
-      fflate: 0.8.2
-      three: 0.176.0
 
   oxlint@1.93.0:
     optionalDependencies:
@@ -1412,8 +1374,6 @@ snapshots:
   source-map-js@1.2.2: {}
 
   styleq@0.2.1: {}
-
-  three@0.176.0: {}
 
   tiny-invariant@1.3.3: {}
 
