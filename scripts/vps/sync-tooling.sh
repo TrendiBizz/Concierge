@@ -45,7 +45,8 @@ rsync -a --exclude '._*' --exclude '__pycache__' --exclude '*.pyc' \
 # (services/email-auth, the Rust shell, the Asterisk PBX), so the box needs the Containerfile names the
 # repo now uses. Additive only; the old Dockerfile names are moved aside by prune-removed.sh.
 EXTRA=(services/email-auth/Containerfile concierge-stack/core-rs/Containerfile.shell
-       scripts/asterisk/Containerfile scripts/asterisk/compose.yml scripts/asterisk/compose.public.yml)
+       scripts/asterisk/Containerfile scripts/asterisk/compose.yml scripts/asterisk/compose.public.yml
+       scripts/asterisk/cutover_to_rust_shell.sh)
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- "${EXTRA[@]}")" ]; then
   echo "REFUSING: uncommitted changes in container build files" >&2; exit 1
 fi
