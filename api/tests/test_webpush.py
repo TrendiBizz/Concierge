@@ -52,7 +52,7 @@ def test_payload_is_short_and_has_no_links():
     assert data["title"] == "Phone message for Trendi"
     assert len(data["body"]) <= 140 and data["body"].endswith("...")
     assert "http" not in data["body"] and "TOKEN" not in json.dumps(data)
-    assert data["url"] == "/owner-ui" and len(data["tag"]) == 16
+    assert data["url"] == "/studio/" and len(data["tag"]) == 16
 
 
 def test_empty_subject_still_has_a_title():

@@ -86,7 +86,7 @@
     }
     @owner {
         host concierge.trendibizz.com
-        path / /favicon.ico /favicon.svg /webhooks/stripe /webhooks/stripe-connect /webhooks/meta/messaging /receipt/* /privacy /privacy/* /guide/* /owner-ui /onboarding /studio /studio/* /quote/* /invoice/* /upload/* /robots.txt /api/v1/public-design/* /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /webhooks/brevo /api/v1/social-media/* /api/v1/device-sms/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/* /api/v1/contacts /api/v1/enquiries /api/v1/appointments /api/v1/events /integrations/*/callback
+        path / /favicon.ico /favicon.svg /webhooks/stripe /webhooks/stripe-connect /webhooks/meta/messaging /receipt/* /privacy /privacy/* /guide/* /owner-ui /onboarding /studio /studio/* /quote/* /invoice/* /booking/* /upload/* /robots.txt /api/v1/public-design/* /owner/* /api/v1/calendar/*.ics /api/v1/inbound/cloudflare /webhooks/brevo /api/v1/social-media/* /api/v1/device-sms/* /api/v1/voice/recordings/shared/* /api/v1/phone/managed/* /api/v1/contacts /api/v1/enquiries /api/v1/appointments /api/v1/events /integrations/*/callback
     }
     handle @owner {
         # Fallback defensive headers when Caddy itself answers (upstream FastAPI sets route-specific CSP).

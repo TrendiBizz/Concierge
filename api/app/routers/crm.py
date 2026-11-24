@@ -244,14 +244,50 @@ async def admin_update_appointment(appointment_id: str, body: AppointmentUpdate)
 
 # ------------------------------------------------------------------ owner CRM, tasks, companies & contacts
 @router.get("/owner/crm")
-async def owner_crm(user: dict = Depends(owner_auth.current_user)):
+async def owner_crm(
+    limit: int = 200,
+    user: dict = Depends(owner_auth.current_user),
+):
     m = _main()
     tenant = await tenants.ensure_calendar_token(await m._require_tenant(user["slug"]))
+    capped = min(max(limit, 1), 500)
     leads, appointments, todos = await asyncio.gather(
-        m.admin_leads(user["slug"]), admin_appointments(user["slug"]),
+        m.admin_leads(user["slug"], limit=capped), admin_appointments(user["slug"], limit=capped),
         tasks.list_tasks(user["tenant_id"], "all"))
     return {"leads": leads, "appointments": appointments, "tasks": todos,
+            "currency": (
+                "NZD" if str(tenant.get("timezone") or "").startswith("Pacific/Auckland")
+                else "AUD" if str(tenant.get("timezone") or "").startswith("Australia/")
+                else "GBP" if str(tenant.get("timezone") or "").startswith("Europe/London")
+                else "USD"
+            ),
             "calendar_url": m._origin_of(m.settings.owner_portal_url) + "/api/v1/calendar/" + tenant["calendar_token"] + ".ics"}
+
+
+@router.post("/owner/calendar/rotate-token")
+async def owner_rotate_calendar_token(user: dict = Depends(owner_auth.current_user)):
+    """Rotate the private ICS calendar feed URL if a link was shared accidentally."""
+    import secrets
+    owner_auth.require_role(user, "owner")
+    m = _main()
+    token = secrets.token_urlsafe(24)
+    await db.pool().execute("UPDATE tenants SET calendar_token=$2 WHERE id=$1", user["tenant_id"], token)
+    return {"calendar_url": m._origin_of(m.settings.owner_portal_url) + "/api/v1/calendar/" + token + ".ics"}
+
+
+@router.get("/owner/crm/leads/{lead_id}/events")
+async def owner_lead_events(lead_id: uuid.UUID, user: dict = Depends(owner_auth.current_user)):
+    """Stage history for one lead."""
+    exists = await db.pool().fetchval(
+        "SELECT 1 FROM leads WHERE tenant_id=$1 AND id=$2", user["tenant_id"], lead_id)
+    if not exists:
+        raise HTTPException(404, "Enquiry not found")
+    rows = await db.pool().fetch(
+        "SELECT id, from_status, to_status, note, created_at FROM lead_events "
+        "WHERE lead_id=$1 ORDER BY created_at DESC LIMIT 50",
+        lead_id,
+    )
+    return {"events": [{**dict(r), "id": str(r["id"]), "created_at": r["created_at"].isoformat()} for r in rows]}
 
 
 @router.get("/owner/crm/pipeline")
@@ -280,12 +316,42 @@ async def owner_create_opportunity(body: OpportunityCreate, user: dict = Depends
     owner_auth.require_role(user, "editor")
     if not any((body.name, body.company, body.email, body.phone, body.message)):
         raise HTTPException(status_code=422, detail="Add a name, company, email or phone")
+    email = body.email.strip()
+    phone = body.phone.strip()[:40]
     row = await db.pool().fetchrow(
         "INSERT INTO leads(tenant_id,name,company,email,phone,message,channel,status,value_cents) "
         "VALUES($1,$2,$3,$4,$5,$6,'manual','new',$7) RETURNING *",
-        user["tenant_id"], body.name.strip(), body.company.strip(), body.email.strip(),
-        body.phone.strip(), body.message.strip(), body.value_cents)
-    return dict(row)
+        user["tenant_id"], body.name.strip(), body.company.strip(), email,
+        phone, body.message.strip(), body.value_cents)
+    lead = dict(row)
+    if hasattr(db.pool(), "acquire"):
+        try:
+            from ..contact import is_email, normalize_phone
+            tenant = await tenants.get_by_id(user["tenant_id"]) or {}
+            cc = casetimeline.tenant_country_code(tenant)
+            norm_phone = normalize_phone(phone, cc) or phone
+            case = await casetimeline.reconcile(
+                user["tenant_id"], phone=norm_phone, email=email if is_email(email) else "",
+                name=body.name.strip(), company=body.company.strip(), default_cc=cc, source="manual",
+            )
+            case_id = case["id"] if case else None
+            if norm_phone != phone or case_id is not None:
+                await db.pool().execute(
+                    "UPDATE leads SET phone=$2, case_id=COALESCE(case_id, $3) WHERE id=$1",
+                    lead["id"], norm_phone, case_id,
+                )
+                lead["phone"] = norm_phone
+                if case_id is not None:
+                    lead["case_id"] = case_id
+            lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
+            await portability.emit(user["tenant_id"], "customer.enquiry", {
+                "lead_id": str(lead["id"]), "channel": "manual", "name": lead["name"],
+                "company": lead.get("company", ""), "phone": lead["phone"], "email": lead["email"],
+                "message": (lead.get("message") or "")[:1000], "case_key": case["case_key"] if case else "",
+            })
+        except Exception:
+            pass
+    return lead
 
 
 @router.get("/owner/crm/leads/{lead_id}/transcript")
@@ -975,6 +1041,32 @@ async def owner_deliver_webhook(user: dict = Depends(owner_auth.current_user)):
     return await portability.deliver_pending(user["tenant_id"])
 
 
+@router.get("/owner/webhooks/events")
+async def owner_webhook_events(limit: int = 30, user: dict = Depends(owner_auth.current_user)):
+    """Recent outbound webhook delivery attempts and errors."""
+    owner_auth.require_role(user, "owner")
+    rows = await db.pool().fetch(
+        "SELECT id, event, attempts, delivered_at, last_error, created_at "
+        "FROM webhook_events WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2",
+        user["tenant_id"], min(max(limit, 1), 100),
+    )
+    return {"events": [{
+        "id": str(r["id"]), "event": r["event"], "attempts": r["attempts"],
+        "status": "delivered" if r["delivered_at"] else ("failed" if r["last_error"] else "pending"),
+        "delivered_at": r["delivered_at"].isoformat() if r["delivered_at"] else None,
+        "last_error": r["last_error"] or "",
+        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+    } for r in rows]}
+
+
+@router.post("/owner/webhooks/test")
+async def owner_test_webhook(user: dict = Depends(owner_auth.current_user)):
+    """Emit a synthetic ping event and attempt immediate delivery."""
+    owner_auth.require_role(user, "owner")
+    await portability.emit(user["tenant_id"], "webhook.test", {"ping": True, "tenant": user["slug"]})
+    return await portability.deliver_pending(user["tenant_id"])
+
+
 @router.get("/owner/contacts/{case_key}/timeline")
 async def owner_contact_timeline(
     case_key: str, limit: int = 200, user: dict = Depends(owner_auth.current_user)
@@ -988,22 +1080,28 @@ async def owner_contact_timeline(
         raise HTTPException(404, "Contact not found")
     events = await casetimeline.timeline(user["tenant_id"], case_key, limit=limit)
     leads = await db.pool().fetch(
-        "SELECT id, status, channel, message, created_at FROM leads "
+        "SELECT id, status, channel, message, notes, score, score_label, created_at FROM leads "
         "WHERE tenant_id=$1 AND case_id=$2 ORDER BY created_at DESC LIMIT 50",
         user["tenant_id"], case["id"],
     )
     lead_ids = [row["id"] for row in leads]
     appointments = await db.pool().fetch(
-        "SELECT starts_at, status, name FROM appointments "
+        "SELECT id, starts_at, ends_at, status, name FROM appointments "
         "WHERE tenant_id=$1 AND lead_id = ANY($2::uuid[]) ORDER BY starts_at DESC LIMIT 50",
         user["tenant_id"], lead_ids,
     ) if lead_ids else []
     summary = casetimeline.summarise(events)
     return {
+        "case_id": str(case["id"]),
         "case_key": case_key,
         "label": casetimeline.contact_label(dict(case)),
         "phone": case["primary_phone"],
         "email": case["primary_email"],
+        "primary_phone": case["primary_phone"],
+        "primary_email": case["primary_email"],
+        "company": case.get("company") or "",
+        "assigned_to": str(case["assigned_to"]) if case.get("assigned_to") else "",
+        "company_id": str(case["company_id"]) if case.get("company_id") else "",
         "automation_paused": bool(case["automation_paused"]),
         "takeover_at": case["takeover_at"].isoformat() if case["takeover_at"] else None,
         **summary,
@@ -1020,12 +1118,15 @@ async def owner_contact_timeline(
         ],
         "enquiries": [
             {"id": str(row["id"]), "status": row["status"], "channel": row["channel"],
-             "message": row["message"],
+             "message": row["message"], "notes": row.get("notes") or "",
+             "score": row.get("score"), "score_label": row.get("score_label") or "",
              "created_at": row["created_at"].isoformat() if row["created_at"] else None}
             for row in leads
         ],
         "appointments": [
-            {"starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+            {**({"id": str(row["id"])} if row.get("id") else {}),
+             "starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
+             **({"ends_at": row["ends_at"].isoformat()} if row.get("ends_at") else {}),
              "status": row["status"], "name": row["name"]}
             for row in appointments
         ],

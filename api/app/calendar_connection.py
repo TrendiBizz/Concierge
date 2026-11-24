@@ -283,6 +283,27 @@ async def sync_one(appointment_id):
                     existing = await request(tenant_id, 'POST', path, params={'sendUpdates': 'all'}, json=payload)
                     if existing.status_code == 409:
                         existing = await request(tenant_id, 'GET', path + '/' + remote_id)
+                if existing.status_code == 200:
+                    cur = existing.json()
+                    needs_patch = cur.get('status') == 'cancelled'
+                    if not needs_patch:
+                        for key, expected in (('start', appt['starts_at']), ('end', appt['ends_at'])):
+                            raw_dt = (cur.get(key) or {}).get('dateTime', '')
+                            if not raw_dt:
+                                needs_patch = True
+                                break
+                            actual = datetime.fromisoformat(raw_dt.replace('Z', '+00:00'))
+                            if abs((actual - expected).total_seconds()) >= 10:
+                                needs_patch = True
+                                break
+                    if needs_patch:
+                        patch_payload = {
+                            'status': 'confirmed',
+                            'start': {'dateTime': appt['starts_at'].isoformat(), 'timeZone': appt['timezone']},
+                            'end': {'dateTime': appt['ends_at'].isoformat(), 'timeZone': appt['timezone']},
+                        }
+                        existing = await request(tenant_id, 'PATCH', path + '/' + remote_id,
+                                                 params={'sendUpdates': 'all'}, json=patch_payload)
                 if existing.status_code not in (200, 201):
                     raise CalendarUnavailable('Calendar provider rejected the event; retry pending')
                 result = existing.json()

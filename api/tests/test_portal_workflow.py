@@ -18,7 +18,7 @@ def test_long_owner_sms_preserves_portal_and_recording_link(monkeypatch):
     monkeypatch.setattr(owner_notifications, 'get_settings', lambda: SimpleNamespace(public_base_url='https://portal.example'))
     link='https://portal.example/recordings/shared/fixture-token'
     result=owner_notifications.sms_body('New voice enquiry', 'Transcript ' * 3000 + '\n' + link)
-    assert len(result)<=1400 and link in result and 'https://portal.example/owner-ui' in result
+    assert len(result)<=1400 and link in result and 'https://portal.example/studio/' in result
 
 
 @pytest.mark.parametrize('ip', ['127.0.0.1','10.0.0.1','169.254.169.254','::1','fd00::1'])

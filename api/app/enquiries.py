@@ -1,13 +1,16 @@
 """Durable CRM capture at authenticated channel ingress, independent of AI replies."""
 import hashlib
+import json
 
-from . import automation, casetimeline, db, email_signature, identity, enquiry_alerts, tasks
+from . import automation, casetimeline, db, email_signature, identity, enquiry_alerts, scoring, tasks
 
 
 async def capture(tenant: dict, channel: str, source: str, message: str, *,
                   conversation_id=None, email: str = "", phone: str = "",
                   name: str = "", company: str = "",
-                  consent_contact: bool = False, automated: bool = False) -> dict:
+                  consent_contact: bool = False, automated: bool = False,
+                  page_url: str | None = None, utm: dict | None = None,
+                  hold_seconds: float | None = None) -> dict:
     if channel not in ("email", "sms", "phone", "chat") or not source:
         raise ValueError("Authenticated channel event required")
 
@@ -33,6 +36,9 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
         name = name or signature["name"]
         company = company or signature["company"]
         phone = phone or signature["phone"]
+    if phone:
+        from .contact import normalize_phone
+        phone = normalize_phone(phone, casetimeline.tenant_country_code(tenant)) or phone
     key = hashlib.sha256(source.encode()).hexdigest()
 
     # Resolve the customer's unified case BEFORE the capture transaction, so a customer who has
@@ -59,21 +65,30 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
                 "SELECT * FROM leads WHERE tenant_id=$1 AND channel=$2 AND source_key=$3",
                 tenant["id"], channel, key)
             created = row is None
+            enriched = False
             if created:
                 row = await conn.fetchrow(
-                    "INSERT INTO leads(tenant_id,conversation_id,email,phone,name,company,message,channel,source_key,consent_contact,case_id) "
-                    "VALUES($1,$2,$3,$4,$10,$11,$5,$6,$7,$8,$9) RETURNING *",
+                    "INSERT INTO leads(tenant_id,conversation_id,email,phone,name,company,message,channel,source_key,consent_contact,case_id,page_url,utm) "
+                    "VALUES($1,$2,$3,$4,$10,$11,$5,$6,$7,$8,$9,$12,$13::jsonb) RETURNING *",
                     tenant["id"], conversation_id, email[:200], phone[:40], message[:1000],
-                    channel, key, consent_contact, case_id, name[:120], company[:120])
-            elif conversation_id or message:
+                    channel, key, consent_contact, case_id, name[:120], company[:120],
+                    page_url, json.dumps(utm or {}))
+            elif conversation_id or message or email or phone or name or company:
+                had_contact = bool((row["email"] or "") or (row["phone"] or "") or (row["name"] or ""))
                 row = await conn.fetchrow(
                     "UPDATE leads SET conversation_id=COALESCE(conversation_id,$2), "
                     "message=CASE WHEN $3<>'' THEN $3 ELSE message END, "
                     "case_id=COALESCE(case_id,$4), "
                     "name=CASE WHEN $5<>'' THEN $5 ELSE name END, "
-                    "company=CASE WHEN $6<>'' THEN $6 ELSE company END, updated_at=now() "
+                    "company=CASE WHEN $6<>'' THEN $6 ELSE company END, "
+                    "email=CASE WHEN $7<>'' AND email='' THEN $7 ELSE email END, "
+                    "phone=CASE WHEN $8<>'' AND phone='' THEN $8 ELSE phone END, "
+                    "consent_contact=consent_contact OR $9, "
+                    "page_url=COALESCE(NULLIF(page_url,''), $10), "
+                    "updated_at=now() "
                     "WHERE id=$1 RETURNING *", row["id"], conversation_id, message[:1000], case_id,
-                    name[:120], company[:120])
+                    name[:120], company[:120], email[:200], phone[:40], consent_contact, page_url)
+                enriched = (not had_contact) and bool((row["email"] or "") or (row["phone"] or "") or (row["name"] or ""))
             original_key = hashlib.sha256((source + '\0' + message).encode()).hexdigest()
             await conn.execute(
                 'INSERT INTO enquiry_sources(tenant_id,channel,source_key,lead_id,original_text) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
@@ -81,10 +96,11 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
             # ONE alert per enquiry, worded for the channel it came in on (robot/vendor mail: none).
             # A phone call's start alert has no words in it. Hold it so the end-of-call message
             # joins it: one alert per call (a call that never leaves a message still goes out).
+            effective_hold = hold_seconds if hold_seconds is not None else (630 if channel == 'phone' else None)
             await enquiry_alerts.notify(
                 tenant, channel, message[:30000], lead_id=row['id'], conversation_id=conversation_id,
                 contact={'name': name, 'email': email, 'phone': phone}, automated=automated,
-                connection=conn, hold_seconds=300 if channel == 'phone' else None)
+                connection=conn, hold_seconds=effective_hold)
 
     # Record the message on the unified timeline. Idempotent on (tenant, channel, source_key), so a
     # retried provider webhook collapses instead of duplicating the customer's history.
@@ -105,6 +121,11 @@ async def capture(tenant: dict, channel: str, source: str, message: str, *,
         await automation.on_lead_created(
             tenant, {**lead, "_owner_notice_queued": True}, message_key=message_key)
     else:
+        if enriched:
+            try:
+                lead = await scoring.apply(lead, weights=scoring.weights_for(tenant))
+            except Exception:
+                pass
         # A second message on the same conversation is fresh work, while a replay is not.
         await tasks.create_follow_up(tenant, lead, message_key=message_key)
     return lead

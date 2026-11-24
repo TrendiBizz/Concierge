@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import re
 import secrets
 import time
@@ -27,6 +28,8 @@ from pydantic import BaseModel, Field
 
 from . import crypto_vault, db, owner_auth
 from .config import get_settings
+
+log = logging.getLogger("concierge.meta_inbound")
 
 owner_router = APIRouter(prefix="/owner/meta-messaging", tags=["meta-messaging"])
 webhook_router = APIRouter(prefix="/webhooks/meta", tags=["meta-messaging"])
@@ -366,6 +369,20 @@ async def meta_webhook_inbound(request: Request):
         )
         if res.endswith(" 1"):
             stored += 1
+            try:
+                from . import convo, enquiries, tenants
+                tenant = await tenants.get_by_id(ch_row["tenant_id"])
+                if tenant and ev["text"]:
+                    sid = f"meta:{ev['channel']}:{ev['sender_id']}"
+                    conv_id = await convo.get_or_create(tenant, sid, "chat", None, None)
+                    await convo.save_message(conv_id, "user", ev["text"][:4000])
+                    phone = ev["sender_id"] if ev["channel"] == "whatsapp" else ""
+                    await enquiries.capture(
+                        tenant, "chat", sid, f"[{ev['channel'].upper()}] {ev['text']}",
+                        conversation_id=conv_id, name=ev["sender_name"] or "", phone=phone,
+                    )
+            except Exception:
+                log.exception("meta inbound CRM capture failed for %s", ext_mid)
     return {"ok": True, "stored": stored}
 
 

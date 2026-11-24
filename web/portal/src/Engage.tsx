@@ -649,85 +649,93 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
 
       {view === 'compose' ? (<DateTimeInput label="Schedule time (optional, defaults to one hour from now)" value={(when || undefined) as never} onChange={(value) => setWhen(value || '')} description="Local time; leave blank for one hour from now." />) : null}
 
-      {view === 'calendar' ? <Heading level={2}>Calendar</Heading> : null}
-      <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
-        <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
-        <strong>{month.toLocaleString('en-NZ', {month: 'long', year: 'numeric'})}</strong>
-        <Button label="→" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
-      </div>
-      {(() => {
-        const start = new Date(month.getFullYear(), month.getMonth(), 1);
-        const offset = (start.getDay() + 6) % 7;
-        const cells = Array.from({length: 42}, (_, i) => new Date(month.getFullYear(), month.getMonth(), 1 - offset + i));
-        const byDay: Record<string, Post[]> = {};
-        for (const post of posts) {
-          const raw = post.scheduled_at || post.created_at;
-          if (!raw) continue;
-          const date = typeof raw === 'number' ? new Date(raw * 1000) : new Date(raw);
-          const key = date.toISOString().slice(0, 10);
-          (byDay[key] = byDay[key] || []).push(post);
-        }
-        return (
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6}}>
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} style={{fontSize: 12, color: 'var(--color-text-secondary)'}}>{day}</div>)}
-            {cells.map((date) => {
-              const key = date.toISOString().slice(0, 10);
-              const items = byDay[key] || [];
-              const inMonth = date.getMonth() === month.getMonth();
-              return (
-                <div key={key} style={{minHeight: 92, padding: 6, border: '1px solid var(--color-border)', borderRadius: 8, opacity: inMonth ? 1 : 0.4}}>
-                  <div style={{fontSize: 12}}>{date.getDate()}</div>
-                  {items.slice(0, 2).map((post) => (
-                    <div key={post.id} style={{fontSize: 11, marginTop: 4, padding: 4, background: 'var(--color-background-muted)', borderRadius: 4}}>
-                      {post.status.replaceAll('_', ' ')} · {post.content.slice(0, 30)}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
+      {view === 'calendar' ? (
+        <>
+          <Heading level={2}>Calendar</Heading>
+          <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
+            <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
+            <strong>{month.toLocaleString('en-NZ', {month: 'long', year: 'numeric'})}</strong>
+            <Button label="→" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
           </div>
-        );
-      })()}
-
-      {view === 'posts' ? <Heading level={2}>Your posts</Heading> : null}
-      <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
-        {posts.map((post) => (
-          <Card key={post.id}>
-            <Badge label={post.status.replaceAll('_', ' ')} variant={post.status === 'published' ? 'success' : post.status === 'failed' ? 'error' : 'neutral'} />
-            <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
-            {post.last_error ? <p role="alert">{post.last_error}</p> : null}
-            {post.results && post.results.length ? (
-              <div style={{marginTop: 6, fontSize: 12}}>
-                {post.results.map((r) => (
-                  <div key={r.account_id + ':' + String(r.ok)} style={{marginTop: 3}}>
-                    <strong>{r.account_name || networkLabel(r.network)}</strong>:{' '}
-                    {r.ok ? (
-                      r.external_url
-                        ? <a href={r.external_url} target="_blank" rel="noopener noreferrer">Published</a>
-                        : 'Published'
-                    ) : (
-                      <span role="alert">{r.error || 'Delivery failed'}</span>
-                    )}
-                  </div>
-                ))}
+          {(() => {
+            const start = new Date(month.getFullYear(), month.getMonth(), 1);
+            const offset = (start.getDay() + 6) % 7;
+            const cells = Array.from({length: 42}, (_, i) => new Date(month.getFullYear(), month.getMonth(), 1 - offset + i));
+            const byDay: Record<string, Post[]> = {};
+            for (const post of posts) {
+              const raw = post.scheduled_at || post.created_at;
+              if (!raw) continue;
+              const date = typeof raw === 'number' ? new Date(raw * 1000) : new Date(raw);
+              const key = date.toISOString().slice(0, 10);
+              (byDay[key] = byDay[key] || []).push(post);
+            }
+            return (
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6}}>
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day} style={{fontSize: 12, color: 'var(--color-text-secondary)'}}>{day}</div>)}
+                {cells.map((date) => {
+                  const key = date.toISOString().slice(0, 10);
+                  const items = byDay[key] || [];
+                  const inMonth = date.getMonth() === month.getMonth();
+                  return (
+                    <div key={key} style={{minHeight: 92, padding: 6, border: '1px solid var(--color-border)', borderRadius: 8, opacity: inMonth ? 1 : 0.4}}>
+                      <div style={{fontSize: 12}}>{date.getDate()}</div>
+                      {items.slice(0, 2).map((post) => (
+                        <div key={post.id} style={{fontSize: 11, marginTop: 4, padding: 4, background: 'var(--color-background-muted)', borderRadius: 4}}>
+                          {post.status.replaceAll('_', ' ')} · {post.content.slice(0, 30)}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
-            ) : null}
-            <HStack gap={2} style={{flexWrap: 'wrap', marginTop: 8}}>
-              {post.status === 'draft' ? (
-                <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />
-              ) : null}
-              {post.status === 'pending_approval' && role === 'owner' ? (
-                <>
-                  <Button label="Approve & schedule" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'schedule')} />
-                  <Button label="Approve & publish now" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'publish_now')} />
-                  <Button label="Reject" variant="ghost" isDisabled={busy} onClick={() => void decidePost(post.id, 'reject')} />
-                </>
-              ) : null}
-            </HStack>
-          </Card>
-        ))}
-        {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}
-      </div>
+            );
+          })()}
+        </>
+      ) : null}
+
+      {view === 'posts' ? (
+        <>
+          <Heading level={2}>Your posts</Heading>
+          <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'}}>
+            {posts.map((post) => (
+              <Card key={post.id}>
+                <Badge label={post.status.replaceAll('_', ' ')} variant={post.status === 'published' ? 'success' : post.status === 'failed' ? 'error' : 'neutral'} />
+                <p style={{whiteSpace: 'pre-wrap'}}>{[post.content, post.link, post.hashtags].filter(Boolean).join('\n')}</p>
+                {post.last_error ? <p role="alert">{post.last_error}</p> : null}
+                {post.results && post.results.length ? (
+                  <div style={{marginTop: 6, fontSize: 12}}>
+                    {post.results.map((r) => (
+                      <div key={r.account_id + ':' + String(r.ok)} style={{marginTop: 3}}>
+                        <strong>{r.account_name || networkLabel(r.network)}</strong>:{' '}
+                        {r.ok ? (
+                          r.external_url
+                            ? <a href={r.external_url} target="_blank" rel="noopener noreferrer">Published</a>
+                            : 'Published'
+                        ) : (
+                          <span role="alert">{r.error || 'Delivery failed'}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <HStack gap={2} style={{flexWrap: 'wrap', marginTop: 8}}>
+                  {post.status === 'draft' ? (
+                    <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />
+                  ) : null}
+                  {post.status === 'pending_approval' && role === 'owner' ? (
+                    <>
+                      <Button label="Approve & schedule" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'schedule')} />
+                      <Button label="Approve & publish now" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'publish_now')} />
+                      <Button label="Reject" variant="ghost" isDisabled={busy} onClick={() => void decidePost(post.id, 'reject')} />
+                    </>
+                  ) : null}
+                </HStack>
+              </Card>
+            ))}
+            {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}
+          </div>
+        </>
+      ) : null}
       {<StatusLine text={status} />}
     </div>
   );

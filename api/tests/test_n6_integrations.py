@@ -113,8 +113,9 @@ def test_phone_finish_and_enquiry_emit_events(monkeypatch):
 
 def test_connectors_are_disabled_without_credentials():
     info = integrations.available()
-    for p in ("xero", "m365", "tradify", "fergus"):
+    for p in ("xero", "m365"):
         assert info[p]["enabled"] is False and info[p]["unavailable_reason"]
+    assert "tradify" not in info and "fergus" not in info
     assert info["servicem8"]["enabled"] is True  # customer brings their own key
     with pytest.raises(Exception) as e:
         integrations._require("xero")

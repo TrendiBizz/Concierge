@@ -836,6 +836,29 @@
       setStatus("");
     }
 
+    window.addEventListener("pagehide", function () {
+      if (!voiceActive && !voiceSession) return;
+      var savedSession = voiceSession;
+      if (userText) {
+        try {
+          fetch(API + "/api/v1/voice/log", {
+            method: "POST", keepalive: true,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: KEY, session_id: sessionId, role: "user", text: userText, page_url: location.href }),
+          });
+        } catch (e) {}
+      }
+      if (savedSession) {
+        voiceSession = null;
+        try {
+          fetch(API + "/api/v1/voice/sessions/" + encodeURIComponent(savedSession.id) + "/finish", {
+            method: "POST", keepalive: true,
+            headers: { "X-Voice-Session-Token": savedSession.token },
+          });
+        } catch (e) {}
+      }
+    });
+
     async function startVoice() {
       voiceActive = true;
       micBtn.disabled = true;

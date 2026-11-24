@@ -25,8 +25,11 @@ from . import crypto_vault, db, public_fetch
 
 log = logging.getLogger("concierge.portability")
 
-EVENTS = ("customer.created", "customer.enquiry", "quote.accepted", "appointment.booked",
-          "call.completed")
+EVENTS = (
+    "customer.created", "customer.enquiry", "quote.accepted",
+    "appointment.booked", "appointment.rescheduled", "appointment.cancelled",
+    "appointment.no_show", "appointment.completed", "call.completed", "webhook.test",
+)
 MAX_ATTEMPTS = 8
 # Minutes to wait after the Nth failed attempt (capped at the last value): 1m, 5m, 15m, 1h, 3h, 6h...
 BACKOFF_MINUTES = (1, 5, 15, 60, 180, 360, 720)

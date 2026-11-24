@@ -364,6 +364,18 @@ async def change_status(quote_id: UUID, body: QuoteStatus, user=Depends(owner_au
             'SELECT public_token FROM invoices WHERE quotation_id=$1', quote_id)
         if not existing:
             await invoices.issue(result, dict(tenant) if tenant else {}, 'full')
+        try:
+            from . import portability
+            await portability.emit(user['tenant_id'], 'quote.accepted', {
+                'quote_id': str(quote_id),
+                'quote_number': result.get('quote_number', ''),
+                'customer_name': result.get('customer_name', ''),
+                'customer_email': result.get('customer_email', ''),
+                'total_cents': result.get('total_cents', 0),
+                'currency': result.get('currency', 'USD'),
+            })
+        except Exception:
+            pass
     return result
 
 

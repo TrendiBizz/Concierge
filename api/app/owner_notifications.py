@@ -15,7 +15,10 @@ def sms_body(subject, body):
     if len(body) <= 1400:
         return body
     links = re.findall(r"https?://[^\s]+/recordings/shared/[^\s]+", body)
-    suffix = "\nFull original conversation in your private portal: " + get_settings().public_base_url.rstrip("/") + "/owner-ui"
+    s = get_settings()
+    portal_base = (getattr(s, "owner_portal_url", "") or "").strip()
+    portal = (portal_base.rstrip("/").rsplit("/owner-ui", 1)[0] + "/studio/") if portal_base else (s.public_base_url.rstrip("/") + "/studio/")
+    suffix = "\nFull original conversation in your private portal: " + portal
     if links:
         suffix += "\nRecording: " + links[-1]
     return subject[:160] + "\n" + body[:max(0, 1400-len(suffix)-162)] + suffix
@@ -35,8 +38,9 @@ async def sms_unconfirmable(runner, tenant_id) -> bool:
         "FROM outbox WHERE tenant_id=$1 AND kind IN ('owner_alert','owner_issue') AND channel='sms' "
         "AND status IN ('sent','failed','cancelled') ORDER BY id DESC LIMIT $2",
         tenant_id, SMS_BREAKER_FAILURES, SMS_BREAKER_PROBE_HOURS)
+    unconfirmed = ("did not confirm", "never confirmed", "receipt missing")
     return (len(rows) == SMS_BREAKER_FAILURES and rows[0]["recent"]
-            and all(r["status"] != "sent" and "did not confirm" in (r["last_error"] or "") for r in rows))
+            and all(r["status"] != "sent" and any(p in (r["last_error"] or "").lower() for p in unconfirmed) for r in rows))
 
 
 async def sms_reliable(runner, tenant, phone=None) -> tuple | None:

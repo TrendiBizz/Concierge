@@ -62,6 +62,11 @@ async def _slots_on(tenant: dict, day: date, conn=None) -> list[datetime]:
     start = datetime.combine(day, time(0), tzinfo=tz).astimezone(timezone.utc)
     end = datetime.combine(day + timedelta(days=1), time(0), tzinfo=tz).astimezone(timezone.utc)
     booked += await calendar_connection.busy(tenant['id'], start, end)
+    try:
+        from . import integrations
+        booked += await integrations.m365_busy(tenant['id'], start, end)
+    except Exception:
+        pass
     return day_slots(tenant, day, datetime.now(timezone.utc), booked)
 
 
@@ -87,10 +92,10 @@ async def availability(tenant: dict, date_str: str) -> dict:
             "date": day.isoformat(),
             "weekday": day.strftime("%A"),
             "timezone": tenant["timezone"],
-            "slots": [s.astimezone(tz).strftime("%H:%M") for s in slots][:12],
+            "slots": [s.astimezone(tz).strftime("%H:%M") for s in slots][:48],
             # Ready to pass straight back as booking's `start`: the assistant has been known to send
             # just "09:00", which cannot be booked because it carries no date.
-            "slot_starts": [s.astimezone(tz).strftime("%Y-%m-%d %H:%M") for s in slots][:12],
+            "slot_starts": [s.astimezone(tz).strftime("%Y-%m-%d %H:%M") for s in slots][:48],
             "slot_minutes": tenant["slot_minutes"],
         }
 

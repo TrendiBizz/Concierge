@@ -284,7 +284,7 @@ async fn apply_actions(
                     .ok();
             }
             Action::Tool {
-                call_id,
+                call_id: fc_call_id,
                 name,
                 args,
             } => {
@@ -301,7 +301,7 @@ async fn apply_actions(
                             "tenant_id": state.tenant_id,
                             "record_session_id": record_id,
                             "conversation_id": conversation,
-                            "call_id": call_id,
+                            "call_id": state.call_id,
                             "name": tool_name,
                             "args": Value::Object(args),
                         }),
@@ -322,7 +322,7 @@ async fn apply_actions(
                 }
                 if !bridge.ending {
                     let response_action = Bridge::tool_response(vec![json!({
-                        "id": call_id,
+                        "id": fc_call_id,
                         "name": tool_name,
                         "response": result,
                     })]);

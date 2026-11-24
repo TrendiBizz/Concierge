@@ -1,6 +1,6 @@
 """Optional enquirer acknowledgement, separate from operational owner notices."""
 import json
-from . import channel_authorization, db
+from . import casetimeline, channel_authorization, db
 from .contact import is_email, normalize_phone
 
 
@@ -19,7 +19,7 @@ async def request(tenant, args, ctx):
     if channel not in ('email', 'sms'):
         return {'ok': False, 'error': 'Ask which channel the enquirer wants: email or SMS'}
     recipient = str(args.get('recipient') or '').strip()
-    recipient = recipient.lower() if channel == 'email' else normalize_phone(recipient)
+    recipient = recipient.lower() if channel == 'email' else normalize_phone(recipient, casetimeline.tenant_country_code(tenant))
     if not recipient or (channel == 'email' and not is_email(recipient)):
         return {'ok': False, 'error': 'A valid acknowledgement recipient is required'}
     key = {'channel': channel, 'recipient': recipient}

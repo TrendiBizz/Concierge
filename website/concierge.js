@@ -29,6 +29,7 @@
       if (openAssistant()) { event.preventDefault(); return; }
       event.preventDefault();
       if (requested) return;
+      var fallbackHref = button.getAttribute("href");
       requested = true;
       say("Opening Concierge…");
       var attempts = 0;
@@ -38,7 +39,11 @@
           window.clearInterval(timer);
           if (requested) {
             requested = false;
-            say("Chat is unavailable right now. You can still request setup below or email admin@trendibizz.com.");
+            if (status) {
+              say("Chat is unavailable right now. You can still request setup below or email admin@trendibizz.com.");
+            } else if (fallbackHref && fallbackHref.charAt(0) === "/") {
+              window.location.href = fallbackHref;
+            }
           }
         }
       }, 250);

@@ -17,8 +17,9 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from . import convo, db, enquiries, enquiry_alerts, tenants, voice_records
+from . import casetimeline, convo, db, enquiries, enquiry_alerts, tenants, voice_records
 from .config import get_settings
+from .contact import normalize_phone
 
 log = logging.getLogger("concierge.voicemail")
 
@@ -35,7 +36,11 @@ def parse_name(name: str) -> dict | None:
 
 async def _process(path: Path, tenant: dict, parts: dict) -> str:
     call_id = "vm:" + parts["call"]
-    caller = ("+" + parts["num"]) if parts["num"] and len(parts["num"]) >= 8 else parts["num"]
+    raw_num = parts["num"] or ""
+    cc = casetimeline.tenant_country_code(tenant)
+    caller = normalize_phone(raw_num, cc) or (
+        ("+" + raw_num) if raw_num and not raw_num.startswith("0") and len(raw_num) >= 8 else raw_num
+    )
     body = path.read_bytes()
     async with db.pool().acquire() as c:
         existing = await c.fetchrow(
@@ -57,7 +62,7 @@ async def _process(path: Path, tenant: dict, parts: dict) -> str:
                                    conversation_id=conversation, phone=caller)
     tail = "Voicemail received: our AI receptionist could not take this call, so the caller left a message."
     try:
-        await voice_records.store_audio(session, body, "audio/wav")
+        await voice_records.store_audio(session, body, "audio/wav", is_voicemail=True)
         token = secrets.token_urlsafe(32)
         await db.pool().execute(
             "INSERT INTO voice_recording_shares(token_hash,session_id,tenant_id) VALUES($1,$2,$3)",

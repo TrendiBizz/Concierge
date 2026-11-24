@@ -212,8 +212,7 @@ class Settings(BaseSettings):
     ms_client_id: str = ""            # Microsoft 365 / Outlook Calendar (Entra app registration)
     ms_client_secret: str = ""
     ms_tenant: str = "common"
-    fergus_partner_key: str = ""      # Fergus and Tradify only open their APIs to approved partners
-    tradify_partner_key: str = ""
+    # ServiceM8 uses customer API keys; Xero and Microsoft 365 use OAuth.
     # N10 remainder: Gmail send-as OAuth (disabled until credentials are supplied).
     gmail_oauth_client_id: str = ""
     gmail_oauth_client_secret: str = ""

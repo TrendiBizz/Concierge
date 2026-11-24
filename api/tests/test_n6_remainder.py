@@ -2,7 +2,7 @@
 - Studio UI for API keys & integrations
 - Two-way Google Calendar pull sync (external move & cancel)
 - Customer self-serve booking reschedule & cancel links
-- Tradify & Fergus connectors (disabled until partner keys set; idempotent when enabled)
+- Tradify & Fergus explicitly excluded from integrations
 """
 from __future__ import annotations
 
@@ -120,29 +120,7 @@ def test_two_way_google_calendar_pull_and_customer_reschedule_cancel(monkeypatch
     run(_go)
 
 
-@needs_db
-def test_tradify_and_fergus_disabled_by_default_and_push_when_enabled(monkeypatch):
-    async def _go(pool):
-        t = await tenants.create("Trade Co", "https://tradeco.example", "trade-co")
-        await integrations._save(t["id"], "tradify", {"api_key": "t-demo"})
-        await integrations._save(t["id"], "fergus", {"api_key": "f-demo"})
-
-        calls = []
-        async def fake_http(method, url, **kw):
-            calls.append(url)
-            return httpx.Response(200, json={"id": "ext-123"})
-        monkeypatch.setattr(integrations, "http", fake_http)
-
-        # Disabled by default when partner keys are empty
-        monkeypatch.setattr(get_settings(), "tradify_partner_key", "", raising=False)
-        monkeypatch.setattr(get_settings(), "fergus_partner_key", "", raising=False)
-        await integrations.dispatch(t["id"], "customer.enquiry", {"lead_id": "L1", "name": "Bob", "message": "Leaking tap"})
-        assert calls == []
-
-        # Enabled when partner keys are supplied
-        monkeypatch.setattr(get_settings(), "tradify_partner_key", "tpk-1", raising=False)
-        monkeypatch.setattr(get_settings(), "fergus_partner_key", "fpk-1", raising=False)
-        await integrations.dispatch(t["id"], "customer.enquiry", {"lead_id": "L1", "name": "Bob", "message": "Leaking tap"})
-        assert any("tradifyhq.com" in u for u in calls)
-        assert any("fergus.com" in u for u in calls)
-    run(_go)
+def test_tradify_and_fergus_excluded_from_providers():
+    assert "tradify" not in integrations.PROVIDERS
+    assert "fergus" not in integrations.PROVIDERS
+    assert set(integrations.PROVIDERS) == {"xero", "m365", "servicem8"}

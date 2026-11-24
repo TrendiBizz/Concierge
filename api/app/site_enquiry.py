@@ -82,14 +82,14 @@ async def submit(*, kind: str, email: str, name: str = "", website: str = "", me
 
 
 async def _tell_the_operator(enquiry_id, kind, email, name, website, message, plan, channels, referral) -> None:
-    """Email the operator. A failure is logged; the enquiry is already stored and listed."""
+    """Capture into the trendi-support CRM and email the operator. A failure is logged; the enquiry is already stored."""
     try:
-        tenant = await db.pool().fetchrow(
-            "SELECT id, coalesce(nullif(notify_email,''), 'admin@trendibizz.com') AS to_addr "
-            "FROM tenants WHERE slug='trendi-support'")
-        if tenant is None:
+        tenant_row = await db.pool().fetchrow("SELECT * FROM tenants WHERE slug='trendi-support'")
+        if tenant_row is None:
             log.warning("site enquiry %s stored but there is no trendi-support tenant to alert", enquiry_id)
             return
+        tenant = dict(tenant_row)
+        to_addr = (tenant.get("notify_email") or tenant.get("to_addr") or "").strip() or "admin@trendibizz.com"
         lines = [f"A website enquiry came in ({'Concierge setup' if kind == 'concierge' else 'SEO / AI visibility'}).", "",
                  f"Name:    {_clean(name, 120) or '(not given)'}",
                  f"Email:   {email}",
@@ -101,10 +101,25 @@ async def _tell_the_operator(enquiry_id, kind, email, name, website, message, pl
         if referral:
             lines.append(f"Referral code: {_REF.sub('', referral)[:32].upper()}")
         lines += ["", _clean(message, 4000, multiline=True) or "(no message)", "",
-                  f"Reply to {email}. Enquiry {enquiry_id}; the full list is GET /admin/site-enquiries."]
-        await outbox.enqueue(tenant["id"], "owner_alert", "email", tenant["to_addr"], "\n".join(lines),
-                             subject=f"Website enquiry — {_clean(website or email, 80)}",
-                             dedupe_key=f"site-enquiry:{enquiry_id}")
+                  f"Reply to {email}. Enquiry {enquiry_id}; also visible in Studio CRM."]
+        body_text = "\n".join(lines)
+        lead_id = None
+        if hasattr(db.pool(), "acquire"):
+            try:
+                from . import enquiries
+                lead = await enquiries.capture(
+                    tenant, "chat", f"site-enquiry:{enquiry_id}", body_text,
+                    email=email, name=_clean(name, 120), page_url=_clean(website, 300) or None,
+                    automated=True,  # operator email below carries the full formatted summary
+                )
+                lead_id = lead.get("id") if isinstance(lead, dict) else None
+            except Exception:
+                log.exception("site enquiry %s CRM capture failed", enquiry_id)
+        kw = {"subject": f"Website enquiry — {_clean(website or email, 80)}",
+              "dedupe_key": f"site-enquiry:{enquiry_id}"}
+        if lead_id is not None:
+            kw["lead_id"] = lead_id
+        await outbox.enqueue(tenant["id"], "owner_alert", "email", to_addr, body_text, **kw)
     except Exception:  # noqa: BLE001 - stored already; the admin list still shows it
         log.exception("site enquiry %s could not be emailed", enquiry_id)
 

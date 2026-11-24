@@ -136,24 +136,40 @@ async def approve(tenant_id, draft_id: int) -> dict | None:
                 return None
             if row["reply_body"].startswith("REVIEW REQUIRED —"):
                 raise DraftError("An authenticated human must write the response before approval")
+            import hashlib
+            src_hash = hashlib.sha256(str(row["source_id"]).encode()).hexdigest() if row.get("source_id") else ""
+            lead_id = await conn.fetchval(
+                "SELECT id FROM leads WHERE tenant_id=$1 AND channel='email' AND source_key=$2 LIMIT 1",
+                tenant_id, src_hash,
+            ) if src_hash else None
             await conn.execute(
                 """
                 INSERT INTO outbox
-                    (tenant_id, kind, channel, to_addr, subject, body, dedupe_key)
-                VALUES ($1, 'approved_reply', 'email', $2, $3, $4, $5)
+                    (tenant_id, kind, channel, to_addr, subject, body, dedupe_key, lead_id)
+                VALUES ($1, 'approved_reply', 'email', $2, $3, $4, $5, $6)
                 ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
                 """,
                 tenant_id, row["sender"],
                 (row["subject"] if row["subject"].lstrip().lower().startswith("re:") else ("Re: " + row["subject"]))[:250]
                 if row["subject"] else "Reply",
-                row["reply_body"], f"approved-email-draft:{draft_id}",
+                row["reply_body"], f"approved-email-draft:{draft_id}", lead_id,
             )
+            if lead_id:
+                await conn.execute(
+                    "UPDATE leads SET status=CASE WHEN status='new' THEN 'contacted' ELSE status END, updated_at=now() "
+                    "WHERE id=$1 AND tenant_id=$2", lead_id, tenant_id,
+                )
             updated = await conn.fetchrow(
                 "UPDATE email_drafts SET status='approved', approved_at=now(), "
                 "updated_at=now() WHERE id=$1 AND tenant_id=$2 RETURNING *",
                 draft_id, tenant_id,
             )
-            return dict(updated)
+    try:
+        from . import casetimeline
+        await casetimeline.mark_replied(tenant_id, email=row["sender"], channel="email")
+    except Exception:
+        pass
+    return dict(updated)
 
 
 async def release(tenant_id, draft_id: int) -> dict | None:

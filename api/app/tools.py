@@ -222,19 +222,39 @@ async def _capture_lead(tenant: dict, args: dict, ctx: dict) -> dict:
             "company=CASE WHEN $9<>'' THEN $9 ELSE coalesce(company,'') END, "
             "email=CASE WHEN $4<>'' THEN $4 ELSE email END, "
             "phone=CASE WHEN $5<>'' THEN $5 ELSE phone END, message=$6, "
+            "page_url=COALESCE(NULLIF(page_url,''), $10), "
+            "utm=CASE WHEN utm='{}'::jsonb AND $11::jsonb<>'{}'::jsonb THEN $11::jsonb ELSE utm END, "
             "consent_contact=consent_contact OR $7, consent_marketing=consent_marketing OR $8, "
             "consent_marketing_basis=CASE WHEN $8 THEN 'visitor agreed to promotions in conversation' ELSE consent_marketing_basis END, "
             "consent_marketing_at=CASE WHEN $8 THEN COALESCE(consent_marketing_at,now()) ELSE consent_marketing_at END, updated_at=now() "
             "WHERE id=(SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 "
             "ORDER BY created_at LIMIT 1) RETURNING *",
             tenant["id"], ctx["conversation_id"], name, email if email_ok else "", phone, message,
-            consent, marketing, company)
+            consent, marketing, company, ctx.get("page_url"), json.dumps(ctx.get("utm") or {}))
         if existing:
             if case_id:
                 await db.pool().execute("UPDATE leads SET case_id=$2 WHERE id=$1",
                                         existing["id"], case_id)
                 existing = dict(existing, case_id=case_id)
-            await automation.lead_followup(tenant, dict(existing))
+            else:
+                existing = dict(existing)
+            try:
+                from . import scoring
+                existing = await scoring.apply(existing, weights=scoring.weights_for(tenant))
+            except Exception:
+                pass
+            try:
+                from . import portability
+                await portability.emit(tenant["id"], "customer.enquiry", {
+                    "lead_id": str(existing["id"]), "channel": existing.get("channel") or ctx.get("channel", "chat"),
+                    "name": existing.get("name", ""), "company": existing.get("company", ""),
+                    "phone": existing.get("phone", ""), "email": existing.get("email", ""),
+                    "message": (existing.get("message") or "")[:1000],
+                    "case_key": case["case_key"] if case else "",
+                })
+            except Exception:
+                pass
+            await automation.lead_followup(tenant, existing)
             ctx["lead_captured"] = True
             return {"ok": True, "note": "Enquiry updated in the CRM. The team can follow up."}
 

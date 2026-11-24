@@ -205,7 +205,7 @@ def test_long_owner_sms_keeps_recording_and_portal_links(monkeypatch):
                         lambda: SimpleNamespace(public_base_url="https://portal.example"))
     link = "https://portal.example/api/v1/voice/recordings/shared/tok123"
     body = owner_notifications.sms_body("Voice enquiry", "x" * 5000 + "\n" + link)
-    assert len(body) <= 1400 and link in body and "https://portal.example/owner-ui" in body
+    assert len(body) <= 1400 and link in body and "https://portal.example/studio/" in body
 
 
 # ---------------------------------------------------------- step 5: acknowledgement

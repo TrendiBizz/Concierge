@@ -64,6 +64,8 @@ def decide(
         return "skip", "no_caller_number"
     if call.get("to_number") and call.get("from_number") == call.get("to_number"):
         return "skip", "self_call"
+    if call.get("status") == "voicemail":
+        return "skip", "voicemail_left"
     ended = call.get("ended_at")
     if not ended and call.get("status") not in ("missed", "no-answer", "busy", "failed", "canceled"):
         # Still ringing, or a live call: nothing to recover yet unless it has gone stale.

@@ -159,11 +159,12 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
         if vendor:
             notice = "(Automated or vendor message — not a customer enquiry.)\n\n"
             flags.append("automated_sender")
-        await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + email_threading.attachment_notice((mail or {}).get("attachments")) + text_body,
-                                automated=bool(vendor or "automated_sender" in (flags or [])),
-                                conversation_id=conversation_id, email=draft["sender"],
-                                name=signature["name"], company=signature["company"],
-                                phone=signature["phone"])
+        await convo.save_message(conversation_id, "user", (subject + "\n\n" + text_body)[:4000])
+        lead = await enquiries.capture(tenant, "email", key, subject + "\n\n" + notice + email_threading.attachment_notice((mail or {}).get("attachments")) + text_body,
+                                       automated=bool(vendor or "automated_sender" in (flags or [])),
+                                       conversation_id=conversation_id, email=draft["sender"],
+                                       name=signature["name"], company=signature["company"],
+                                       phone=signature["phone"])
         detail = {"risk": risk, "flags": flags, "status": draft.get("status")}
         why_not = ack_decision(tenant, draft["sender"], subject, risk, flags, auth)
         if why_not != "off":

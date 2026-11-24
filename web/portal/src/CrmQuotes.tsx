@@ -17,8 +17,18 @@ import {MoreMenu} from '@astryxdesign/core/MoreMenu';
 import {StatusLine} from './StatusLine';
 
 type Lead = {id: string; name?: string; email?: string; phone?: string; channel: string; status: string;
-  created_at: string; message?: string; value_cents?: number; lost_reason?: string; next_action_at?: string};
+  created_at: string; message?: string; value_cents?: number; lost_reason?: string; next_action_at?: string;
+  score?: number; score_label?: string; score_reasons?: string[]; notes?: string};
 type Todo = {id: number; title: string; notes?: string; due_at?: string; status: string; kind?: string; lead_id?: string};
+type LeadEvent = {id: number; kind: string; from_status?: string; to_status?: string; body?: string; actor?: string; created_at: string};
+
+function toLocalInput(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // What the salesperson can move a deal to. These are the same five stages the API and the
 // dashboard already use, in the order a job actually travels.
@@ -47,9 +57,13 @@ function money(cents: number, currency: string) {
 export function Crm({token}: {token: string}) {
   const api = useApi(token);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [currency, setCurrency] = useState('NZD');
   const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
   const [query, setQuery] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
+  const [channelFilter, setChannelFilter] = useState('');
   const [transcripts, setTranscripts] = useState<Record<string, Turn[]>>({});
+  const [history, setHistory] = useState<Record<string, LeadEvent[]>>({});
   const [todoList, setTodoList] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [newTodoDue, setNewTodoDue] = useState('');
@@ -60,6 +74,7 @@ export function Crm({token}: {token: string}) {
     api('/owner/crm').then((data) => {
       setLeads((data.leads || []) as Lead[]);
       setAppointments((data.appointments || []) as Record<string, unknown>[]);
+      if (data.currency) setCurrency(String(data.currency));
     }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load enquiries'));
     loadTodos();
   }, [token]);
@@ -106,23 +121,72 @@ export function Crm({token}: {token: string}) {
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Transcript unavailable'); }
   }
 
+  async function loadHistory(id: string) {
+    try {
+      const data = await api('/owner/crm/leads/' + id + '/events') as {events?: LeadEvent[]};
+      setHistory({...history, [id]: data.events || []});
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Stage history unavailable'); }
+  }
+
+  const channels = Array.from(new Set(leads.map((l) => l.channel || 'chat'))).sort();
   const shown = leads.filter((lead) => {
-    const text = [lead.name, lead.email, lead.phone, lead.message].filter(Boolean).join(' ').toLowerCase();
+    if (stageFilter && (lead.status || 'new') !== stageFilter) return false;
+    if (channelFilter && (lead.channel || 'chat') !== channelFilter) return false;
+    const text = [lead.name, lead.email, lead.phone, lead.message, lead.notes].filter(Boolean).join(' ').toLowerCase();
     return !query || text.includes(query.toLowerCase());
   });
 
   return (
     <div>
       <p style={{fontSize: 15}}>Every enquiry from chat, email, SMS and the phone lands here, with the conversation and the next step. Reply, quote or book from the same card.</p>
-      <TextInput label="Search enquiries" value={query} onChange={setQuery} />
+      <HStack gap={2} vAlign="end" style={{flexWrap: 'wrap', marginBottom: 12}}>
+        <div style={{flex: 1, minWidth: 220}}>
+          <TextInput label="Search enquiries" value={query} onChange={setQuery} />
+        </div>
+        <label style={{display: 'block'}}>
+          Stage
+          <select aria-label="Filter by stage" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} style={{display: 'block', padding: 8, borderRadius: 6}}>
+            <option value="">All stages</option>
+            {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+          </select>
+        </label>
+        <label style={{display: 'block'}}>
+          Channel
+          <select aria-label="Filter by channel" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{display: 'block', padding: 8, borderRadius: 6}}>
+            <option value="">All channels</option>
+            {channels.map((ch) => <option key={ch} value={ch}>{ch}</option>)}
+          </select>
+        </label>
+      </HStack>
       <Table
         data={shown as unknown as Record<string, unknown>[]}
         idKey="id"
         density="compact"
         columns={[
-          {key: 'name', header: 'Who', width: proportional(2, {minWidth: 150}), renderCell: (row) => (
+          {key: 'name', header: 'Who', width: proportional(2, {minWidth: 180}), renderCell: (row) => (
             <VStack gap={1}>
-              <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>
+              <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+                <strong>{String(row.name || row.email || row.phone || 'Enquiry')}</strong>
+                {row.score_label ? (
+                  <Badge
+                    label={`${String(row.score_label)}${row.score !== undefined ? ' ' + String(row.score) : ''}`}
+                    variant={row.score_label === 'hot' ? 'error' : row.score_label === 'warm' ? 'warning' : 'neutral'}
+                  />
+                ) : null}
+              </HStack>
+              <span style={{fontSize: 12}}>
+                {row.phone ? <a href={'tel:' + String(row.phone)} style={{marginRight: 8}}>{String(row.phone)}</a> : null}
+                {row.email ? <a href={'mailto:' + String(row.email)}>{String(row.email)}</a> : null}
+              </span>
+              {editing === String(row.id) ? (
+                <input type="text" defaultValue={String(row.notes || '')} placeholder="Internal notes…"
+                       aria-label="Enquiry notes" style={{padding: 6, borderRadius: 6, width: '100%'}}
+                       onBlur={(event) => {
+                         if (event.target.value !== String(row.notes || '')) {
+                           void saveLead(row as unknown as Lead, {notes: event.target.value});
+                         }
+                       }} />
+              ) : (row.notes ? <span style={{fontSize: 12, opacity: 0.75}}>{String(row.notes)}</span> : null)}
               <Timestamp value={String(row.created_at || '')} format="date_time" type="supporting" />
             </VStack>
           )},
@@ -144,13 +208,16 @@ export function Crm({token}: {token: string}) {
                        const cents = Math.round(Number(event.target.value || 0) * 100);
                        if (cents !== Number(row.value_cents || 0)) void saveLead(row as unknown as Lead, {value_cents: cents});
                      }} />
-            ) : (Number(row.value_cents || 0) ? money(Number(row.value_cents), 'NZD') : <span style={{opacity: 0.6}}>not set</span>)
+            ) : (Number(row.value_cents || 0) ? money(Number(row.value_cents), currency) : <span style={{opacity: 0.6}}>not set</span>)
           )},
-          {key: 'next_action_at', header: 'Next step', width: proportional(1, {minWidth: 150}), renderCell: (row) => (
+          {key: 'next_action_at', header: 'Next step', width: proportional(1, {minWidth: 160}), renderCell: (row) => (
             editing === String(row.id) ? (
               <input type="datetime-local" aria-label="Next step due"
-                     defaultValue={row.next_action_at ? String(row.next_action_at).slice(0, 16) : ''}
-                     onChange={(event) => void saveLead(row as unknown as Lead, {next_action_at: event.target.value ? new Date(event.target.value).toISOString() : null})}
+                     defaultValue={toLocalInput(row.next_action_at ? String(row.next_action_at) : undefined)}
+                     onBlur={(event) => {
+                       const iso = event.target.value ? new Date(event.target.value).toISOString() : null;
+                       if (iso !== (row.next_action_at || null)) void saveLead(row as unknown as Lead, {next_action_at: iso});
+                     }}
                      style={{padding: 6, borderRadius: 6}} />
             ) : (row.next_action_at ? <Timestamp value={String(row.next_action_at)} format="date_time" /> : <span style={{opacity: 0.6}}>none</span>)
           )},
@@ -161,6 +228,7 @@ export function Crm({token}: {token: string}) {
               <MoreMenu label="More actions for this enquiry" items={[
                 {label: 'Edit the deal', onClick: () => setEditing(String(row.id))},
                 {label: 'Open the conversation', onClick: () => transcript(String(row.id))},
+                {label: 'View stage history', onClick: () => void loadHistory(String(row.id))},
               ]} />
             </HStack>
           )},
@@ -182,8 +250,29 @@ export function Crm({token}: {token: string}) {
           )) : <p>No saved transcript.</p>}
         </Card>
       ))}
+      {Object.entries(history).map(([id, events]) => (
+        <Card key={'hist-' + id}>
+          <Heading level={2}>Stage &amp; note history</Heading>
+          {events.length ? events.map((ev) => (
+            <p key={ev.id} style={{borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>
+              <strong>{ev.kind}</strong>{ev.from_status || ev.to_status ? ` (${ev.from_status || '—'} → ${ev.to_status || '—'})` : ''}
+              {ev.actor ? ` · ${ev.actor}` : ''} · <Timestamp value={ev.created_at} format="date_time" type="supporting" />
+              {ev.body ? <><br />{ev.body}</> : null}
+            </p>
+          )) : <p>No stage changes recorded yet.</p>}
+        </Card>
+      ))}
       <div style={{display: 'flex', gap: 24, marginTop: 24, flexWrap: 'wrap'}}>
-        <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => <p key={i}>{String(a.title || a.name || 'Appointment')} · {String(a.start_at || a.start || '')}</p>) : <p style={{opacity: 0.75}}>Nothing booked yet. When a customer books from your chat window or your page, it lands here.</p>}</div>
+        <div><Heading level={2}>Appointments</Heading>{appointments.length ? appointments.map((a, i) => {
+          const when = String(a.starts_at || a.start_at || a.start || '');
+          return (
+            <p key={i}>
+              <strong>{String(a.title || a.name || 'Appointment')}</strong>
+              {when ? <> · <Timestamp value={when} format="date_time" /></> : null}
+              {a.status ? <> · <Badge label={String(a.status)} variant={a.status === 'booked' ? 'info' : a.status === 'completed' ? 'success' : 'neutral'} /></> : null}
+            </p>
+          );
+        }) : <p style={{opacity: 0.75}}>Nothing booked yet. When a customer books from your chat window or your page, it lands here.</p>}</div>
         <div style={{flex: 1, minWidth: 320}}>
           <Heading level={2}>What needs doing</Heading>
           <HStack gap={2} vAlign="end" style={{flexWrap: 'wrap'}}>
@@ -394,7 +483,12 @@ export function Contacts({token}: {token: string}) {
       {selected ? (
         <Card>
           <Heading level={2}>{selected.label}{selected.company ? ' · ' + selected.company : ''}</Heading>
-          <p>{selected.primary_phone || 'no phone'} · {selected.primary_email || 'no email'} · {selected.event_count} events across {(selected.channels || []).join(', ') || 'no channels yet'}</p>
+          <p>
+            {selected.primary_phone ? <a href={'tel:' + selected.primary_phone}>{selected.primary_phone}</a> : 'no phone'}
+            {' · '}
+            {selected.primary_email ? <a href={'mailto:' + selected.primary_email}>{selected.primary_email}</a> : 'no email'}
+            {' · '}{selected.event_count} events across {(selected.channels || []).join(', ') || 'no channels yet'}
+          </p>
           <HStack gap={3} vAlign="end" style={{flexWrap: 'wrap', margin: '8px 0'}}>
             <label style={{display: 'block'}}>
               Who owns this account

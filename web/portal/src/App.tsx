@@ -5,6 +5,7 @@ import '@astryxdesign/theme-neutral/theme.css';
 import {Theme, defineTheme} from '@astryxdesign/core/theme';
 import {neutralTheme} from '@astryxdesign/theme-neutral/built';
 import {Button} from '@astryxdesign/core/Button';
+import {HStack} from '@astryxdesign/core/HStack';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
 import {TextInput} from '@astryxdesign/core/TextInput';
@@ -1178,6 +1179,9 @@ function Bookings({token}: {token: string}) {
   const [insights, setInsights] = useState<{insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>}>({});
   const [live, setLive] = useState<Record<string, unknown>[]>([]);
   const [audit, setAudit] = useState<Record<string, unknown>[]>([]);
+  const [calendarUrl, setCalendarUrl] = useState('');
+  const [extraWindows, setExtraWindows] = useState<Record<string, string[][]>>({});
+  const [newAppt, setNewAppt] = useState({name: '', email: '', phone: '', starts_at: '', notes: ''});
   const [supervising, setSupervising] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1192,22 +1196,26 @@ function Bookings({token}: {token: string}) {
       setInsights(calls as {insights?: Record<string, unknown>[]; counts_by_outcome?: Record<string, number>});
       setCalendar(cal as {configured?: boolean; connected?: boolean; provider?: string});
       setAppointments(((crm as {appointments?: Record<string, unknown>[]}).appointments || []));
+      setCalendarUrl(String((crm as {calendar_url?: string}).calendar_url || ''));
       const business = (onboarding as {business?: Record<string, unknown>}).business || {};
       setEnabled(Boolean(business.native_booking));
       setSlot(Number(business.slot_minutes) || 30);
       const saved = (business.business_hours || {}) as Record<string, string[][]>;
+      const extras: Record<string, string[][]> = {};
       setHours((current) => {
         const next = {...current};
         for (const [key] of days) {
           const windows = saved[key];
           if (Array.isArray(windows) && windows[0]) {
             next[key] = {start: windows[0][0], end: windows[0][1], open: true};
+            if (windows.length > 1) extras[key] = windows.slice(1);
           } else if (saved && Object.keys(saved).length) {
             next[key] = {...next[key], open: false};
           }
         }
         return next;
       });
+      setExtraWindows(extras);
       setRole((me as {role: string}).role);
       const aud = await api('/owner/supervision?limit=10') as {sessions?: Record<string, unknown>[]};
       setAudit(aud.sessions || []);
@@ -1301,13 +1309,59 @@ function Bookings({token}: {token: string}) {
     setBusy(true); setStatus('');
     try {
       const businessHours: Record<string, string[][]> = {};
-      for (const [key] of days) if (hours[key]?.open) businessHours[key] = [[hours[key].start, hours[key].end]];
+      for (const [key] of days) {
+        if (hours[key]?.open) {
+          businessHours[key] = [[hours[key].start, hours[key].end], ...(extraWindows[key] || [])];
+        }
+      }
       await api('/owner/onboarding/profile', 'PATCH', {slot_minutes: Number(slot), business_hours: businessHours});
       // Pressing Save is the acknowledgement; a separate tickbox on top of it was friction.
       await api('/owner/onboarding/native-booking', 'POST', {enabled, acknowledgement: enabled});
       setStatus(enabled ? 'Booking enabled with these hours.' : 'Booking disabled.'); notify(enabled ? 'Booking enabled.' : 'Booking disabled.');
       await load();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save booking settings'); }
+    setBusy(false);
+  }
+
+  async function createAppointment() {
+    if (!newAppt.name.trim() || !newAppt.starts_at) {
+      setStatus('Enter the customer name and start time first.');
+      return;
+    }
+    setBusy(true); setStatus('');
+    try {
+      await api('/owner/appointments', 'POST', {
+        name: newAppt.name.trim(),
+        email: newAppt.email.trim(),
+        phone: newAppt.phone.trim(),
+        starts_at: new Date(newAppt.starts_at).toISOString(),
+        notes: newAppt.notes.trim(),
+      });
+      setNewAppt({name: '', email: '', phone: '', starts_at: '', notes: ''});
+      setStatus('Appointment booked and synced.');
+      notify('Appointment booked.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not book that appointment'); }
+    setBusy(false);
+  }
+
+  async function updateAppointment(id: string, nextStatus: string) {
+    setBusy(true); setStatus('');
+    try {
+      await api('/owner/appointments/' + encodeURIComponent(id), 'PATCH', {status: nextStatus});
+      setStatus('Appointment updated to ' + nextStatus.replace('_', ' ') + '.');
+      await load();
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not update that appointment'); }
+    setBusy(false);
+  }
+
+  async function rotateCalendarFeed() {
+    setBusy(true); setStatus('');
+    try {
+      const res = await api('/owner/calendar/rotate-token', 'POST', {}) as {calendar_url?: string};
+      if (res.calendar_url) setCalendarUrl(res.calendar_url);
+      setStatus('Calendar feed link rotated. Update any calendar app using the old link.');
+    } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not rotate calendar link'); }
     setBusy(false);
   }
 
@@ -1330,6 +1384,22 @@ function Bookings({token}: {token: string}) {
         {calendar.configured && !calendar.connected ? <Button label="Connect Google Calendar" variant="primary" onClick={connectCalendar} /> : null}
         {calendar.connected ? <Button label="Disconnect" variant="ghost" onClick={async () => { try { await api('/owner/calendar', 'DELETE'); await load(); setStatus('Calendar disconnected.'); } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not disconnect'); } }} /> : null}
       </Card>
+
+      {calendarUrl ? (
+        <Card>
+          <Heading level={2}>Private calendar feed (Apple, Outlook, Google)</Heading>
+          <p>Subscribe to this private ICS link from any calendar app to see every Concierge booking automatically.</p>
+          <div style={{padding: 10, borderRadius: 6, background: 'var(--color-surface-subtle, rgba(128,128,128,0.1))', fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: 8}}>
+            {calendarUrl}
+          </div>
+          <HStack gap={2} style={{flexWrap: 'wrap'}}>
+            <Button label="Copy calendar link" variant="secondary" onClick={() => {
+              void navigator.clipboard?.writeText(calendarUrl).then(() => setStatus('Calendar feed link copied.')).catch(() => setStatus('Copy the link above.'));
+            }} />
+            {role === 'owner' ? <Button label="Rotate link" variant="ghost" isDisabled={busy} onClick={() => void rotateCalendarFeed()} /> : null}
+          </HStack>
+        </Card>
+      ) : null}
 
       <Card>
         <Heading level={2}>Booking rules</Heading>
@@ -1439,6 +1509,22 @@ function Bookings({token}: {token: string}) {
 
       <Section dividers={['top']}>
         <Heading level={2}>Appointments</Heading>
+        <Card>
+          <Heading level={3}>Book an appointment manually</Heading>
+          <HStack gap={2} vAlign="end" style={{flexWrap: 'wrap'}}>
+            <TextInput label="Customer name" value={newAppt.name} onChange={(v) => setNewAppt({...newAppt, name: v})} placeholder="Alex Smith" />
+            <TextInput label="Phone" value={newAppt.phone} onChange={(v) => setNewAppt({...newAppt, phone: v})} placeholder="+64 21 000 0000" />
+            <TextInput label="Email" value={newAppt.email} onChange={(v) => setNewAppt({...newAppt, email: v})} placeholder="alex@example.com" />
+            <label style={{display: 'block'}}>
+              Start time
+              <input type="datetime-local" aria-label="Appointment start time" value={newAppt.starts_at}
+                     onChange={(e) => setNewAppt({...newAppt, starts_at: e.target.value})}
+                     style={{display: 'block', padding: 8, borderRadius: 6}} />
+            </label>
+            <TextInput label="Notes" value={newAppt.notes} onChange={(v) => setNewAppt({...newAppt, notes: v})} placeholder="Optional job details" />
+            <Button label="Book appointment" variant="primary" isDisabled={busy} onClick={() => void createAppointment()} />
+          </HStack>
+        </Card>
         {appointments.length ? (
           <Table
             data={appointments as unknown as Record<string, unknown>[]}
@@ -1447,12 +1533,20 @@ function Bookings({token}: {token: string}) {
             columns={[
               {key: 'title', header: 'What', width: proportional(2, {minWidth: 180}),
                renderCell: (row) => <strong>{String(row.title || row.name || 'Appointment')}</strong>},
-              {key: 'start_at', header: 'When', width: proportional(2, {minWidth: 170}),
-               renderCell: (row) => <Timestamp value={String(row.start_at || row.start || row.when || '')} format="date_time" />},
+              {key: 'starts_at', header: 'When', width: proportional(2, {minWidth: 170}),
+               renderCell: (row) => <Timestamp value={String(row.starts_at || row.start_at || row.start || row.when || '')} format="date_time" />},
               {key: 'contact', header: 'Who', width: proportional(1, {minWidth: 140}),
                renderCell: (row) => String(row.contact || row.email || row.phone || '—')},
               {key: 'status', header: 'Status', width: proportional(1, {minWidth: 110}),
-               renderCell: (row) => <Badge label={String(row.status || 'booked')} />},
+               renderCell: (row) => <Badge label={String(row.status || 'booked')} variant={row.status === 'completed' ? 'success' : row.status === 'cancelled' || row.status === 'no_show' ? 'error' : 'info'} />},
+              {key: 'id', header: 'Actions', width: proportional(2, {minWidth: 210}),
+               renderCell: (row) => String(row.status || 'booked') === 'booked' ? (
+                 <HStack gap={1} style={{flexWrap: 'wrap'}}>
+                   <Button label="Complete" variant="secondary" isDisabled={busy} onClick={() => void updateAppointment(String(row.id), 'completed')} />
+                   <Button label="No-show" variant="ghost" isDisabled={busy} onClick={() => void updateAppointment(String(row.id), 'no_show')} />
+                   <Button label="Cancel" variant="ghost" isDisabled={busy} onClick={() => void updateAppointment(String(row.id), 'cancelled')} />
+                 </HStack>
+               ) : <span style={{opacity: 0.6}}>—</span>},
             ] as TableColumn<Record<string, unknown>>[]}
           />
         ) : <p>No appointments booked yet. When someone books, it appears here with the time and who it is for.</p>}
@@ -1491,26 +1585,36 @@ function Reports({token}: {token: string}) {
 
   const api = useApi(token);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [currency, setCurrency] = useState('NZD');
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [money30, setMoney30] = useState<Record<string, unknown> | null>(null);
+  const [analytics, setAnalytics] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
-    Promise.all([api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'), api('/owner/media/assets'), api('/owner/revenue?days=30')])
-      .then(([crm, q, p, a, rev]) => {
-        setLeads(((crm as {leads?: Lead[]}).leads || []));
+    Promise.all([
+      api('/owner/crm'), api('/owner/crm/quotations'), api('/owner/social/posts'),
+      api('/owner/media/assets'), api('/owner/revenue?days=30'),
+      api('/owner/analytics/summary?days=30').catch(() => null),
+    ])
+      .then(([crm, q, p, a, rev, an]) => {
+        const crmObj = crm as {leads?: Lead[]; currency?: string};
+        setLeads(crmObj.leads || []);
+        if (crmObj.currency) setCurrency(crmObj.currency);
         setQuotes(q as Quote[]); setPosts(p as Post[]); setAssets(a as Asset[]);
         setMoney30(rev as Record<string, unknown>);
+        setAnalytics(an as Record<string, unknown> | null);
       }).catch((e) => setStatus(e instanceof Error ? e.message : 'Could not load reports'));
   }, [token]);
 
   const quoted = quotes.filter((quote) => ['reviewed', 'accepted'].includes(quote.status)).reduce((sum, quote) => sum + quote.total_cents, 0);
+  const displayCurrency = String(money30?.currency || currency || 'NZD');
   const metrics = [
     ['Enquiries', leads.length],
     ['Quotations', quotes.length],
-    ['Quoted value', money(quoted, 'NZD')],
+    ['Quoted value', money(quoted, displayCurrency)],
     ['Social posts', posts.length],
     ['Media assets', assets.length],
   ] as Array<[string, string | number]>;
@@ -1523,6 +1627,16 @@ function Reports({token}: {token: string}) {
           <Card key={label}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
         ))}
       </div>
+      {analytics ? (
+        <>
+          <Heading level={2}>Service &amp; response quality — last 30 days</Heading>
+          <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
+            <Card><strong style={{fontSize: 28}}>{analytics.containment_rate != null ? `${Math.round(Number(analytics.containment_rate) * 100)}%` : '—'}</strong><p>Handled without handoff</p></Card>
+            <Card><strong style={{fontSize: 28}}>{analytics.avg_response_seconds != null ? `${Math.round(Number(analytics.avg_response_seconds))}s` : '—'}</strong><p>Avg response time</p></Card>
+            <Card><strong style={{fontSize: 28}}>{analytics.csat_avg != null ? `${Number(analytics.csat_avg).toFixed(1)} / 5` : '—'}</strong><p>Customer satisfaction ({String(analytics.csat_responses ?? 0)} ratings)</p></Card>
+          </div>
+        </>
+      ) : null}
       {money30 ? (
         <>
           <Heading level={2}>What it earned — last 30 days</Heading>
@@ -1564,7 +1678,7 @@ function Reports({token}: {token: string}) {
             {key: 'count', header: 'Quotes', width: proportional(1, {minWidth: 90}),
              renderCell: (row) => String(row.count)},
             {key: 'value', header: 'Value', width: proportional(1, {minWidth: 120}),
-             renderCell: (row) => money(quotes.filter((quote) => quote.status === row.state).reduce((sum, quote) => sum + quote.total_cents, 0), 'NZD')},
+             renderCell: (row) => money(quotes.filter((quote) => quote.status === row.state).reduce((sum, quote) => sum + quote.total_cents, 0), displayCurrency)},
           ] as TableColumn<Record<string, unknown>>[]}
         />
       </Section>
@@ -1718,10 +1832,28 @@ function Shell() {
   }
   // Someone arriving from an invitation has no business details yet: start them on Setup.
   const [tab, setTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('integration')) return 'integrations';
     const newcomer = sessionStorage.getItem('concierge.startAtSetup') === '1';
     sessionStorage.removeItem('concierge.startAtSetup');
     return newcomer ? 'setup' : 'home';
   });
+  const [integrationNotice] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const provider = params.get('integration');
+    const result = params.get('result');
+    if (!provider) return '';
+    return result === 'connected' ? `${provider} connected successfully.` : `${provider} connection status: ${result || 'updated'}.`;
+  });
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.has('integration') || params.has('result')) {
+      params.delete('integration');
+      params.delete('result');
+      const next = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      history.replaceState(null, '', next);
+    }
+  }, []);
   // The invitation sets that flag *after* this component has mounted, so the initialiser above
   // almost never saw it and a brand-new owner landed on an empty dashboard instead of Setup.
   useEffect(() => {
@@ -1912,7 +2044,7 @@ function Shell() {
     privacy: {title: 'Privacy requests', line: 'Customers asking what you hold on them, or asking you to delete it. The legal limit is 20 working days.'},
     billing: {title: 'Billing and invoices', line: 'Your Concierge subscription, your card, and every tax invoice.'},
     yourcrm: {title: 'Your own CRM', line: 'Keep the tools you already use — Concierge can send everything there.'},
-    integrations: {title: 'Integrations and API keys', line: 'Connect Xero, Microsoft 365, ServiceM8, Tradify or Fergus, and manage API keys for Zapier or Make.'},
+    integrations: {title: 'Integrations and API keys', line: 'Connect Xero, Microsoft 365, Google Calendar or ServiceM8, and manage webhooks and API keys for Zapier or Make.'},
   };
 
   const hero = HERO[tab] || {title: '', line: ''};
@@ -1921,6 +2053,7 @@ function Shell() {
     <>
       {/* Pausing something that has never run is not a first step: keep it off the setup wizard. */}
       {tab !== 'setup' ? <PauseStrip token={token} /> : null}
+      {integrationNotice ? <StatusLine text={integrationNotice} /> : null}
       <TranslationNote locale={locale} />
       {/* The hero belongs on every tab, setup included: it is the page's only heading there. */}
       <div className="c-hero">

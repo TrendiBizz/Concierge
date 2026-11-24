@@ -171,7 +171,12 @@ async def run_turn(
     }
 
     if channel == 'chat' and not dry_run:
-        await enquiries.capture(tenant, 'chat', str(conversation_id), message, conversation_id=conversation_id)
+        cap_kw: dict = {"conversation_id": conversation_id}
+        if page_url:
+            cap_kw["page_url"] = page_url
+        if ctx.get("utm"):
+            cap_kw["utm"] = ctx["utm"]
+        await enquiries.capture(tenant, 'chat', str(conversation_id), message, **cap_kw)
     history = await _history(conversation_id)
     await convo.save_message(conversation_id, "user", message)
 
@@ -290,7 +295,8 @@ async def run_turn_stream(
         "dry_run": False,
     }
     if channel == "chat":
-        await enquiries.capture(tenant, "chat", str(conversation_id), message, conversation_id=conversation_id)
+        await enquiries.capture(tenant, "chat", str(conversation_id), message, conversation_id=conversation_id,
+                                page_url=page_url, utm=ctx["utm"])
     history = await _history(conversation_id)
     await convo.save_message(conversation_id, "user", message)
 
@@ -366,18 +372,22 @@ async def run_turn_stream(
         yield {"type": "replace", "text": reply}
 
     await convo.save_message(conversation_id, "assistant", reply, flag)
+    lead_row = await db.pool().fetchrow(
+        "SELECT id, phone, email FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1",
+        tenant["id"], conversation_id)
     if channel != "email":
         await casetimeline.mark_replied(
-            tenant["id"], phone="", email="", channel=channel,
+            tenant["id"],
+            phone=(lead_row["phone"] if lead_row else "") or "",
+            email=(lead_row["email"] if lead_row else "") or "",
+            channel=channel,
             default_cc=casetimeline.tenant_country_code(tenant),
         )
     rows = await db.pool().fetch(
         "SELECT role,content FROM messages WHERE conversation_id=$1 ORDER BY id", conversation_id)
     dialogue = "\n\n".join(
         ("Enquirer" if row["role"] == "user" else "Concierge") + ": " + row["content"] for row in rows)
-    lead = await db.pool().fetchval(
-        "SELECT id FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1",
-        tenant["id"], conversation_id)
+    lead = lead_row["id"] if lead_row else None
     key = hashlib.sha256((str(conversation_id) + message + reply).encode()).hexdigest()
     await enquiry_alerts.notify(tenant, channel, dialogue, lead_id=lead, conversation_id=conversation_id)
     yield {

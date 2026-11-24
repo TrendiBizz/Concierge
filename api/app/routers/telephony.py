@@ -109,11 +109,12 @@ async def _sms_reply(tenant: dict, sender: str, body: str, confirm_stop: bool) -
         return ""
 
     session_id = "sms" + re.sub(r"\D", "", sender)
-    if not m.sms_limiter.check(session_id):
-        return ""
     conversation_id = await convo.get_or_create(tenant, session_id, "sms", None, None)
     await enquiries.capture(tenant, "sms", session_id, body,
                             conversation_id=conversation_id, phone=sender, consent_contact=True)
+    if not m.sms_limiter.check(session_id):
+        await convo.save_message(conversation_id, "user", body[:1000])
+        return ""
     try:
         result = await chat_engine.run_turn(tenant, session_id, "sms", body[:1000], sender_phone=sender)
     except Exception:
@@ -137,6 +138,9 @@ async def voice_token(req: VoiceTokenRequest, request: Request):
     session_id = convo.clean_session(req.session_id)
     m._rate_limit(request, session_id)
     tenant = await m._tenant_for(request, req.key)
+    from .. import tenant_pause
+    if await tenant_pause.is_paused(tenant):
+        raise HTTPException(status_code=503, detail="Assistant is paused for this business")
     try:
         result = await voice.mint_token(tenant)
         result["voice_session"] = await voice_records.start(tenant, session_id, record=req.recording_consent)
@@ -164,6 +168,9 @@ async def tool_endpoint(name: str, req: ToolRequest, request: Request):
     session_id = convo.clean_session(req.session_id)
     m._rate_limit(request, session_id)
     tenant = await m._tenant_for(request, req.key)
+    from .. import tenant_pause
+    if await tenant_pause.is_paused(tenant):
+        raise HTTPException(status_code=503, detail="Assistant is paused for this business")
     conversation_id = await convo.get_or_create(tenant, session_id, "voice", req.page_url, req.utm)
     ctx = {
         "conversation_id": conversation_id,

@@ -109,6 +109,19 @@ async def reply(conversation_id: uuid.UUID, body: Reply, user: dict = Depends(ow
     if not duplicate:
         await convo.save_message(conversation_id, "assistant", text, marker)
     await _set_takeover(user["tenant_id"], conversation_id, True)
+    try:
+        lead = await db.pool().fetchrow(
+            "UPDATE leads SET status=CASE WHEN status='new' THEN 'contacted' ELSE status END, updated_at=now() "
+            "WHERE tenant_id=$1 AND conversation_id=$2 RETURNING phone, email",
+            user["tenant_id"], conversation_id,
+        )
+        if lead and (lead["phone"] or lead["email"]):
+            from . import casetimeline
+            await casetimeline.mark_replied(
+                user["tenant_id"], phone=lead["phone"] or "", email=lead["email"] or "", channel="chat",
+            )
+    except Exception:
+        pass
     return {"status": "sent", "paused": True}
 
 

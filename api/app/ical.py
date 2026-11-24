@@ -35,9 +35,11 @@ def _stamp(moment: datetime) -> str:
 
 def build(tenant: dict, appointments: list[dict], now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
+    tz_name = tenant.get("timezone") or "UTC"
     lines = [
         "BEGIN:VCALENDAR", "VERSION:2.0", f"PRODID:{PRODID}", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
         f"X-WR-CALNAME:{esc(tenant['name'] + ' appointments')}",
+        f"X-WR-TIMEZONE:{esc(tz_name)}",
         "REFRESH-INTERVAL;VALUE=DURATION:PT15M", "X-PUBLISHED-TTL:PT15M",
     ]
     for a in appointments:
@@ -46,15 +48,20 @@ def build(tenant: dict, appointments: list[dict], now: datetime | None = None) -
             f"Email: {a['email']}" if a.get("email") else "",
             a.get("notes") or "",
         ) if x)
+        modified = a.get("updated_at") or a.get("created_at") or now
+        seq = int((modified - datetime(2026, 1, 1, tzinfo=timezone.utc)).total_seconds()) if isinstance(modified, datetime) else 0
+        seq = max(0, seq)
         lines += [
             "BEGIN:VEVENT",
             f"UID:appt-{a['id']}@concierge",
             f"DTSTAMP:{_stamp(now)}",
+            f"LAST-MODIFIED:{_stamp(modified)}" if isinstance(modified, datetime) else "",
+            f"SEQUENCE:{seq}",
             f"DTSTART:{_stamp(a['starts_at'])}",
             f"DTEND:{_stamp(a['ends_at'])}",
             f"SUMMARY:{esc((a.get('name') or 'Appointment') + ' - ' + tenant['name'])}",
             f"DESCRIPTION:{esc(description)}" if description else "",
-            f"STATUS:{'CANCELLED' if a.get('status') == 'cancelled' else 'CONFIRMED'}",
+            f"STATUS:{'CANCELLED' if a.get('status') in ('cancelled', 'no_show') else 'CONFIRMED'}",
             "END:VEVENT",
         ]
     lines.append("END:VCALENDAR")

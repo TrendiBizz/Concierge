@@ -88,11 +88,14 @@ def test_three_month_minimum_is_kept_with_implementation_reason():
 
 def test_integrations_listed_are_the_ones_in_code():
     code = (SITE.parent / "api" / "app" / "integrations.py").read_text(encoding="utf-8")
-    assert 'PROVIDERS = ("xero", "m365", "servicem8", "tradify", "fergus")' in code
+    assert 'PROVIDERS = ("xero", "m365", "servicem8")' in code
     for page in ("concierge.html", "ai-office.html", "ai-office-nz.html"):
         body = text(page)
-        for name in ("ServiceM8", "Xero", "Tradify", "Fergus", "Microsoft 365", "Webhooks", "Voicemail is available now"):
+        for name in ("ServiceM8", "Xero", "Microsoft 365", "Webhooks", "Voicemail is available now"):
             assert name in body, f"{page}: {name}"
+        for removed in ("Tradify", "Fergus"):
+            assert removed not in body, f"{page}: {removed}"
+    assert "Tradify" not in text("pricing.html") and "Fergus" not in text("pricing.html")
 
 
 def test_pen_testing_is_in_the_top_nav_and_concierge_is_first():

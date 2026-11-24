@@ -601,6 +601,9 @@ async def register(route, call_id):
     tenant = await tenants.get_by_slug(route.tenant)
     if not tenant or not tenant['phone_enabled']:
         raise ValueError('Business receptionist is disabled')
+    from . import tenant_pause
+    if await tenant_pause.is_paused(tenant):
+        raise ValueError('Business receptionist is paused')
     if not await channel_authorization.is_authorized(tenant['id'], 'telephone'):
         raise ValueError('Business has not enabled telephone answering')
     async with db.pool().acquire() as c:
@@ -672,24 +675,31 @@ async def run_phone_tool(tenant, record_session, conversation, call_id, name, ar
             return {'ok':False, 'error':'Ask for explicit recording permission first.'}
         await db.pool().execute('UPDATE voice_sessions SET recording_consent=$2 WHERE id=$1', record_session['id'], record_session['recording_consent'])
         return {'ok':True, 'recording':record_session['recording_consent']}
+    stored = await db.pool().fetchrow(
+        'SELECT from_number FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id)
+    caller = (stored['from_number'] if stored else '') or None
     return await run_tool(tenant, name, args, {'voice_session':record_session, 'conversation_id':conversation, 'session_id':call_id,
-                                              'channel':'phone', 'sender_phone':None})
+                                              'channel':'phone', 'sender_phone':caller})
 
 
 async def finish(tenant, call_id, conversation, status, record_session=None, reason=''):
     async with db.pool().acquire() as c:
         async with c.transaction():
-            row = await c.fetchrow('SELECT ended_at FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2 FOR UPDATE', tenant['id'], call_id)
+            row = await c.fetchrow('SELECT ended_at, from_number FROM phone_calls WHERE tenant_id=$1 AND call_sid=$2 FOR UPDATE', tenant['id'], call_id)
             if not row or row['ended_at']:
                 return
-            turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role='user' ORDER BY id", conversation)
-            text = '\n'.join(c for c in (clean_speech(r['content']) for r in turns) if c)
-            if text:
-                lead = await c.fetchrow('UPDATE leads SET message=$3,updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *', tenant['id'], conversation, text[-1000:])
-                # Forward the voicemail as a private recording link when consent and
-                # a recording exist, then close with the CRM note -- the same shape
-                # the website-voice path uses, so the owner receives the audio, not
-                # only the transcript.
+            all_turns = await c.fetch("SELECT role,content FROM messages WHERE conversation_id=$1 AND role IN ('user','assistant') ORDER BY id", conversation)
+            caller_text = '\n'.join(t for t in (clean_speech(r['content']) for r in all_turns if r['role'] == 'user') if t)
+            dialogue = '\n\n'.join(
+                ('Caller: ' if r['role'] == 'user' else 'Concierge: ') + (clean_speech(r['content']) if r['role'] == 'user' else r['content'])
+                for r in all_turns if (clean_speech(r['content']) if r['role'] == 'user' else r['content']).strip()
+            )
+            if caller_text:
+                lead = await c.fetchrow(
+                    "UPDATE leads SET message=CASE WHEN message='' OR message='Inbound telephone enquiry' THEN $3 ELSE message END, "
+                    "updated_at=now() WHERE tenant_id=$1 AND conversation_id=$2 RETURNING *",
+                    tenant['id'], conversation, caller_text[-1000:],
+                )
                 tail = ''
                 if record_session and record_session.get('recording_consent'):
                     has_recording = await c.fetchval(
@@ -704,15 +714,28 @@ async def finish(tenant, call_id, conversation, status, record_session=None, rea
                             get_settings().public_base_url.rstrip('/') + '/api/v1/voice/recordings/shared/' + token
                 tail += '\n\nThe complete enquiry is saved in your Concierge CRM.'
                 owner = await c.fetchval('SELECT owner_number FROM managed_phone_setups WHERE tenant_id=$1', tenant['id'])
-                # The managed-setup row is optional; without this fallback a real
-                # call would notify only by email and silently skip the owner SMS.
                 owner = owner or tenant.get('notify_phone')
-                # Same path as every other owner alert: it joins the call's start alert (one alert per
-                # call, held until now), gets a distinct subject and honours the SMS breaker.
                 await enquiry_alerts.notify(
-                    tenant, 'phone', text[:24000] + tail, lead_id=lead['id'] if lead else None,
+                    tenant, 'phone', (dialogue or caller_text)[:24000] + tail, lead_id=lead['id'] if lead else None,
                     conversation_id=conversation, connection=c, finalize=True, owner_phone=owner)
             await c.execute('UPDATE phone_calls SET status=$3,ended_at=now(),failure_reason=$4 WHERE tenant_id=$1 AND call_sid=$2', tenant['id'], call_id, status, reason[:500])
+    # Record finalized call transcript on the unified contact timeline and emit call.completed webhook.
+    try:
+        from . import casetimeline, portability
+        caller_num = (row['from_number'] or '') if row else ''
+        if caller_text and caller_num:
+            ck = casetimeline.case_key_for_tenant(tenant, phone=caller_num)
+            if ck:
+                await casetimeline.record(
+                    tenant['id'], case_key=ck, channel='phone', direction='inbound',
+                    source_key=f"call-transcript:{call_id}", body=(dialogue or caller_text)[:4000],
+                )
+        await portability.emit(tenant['id'], 'call.completed', {
+            'call_id': call_id, 'from_number': caller_num, 'status': status,
+            'transcript': (dialogue or caller_text)[:4000],
+        })
+    except Exception:
+        pass
 
 
 async def handle(reader, writer, route, networks):

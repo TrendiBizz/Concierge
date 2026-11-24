@@ -166,4 +166,15 @@ async def reply(conversation_id: uuid.UUID, body: Reply, user: dict = Depends(ow
         raise HTTPException(409, str(error)) from None
     await _set_takeover(user, tenant, phone, True)
     await convo.save_message(conversation_id, "assistant", text, "owner")
+    try:
+        await db.pool().execute(
+            "UPDATE leads SET status=CASE WHEN status='new' THEN 'contacted' ELSE status END, updated_at=now() "
+            "WHERE tenant_id=$1 AND conversation_id=$2",
+            tenant["id"], conversation_id,
+        )
+        await casetimeline.mark_replied(
+            tenant["id"], phone=phone, channel="sms", default_cc=casetimeline.tenant_country_code(tenant),
+        )
+    except Exception:
+        pass
     return {"status": status, "paused": True}

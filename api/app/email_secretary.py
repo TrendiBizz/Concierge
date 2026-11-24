@@ -32,14 +32,14 @@ async def process_once():
             pool = db.pool()
             if hasattr(pool, "fetchrow"):
                 draft_meta = await pool.fetchrow(
-                    'SELECT message_id_hdr, in_reply_to, references_hdr FROM email_drafts WHERE tenant_id=$1 AND source_id=$2',
+                    'SELECT message_id_hdr, references_hdr FROM email_drafts WHERE tenant_id=$1 AND source_id=$2',
                     tenant['id'], job['source_key'],
                 )
             refs = draft_meta['references_hdr'] if draft_meta else []
             refs = json.loads(refs) if isinstance(refs, str) else (refs or [])
             session = email_threading.thread_key(
                 job['sender'], job['subject'],
-                (draft_meta['in_reply_to'] or '') if draft_meta else '', refs,
+                '', refs,
                 message_id=(draft_meta['message_id_hdr'] or '') if draft_meta else '',
             )
             result = await chat.run_turn(tenant, session, 'email', 'Subject: ' + job['subject'] + '\n\n' + job['body'], sender_email=job['sender'])
@@ -64,10 +64,24 @@ async def process_once():
                         continue
                     raw_subj = (job['subject'] or '').strip()
                     reply_subj = (raw_subj if raw_subj.lower().startswith('re:') else ('Re: ' + raw_subj))[:250] if raw_subj else 'Reply'
-                    await conn.execute("INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key) VALUES($1,'email_secretary_reply','email',$2,$3,$4,$5) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING", tenant['id'], job['sender'], reply_subj, result['reply'], f"email-secretary:{tenant['id']}:{job['source_key']}")
+                    import hashlib
+                    src_hash = hashlib.sha256(str(job['source_key']).encode()).hexdigest()
+                    lead_id = await conn.fetchval(
+                        "SELECT id FROM leads WHERE tenant_id=$1 AND channel='email' AND source_key=$2 LIMIT 1",
+                        tenant['id'], src_hash,
+                    )
+                    await conn.execute(
+                        "INSERT INTO outbox(tenant_id,kind,channel,to_addr,subject,body,dedupe_key,lead_id) "
+                        "VALUES($1,'email_secretary_reply','email',$2,$3,$4,$5,$6) "
+                        "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+                        tenant['id'], job['sender'], reply_subj, result['reply'],
+                        f"email-secretary:{tenant['id']}:{job['source_key']}", lead_id,
+                    )
                     await conn.execute("UPDATE email_drafts SET status='discarded',reply_body=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2", tenant['id'], draft['id'], result['reply'])
                     await conn.execute("UPDATE email_secretary_jobs SET status='queued',error='' WHERE id=$1", job['id'])
         except Exception:
+            import logging
+            logging.getLogger(__name__).warning("Email secretary job %s failed", job['id'], exc_info=True)
             await db.pool().execute("UPDATE email_secretary_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'pending' END,error='Email processing failed; reply not confirmed' WHERE id=$1", job['id'])
 
 

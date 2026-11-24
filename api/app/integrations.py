@@ -33,9 +33,8 @@ log = logging.getLogger("concierge.integrations")
 owner_router = APIRouter(prefix="/owner/integrations", tags=["integrations"])
 callback_router = APIRouter(prefix="/integrations", tags=["integrations"])
 
-PROVIDERS = ("xero", "m365", "servicem8", "tradify", "fergus")
-LABELS = {"xero": "Xero", "m365": "Microsoft 365 Calendar", "servicem8": "ServiceM8",
-          "tradify": "Tradify", "fergus": "Fergus"}
+PROVIDERS = ("xero", "m365", "servicem8")
+LABELS = {"xero": "Xero", "m365": "Microsoft 365 Calendar", "servicem8": "ServiceM8"}
 XERO_SCOPES = "offline_access accounting.contacts accounting.transactions"
 MS_SCOPES = "offline_access Calendars.ReadWrite"
 SERVICEM8 = "https://api.servicem8.com/api_1.0"
@@ -48,8 +47,6 @@ def available() -> dict[str, dict]:
         "xero": (bool(s.xero_client_id and s.xero_client_secret), "oauth", "needs Xero app client id/secret"),
         "m365": (bool(s.ms_client_id and s.ms_client_secret), "oauth", "needs Microsoft Entra app client id/secret"),
         "servicem8": (True, "api_key", ""),  # the customer pastes their own ServiceM8 API key
-        "tradify": (bool(s.tradify_partner_key), "partner", "needs Tradify partner API access"),
-        "fergus": (bool(s.fergus_partner_key), "partner", "needs Fergus partner API access"),
     }
     return {p: {"label": LABELS[p], "enabled": ok, "method": method,
                 "unavailable_reason": "" if ok else reason}
@@ -238,14 +235,50 @@ async def _xero(tenant_id, event: str, p: dict) -> None:
         await _set_link(tenant_id, "xero", "invoice", qid, r.json()["Invoices"][0]["InvoiceID"])
 
 
+async def m365_busy(tenant_id, start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """Return busy intervals from Microsoft 365 calendar when connected; empty otherwise."""
+    row = await db.pool().fetchrow(
+        "SELECT 1 FROM tenant_integrations WHERE tenant_id=$1 AND provider='m365' AND status='connected'",
+        tenant_id,
+    )
+    if not row:
+        return []
+    try:
+        creds = await _fresh(tenant_id, "m365")
+        qs = urlencode({"startDateTime": start.astimezone(timezone.utc).isoformat(),
+                        "endDateTime": end.astimezone(timezone.utc).isoformat(),
+                        "$select": "start,end,showAs,isCancelled"})
+        r = await http("GET", f"https://graph.microsoft.com/v1.0/me/calendarView?{qs}",
+                       headers={"Authorization": "Bearer " + creds["access_token"], "Prefer": 'outlook.timezone="UTC"'})
+        if r.status_code >= 300:
+            return []
+        out: list[tuple[datetime, datetime]] = []
+        for ev in (r.json() or {}).get("value", []):
+            if ev.get("isCancelled") or ev.get("showAs") == "free":
+                continue
+            s_raw = (ev.get("start") or {}).get("dateTime")
+            e_raw = (ev.get("end") or {}).get("dateTime")
+            if s_raw and e_raw:
+                st = datetime.fromisoformat(s_raw.replace("Z", "+00:00"))
+                en = datetime.fromisoformat(e_raw.replace("Z", "+00:00"))
+                if st.tzinfo is None:
+                    st = st.replace(tzinfo=timezone.utc)
+                if en.tzinfo is None:
+                    en = en.replace(tzinfo=timezone.utc)
+                out.append((st, en))
+        return out
+    except Exception:
+        return []
+
+
 async def _m365(tenant_id, event: str, p: dict) -> None:
-    if event != "appointment.booked":
+    if event not in ("appointment.booked", "appointment.cancelled", "appointment.no_show", "appointment.rescheduled"):
         return
     aid = p.get("appointment_id", "")
-    if not aid or await _link(tenant_id, "m365", "event", aid):
+    if not aid:
         return
     creds = await _fresh(tenant_id, "m365")
-    from datetime import datetime, timezone
+    headers = {"Authorization": "Bearer " + creds["access_token"], "Content-Type": "application/json"}
 
     def _utc_iso(raw: str) -> str:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
@@ -253,12 +286,33 @@ async def _m365(tenant_id, event: str, p: dict) -> None:
             dt = dt.astimezone(timezone.utc)
         return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
+    existing_id = await _link(tenant_id, "m365", "event", aid)
+    if event in ("appointment.cancelled", "appointment.no_show"):
+        if existing_id:
+            r = await http("DELETE", f"https://graph.microsoft.com/v1.0/me/events/{existing_id}", headers=headers)
+            if r.status_code not in (200, 204, 404):
+                raise RuntimeError(f"Outlook event delete failed (HTTP {r.status_code})")
+        return
+    if event == "appointment.rescheduled":
+        if existing_id:
+            patch_body = {
+                "start": {"dateTime": _utc_iso(p["starts_at"]), "timeZone": "UTC"},
+                "end": {"dateTime": _utc_iso(p["ends_at"]), "timeZone": "UTC"},
+            }
+            r = await http("PATCH", f"https://graph.microsoft.com/v1.0/me/events/{existing_id}",
+                           headers=headers, content=json.dumps(patch_body))
+            if r.status_code >= 300:
+                raise RuntimeError(f"Outlook event reschedule failed (HTTP {r.status_code})")
+        return
+    if existing_id:
+        return
     body = {"subject": f"Appointment: {_name(p)}", "body": {"contentType": "text", "content": p.get("notes", "")},
             "start": {"dateTime": _utc_iso(p["starts_at"]), "timeZone": "UTC"},
             "end": {"dateTime": _utc_iso(p["ends_at"]), "timeZone": "UTC"}}
+    if p.get("email"):
+        body["attendees"] = [{"emailAddress": {"address": p["email"], "name": _name(p)}, "type": "required"}]
     r = await http("POST", "https://graph.microsoft.com/v1.0/me/events",
-                   headers={"Authorization": "Bearer " + creds["access_token"], "Content-Type": "application/json"},
-                   content=json.dumps(body))
+                   headers=headers, content=json.dumps(body))
     if r.status_code >= 300:
         raise RuntimeError(f"Outlook event create failed (HTTP {r.status_code})")
     await _set_link(tenant_id, "m365", "event", aid, r.json()["id"])
@@ -271,11 +325,17 @@ async def _servicem8(tenant_id, event: str, p: dict) -> None:
         lead = p.get("lead_id", "")
         if not lead or await _link(tenant_id, "servicem8", "job", lead):
             return
+        # Skip empty turn-1 chat greetings with no contact details; wait until enriched.
+        if p.get("channel") == "chat" and not (p.get("name") or p.get("email") or p.get("phone")):
+            return
         key = p.get("case_key", "")
         company = await _link(tenant_id, "servicem8", "client", key) if key else None
         if not company:
+            comp_payload = {"name": _name(p), "email": p.get("email", ""), "active": 1}
+            if p.get("phone"):
+                comp_payload["mobile"] = p["phone"]
             r = await http("POST", SERVICEM8 + "/company.json", headers=headers,
-                           content=json.dumps({"name": _name(p), "email": p.get("email", ""), "active": 1}))
+                           content=json.dumps(comp_payload))
             if r.status_code >= 300:
                 raise RuntimeError(f"ServiceM8 client create failed (HTTP {r.status_code})")
             company = r.headers.get("x-record-uuid", "")
@@ -289,70 +349,11 @@ async def _servicem8(tenant_id, event: str, p: dict) -> None:
         await _set_link(tenant_id, "servicem8", "job", lead, r.headers.get("x-record-uuid", ""))
 
 
-TRADIFY_API = "https://api.tradifyhq.com/v1"
-FERGUS_API = "https://api.fergus.com/v1"
-
-
-async def _tradify(tenant_id, event: str, p: dict) -> None:
-    """Tradify partner connector (disabled until TRADIFY_PARTNER_KEY is configured)."""
-    s = get_settings()
-    if not s.tradify_partner_key:
-        return None
-    creds = await _fresh(tenant_id, "tradify")
-    headers = {
-        "X-Partner-Key": s.tradify_partner_key,
-        "Authorization": "Bearer " + creds.get("api_key", ""),
-        "Content-Type": "application/json",
-    }
-    if event == "customer.enquiry":
-        lead = p.get("lead_id", "")
-        if not lead or await _link(tenant_id, "tradify", "job", lead):
-            return
-        r = await http("POST", TRADIFY_API + "/jobs", headers=headers, content=json.dumps({
-            "customer_name": _name(p),
-            "email": p.get("email", ""),
-            "phone": p.get("phone", ""),
-            "description": f"[{p.get('channel', '')}] {p.get('message', '')}".strip()[:2000],
-        }))
-        if r.status_code >= 300:
-            raise RuntimeError(f"Tradify job create failed (HTTP {r.status_code})")
-        ext_id = str((r.json() or {}).get("id") or lead)
-        await _set_link(tenant_id, "tradify", "job", lead, ext_id)
-
-
-async def _fergus(tenant_id, event: str, p: dict) -> None:
-    """Fergus partner connector (disabled until FERGUS_PARTNER_KEY is configured)."""
-    s = get_settings()
-    if not s.fergus_partner_key:
-        return None
-    creds = await _fresh(tenant_id, "fergus")
-    headers = {
-        "X-Partner-Key": s.fergus_partner_key,
-        "Authorization": "Bearer " + creds.get("api_key", ""),
-        "Content-Type": "application/json",
-    }
-    if event == "customer.enquiry":
-        lead = p.get("lead_id", "")
-        if not lead or await _link(tenant_id, "fergus", "job", lead):
-            return
-        r = await http("POST", FERGUS_API + "/jobs", headers=headers, content=json.dumps({
-            "title": f"Enquiry from {_name(p)}",
-            "customer_email": p.get("email", ""),
-            "customer_phone": p.get("phone", ""),
-            "description": f"[{p.get('channel', '')}] {p.get('message', '')}".strip()[:2000],
-        }))
-        if r.status_code >= 300:
-            raise RuntimeError(f"Fergus job create failed (HTTP {r.status_code})")
-        ext_id = str((r.json() or {}).get("id") or lead)
-        await _set_link(tenant_id, "fergus", "job", lead, ext_id)
-
-
-CONNECTORS = {"xero": _xero, "m365": _m365, "servicem8": _servicem8,
-              "tradify": _tradify, "fergus": _fergus}
+CONNECTORS = {"xero": _xero, "m365": _m365, "servicem8": _servicem8}
 
 
 async def dispatch(tenant_id, event: str, payload: dict) -> None:
-    """Send an event to every connected integration. Never raises."""
+    """Send an event to every connected integration (with 1 transient retry). Never raises."""
     try:
         rows = await db.pool().fetch(
             "SELECT provider FROM tenant_integrations WHERE tenant_id=$1 AND status='connected'", tenant_id)
@@ -361,16 +362,27 @@ async def dispatch(tenant_id, event: str, payload: dict) -> None:
         return
     for r in rows:
         provider = r["provider"]
-        try:
-            await CONNECTORS[provider](tenant_id, event, payload)
-            await db.pool().execute(
-                "UPDATE tenant_integrations SET last_sync_at=now(), last_error='' WHERE tenant_id=$1 AND provider=$2",
-                tenant_id, provider)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("integration %s failed for %s: %s", provider, event, type(exc).__name__)
+        connector = CONNECTORS.get(provider)
+        if not connector:
+            continue
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                await connector(tenant_id, event, payload)
+                await db.pool().execute(
+                    "UPDATE tenant_integrations SET last_sync_at=now(), last_error='' WHERE tenant_id=$1 AND provider=$2",
+                    tenant_id, provider)
+                last_exc = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt == 0:
+                    await asyncio.sleep(0.5)
+        if last_exc is not None:
+            log.warning("integration %s failed for %s: %s", provider, event, type(last_exc).__name__)
             await db.pool().execute(
                 "UPDATE tenant_integrations SET last_error=$3 WHERE tenant_id=$1 AND provider=$2",
-                tenant_id, provider, str(exc)[:200])
+                tenant_id, provider, str(last_exc)[:200])
 
 
 # ---- Studio API ------------------------------------------------------------------------------

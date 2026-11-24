@@ -68,7 +68,7 @@ def make_payload(subject: str, body: str, dedupe: str = "") -> str:
     if len(text) > 140:
         text = text[:137].rstrip() + "..."
     tag = hashlib.sha1((dedupe or title).encode()).hexdigest()[:16]
-    return json.dumps({"title": title, "body": text, "url": "/owner-ui", "tag": tag}, separators=(",", ":"))
+    return json.dumps({"title": title, "body": text, "url": "/studio/", "tag": tag}, separators=(",", ":"))
 
 
 def _allow(tenant_id: str, dedupe: str, now: float | None = None) -> bool:

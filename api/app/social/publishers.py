@@ -135,11 +135,19 @@ async def publish_to_account(
     return PublishOutcome(ok=False, error=f"Unsupported network: {network}")
 
 
+def _is_video_url(url: str) -> bool:
+    clean = (url or "").split("?", 1)[0].lower()
+    return clean.endswith((".mp4", ".mov", ".webm", ".m4v", ".avi"))
+
+
 async def _publish_facebook(
     page_id: str, token: str, text: str, link: str, media_url: str, dry_run: bool
 ) -> PublishOutcome:
     ver = social_config.meta_graph_version()
-    if media_url:
+    if media_url and _is_video_url(media_url):
+        url = f"https://graph.facebook.com/{ver}/{page_id}/videos"
+        payload = {"file_url": media_url, "description": text, "published": "true"}
+    elif media_url:
         url = f"https://graph.facebook.com/{ver}/{page_id}/photos"
         payload = {"url": media_url, "caption": text, "published": "true"}
     else:
@@ -171,7 +179,12 @@ async def _publish_instagram(
         return PublishOutcome(ok=False, error="Instagram requires an image or video")
     ver = social_config.meta_graph_version()
     create_url = f"https://graph.facebook.com/{ver}/{ig_id}/media"
-    payload = {"image_url": media_url, "caption": caption}
+    is_vid = _is_video_url(media_url)
+    payload = (
+        {"media_type": "REELS", "video_url": media_url, "caption": caption}
+        if is_vid
+        else {"image_url": media_url, "caption": caption}
+    )
     if dry_run:
         return PublishOutcome(ok=True, external_post_id="dry-run:instagram", dry_run_payload={"url": create_url, "payload": payload})
     status, body, ra = await _request_with_retry(
@@ -186,6 +199,16 @@ async def _publish_instagram(
             retry_after_seconds=ra or 60,
             error=f"Instagram error ({status}): {str(msg)[:200]}",
         )
+    if is_vid:
+        status_url = f"https://graph.facebook.com/{ver}/{creation_id}?fields=status_code"
+        for _ in range(10):
+            s_code, s_body, _ = await _request_with_retry("GET", status_url, headers={"Authorization": f"Bearer {token}"})
+            code = str(s_body.get("status_code") or "").upper()
+            if s_code < 300 and code == "FINISHED":
+                break
+            if code in ("ERROR", "EXPIRED"):
+                return PublishOutcome(ok=False, error=f"Instagram media container failed ({code})")
+            await asyncio.sleep(2)
     pub_url = f"https://graph.facebook.com/{ver}/{ig_id}/media_publish"
     p_status, p_body, p_ra = await _request_with_retry(
         "POST", pub_url, headers={"Authorization": f"Bearer {token}"}, data={"creation_id": creation_id}

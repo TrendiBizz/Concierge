@@ -51,11 +51,21 @@ type MetaOverview = {
   channels: MetaChannelRow[];
 };
 
+type WebhookEventRow = {
+  id: number;
+  event: string;
+  attempts: number;
+  delivered_at: string | null;
+  last_error: string | null;
+  created_at: string;
+};
+
 export function Integrations({token}: {token: string}) {
   const api = createApi(token);
   const [items, setItems] = useState<IntegrationItem[]>([]);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [metaOverview, setMetaOverview] = useState<MetaOverview | null>(null);
+  const [webhookEvents, setWebhookEvents] = useState<WebhookEventRow[]>([]);
   const [keyName, setKeyName] = useState('');
   const [newKey, setNewKey] = useState('');
   const [sm8Key, setSm8Key] = useState('');
@@ -65,18 +75,34 @@ export function Integrations({token}: {token: string}) {
 
   async function load() {
     try {
-      const [intRes, keyRes, hookRes, metaRes] = await Promise.all([
+      const [intRes, keyRes, hookRes, metaRes, evRes] = await Promise.all([
         api('/owner/integrations') as Promise<{integrations: IntegrationItem[]}>,
         api('/owner/api-keys') as Promise<{keys: ApiKeyRow[]}>,
         api('/owner/team-chat-webhook').catch(() => ({url: ''})) as Promise<{url?: string}>,
         api('/owner/meta-messaging').catch(() => null) as Promise<MetaOverview | null>,
+        api('/owner/webhooks/events?limit=20').catch(() => ({events: []})) as Promise<{events?: WebhookEventRow[]}>,
       ]);
       setItems(intRes.integrations || []);
       setKeys(keyRes.keys || []);
       setTeamWebhook(hookRes.url || '');
       setMetaOverview(metaRes);
+      setWebhookEvents(evRes.events || []);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Could not load integrations');
+    }
+  }
+
+  async function testWebhook() {
+    setBusy(true);
+    setStatus('');
+    try {
+      const res = await api('/owner/webhooks/test', 'POST', {}) as {delivered?: number; failed?: number; note?: string};
+      setStatus(res.note || (res.delivered ? 'Test webhook delivered.' : 'Test webhook failed — check the log below.'));
+      await load();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not send test webhook');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -341,6 +367,28 @@ export function Integrations({token}: {token: string}) {
           </VStack>
         </Card>
       ))}
+
+      <Heading level={3}>Webhook Deliveries</Heading>
+      <Card>
+        <VStack gap={3} style={{padding: 16}}>
+          <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
+            <Text>Recent signed webhook deliveries sent to your configured CRM webhook URL.</Text>
+            <Button label="Send test event" variant="secondary" isDisabled={busy} onClick={() => void testWebhook()} />
+          </HStack>
+          {webhookEvents.length ? webhookEvents.map((ev) => (
+            <HStack key={ev.id} gap={2} style={{justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid var(--color-border)', paddingBottom: 6}}>
+              <Text>
+                <strong>{ev.event}</strong> · {ev.created_at.slice(0, 16).replace('T', ' ')}
+                {ev.last_error ? ` · ${ev.last_error}` : ''}
+              </Text>
+              <Badge
+                label={ev.delivered_at ? 'Delivered' : `Pending (${ev.attempts} tries)`}
+                variant={ev.delivered_at ? 'success' : ev.last_error ? 'error' : 'warning'}
+              />
+            </HStack>
+          )) : <Text>No webhook deliveries recorded yet.</Text>}
+        </VStack>
+      </Card>
 
       <Heading level={3}>Public REST API Keys (Zapier / Make)</Heading>
       <Card>

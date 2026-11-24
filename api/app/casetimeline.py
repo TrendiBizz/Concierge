@@ -34,21 +34,37 @@ CHANNELS = ("chat", "voice", "email", "sms", "phone", "social")
 DIRECTIONS = ("inbound", "outbound")
 
 
+_TZ_COUNTRY_CODES = (
+    ("Pacific/Auckland", "64"),
+    ("Pacific/Chatham", "64"),
+    ("Australia/", "61"),
+    ("Europe/London", "44"),
+    ("Europe/Dublin", "353"),
+    ("Europe/Berlin", "49"),
+    ("Europe/Paris", "33"),
+    ("Asia/Kolkata", "91"),
+    ("Asia/Calcutta", "91"),
+    ("America/", "1"),
+    ("US/", "1"),
+    ("Canada/", "1"),
+)
+
+
 def tenant_country_code(tenant: dict | None) -> str:
     """The dialling country to use for a tenant's local numbers.
 
-    Prefers the tenant's own country code and only then the global setting. Without this a business
-    outside +1 had its 10-digit local numbers prefixed with '1', which produced a wrong number and --
-    worse for this module -- split one customer across two case identities.
+    Prefers the tenant's own country code, then infers from the tenant's configured timezone
+    (e.g. Pacific/Auckland -> '64'), and only then falls back to the global setting.
     """
     if tenant:
         own = str(tenant.get("default_country_code") or "").strip()
         if own.isdigit() and 1 <= len(own) <= 3:
             return own
+        tz = str(tenant.get("timezone") or "").strip()
+        for prefix, cc in _TZ_COUNTRY_CODES:
+            if tz == prefix or (prefix.endswith("/") and tz.startswith(prefix)):
+                return cc
     configured = str(getattr(get_settings(), "default_country_code", "") or "").strip()
-    # An empty country code is honoured as empty. Defaulting it to '1' silently prefixed a New
-    # Zealand number with a US code (+10278817368), which cannot be dialled and split one customer
-    # into two identities.
     return configured if configured.isdigit() and 1 <= len(configured) <= 3 else ""
 
 

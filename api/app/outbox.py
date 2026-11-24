@@ -191,6 +191,11 @@ async def _deliver(row: dict) -> None:
             ZoneInfo(tenant["timezone"]), datetime.now(timezone.utc),
             settings.sms_quiet_start_hour, settings.sms_quiet_end_hour,
         )
+        # Never defer a 2-hour appointment reminder past the appointment start time itself.
+        if row["kind"] == "appt_rem2" and row.get("appointment_id") and allowed > datetime.now(timezone.utc):
+            appt_start = await db.pool().fetchval("SELECT starts_at FROM appointments WHERE id=$1", row["appointment_id"])
+            if appt_start and allowed >= appt_start:
+                allowed = datetime.now(timezone.utc)
         if allowed > datetime.now(timezone.utc):
             # Quiet hours: put it back for the morning; this does not count as an attempt.
             await db.pool().execute(

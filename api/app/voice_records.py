@@ -66,8 +66,13 @@ def audio_type(content_type, body):
     return mime
 
 
-async def store_audio(session, body, content_type):
-    if not (session['recording_consent'] and get_settings().voice_recording_enabled and await channel_authorization.is_authorized(session['tenant_id'], 'call_recording')):
+async def store_audio(session, body, content_type, *, is_voicemail: bool = False):
+    allowed = (
+        session['recording_consent']
+        if is_voicemail
+        else (session['recording_consent'] and get_settings().voice_recording_enabled and await channel_authorization.is_authorized(session['tenant_id'], 'call_recording'))
+    )
+    if not allowed:
         raise HTTPException(403, 'Recording was not requested for this conversation')
     if len(body) > MAX_AUDIO:
         raise HTTPException(413, 'Recording exceeds the size limit')
@@ -100,6 +105,31 @@ async def finish(session, tenant):
                 result = {'ok': True, 'duplicate': True}
             else:
                 result = await _finish_enquiry(c, session, tenant)
+    created_lead = result.pop('_created_lead', None)
+    transcript = result.pop('_transcript', '')
+    if created_lead:
+        try:
+            from . import automation, casetimeline, portability
+            case = await casetimeline.reconcile(
+                tenant['id'], phone=created_lead.get('phone', ''), email=created_lead.get('email', ''),
+                name=created_lead.get('name', ''), company=created_lead.get('company', ''),
+                default_cc=casetimeline.tenant_country_code(tenant), source='voice')
+            if case:
+                await db.pool().execute('UPDATE leads SET case_id=$2 WHERE id=$1', created_lead['id'], case['id'])
+                created_lead['case_id'] = case['id']
+                await casetimeline.record(
+                    tenant['id'], case_key=case['case_key'], channel='voice', direction='inbound',
+                    source_key=f"voice:{session['id']}", body=transcript[:4000])
+            await portability.emit(tenant['id'], 'customer.enquiry', {
+                'lead_id': str(created_lead['id']), 'channel': 'voice',
+                'name': created_lead.get('name', ''), 'company': created_lead.get('company', ''),
+                'phone': created_lead.get('phone', ''), 'email': created_lead.get('email', ''),
+                'message': (created_lead.get('message') or '')[:1000],
+                'case_key': case['case_key'] if case else '',
+            })
+            await automation.on_lead_created(tenant, {**created_lead, '_owner_notice_queued': True})
+        except Exception:
+            pass
     return await complete_delivery(session, tenant, current['delivery_request'], result)
 
 
@@ -124,9 +154,16 @@ async def _finish_enquiry(c, session, tenant):
     # An earlier capture_lead tool may already have created the enquiry.
     lead = await c.fetchrow('SELECT * FROM leads WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at LIMIT 1', tenant['id'], session['conversation_id'])
     if not lead:
+        from . import casetimeline, identity
+        found = identity.extract_details(caller, casetimeline.tenant_country_code(tenant), allow_phone=True)
         lead = await c.fetchrow(
-            "INSERT INTO leads(tenant_id,conversation_id,channel,source_key,message) VALUES($1,$2,'voice',$3,$4) RETURNING *",
-            tenant['id'], session['conversation_id'], 'voice:'+str(session['id']), caller[:1000])
+            "INSERT INTO leads(tenant_id,conversation_id,channel,source_key,name,company,email,phone,message) "
+            "VALUES($1,$2,'voice',$3,$4,$5,$6,$7,$8) RETURNING *",
+            tenant['id'], session['conversation_id'], 'voice:' + str(session['id']),
+            found['name'][:120], found['company'][:120], found['email'][:200], found['phone'][:40], caller[:1000])
+        created_new = True
+    else:
+        created_new = False
     transcript = '\n\n'.join(('Customer: ' if r['role']=='user' else 'Concierge: ')+(clean_speech(r['content']) if r['role']=='user' else r['content']) for r in turns)
     from . import enquiry_alerts
     recording = await c.fetchval(
@@ -142,7 +179,7 @@ async def _finish_enquiry(c, session, tenant):
     await enquiry_alerts.notify(tenant, 'voice', body, lead_id=lead['id'], conversation_id=session['conversation_id'],
                                 connection=c, finalize=True)
     await c.execute('UPDATE voice_sessions SET finalized_at=now() WHERE id=$1', session['id'])
-    return {'ok': True, 'lead_id': str(lead['id'])}
+    return {'ok': True, 'lead_id': str(lead['id']), '_created_lead': dict(lead) if created_new else None, '_transcript': transcript}
 
 
 async def request_delivery(session, tenant, *, channel, content, confirmed):

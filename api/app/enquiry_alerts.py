@@ -64,7 +64,10 @@ def render(tenant: dict, channel: str, contact: dict, text: str) -> str:
     for name, value in (("Name", contact.get("name")), ("Email", contact.get("email")), ("Phone", contact.get("phone"))):
         if value:
             lines.append(f"{name}: {value}")
-    lines += ["", text.strip(), "", todo]
+    s = get_settings()
+    portal_base = (getattr(s, "owner_portal_url", "") or "").strip()
+    portal = (portal_base.rstrip("/").rsplit("/owner-ui", 1)[0] + "/studio/") if portal_base else (s.public_base_url.rstrip("/") + "/studio/")
+    lines += ["", text.strip(), "", todo, f"Open in Studio: {portal}"]
     return "\n".join(lines)
 
 

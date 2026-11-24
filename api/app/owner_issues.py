@@ -19,7 +19,7 @@ log = logging.getLogger("concierge.owner_issues")
 
 WINDOW_HOURS = 24
 FAILED_STATES = ("failed", "held", "suppressed")
-CUSTOMER_REPLY_KINDS = ("email_secretary_reply", "inbound_ack")
+CUSTOMER_REPLY_KINDS = ("email_secretary_reply", "inbound_ack", "approved_reply", "enquirer_ack")
 
 
 async def raise_issue(tenant: dict, issue: str, anchor, subject: str, body: str, *, avoid=None,
@@ -40,7 +40,11 @@ async def raise_issue(tenant: dict, issue: str, anchor, subject: str, body: str,
 
 
 def _portal(settings=None) -> str:
-    return (settings or get_settings()).public_base_url.rstrip("/") + "/owner-ui"
+    s = settings or get_settings()
+    base = (getattr(s, "owner_portal_url", "") or "").strip()
+    if base:
+        return base.rstrip("/").rsplit("/owner-ui", 1)[0] + "/studio/"
+    return s.public_base_url.rstrip("/") + "/studio/"
 
 
 async def _tenant(tenant_id) -> dict | None:
@@ -53,7 +57,7 @@ async def sweep_undelivered() -> int:
         """SELECT o.id, o.tenant_id, o.channel, o.last_error, o.created_at, o.lead_id, o.dedupe_key,
                   l.name, l.email, l.phone, l.channel AS lead_channel
            FROM outbox o LEFT JOIN leads l ON l.id = o.lead_id
-           WHERE o.kind='owner_alert' AND o.dedupe_key LIKE 'enq:%' AND o.status = ANY($1::text[])
+           WHERE o.kind='owner_alert' AND (o.dedupe_key LIKE 'enq:%' OR o.dedupe_key LIKE 'site-enquiry:%') AND o.status = ANY($1::text[])
              AND o.created_at > now() - make_interval(hours => $2)
            ORDER BY o.id DESC LIMIT 20""", list(FAILED_STATES), WINDOW_HOURS)
     raised = 0
@@ -109,8 +113,8 @@ async def sweep_unanswered() -> int:
 
 async def sweep_reply_failed() -> int:
     rows = await db.pool().fetch(
-        """SELECT o.id, o.tenant_id, o.channel, o.last_error, o.lead_id, l.name, l.email, l.phone
-           FROM outbox o JOIN leads l ON l.id = o.lead_id
+        """SELECT o.id, o.tenant_id, o.channel, o.to_addr, o.last_error, o.lead_id, l.name, l.email, l.phone
+           FROM outbox o LEFT JOIN leads l ON l.id = o.lead_id
            WHERE o.kind = ANY($1::text[]) AND o.status='failed' AND o.created_at > now() - make_interval(hours => $2)
            ORDER BY o.id DESC LIMIT 20""", list(CUSTOMER_REPLY_KINDS), WINDOW_HOURS)
     raised = 0
@@ -118,12 +122,15 @@ async def sweep_reply_failed() -> int:
         tenant = await _tenant(row["tenant_id"])
         if tenant is None:
             continue
-        who = row["name"] or row["phone"] or row["email"] or "a customer"
+        who = row["name"] or row["phone"] or row["email"] or row["to_addr"] or "a customer"
+        phone = row["phone"] or (row["to_addr"] if row["channel"] == "sms" else "-")
+        email = row["email"] or (row["to_addr"] if row["channel"] == "email" else "-")
+        anchor = row["lead_id"] or f"outbox-{row['id']}"
         body = (f"Our reply to {who} by {row['channel']} could not be delivered.\n"
                 f"Reason: {row['last_error'] or 'unknown'}\n\n"
-                f"They have not heard back. Contact them directly: phone {row['phone'] or '-'}, email {row['email'] or '-'}. "
+                f"They have not heard back. Contact them directly: phone {phone}, email {email}. "
                 f"Details in {_portal()}.")
-        if await raise_issue(tenant, "reply_failed", row["lead_id"], f"reply to {who} failed", body, lead_id=row["lead_id"]):
+        if await raise_issue(tenant, "reply_failed", anchor, f"reply to {who} failed", body, lead_id=row["lead_id"]):
             raised += 1
     return raised
 

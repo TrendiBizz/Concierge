@@ -124,10 +124,12 @@ async def on_appointment_booked(tenant: dict, appt: dict, lead: dict | None) -> 
     sms_to = _sms_target(tenant, appt["phone"], appt["consent_contact"])
     email_to = appt["email"] if appt["consent_contact"] and is_email(appt["email"]) else None
     first = _first_name(appt["name"])
+    from . import booking_links
+    manage = booking_links.manage_url(tenant["id"], appt["id"])
 
     # Confirmation + two reminders, on whichever channels we are allowed to use.
-    plan = [("confirm", now, f"Hi {first}, you're booked with {tenant['name']} for {when}."),
-            ("rem24", appt["starts_at"] - timedelta(hours=24), f"Reminder: your appointment with {tenant['name']} is tomorrow, {when}."),
+    plan = [("confirm", now, f"Hi {first}, you're booked with {tenant['name']} for {when}. Manage or reschedule: {manage}"),
+            ("rem24", appt["starts_at"] - timedelta(hours=24), f"Reminder: your appointment with {tenant['name']} is tomorrow, {when}. Manage: {manage}"),
             ("rem2", appt["starts_at"] - timedelta(hours=2), f"Reminder: your appointment with {tenant['name']} is today, {when}.")]
     for tag, send_at, text in plan:
         if tag != "confirm" and send_at <= now:
@@ -163,7 +165,7 @@ async def on_appointment_status(tenant: dict, appt: dict, status: str) -> None:
                 tenant["id"], "review_request", "sms", sms_to, f"{text} Reply STOP to opt out.",
                 send_at=send_at, dedupe_key=f"appt:{appt['id']}:review:sms", appointment_id=appt["id"],
             )
-        if is_email(appt["email"]):
+        if appt.get("consent_contact") and is_email(appt["email"]):
             await outbox.enqueue(
                 tenant["id"], "review_request", "email", appt["email"], text,
                 subject=f"How was your visit to {tenant['name']}?", send_at=send_at,
