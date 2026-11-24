@@ -591,8 +591,8 @@ def check_sms_inbound() -> list[dict]:
     return [_ok("sms:inbound", f"{enabled} paired phone(s) delivering")]
 
 
-# Deactivated in Stripe on purpose on 2026-11-16; any page still pointing at one dead-ends buyers.
-RETIRED_PAYMENT_LINKS = ("28E8wRbntdSjcsQg7RcEw03", "28EcN7bnt6pRgJ6f3NcEw04")
+# Deactivated/superseded in Stripe on purpose (2026-11-16 and 2026-11-24 $250->199 change); any page still pointing at one dead-ends or misprices buyers.
+RETIRED_PAYMENT_LINKS = ("28E8wRbntdSjcsQg7RcEw03", "28EcN7bnt6pRgJ6f3NcEw04", "dRm7sM6GzeDz9he3UA04802")
 
 
 def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) -> list[str]:

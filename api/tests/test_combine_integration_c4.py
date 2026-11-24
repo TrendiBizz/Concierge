@@ -61,7 +61,7 @@ def test_c4_invoice_uses_legal_entity_and_zero_rates_usd_exports():
         "customer_name": "Buyer",
         "business_name": "US Co",
         "currency": "USD",
-        "amount_cents": 25_000,
+        "amount_cents": 19_900,
         "gst_cents": 0,
         "description": "Concierge — monthly",
         "issued_on": datetime.date(2026, 11, 21),
@@ -70,7 +70,7 @@ def test_c4_invoice_uses_legal_entity_and_zero_rates_usd_exports():
     assert "TRENDI LIMITED" in usd_html
     assert "Trendi Bizz Limited" not in usd_html
     assert "GST (0% — zero-rated export)" in usd_html
-    assert "250.00 USD" in usd_html
+    assert "199.00 USD" in usd_html
 
 
 def test_c4_issue_applies_gst_only_for_nzd(monkeypatch):

@@ -46,11 +46,11 @@ window.TRENDI = {
     }
   ],
 
-  // Concierge monthly plan (USD 250/month, 3-month minimum). Yearly billing available on request.
+  // Concierge monthly plan (USD 199/month, 3-month minimum). Yearly billing available on request.
   // checkout: false routes buttons back to /concierge-start without removing the checkout link.
   concierge: {
     checkout: true,
-    monthly: { price: 250, stripeLink: "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" }
+    monthly: { price: 199, stripeLink: "https://buy.stripe.com/eVq28s2qj9jfdxugHm04805" }
   },
 
   // Shown under whichever plan is selected.

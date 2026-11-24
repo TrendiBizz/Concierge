@@ -7,7 +7,7 @@ Writes:
 
 Rules from the Rankability / ChatGPT Business Hub kit that this enforces:
   * UTF-8 CSV, header row, one product per row, the nine required columns.
-  * price = number, space, currency code ("250.00 USD"); availability from the five allowed values.
+  * price = number, space, currency code ("199.00 USD"); availability from the five allowed values.
   * empty cell instead of a placeholder; every link is a full https address.
   * descriptions use ONLY wording from the live site (no invented features, limits or prices).
   * products without a listed price (penetration testing: "quoted on enquiry") are left out.
@@ -49,8 +49,8 @@ CONCIERGE_CORE = (
 
 # Brand assets are cached 30 days immutable at Cloudflare: a restyled image needs a new query string.
 IMAGE_QUERY = {
-    "trendi-concierge-monthly": "?v=20261124",
-    "trendi-concierge-yearly": "?v=20261124",
+    "trendi-concierge-monthly": "?v=20261124b",
+    "trendi-concierge-yearly": "?v=20261124b",
     "trendi-seo-ai-visibility-monthly": "?v=20261124",
 }
 
@@ -60,10 +60,10 @@ PRODUCTS = [
         "title": "Trendi Concierge - AI Receptionist, Monthly Subscription",
         "description": CONCIERGE_CORE + " Monthly plan: 3-month minimum, then it renews monthly.",
         "url": f"{BASE}/concierge",
-        "price": "250.00 USD",
+        "price": "199.00 USD",
         "headline": "Concierge",
         "sub": "AI receptionist - monthly",
-        "price_label": "USD $250 / month",
+        "price_label": "USD $199 / month",
     },
     {
         "item_id": "trendi-concierge-yearly",
@@ -71,10 +71,10 @@ PRODUCTS = [
         "description": CONCIERGE_CORE + " Yearly plan: 10% off "
                        "the monthly price, one payment a year.",
         "url": f"{BASE}/ai-receptionist-cost",
-        "price": "2700.00 USD",
+        "price": "2149.20 USD",
         "headline": "Concierge",
         "sub": "AI receptionist - yearly",
-        "price_label": "USD $2,700 / year",
+        "price_label": "USD $2,149.20 / year",
     },
     {
         "item_id": "trendi-seo-ai-visibility-monthly",

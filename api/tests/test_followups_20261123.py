@@ -1,4 +1,4 @@
-"""Guards for the 23 Nov 2026 follow-ups: social posting is core, and the USD $250 price includes everything."""
+"""Guards for the 23 Nov 2026 follow-ups: social posting is core, and the USD $199 price includes everything."""
 import pathlib
 import re
 
@@ -34,7 +34,7 @@ def test_price_includes_everything_and_names_separate_products():
 def test_phone_number_question_answers_yes_included():
     t = text("ai-office-cost.html")
     assert re.search(r'"name":"Does it include a phone number\?","acceptedAnswer":\{"@type":"Answer","text":"Yes\. Your business phone number is included', t)
-    assert "Is there a setup fee?" in t and "Setup is included in the USD $250 a month" in t
+    assert "Is there a setup fee?" in t and "Setup is included in the USD $199 a month" in t
 
 
 def test_no_free_word_in_priced_pages():
