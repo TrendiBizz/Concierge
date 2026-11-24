@@ -27,8 +27,9 @@ def test_only_the_pricing_page_has_a_pay_button_and_it_is_explicit():
 
 def test_stripe_links_and_prices_are_unchanged():
     products = text("products.js")
-    assert "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" in products
-    assert "price: 250" in products and "price: 500" in products
+    assert "https://buy.stripe.com/eVq28s2qj9jfdxugHm04805" in products
+    assert "https://buy.stripe.com/dRm7sM6GzeDz9he3UA04802" not in products
+    assert "price: 199" in products and "price: 500" in products
 
 
 def test_pricing_leads_with_concierge_not_the_seo_package():

@@ -52,7 +52,7 @@ This step only writes files. It does not post.
 5. It calls `claude -p` on Jo's Claude subscription (OAuth login, no API key), with Read/Write/Glob/Grep only.
 6. If `$HOME/.claude_oauth_env` exists, `run.sh` sources it. Never echo that file.
 7. It writes **three drafts**, for the next Monday, Wednesday and Friday (including today if today is one of those days).
-8. About three of every four posts are about Concierge (AI receptionist and AI office, missed calls, call forwarding, live price USD $250 a month with a 3-month minimum). The rest may be a true SEO or AI-visibility point, still bound by `facts.md`.
+8. About three of every four posts are about Concierge (AI receptionist and AI office, missed calls, call forwarding, live price USD $199 a month with a 3-month minimum). The rest may be a true SEO or AI-visibility point, still bound by `facts.md`.
 9. Logs: `/Users/jo/Library/Logs/jo-jobs/trendi-social.log` and `trendi-social.out`.
 
 To run it by hand:
@@ -108,7 +108,7 @@ If a draft is flagged **NEEDS JO**, it usually mentions call forwarding from the
 Stop here until Jo says yes.
 
 1. Open the three files in `~/Reports/trendi-social/` (or show Jo the text).
-2. Check: facts match `facts.md` and the live site, price is USD $250 a month with a 3-month minimum, no "free", no invented numbers, no personal details, the Facebook link is a real public page (`https://trendibizz.com/ai-office`, `/concierge`, or `/missed-call-text-back` as appropriate).
+2. Check: facts match `facts.md` and the live site, price is USD $199 a month with a 3-month minimum, no "free", no invented numbers, no personal details, the Facebook link is a real public page (`https://trendibizz.com/ai-office`, `/concierge`, or `/missed-call-text-back` as appropriate).
 3. Jo must say which draft may go out, and that it may go live. A general "keep posting" is not enough. For the 19 November test, "run one now and we check if it works" applied only to the Friday 20 November draft, exactly as written.
 4. Do not edit approved copy. If a change is needed, go back to Jo.
 5. Until that yes, do not build a public image, deploy, or call the publish API.
@@ -121,11 +121,11 @@ Recommended public times, once Jo has approved a week: **10:00** Monday, Wednesd
 
 Instagram Graph publishing requires a public HTTPS image. Facebook uses the same card.
 
-1. Take the `IMAGE TEXT` from the approved daily file. For 20 November 2026 it was:
+1. Take the `IMAGE TEXT` from the approved daily file. For 20 November 2026 it was (note: live price is now USD $199 a month, 3-month minimum):
 
    - Headline: An AI receptionist and AI office
    - Answers chat, and phone, email or SMS once tested
-   - USD $250 a month, 3-month minimum
+   - USD $199 a month, 3-month minimum (was USD $250 on 20 November 2026)
    - No promise of leads or sales
 
 2. Make a clean 1080×1080 PNG on navy Trendi brand:
