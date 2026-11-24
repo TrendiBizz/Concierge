@@ -100,7 +100,10 @@ def test_onboarding_hub_progress_sandbox_test_alert_and_slot_preview(monkeypatch
             r4 = await client.get("/owner/onboarding/preview-slots?days=7", headers=headers)
             assert r4.status_code == 200
             assert r4.json()["timezone"] == "America/Chicago"
-            assert isinstance(r4.json()["slots"], list)
+            slots = r4.json()["slots"]
+            assert isinstance(slots, list) and slots, "Mon-Fri 09-17 hours must yield slots in 7 days"
+            # The Studio renders s.label || s.start; plain strings showed every badge as "Slot".
+            assert all(isinstance(x, dict) and x["start"] and x["label"] for x in slots)
     run(go)
 
 

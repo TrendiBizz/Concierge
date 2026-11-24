@@ -22,15 +22,15 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {NotifyProvider, useNotify} from './Notify';
 import {CmdK} from './CmdK';
-import {Companies} from './Companies';
-import {SavedReplies} from './SavedReplies';
-import {Knowledge} from './Knowledge';
-import {Privacy} from './Privacy';
-import {Billing} from './Billing';
-import {Invoices} from './Invoices';
-import {Integrations} from './Integrations';
-import {OnboardingHub} from './OnboardingHub';
-import {TabGuideDrawer} from './TabGuideDrawer';
+const Companies = lazy(() => import('./Companies').then((m) => ({default: m.Companies})));
+const SavedReplies = lazy(() => import('./SavedReplies').then((m) => ({default: m.SavedReplies})));
+const Knowledge = lazy(() => import('./Knowledge').then((m) => ({default: m.Knowledge})));
+const Privacy = lazy(() => import('./Privacy').then((m) => ({default: m.Privacy})));
+const Billing = lazy(() => import('./Billing').then((m) => ({default: m.Billing})));
+const Invoices = lazy(() => import('./Invoices').then((m) => ({default: m.Invoices})));
+const Integrations = lazy(() => import('./Integrations').then((m) => ({default: m.Integrations})));
+const OnboardingHub = lazy(() => import('./OnboardingHub').then((m) => ({default: m.OnboardingHub})));
+const TabGuideDrawer = lazy(() => import('./TabGuideDrawer').then((m) => ({default: m.TabGuideDrawer})));
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
 import {createApi, isGenericFailure} from './api';
@@ -45,7 +45,7 @@ import en from './locales/en.json';
 const navLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/nav/*.json');
 const copyLoaders = import.meta.glob<{default: Record<string, string>}>('./i18n/copy/*.json');
 
-const localeLoaders = import.meta.glob<{default: Record<string, string>}>('./locales/*.json');
+const localeLoaders = import.meta.glob<{default: Record<string, string>}>(['./locales/*.json', '!./locales/en.json']);
 
 
 import {VersionLabel} from './OwnerDesk';
@@ -2065,7 +2065,7 @@ function Shell() {
       {tab === 'texts' ? <ChannelAsk token={token} channels={['sms_read', 'sms_send']} question="handle your texts" /> : null}
       {tab === 'crm' ? <ChannelAsk token={token} channels={['telephone', 'call_recording']} question="answer and record calls" /> : null}
       {tab === 'social' ? <ChannelAsk token={token} channels={['social']} question="publish your social posts" /> : null}
-      {tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <OnboardingHub token={token} brand={brand} setBrand={setBrand} onNavigate={setTab} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} phoneStep={<PhoneForwarding token={token} onContinue={() => undefined} consent={<ChannelAsk token={token} channels={['telephone']} question="answer your calls" />} />} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'invoices' ? <Invoices token={token} /> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'integrations' ? <Integrations token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}
+      <Suspense fallback={<p style={{padding: 24}}>Loading…</p>}>{tab === 'home' ? <Suspense fallback={<p style={{padding: 24}}>Loading dashboard…</p>}><Home token={token} brand={brand} /></Suspense> : tab === 'pipeline' ? <Suspense fallback={<p style={{padding: 24}}>Loading the sales board…</p>}><Pipeline token={token} /></Suspense> : tab === 'setup' ? <OnboardingHub token={token} brand={brand} setBrand={setBrand} onNavigate={setTab} onDone={() => { celebrateOnce(brand.name); setTab('home'); }} phoneStep={<PhoneForwarding token={token} onContinue={() => undefined} consent={<ChannelAsk token={token} channels={['telephone']} question="answer your calls" />} />} /> : tab === 'designs' ? <Suspense fallback={<p style={{padding: 24}}>Loading designs…</p>}><Designs token={token} onOpenQuotes={() => setTab('quotes')} /></Suspense> : tab === 'products' ? <Suspense fallback={<p style={{padding: 24}}>Loading products…</p>}><ProductsPage token={token} /></Suspense> : tab === 'bookings' ? <Bookings token={token} /> : tab === 'reports' ? <Reports token={token} /> : tab === 'quotes' ? <Suspense fallback={<p style={{padding: 24}}>Loading quotes…</p>}><Quotes token={token} brand={brand} onOpenDesigns={() => setTab('designs')} /></Suspense> : tab === 'invoices' ? <Invoices token={token} /> : tab === 'texts' ? <Suspense fallback={<p style={{padding: 24}}>Loading texts…</p>}><Texts token={token} /></Suspense> : tab === 'crm' ? <Suspense fallback={<p style={{padding: 24}}>Loading enquiries…</p>}><Crm token={token} /></Suspense> : tab === 'contacts' ? <Suspense fallback={<p style={{padding: 24}}>Loading contacts…</p>}><Contacts token={token} /></Suspense> : tab === 'companies' ? <Suspense fallback={<p style={{padding: 24}}>Loading companies…</p>}><Companies token={token} /></Suspense> : tab === 'permissions' ? <Suspense fallback={<p style={{padding: 24}}>Loading permissions…</p>}><PermissionsPage token={token} onDone={() => setTab('home')} /></Suspense> : tab === 'team' ? <Team token={token} /> : tab === 'yourcrm' ? <YourCrm token={token} /> : tab === 'integrations' ? <Integrations token={token} /> : tab === 'knowledge' ? <Knowledge token={token} /> : tab === 'privacy' ? <Privacy token={token} /> : tab === 'billing' ? <Billing token={token} /> : tab === 'replies' ? <Suspense fallback={<p style={{padding: 24}}>Loading saved replies…</p>}><SavedReplies token={token} /></Suspense> : tab === 'social' ? <Suspense fallback={<p style={{padding: 24}}>Loading social…</p>}><Social token={token} brand={brand} /></Suspense> : <Suspense fallback={<p style={{padding: 24}}>Loading media…</p>}><Media token={token} /></Suspense>}</Suspense>
     </>
   );
 
@@ -2120,7 +2120,7 @@ function Shell() {
         </TabList> : null}
         <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
         <div className="c-topbar-spacer" />
-        <TabGuideDrawer tab={tab} onOpenOnboarding={() => setTab('setup')} />
+        <Suspense fallback={null}><TabGuideDrawer tab={tab} onOpenOnboarding={() => setTab('setup')} /></Suspense>
         <Button label={tr('Enable alerts')} variant="secondary" onClick={() => {
           void (async () => {
             if (!('Notification' in window) || !('serviceWorker' in navigator)) return;

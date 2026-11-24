@@ -629,17 +629,8 @@ async def owner_onboarding_preview_slots(days: int = 7, user: dict = Depends(own
     tenant = await tenants.get_by_id(user["tenant_id"])
     if tenant is None:
         raise HTTPException(404, "Business not found")
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
-    today = datetime.now(ZoneInfo(tenant["timezone"])).date()
-    slots: list[str] = []
-    for offset in range(min(max(days, 1), 14)):
-        day = today + timedelta(days=offset)
-        found = await booking_mod._slots_on(tenant, day)
-        slots += [s.astimezone(ZoneInfo(tenant["timezone"])).strftime("%Y-%m-%d %H:%M") for s in found]
-        if len(slots) >= 24:
-            break
-    return {"timezone": tenant.get("timezone") or "UTC", "slots": slots[:24]}
+    slots = await booking_mod.next_slots(tenant, days=days, limit=24)
+    return {"timezone": tenant.get("timezone") or "UTC", "slots": slots}
 
 
 @router.post("/owner/invitations", status_code=201)

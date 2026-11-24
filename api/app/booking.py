@@ -70,6 +70,22 @@ async def _slots_on(tenant: dict, day: date, conn=None) -> list[datetime]:
     return day_slots(tenant, day, datetime.now(timezone.utc), booked)
 
 
+async def next_slots(tenant: dict, days: int = 7, limit: int = 24) -> list[dict]:
+    """The next open booking slots across the coming days, as {"start": "YYYY-MM-DD HH:MM", "label": "Tue 25 Nov, 09:00"}
+    in the business's own timezone. Used by the Studio onboarding preview."""
+    tz = ZoneInfo(tenant["timezone"])
+    today = datetime.now(tz).date()
+    out: list[dict] = []
+    for offset in range(max(1, min(days, 14))):
+        day = today + timedelta(days=offset)
+        for slot in await _slots_on(tenant, day):
+            local = slot.astimezone(tz)
+            out.append({"start": local.strftime("%Y-%m-%d %H:%M"), "label": local.strftime("%a %d %b, %H:%M")})
+            if len(out) >= limit:
+                return out
+    return out
+
+
 def _parse_local(value: str) -> datetime:
     return datetime.fromisoformat(value.strip().replace(" ", "T"))
 
