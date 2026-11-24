@@ -33,7 +33,7 @@ window.TRENDI = {
       per: "per month",
       terms: "3-month minimum, then month to month.",
       cta: "Start monthly",
-      stripeLink: "https://buy.stripe.com/00wcN70IP4hJdwU8FpcEw06"
+      stripeLink: "https://buy.stripe.com/14A3cw1mfdzv9he1Ms04806"
     },
     {
       id: "deposit",
@@ -42,7 +42,7 @@ window.TRENDI = {
       per: "deposit",
       terms: "Secures your start date. Credited against your first invoice.",
       cta: "Pay deposit",
-      stripeLink: "https://buy.stripe.com/7sY7sNgHN6pR50obRBcEw05"
+      stripeLink: "https://buy.stripe.com/14A8wQ4yr2UR2SQgHm04807"
     }
   ],
 
