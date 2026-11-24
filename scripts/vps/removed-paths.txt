@@ -19,3 +19,6 @@ scripts/asterisk/Dockerfile
 # One-shot Docker -> Podman migration scripts (done 2026-11-17)
 scripts/vps/podman-migrate-prod.sh
 scripts/vps/podman-migrate-stack.sh
+# Retired xAI / Grok voice and SIP files (replaced by Google Gemini 3.8 Live, 2026-11-24)
+api/app/phone_sip.py
+scripts/vps/check-grok-voice.py
