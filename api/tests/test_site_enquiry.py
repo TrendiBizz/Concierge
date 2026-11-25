@@ -100,6 +100,11 @@ def test_a_nonsense_website_is_refused(fake):
         run(site_enquiry.submit(**good(website="not a url")))
 
 
+def test_security_review_kind_is_accepted(fake):
+    out = run(site_enquiry.submit(**good(kind="security")))
+    assert out["ok"] and fake.inserts[-1][0] == "security"
+
+
 def test_unknown_kinds_are_refused(fake):
     with pytest.raises(site_enquiry.Refused):
         run(site_enquiry.submit(**good(kind="admin")))

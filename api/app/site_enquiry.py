@@ -20,7 +20,8 @@ from . import db, flood_guard, outbox, owner_auth
 
 log = logging.getLogger("concierge.site_enquiry")
 
-KINDS = ("seo", "concierge")
+KINDS = ("seo", "concierge", "security")
+_LABELS = {"concierge": "Concierge setup", "seo": "SEO / AI visibility", "security": "Security review scoping"}
 STATUSES = ("new", "contacted", "done", "spam")
 PER_IP_PER_HOUR = 5
 ALL_PER_HOUR = 60
@@ -90,7 +91,7 @@ async def _tell_the_operator(enquiry_id, kind, email, name, website, message, pl
             return
         tenant = dict(tenant_row)
         to_addr = (tenant.get("notify_email") or tenant.get("to_addr") or "").strip() or "admin@trendibizz.com"
-        lines = [f"A website enquiry came in ({'Concierge setup' if kind == 'concierge' else 'SEO / AI visibility'}).", "",
+        lines = [f"A website enquiry came in ({_LABELS.get(kind, kind)}).", "",
                  f"Name:    {_clean(name, 120) or '(not given)'}",
                  f"Email:   {email}",
                  f"Website: {_clean(website, 300) or '(not given)'}"]

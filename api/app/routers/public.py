@@ -627,7 +627,7 @@ async def onboarding_page():
 
 class SiteEnquiry(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["seo", "concierge"]
+    kind: Literal["seo", "concierge", "security"]
     email: str = Field(max_length=320)
     name: str = Field(default="", max_length=120)
     website: str = Field(default="", max_length=300)

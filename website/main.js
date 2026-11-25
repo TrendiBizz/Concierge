@@ -255,6 +255,37 @@
   }
 
 
+  // Security review scoping form (/penetration-testing) -> /api/enquiry kind "security"
+  var scopeForm = document.getElementById("scope-form");
+  if (scopeForm) {
+    var scopeStatus = document.getElementById("scope-status");
+    var scopeSay = function (t) { if (scopeStatus) { scopeStatus.textContent = t; } };
+    scopeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = function (n) { return (scopeForm.elements[n] && scopeForm.elements[n].value || "").trim(); };
+      var btn = scopeForm.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; }
+      scopeSay("Sending…");
+      var msg = "Security review scoping request.\n\nWhat it does / who uses it: " + (f("about") || "(not given)") +
+        "\nDeadline or compliance driver: " + (f("driver") || "(not given)") + "\n";
+      fetch("/api/enquiry", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "security", email: f("email"), website: f("site"), message: msg, trap: f("trap") })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, data: d }; });
+      }).then(function (res) {
+        if (btn) { btn.disabled = false; }
+        if (res.ok) { scopeSay("Thanks — we have it. We will reply to " + f("email") + " within one business day."); scopeForm.reset(); return; }
+        var fix = res.data && typeof res.data.detail === "string" && res.data.detail;
+        scopeSay(fix || "We could not send that from here. Email admin@trendibizz.com instead.");
+      }).catch(function () {
+        if (btn) { btn.disabled = false; }
+        scopeSay("We could not send that from here. Email admin@trendibizz.com instead.");
+      });
+    });
+  }
+
+
   // Hero: cycle platform names then AI (FirstIndex-style flash). Comma lives in .flip text.
   (function initFlip() {
     var flip = document.querySelector(".hero h1 .flip");

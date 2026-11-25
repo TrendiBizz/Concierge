@@ -1242,6 +1242,9 @@ CREATE TABLE IF NOT EXISTS site_enquiries (
     status      text NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','done','spam'))
 );
 CREATE INDEX IF NOT EXISTS site_enquiries_created ON site_enquiries(created_at DESC);
+-- Security-review scoping enquiries (/penetration-testing) are a third kind; older databases only allowed two.
+ALTER TABLE site_enquiries DROP CONSTRAINT IF EXISTS site_enquiries_kind_check;
+ALTER TABLE site_enquiries ADD CONSTRAINT site_enquiries_kind_check CHECK (kind IN ('seo','concierge','security'));
 
 -- Highest release notice this person has dismissed (releases.py). 0 = has not seen any.
 ALTER TABLE tenant_users ADD COLUMN IF NOT EXISTS last_seen_version integer NOT NULL DEFAULT 0;
