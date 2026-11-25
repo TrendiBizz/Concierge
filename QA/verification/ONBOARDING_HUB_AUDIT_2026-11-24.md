@@ -54,3 +54,18 @@ Jo: "remove all data pertaining to CAD or drawings", "no mention on the site".
   Re-scan: 0 chunks match ifc|dwg|design upload.
 - **Closes the earlier unverified item**: `design_uploads`, `quote_profiles`, `design_links` count in information_schema on the box = 0.
 - **Follow-up**: the two Trendi tenants have no KB for the builders page until re-ingested from the clean live page.
+
+## Onboarding sufficiency check (2026-11-25)
+
+Scope covered: concierge-start.html promises ("invite you into your private portal", "test each channel before it goes live", "you review, then we go live",
+"we never ask for a password"), the 7-stage hub, the invite email, and the progress API. Traced to tests: invite email link/first steps/no-price/no-password-paste
+(`test_owner_invite_email.py`), progress read/save, sandbox test chat (dry run, 0 leads), test alert ([TEST] email), slot preview (`test_onboarding_hub_20261124.py`).
+- **Defect: "Launch Concierge" was cosmetic.** `PUT /owner/onboarding/progress {launched:true}` stamped `launched_at` with no server check, and nothing reads
+  `launched_at` (grep: no consumer). A business with no knowledge and no alert email saw a "Launched" badge, so the hub implied readiness it had not verified.
+  The UI also swallowed the error and always continued.
+- **Fix**: shared `_onboarding_auto_checks()`; first launch is refused with 409 ("Before you launch, add: ...") unless identity, knowledge (>=1 page) and an alert email exist.
+  Re-saving after launch keeps the original `launched_at`. UI shows the reason and does not mark Launch done on refusal.
+- **Test**: hub test asserts 409 + `launched_at` still null, then success after a knowledge chunk, then idempotent re-launch. Mutation check: disabling the gate fails it.
+- **Proof**: suite 1922 passed / 42 skipped; portal build clean.
+- **Not covered (UNKNOWN)**: no real end-to-end channel test (phone, SMS, email delivery) was run; policy forbids real SMS/calls and mail replay to production.
+  "We verify each agreed channel before switching it on" remains a staff process on the box, not something the hub enforces: `launched` does not enable or disable any channel.
