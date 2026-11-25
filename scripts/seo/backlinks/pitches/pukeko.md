@@ -1,3 +1,4 @@
+# NOTE: Conrad already gave permission (Jo, 2026-11-25). This email was sent in error; do not resend. Use only to ask for numbers.
 # Pukeko Construction: permission + numbers request (DRAFT, not sent)
 To: Conrad Schiess (CRM address conrad@pukekoconstruction.co.nz; domain confirmed by Jo 2026-11-25)
 Subject: Can we feature Pukeko as a Concierge case study?
