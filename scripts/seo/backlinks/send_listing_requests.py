@@ -45,7 +45,7 @@ def load(path="/opt/trendi/shared/api.env"):
 env = load()
 ctx = ssl.create_default_context()
 # Do-not-contact guard (mirrors backlinks/do-not-contact.csv; tested by test_do_not_contact.py)
-DNC = ("techday.co.nz", "techday.com", "receptionistindex.com")
+DNC = ("techday.co.nz", "techday.com", "receptionistindex.com", "receptionistratings.com")
 def _ok(to):
     d = str(to).lower().rsplit("@", 1)[-1].strip(" >")
     if any(d == b or d.endswith("." + b) for b in DNC):

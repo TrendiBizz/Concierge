@@ -23,7 +23,7 @@ for line in Path("/opt/trendi/shared/api.env").read_text().splitlines():
         k, _, v = line.partition("=")
         env[k.strip()] = v.strip().strip('"').strip("'")
 # Do-not-contact guard (mirrors backlinks/do-not-contact.csv; tested by test_do_not_contact.py)
-DNC = ("techday.co.nz", "techday.com", "receptionistindex.com")
+DNC = ("techday.co.nz", "techday.com", "receptionistindex.com", "receptionistratings.com")
 def _ok(to):
     d = str(to).lower().rsplit("@", 1)[-1].strip(" >")
     if any(d == b or d.endswith("." + b) for b in DNC):

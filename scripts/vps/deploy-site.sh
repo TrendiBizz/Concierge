@@ -39,6 +39,7 @@ echo "deploying $SRC at $COMMIT to $HOST:$REMOTE"
 #     an accidental noindex, a sitemap that disagrees with the pages or a weakened robots.txt costs
 #     rankings for months, and none of it is visible in a browser. Fail here, not in Search Console.
 python3 "$REPO_ROOT/scripts/seo/site_seo.py" check
+python3 "$REPO_ROOT/scripts/seo/link_audit.py"  # dead links, missing anchors, button loops; nonzero blocks deploy
 
 # 1c. Remember what was live, so IndexNow can be told exactly which pages changed. A failure to read
 #     it is not fatal: the deploy is still correct, it just cannot report the diff.
