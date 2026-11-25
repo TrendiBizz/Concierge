@@ -7,3 +7,7 @@
 - Page-count pin in test_social_icons.py raised 45 -> 48. No new test, so no mutation check.
 - Live proof: appended below after deploy.
 - Live proof: deploy-site.sh done, verify-deploy.sh 'OK: repo and box agree', 200 on all three URLs, IndexNow HTTP 200 (2026-11-25).
+
+## Directory submissions (Jo approved 2026-11-25)
+1 of 14 submitted: tradeswithai.com (free tier, API reply ok:true, hand review pending). Contact: admin@trendibizz.com.
+The other 13 have no scriptable listing route: 2 block scripts (403), 1 needs an account, 4 are email-only, 2 have no listing form, and 4 look like competing vendors rather than directories. Status and next action per row in scripts/seo/backlinks/prospects.csv.
