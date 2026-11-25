@@ -67,6 +67,14 @@ def test_onboarding_hub_progress_sandbox_test_alert_and_slot_preview(monkeypatch
             assert d0["auto_checks"]["identity"] is True
             assert d0["auto_checks"]["alerts_configured"] is True
 
+            # 2a. Launch is refused until the server sees knowledge (alerts + identity already set above)
+            rno = await client.put("/owner/onboarding/progress", headers=headers, json={"launched": True})
+            assert rno.status_code == 409 and "knowledge" in rno.json()["detail"]
+            assert (await client.get("/owner/onboarding/progress", headers=headers)).json()["launched_at"] is None
+            await pool.execute(
+                "INSERT INTO chunks (tenant_id,url,title,content,embedding) VALUES ($1,$2,'Hours','Open 9 to 5',"
+                "array_fill(0::float4, ARRAY[384])::vector)", t["id"], "manual:owner:hub")
+
             # 2. PUT progress + launch
             r1 = await client.put(
                 "/owner/onboarding/progress",
@@ -78,6 +86,9 @@ def test_onboarding_hub_progress_sandbox_test_alert_and_slot_preview(monkeypatch
             assert d1["current_stage"] == 3
             assert set(d1["completed_steps"]) == {"identity", "alerts", "launch"}
             assert d1["launched_at"] is not None
+            # Re-saving after launch keeps the original launch time (no gate re-run, no reset)
+            r1b = await client.put("/owner/onboarding/progress", headers=headers, json={"launched": True})
+            assert r1b.status_code == 200 and r1b.json()["launched_at"] == d1["launched_at"]
 
             # 3. POST sandbox test-chat (dry_run=True, zero leads created)
             r2 = await client.post("/owner/onboarding/test-chat", headers=headers, json={"message": "What are your hours?"})

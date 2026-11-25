@@ -195,7 +195,8 @@ export function OnboardingHub({
 
   useEffect(() => { void refresh(); }, [token]);
 
-  async function saveProgress(nextStage: number, addKey?: string, launch?: boolean) {
+  async function saveProgress(nextStage: number, addKey?: string, launch?: boolean): Promise<boolean> {
+    const prevCompleted = completed;
     const nextSteps = addKey ? Array.from(new Set([...completed, addKey])) : completed;
     setCompleted(nextSteps);
     setStage(nextStage);
@@ -207,7 +208,16 @@ export function OnboardingHub({
       }) as {completed_steps: string[]; current_stage: number; launched_at: string | null};
       setCompleted(res.completed_steps || nextSteps);
       setLaunchedAt(res.launched_at || launchedAt);
-    } catch { /* non-blocking */ }
+      return true;
+    } catch (e) {
+      if (launch) {
+        // Launch is refused until the server confirms the basics: say why, and do not show "Launched".
+        setCompleted(prevCompleted);
+        setStatus(e instanceof Error ? e.message : 'Could not launch yet.');
+        return false;
+      }
+      return true; // saving a bookmark is non-blocking
+    }
   }
 
   function isStageDone(key: string): boolean {
@@ -763,8 +773,7 @@ export function OnboardingHub({
                 label={launchedAt ? 'Go to Home Dashboard →' : 'Launch Concierge →'}
                 variant="primary"
                 onClick={async () => {
-                  await saveProgress(7, 'launch', true);
-                  onDone();
+                  if (await saveProgress(7, 'launch', true)) onDone();
                 }}
               />
             </HStack>

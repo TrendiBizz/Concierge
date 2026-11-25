@@ -471,24 +471,8 @@ class OnboardingTestChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=600)
 
 
-@router.get("/owner/onboarding/progress")
-async def owner_onboarding_progress(user: dict = Depends(owner_auth.current_user)):
-    """Return saved 7-stage onboarding progress plus live server-verified readiness checks."""
-    tid = user["tenant_id"]
-    row = await db.pool().fetchrow(
-        "SELECT completed_steps, current_stage, launched_at, updated_at "
-        "FROM onboarding_progress WHERE tenant_id=$1",
-        tid,
-    )
-    completed = []
-    current_stage = 1
-    launched_at = None
-    if row:
-        raw_steps = row["completed_steps"]
-        completed = json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps or [])
-        current_stage = int(row["current_stage"] or 1)
-        launched_at = row["launched_at"].isoformat() if row["launched_at"] else None
-
+async def _onboarding_auto_checks(tid) -> dict:
+    """Server-verified readiness facts shared by GET progress and the launch gate."""
     overview = await owner_onboarding.overview(tid)
     biz = overview.get("business") or {}
     channels = overview.get("channels") or {}
@@ -515,6 +499,28 @@ async def owner_onboarding_progress(user: dict = Depends(owner_auth.current_user
         "integrations_connected": int(int_connected),
         "paused": bool(pause_state.get("paused")),
     }
+    return auto_checks
+
+
+@router.get("/owner/onboarding/progress")
+async def owner_onboarding_progress(user: dict = Depends(owner_auth.current_user)):
+    """Return saved 7-stage onboarding progress plus live server-verified readiness checks."""
+    tid = user["tenant_id"]
+    row = await db.pool().fetchrow(
+        "SELECT completed_steps, current_stage, launched_at, updated_at "
+        "FROM onboarding_progress WHERE tenant_id=$1",
+        tid,
+    )
+    completed = []
+    current_stage = 1
+    launched_at = None
+    if row:
+        raw_steps = row["completed_steps"]
+        completed = json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps or [])
+        current_stage = int(row["current_stage"] or 1)
+        launched_at = row["launched_at"].isoformat() if row["launched_at"] else None
+
+    auto_checks = await _onboarding_auto_checks(tid)
     return {
         "completed_steps": completed,
         "current_stage": current_stage,
@@ -549,8 +555,19 @@ async def owner_onboarding_progress_save(
         cur_steps = sorted({s for s in body.completed_steps if s in allowed})
     if body.current_stage is not None:
         cur_stage = body.current_stage
-    if body.launched is True:
+    if body.launched is True and launched_at is None:
+        checks = await _onboarding_auto_checks(tid)
+        missing = []
+        if not checks["identity"]:
+            missing.append("business name and website")
+        if not checks["knowledge_docs"]:
+            missing.append("knowledge (read your website or add a note)")
+        if not checks["alerts_configured"]:
+            missing.append("an alert email")
+        if missing:
+            raise HTTPException(409, "Before you launch, add: " + ", ".join(missing) + ".")
         launched_at = datetime.now(timezone.utc)
+    if body.launched is True:
         if "launch" not in cur_steps:
             cur_steps.append("launch")
     elif body.launched is False:
