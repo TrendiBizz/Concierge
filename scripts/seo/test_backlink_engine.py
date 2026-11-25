@@ -33,7 +33,10 @@ class BacklinkEngineTests(unittest.TestCase):
 
     def test_report_has_the_pipeline_numbers(self):
         text = be.report()
-        self.assertIn("Prospects: **24**", text)
+        import csv
+        n = sum(1 for _ in csv.DictReader(open(Path(__file__).resolve().parent / "backlinks" / "prospects.csv", newline="")))
+        self.assertGreater(n, 0)
+        self.assertIn(f"Prospects: **{n}**", text)
         self.assertIn("This week's shortlist", text)
 
     def test_verify_live_when_target_is_present(self):
