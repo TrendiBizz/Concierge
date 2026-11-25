@@ -1,6 +1,5 @@
 id,tier,type,market,domain,url,asset,contact_name,contact_email,status,priority,last_contact,next_action,notes
 1,1,editorial,nz,nzentrepreneur.co.nz,https://www.nzentrepreneur.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow-up sent 2026-11-25; next 2026-12-02,Original 100-site robots/llms data; NZ founder audience
-2,1,editorial,nz,techday.co.nz,https://www.techday.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow-up sent 2026-11-25; next 2026-12-02,NZ tech news; data story on AI crawler access
 3,1,editorial,nz,cio.co.nz,https://www.cio.co.nz/,ai-crawler-study,,,prospect,1,,Find named reporter before pitching (never emailed; earlier mark was an ID mismatch),NZ CIO audience; AI governance angle
 4,1,editorial,nz,idealog.co.nz,https://www.idealog.co.nz/,ai-crawler-study,,,prospect,1,,Find named reporter before pitching (never emailed; earlier mark was an ID mismatch),NZ business/innovation audience
 5,1,editorial,nz,businessdesk.co.nz,https://www.businessdesk.co.nz/,ai-crawler-study,,,pitched,1,2026-11-17,Follow-up sent 2026-11-25; next 2026-12-02,Paywalled business audience; data-led pitch

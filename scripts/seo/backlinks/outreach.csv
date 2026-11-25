@@ -1,6 +1,6 @@
 date,prospect_id,channel,contact,subject,status,reply,next_followup,notes
 2026-11-17,1,email,editor@nzentrepreneur.co.nz,Data: how 100 SaaS sites treat AI crawlers,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
-2026-11-17,2,email,editors@techday.com,New Zealand study: AI crawler access on 100 SaaS sites,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
+2026-11-17,2,email,editors@techday.com,New Zealand study: AI crawler access on 100 SaaS sites,sent,,,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/ | REJECTED twice by TechDay (pitch + my follow-up). DO NOT CONTACT AGAIN.
 2026-11-17,5,email,info@businessdesk.co.nz,Data: only 2 of 94 SaaS sites block a major AI crawler,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
 2026-11-17,6,email,news@interest.co.nz,Data: AI crawler access across 100 SaaS sites,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
 2026-11-17,5,web-form,https://www.searchenginejournal.com/contact/,Study: AI crawler access on 100 US/UK/AU/NZ SaaS sites,blocked,,,SEJ web form requires a Cloudflare Turnstile challenge; not submitted. Exact text in outbox/05-search-engine-journal.txt
@@ -8,7 +8,7 @@ date,prospect_id,channel,contact,subject,status,reply,next_followup,notes
 2026-11-25,31,email,hello@shouldiuse.io,Listing request: Trendi Concierge (AI receptionist),sent,,2026-12-02,sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
 2026-11-25,36,email,hello@thetoolregister.com,Listing request: Trendi Concierge (AI receptionist),sent,,2026-12-02,sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
 2026-11-25,1,email,editor@nzentrepreneur.co.nz,Re: Data: how 100 SaaS sites treat AI crawlers,sent,,2026-12-02,follow-up sent via admin@trendibizz.com Brevo SMTP; text in send_followups.py
-2026-11-25,2,email,editors@techday.com,Re: New Zealand study: AI crawler access on 100 SaaS sites,sent,,2026-12-02,follow-up sent; text in send_followups.py
+2026-11-25,2,email,editors@techday.com,Re: New Zealand study: AI crawler access on 100 SaaS sites,sent,,,follow-up sent; text in send_followups.py | REJECTED twice by TechDay (pitch + my follow-up). DO NOT CONTACT AGAIN.
 2026-11-25,5,email,info@businessdesk.co.nz,Re: Data: only 2 of 94 SaaS sites block a major AI crawler,sent,,2026-12-02,follow-up sent; text in send_followups.py
 2026-11-25,6,email,news@interest.co.nz,Re: Data: AI crawler access across 100 SaaS sites,sent,,2026-12-02,follow-up sent; text in send_followups.py
 2026-11-25,,email,conrad@pukekoconstruction.co.nz,Can we feature Pukeko as a Concierge case study?,sent,,,SENT IN ERROR: Jo had already got Conrad's permission (not recorded in repo). Email also wrongly said he had been using Concierge; he has not started. No follow-up needed.

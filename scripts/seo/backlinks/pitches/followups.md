@@ -5,9 +5,6 @@ Send from admin@trendibizz.com. Prefer a named reporter over the generic inbox w
 ## F1 NZ Entrepreneur (editor@nzentrepreneur.co.nz) — Re: Data: how 100 SaaS sites treat AI crawlers
 Kia ora, a quick nudge on the note I sent last week. One line for your readers: of 94 readable B2B/SaaS sites, only 2 block any major AI crawler. Full data and CSV: the link above. Happy to send a short founder-focused comment. Thanks, Jo
 
-## F2 TechDay (editors@techday.com) — Re: New Zealand study: AI crawler access on 100 SaaS sites
-Hi, following up on last week's note. The study covers sites across NZ, AU, UK and US and is fully reproducible. I can send the CSV or a NZ-only cut if useful. Thanks, Jo
-
 ## F3 BusinessDesk (info@businessdesk.co.nz) — Re: Data: only 2 of 94 SaaS sites block a major AI crawler
 Hi, following up on last week's note. Only 2 of 94 readable B2B/SaaS sites block any of 12 major AI crawlers, and 35 of 100 publish an llms.txt. Method and raw data are on the page. I can send the CSV or a short comment. Thanks, Jo
 (Fix: original repeated the "2 of 94" line in paragraphs 1 and 2; this version states it once.)

@@ -11,8 +11,6 @@ SIGN = "\n\nThanks,\nJo\nTrendi\nhttps://trendibizz.com\n"
 MSGS = [
     (1, "editor@nzentrepreneur.co.nz", "Re: Data: how 100 SaaS sites treat AI crawlers",
      "Kia ora,\n\nA quick nudge on the note I sent last week. One line for your readers: of 94 readable B2B/SaaS sites, only 2 block any major AI crawler. Method, data and CSV: " + URL + "\n\nHappy to send a short founder-focused comment."),
-    (2, "editors@techday.com", "Re: New Zealand study: AI crawler access on 100 SaaS sites",
-     "Hi,\n\nFollowing up on last week's note. The study covers sites across NZ, AU, UK and US and is fully reproducible: " + URL + "\n\nI can send the CSV or a NZ-only cut if useful."),
     (5, "info@businessdesk.co.nz", "Re: Data: only 2 of 94 SaaS sites block a major AI crawler",
      "Hi,\n\nFollowing up on last week's note. Only 2 of 94 readable B2B/SaaS sites block any of 12 major AI crawlers, and 35 of 100 publish an llms.txt. Method and raw data: " + URL + "\n\nI can send the CSV or a short comment."),
     (6, "news@interest.co.nz", "Re: Data: AI crawler access across 100 SaaS sites",
