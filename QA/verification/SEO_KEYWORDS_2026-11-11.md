@@ -1,5 +1,7 @@
 # SEO / keyword plan — 2026-11-11
 
+> **Correction 2026-11-25:** the meta line below quotes "USD $400/month". That figure was never the live price and is not on the site. The Concierge price is USD $199/month (3-month minimum), set in `website/products.js`; SEO is USD $499/month. See `QA/verification/PRICING_CONSISTENCY_2026-11-25.md`.
+
 ## Homepage changes shipped
 - Title: **AI receptionist for small business | Concierge by Trendi**
 - Meta: AI receptionist, website chat, phone, email, SMS, appointment booking,
