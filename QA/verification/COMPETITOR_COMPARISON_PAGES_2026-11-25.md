@@ -6,3 +6,4 @@
 - Gate: site_seo check OK (53 pages), seo-gate PASS 22/0/0, full suite 1925 passed/42 skipped. The $499 SEO price guard caught "$500 a month" and "$500 per month" in the Smith.ai AI plan text twice; reworded (the guard works).
 - Page-count pin in test_social_icons.py raised 45 -> 48. No new test, so no mutation check.
 - Live proof: appended below after deploy.
+- Live proof: deploy-site.sh done, verify-deploy.sh 'OK: repo and box agree', 200 on all three URLs, IndexNow HTTP 200 (2026-11-25).
