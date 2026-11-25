@@ -1,3 +1,4 @@
+# NOTE: Conrad has NOT started using Concierge yet. Do not write or pitch a case study until real usage exists.
 # NOTE: Conrad already gave permission (Jo, 2026-11-25). This email was sent in error; do not resend. Use only to ask for numbers.
 # Pukeko Construction: permission + numbers request (DRAFT, not sent)
 To: Conrad Schiess (CRM address conrad@pukekoconstruction.co.nz; domain confirmed by Jo 2026-11-25)

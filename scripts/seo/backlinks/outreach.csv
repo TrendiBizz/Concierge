@@ -11,5 +11,5 @@ date,prospect_id,channel,contact,subject,status,reply,next_followup,notes
 2026-11-25,2,email,editors@techday.com,Re: New Zealand study: AI crawler access on 100 SaaS sites,sent,,2026-12-02,follow-up sent; text in send_followups.py
 2026-11-25,5,email,info@businessdesk.co.nz,Re: Data: only 2 of 94 SaaS sites block a major AI crawler,sent,,2026-12-02,follow-up sent; text in send_followups.py
 2026-11-25,6,email,news@interest.co.nz,Re: Data: AI crawler access across 100 SaaS sites,sent,,2026-12-02,follow-up sent; text in send_followups.py
-2026-11-25,,email,conrad@pukekoconstruction.co.nz,Can we feature Pukeko as a Concierge case study?,sent,,,SENT IN ERROR: Jo had already got Conrad's permission (not recorded in repo). No follow-up needed.
+2026-11-25,,email,conrad@pukekoconstruction.co.nz,Can we feature Pukeko as a Concierge case study?,sent,,,SENT IN ERROR: Jo had already got Conrad's permission (not recorded in repo). Email also wrongly said he had been using Concierge; he has not started. No follow-up needed.
 2026-11-25,,email,dor@receptionistratings.com,Suggestion for your AI receptionist ratings: Trendi Concierge,sent,,2026-12-02,inclusion pitch; text in send_listicle.py
