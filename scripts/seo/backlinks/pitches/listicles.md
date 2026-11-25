@@ -5,3 +5,7 @@ Target pages: "best ai receptionist" listicles (smash.vc, technologyadvice.com, 
 Subject: Suggestion for your AI receptionist roundup: Trendi Concierge
 Hi [name], I read your AI receptionist roundup. One addition for your readers: Trendi Concierge answers a small business's calls, web chat, email and SMS, logs each enquiry in a built-in CRM, and books where the calendar allows. Set up and tested for the customer; USD $199/month, 3-month minimum (call/SMS carrier charges separate). NZ-based, serves worldwide.
 Details: https://trendibizz.com/concierge . Happy to give a demo number, screenshots or any fact you want to verify. Thanks, Jo, Trendi
+
+## Status 2026-11-25
+- receptionistratings.com: SENT to dor@receptionistratings.com (published on its homepage).
+- smash.vc: contact web form (Gravity Forms) only; Jo to paste pitch in a browser. technologyadvice.com: contact page returns 403 to scripts; Jo to use a browser.
