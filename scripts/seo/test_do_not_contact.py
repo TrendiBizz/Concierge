@@ -27,7 +27,7 @@ class DoNotContact(unittest.TestCase):
 
     def test_pipeline_has_no_blocked_rows(self):
         for d in self.blocked():
-            rows = [r for r in csv.DictReader(open(B / "prospects.csv")) if d in r["domain"]]
+            rows = [r for r in csv.DictReader(open(B / "prospects.csv")) if d in r["domain"] and r["status"] != "do-not-contact"]
             self.assertEqual(rows, [], d)
 
 

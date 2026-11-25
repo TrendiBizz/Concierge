@@ -4,7 +4,7 @@ date,prospect_id,channel,contact,subject,status,reply,next_followup,notes
 2026-11-17,5,email,info@businessdesk.co.nz,Data: only 2 of 94 SaaS sites block a major AI crawler,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
 2026-11-17,6,email,news@interest.co.nz,Data: AI crawler access across 100 SaaS sites,sent,,2026-11-24,sent 2026-11-17 22:18 NZDT via admin@trendibizz.com (Brevo SMTP); exact text in outbox/
 2026-11-17,5,web-form,https://www.searchenginejournal.com/contact/,Study: AI crawler access on 100 US/UK/AU/NZ SaaS sites,blocked,,,SEJ web form requires a Cloudflare Turnstile challenge; not submitted. Exact text in outbox/05-search-engine-journal.txt
-2026-11-25,26,email,hello@receptionistindex.com,Listing request: Trendi Concierge (AI receptionist),sent,,2026-12-02,sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
+2026-11-25,26,email,hello@receptionistindex.com,Listing request: Trendi Concierge (AI receptionist),replied-paid,"Replied 2026-11-25: $49 one-time paid entry",,DNC; sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
 2026-11-25,31,email,hello@shouldiuse.io,Listing request: Trendi Concierge (AI receptionist),sent,,2026-12-02,sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
 2026-11-25,36,email,hello@thetoolregister.com,Listing request: Trendi Concierge (AI receptionist),sent,,2026-12-02,sent via admin@trendibizz.com Brevo SMTP; text in send_listing_requests.py
 2026-11-25,1,email,editor@nzentrepreneur.co.nz,Re: Data: how 100 SaaS sites treat AI crawlers,sent,,2026-12-02,follow-up sent via admin@trendibizz.com Brevo SMTP; text in send_followups.py
