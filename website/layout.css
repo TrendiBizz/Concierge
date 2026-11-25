@@ -8,3 +8,9 @@
 
 /* Honeypot for the enquiry forms: present for robots, invisible and unreachable for people. */
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+/* pricing cards 2026-11-25: cards size to content, price and unit on one line, tighter text (reading-chapter 1.9 line-height was inflating cards) */
+.rollout .pricing-grid{align-items:start}
+.reading-chapter .pricing p,.reading-chapter .pricing li{line-height:1.6}
+.reading-chapter .pricing .price{line-height:1.1;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px}
+.reading-chapter .pricing .price small{display:inline;margin:0;font-size:1rem;line-height:1.4}
+.reading-chapter .pricing .ticks{gap:10px}
