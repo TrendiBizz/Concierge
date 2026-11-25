@@ -67,7 +67,7 @@
         form.reset();
         return;
       }
-      showDraft((res.data && res.data.detail) || "We could not send that from here. Your request is ready to email instead.");
+      showDraft((res.data && typeof res.data.detail === "string" && res.data.detail) || "We could not send that from here. Your request is ready to email instead.");
     }).catch(function () {
       showDraft("We could not send that from here. Your request is ready to email instead.");
     });

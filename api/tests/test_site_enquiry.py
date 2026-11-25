@@ -162,3 +162,12 @@ def test_the_gateway_routes_the_post_to_the_api_before_the_static_site():
     caddy = (ROOT / "scripts" / "vps" / "Caddyfile").read_text()
     assert "path /api/enquiry" in caddy
     assert caddy.index("handle @enquiry") < caddy.index("handle @website")
+
+
+def test_a_schema_error_list_is_never_shown_as_text():
+    """FastAPI answers 422 with detail as a LIST; showing it raw printed "[object Object]" to the visitor."""
+    start = (SITE / "concierge-start.js").read_text(encoding="utf-8")
+    assert 'typeof res.data.detail === "string"' in start
+    main_js = (SITE / "main.js").read_text(encoding="utf-8")
+    assert 'typeof res.data.detail === "string"' in main_js
+    assert "(res.data && res.data.detail) ||" not in main_js + start

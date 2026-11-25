@@ -218,8 +218,10 @@
           return;
         }
         // A refusal the visitor can fix (bad address, too many tries) is shown as it is.
-        say((res.data && res.data.detail) || "We could not send that from here.");
-        if (!res.data || res.data.detail === undefined) { wireFallbacks(draft); }
+        // Schema errors arrive as a list, not text: show the generic line and keep the mail fallback.
+        var fixable = res.data && typeof res.data.detail === "string" && res.data.detail;
+        say(fixable || "We could not send that from here.");
+        if (!fixable) { wireFallbacks(draft); }
       }).catch(function () {
         if (button) { button.disabled = false; }
         say("We could not send that from here. Use your email app below instead.");
