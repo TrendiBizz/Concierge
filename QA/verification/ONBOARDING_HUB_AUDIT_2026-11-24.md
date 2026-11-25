@@ -38,3 +38,19 @@ Jo approved dropping the data. Production before the change (read-only): `design
   visible text, one attachments bullet): removed. Orphan i18n keys removed from all portal locales (6 `copy` keys + nav `Designs`, 210 entries).
   No other offer found in website/, api/app, api/static, docs, scripts.
 - **Proof**: suite 1922 passed / 42 skipped; portal build clean; `seo-gate.sh` GATE RESULT: PASS.
+
+## CAD / drawings data purge (2026-11-25)
+
+Jo: "remove all data pertaining to CAD or drawings", "no mention on the site".
+- **Site (FACT)**: grep of `website/` and `api/static/` for cad|dwg|ifc|3d|bonsai|drawing|cladding|design upload|floor plan: 0 files.
+  Live: all 45 URLs in trendibizz.com/sitemap.xml fetched, 0 matches.
+- **DB scan** (`scripts/vps/scan-cad-data.sh`, read-only, counts only). Real leftovers found:
+  12 stale knowledge chunks of the old `trendibizz.com/ai-office-builders` crawl on tenants `trendi-support` and `trendi-oauth-staging`
+  (6 each; text still offered "IFC model... wall areas for cladding quotes", "PDF and DWG plans", "design upload link", so the receptionist could repeat it),
+  and 1 `ui_translation_cache` row ("Designs and CAD").
+- **Left alone on purpose**: Pukeko Construction (271485f2) is a real cladding business, so "cladding" in its persona, greeting and KB is its trade, not the feature.
+  Other outbox/case_events hits are noise (URL-encoded `3D=`, ordinary "drawings or samples"). Already-sent outbox mail is history. test-1/2/3 untouched.
+- **Purge** (`scripts/vps/purge-cad-data.sh --apply`): deleted 12 chunks, 1 cache row, and `/opt/trendi/shared/removed/designs-20261124` (4 test .stl/.ifc files, listed first).
+  Re-scan: 0 chunks match ifc|dwg|design upload.
+- **Closes the earlier unverified item**: `design_uploads`, `quote_profiles`, `design_links` count in information_schema on the box = 0.
+- **Follow-up**: the two Trendi tenants have no KB for the builders page until re-ingested from the clean live page.
