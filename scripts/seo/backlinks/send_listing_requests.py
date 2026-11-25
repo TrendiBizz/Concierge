@@ -45,6 +45,12 @@ def load(path="/opt/trendi/shared/api.env"):
 
 env = load()
 ctx = ssl.create_default_context()
+# Do-not-contact guard (mirrors backlinks/do-not-contact.csv; tested by test_do_not_contact.py)
+DNC = ("techday.co.nz", "techday.com")
+def _ok(to):
+    d = str(to).lower().rsplit("@", 1)[-1].strip(" >")
+    if any(d == b or d.endswith("." + b) for b in DNC):
+        raise SystemExit("REFUSED: " + str(to) + " is on the do-not-contact list")
 with smtplib.SMTP(env["SMTP_HOST"], int(env.get("SMTP_PORT", "587")), timeout=30) as s:
     s.starttls(context=ctx)
     s.login(env["SMTP_USER"], env["SMTP_PASSWORD"])
@@ -55,5 +61,5 @@ with smtplib.SMTP(env["SMTP_HOST"], int(env.get("SMTP_PORT", "587")), timeout=30
         m["Reply-To"] = "admin@trendibizz.com"
         m["Subject"] = "Listing request: Trendi Concierge (AI receptionist)"
         m.set_content(BODY.format(site=site))
-        s.send_message(m)
+        _ok(m["To"]); s.send_message(m)
         print("sent", pid, to)
