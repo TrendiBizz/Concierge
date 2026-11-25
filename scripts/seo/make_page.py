@@ -114,3 +114,62 @@ build("gohighlevel-alternative",
    ("Can I move from GoHighLevel to Concierge?", "Your knowledge base is built by reading your website. Ask us what else can be moved in your case."),
    ("Does Concierge have a CRM?", "Yes, a built-in CRM with enquiries, follow-ups and bookings, and one conversation history per customer across channels."),
    ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
+
+NOTE = " Prices are in $ as the vendor states them, checked 25 November 2026; vendors change them."
+
+build("goodcall-alternative",
+  "Goodcall alternative for small business: Concierge vs Goodcall | Trendi",
+  "Concierge vs Goodcall: per-customer AI phone plans from $79 a month against one USD $199 a month office assistant. Where each fits.",
+  "COMPARISON", "A Goodcall alternative for small business",
+  "Goodcall is an AI phone agent priced by the number of unique customers who call. Concierge covers phone, chat, email and SMS for one price. This page says where each fits.",
+  [("The short version",
+    "<p>Choose Goodcall if you mainly want a phone agent, your call volume is low and predictable, and you want to start with a free demo agent. Choose Concierge if you want calls, website chat, email and SMS handled in one place, with the setup done and tested for you.</p>"),
+   ("Price, as published",
+    "<p>From Goodcall's own pricing page (checked 25 November 2026): Starter $79 a month for 100 unique customers, Growth $129 for 500 and Scale $299 for 2,000, with extra customers at 79¢, 26¢ and 15¢ each. It states there are no per-minute charges, and every plan includes a local number. Enterprise is quote-only. See <a href=\"https://www.goodcall.com/pricing\" rel=\"nofollow noopener\">goodcall.com/pricing</a> for current figures.</p>"
+    "<p>Concierge is USD $199 a month with a 3-month minimum, including setup, testing, a business phone number, voice answering, SMS and email confirmations, voicemail, CRM and integrations. Provider charges for calls and SMS are separate.</p>"),
+   ("Where Goodcall fits better",
+    "<p>At low volume Goodcall's Starter plan costs less than Concierge. Goodcall also publishes call transfer to a list of people, a free demo agent you can try before connecting a number, and SOC 2 and HIPAA compliance statements. Its pages show English only. We have not verified its contract or cancellation terms because they were not on the pages we read.</p>"),
+   ("What Concierge adds",
+    "<p>Chat, email and SMS alongside the phone, one conversation history per customer, a built-in CRM, and configuration and testing done with you before activation.</p>")],
+  [("Is Concierge a Goodcall replacement?", "For answering calls, capturing enquiries and booking, yes. Goodcall is phone-focused; Concierge also handles chat, email and SMS."),
+   ("How much does Goodcall cost compared with Concierge?", "Goodcall publishes $79, $129 and $299 a month plans by unique customers per month (checked 25 November 2026). Concierge is USD $199 a month with a 3-month minimum, with provider call and SMS charges separate."),
+   ("Which is cheaper?", "It depends on volume. At around 100 unique customers a month Goodcall's Starter plan is cheaper. Work out your own number of callers before choosing."),
+   ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
+
+build("smith-ai-alternative",
+  "Smith.ai alternative for small business: Concierge vs Smith.ai | Trendi",
+  "Concierge vs Smith.ai: per-call AI and human receptionist plans against one USD $199 a month AI office assistant. Where each fits.",
+  "COMPARISON", "A Smith.ai alternative for small business",
+  "Smith.ai sells AI and human receptionist plans billed per call. Concierge is an AI assistant for phone, chat, email and SMS at one monthly price. This page says where each fits.",
+  [("The short version",
+    "<p>Choose Smith.ai if you want real people answering your calls, or a way to move a call to a live receptionist. Choose Concierge if you want an AI assistant covering several channels for a flat monthly price, set up and tested for you.</p>"),
+   ("Price, as published",
+    "<p>From Smith.ai's own pricing pages (checked 25 November 2026): its AI Receptionist has a free plan of 25 calls a month, then $150 a month for 75 calls and $500 for 300 calls, with overage per call. Its human virtual receptionist plans are $300 a month for 30 calls, $810 for 90 and $2,100 for 300. Billing is per call, month to month. See <a href=\"https://smith.ai/pricing\" rel=\"nofollow noopener\">smith.ai/pricing</a> for current figures.</p>"
+    "<p>Concierge is USD $199 a month with a 3-month minimum, including setup, testing, a business phone number, voice answering, SMS and email confirmations, voicemail, CRM and integrations. Provider charges for calls and SMS are separate.</p>"),
+   ("Where Smith.ai fits better",
+    "<p>Smith.ai offers receptionists who are real people, answering 24/7, and its AI plans can pass a call to a live receptionist. It also has a free tier, month-to-month terms, and a 30-day money-back guarantee on its human plans. Concierge has a 3-month minimum.</p>"),
+   ("What Concierge adds",
+    "<p>One price whatever the call volume, with chat, email and SMS handled alongside the phone, and one conversation history per customer. At a high number of calls a flat price can cost less than per-call billing; at a low number it can cost more.</p>")],
+  [("Is Concierge a Smith.ai replacement?", "For AI call answering, capturing enquiries and booking, yes. If you want a person on the phone, Smith.ai's human plans do that; Concierge is an AI assistant."),
+   ("How much does Smith.ai cost compared with Concierge?", "Smith.ai's monthly AI plans cost $0, $150 and $500, by calls included, and its human plans $300 to $2,100 a month (checked 25 November 2026). Concierge is USD $199 a month with a 3-month minimum."),
+   ("Which is cheaper?", "It depends on how many calls you get. Under about 75 calls a month, Smith.ai's AI Pro plan costs less. Count your calls first."),
+   ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
+
+build("allo-alternative",
+  "Allo alternative for small business: Concierge vs Allo | Trendi",
+  "Concierge vs Allo: a per-seat business phone with an AI receptionist add-on against one USD $199 a month AI office assistant. Where each fits.",
+  "COMPARISON", "An Allo alternative for small business",
+  "Allo is a business phone system priced per seat, with an AI receptionist as an add-on. Concierge is an AI office assistant at one monthly price. This page says where each fits.",
+  [("The short version",
+    "<p>Choose Allo if you want a new business phone and SMS system for your team, with an AI receptionist on top. Choose Concierge if you want an AI assistant answering calls, chat, email and SMS for you, set up and tested, without changing your team's phones.</p>"),
+   ("Price, as published",
+    "<p>From Allo's own pricing page (checked 25 November 2026): the Business plan is $32 a seat a month billed yearly or $45 month to month, and the AI Receptionist is an add-on at $32 a month per agent. It lists a 3-day free trial, a 30-day money-back period, no setup fees, no contracts, and says pricing is early and can still change. See <a href=\"https://www.withallo.com/pricing\" rel=\"nofollow noopener\">withallo.com/pricing</a> for current figures.</p>"
+    "<p>Concierge is USD $199 a month with a 3-month minimum, including setup, testing, a business phone number, voice answering, SMS and email confirmations, voicemail, CRM and integrations. Provider charges for calls and SMS are separate.</p>"),
+   ("Where Allo fits better",
+    "<p>Allo is a phone system as well as an answering assistant: numbers in 80+ countries, free number porting, unlimited national calls, inbound SMS, and its AI receptionist can transfer to a person. It has no contract and a free trial. It does not publish call limits for the AI receptionist on the pages we read, so check them before comparing price.</p>"),
+   ("What Concierge adds",
+    "<p>A flat price for the assistant itself, website chat and email as well as phone and SMS, a built-in CRM, and setup and testing done with you.</p>")],
+  [("Is Concierge an Allo replacement?", "Not as a phone system. Concierge does not replace your team's phones; it answers enquiries and records them. For the AI receptionist part, it is an alternative."),
+   ("How much does Allo cost compared with Concierge?", "Allo's Business plan is $32 a seat a month billed yearly ($45 monthly) plus $32 a month for the AI Receptionist (checked 25 November 2026). Concierge is USD $199 a month with a 3-month minimum."),
+   ("Which is cheaper?", "For one seat with the AI receptionist, Allo's published prices are lower. Concierge covers more channels and includes setup. Compare the features you need."),
+   ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
