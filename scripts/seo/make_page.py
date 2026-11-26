@@ -39,7 +39,7 @@ def build(slug, title, desc, eyebrow, h1, lead, blocks, faqs):
         {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faqs]}]}
     faq_html = "".join(f"<details><summary>{html.escape(q)}</summary><p>{html.escape(a)}</p></details>" for q, a in faqs)
     main = ('<main id="main"><section class="hero refresh-home design-section"><div class="wrap hero-grid"><div>'
-            f'<p class="eyebrow">{eyebrow}</p><h1>{h1}</h1><p class="lead">{lead}</p>'
+            f'<h1>{h1}</h1><p class="lead">{lead}</p>'
             '<div class="cta-row"><a class="btn lime" href="/concierge-start">Request setup</a><a class="refresh-text-link" href="/pricing">See plans and pricing →</a></div>'
             '<p class="fine">Channels are configured and tested before activation. We do not promise leads, sales or rankings.</p></div></div></section>'
             + sections(blocks) + PRICE
