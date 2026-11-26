@@ -100,8 +100,8 @@ def test_the_closing_call_to_action_is_not_white_on_white():
     `.cta-band .btn{color:#6540aa}` at the same specificity, so the label on every closing CTA
     disappeared into its own white pill. The repair has to come after the rule that beat it."""
     css = (SITE / "refresh.css").read_text(encoding="utf-8")
-    white_text = css.index(".btn:not(.ghost){color:#fff}")
-    repair = css.index(".cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:#fff;color:#5b2fa8")
+    white_text = css.index(".btn:not(.ghost){color:var(--on-accent)}")
+    repair = css.index(".cta-band .btn,.cta-band .btn.lime,.cta-card .btn{background:var(--card);color:var(--accent)")
     assert repair > white_text, "the button colour repair is declared before the rule it must beat"
-    assert ".cta-band .eyebrow,.cta-card .eyebrow,.pricing.featured .eyebrow{color:#efe6ff}" in css, \
+    assert ".cta-band .eyebrow,.cta-card .eyebrow,.pricing.featured .eyebrow{color:var(--on-accent)}" in css, \
         "the eyebrow is purple on purple above every closing CTA again"

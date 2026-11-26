@@ -319,7 +319,7 @@ section {
   color:var(--on-accent);
   --muted:var(--on-navy-muted);
   --line:var(--navy-line);
-  --ink:#fff
+  --ink:var(--on-accent)
 }
 .hero-grid {
   display:grid;
@@ -424,13 +424,13 @@ section {
 }
 .offer-group {
   display:grid;
-  grid-template-columns:1fr 3fr;
+  grid-template-columns:minmax(0,1fr) minmax(0,3fr);
   gap:24px;
   margin-top:32px
 }
 .offer-group dl {
   display:grid;
-  grid-template-columns:1fr 1fr;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:24px;
   margin:0
 }
@@ -760,7 +760,7 @@ footer :focus-visible {
 }
 .tool-input-row {
   display:grid;
-  grid-template-columns:1fr auto;
+  grid-template-columns:minmax(0,1fr) auto;
   gap:0;
   align-items:end
 }
@@ -873,7 +873,7 @@ nav.main .nav-start {
   order:-1
 }
 .concepts {
-  grid-template-columns:1fr
+  grid-template-columns:minmax(0,1fr)
 }
 .concepts>div+div {
   border-left:0;
@@ -883,7 +883,7 @@ nav.main .nav-start {
   max-width:42rem
 }
 .offer-group {
-  grid-template-columns:1fr
+  grid-template-columns:minmax(0,1fr)
 }
 
 }
@@ -896,7 +896,7 @@ nav.main .nav-start {
   max-width:calc(var(--wrap-prose) + 36px)
 }
 .grid,.two-col,.pricing-grid,.steps,.tools-row,.offer-group dl {
-  grid-template-columns:1fr
+  grid-template-columns:minmax(0,1fr)
 }
 .pricing {
   padding:24px
@@ -1150,7 +1150,7 @@ footer.site>.wrap {
 
 @media (max-width: 720px)  {
   .snap-buckets  {
-   grid-template-columns: 1fr;
+   grid-template-columns: minmax(0,1fr);
    
 }
 
@@ -1559,7 +1559,7 @@ nav.main a.btn[aria-current] { background:var(--navy); color:var(--on-accent); }
 .setup-form>input,.setup-form>select,.setup-form>textarea{display:block;width:100%;max-width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:12px;margin:0 0 22px}
 .setup-form fieldset{padding:0;border:0;margin:0 0 24px}.setup-form fieldset label{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer}.setup-form input[type=checkbox]{width:20px;height:20px;accent-color:var(--navy);flex-shrink:0}
 .setup-form input:focus-visible,.setup-form textarea:focus-visible,.setup-form select:focus-visible,.setup-review:focus-visible{outline:3px solid var(--navy);outline-offset:3px}.setup-review pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.65}.setup-review[hidden]{display:none}
-@media(max-width:799px){.setup-layout{grid-template-columns:1fr}}
+@media(max-width:799px){.setup-layout{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-color-scheme:dark){.setup-form input:focus-visible,.setup-form textarea:focus-visible,.setup-form select:focus-visible,.setup-review:focus-visible{outline-color:var(--lime)}}
 
 /* Keep the expanded service navigation clear at tablet widths. */

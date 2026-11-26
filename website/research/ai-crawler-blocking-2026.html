@@ -174,17 +174,17 @@
 <div class="wrap wide">
 <a aria-label="Trendi home" class="brand" href="/"><img alt="Trendi" height="40" src="/brand/logo-refresh.svg?v=20261124" width="150"/></a>
 <button aria-controls="main-nav" aria-expanded="false" class="menu-btn" id="menu-btn">Menu</button>
-<nav aria-label="Main" class="main" id="main-nav"><a class="nav-primary" href="/concierge">Concierge</a><a href="/pricing">Pricing</a><a href="/seo">SEO &amp; AI Visibility</a><a href="/penetration-testing">Pen Testing</a><a href="/tools/site-check">Tools</a><a href="/about">About</a><a href="https://concierge.trendibizz.com/studio/">Sign in ↗</a><a class="btn nav-start" data-concierge-open="" href="/contact">Let’s talk ↗</a></nav>
+<nav aria-label="Main" class="main" id="main-nav"><a class="nav-primary" href="/concierge">Concierge</a><a href="/pricing">Pricing</a><a href="/seo">SEO &amp; AI Visibility</a><a href="/penetration-testing">Pen Testing</a><a href="/tools/site-check">Tools</a><a href="/about">About</a><a href="https://concierge.trendibizz.com/studio/">Sign in</a><a class="btn nav-start" data-concierge-open="" href="/contact">Let’s talk</a></nav>
 </div>
 </header>
-<main class="legal article" id="main"><section class="page-intro design-section"><div class="wrap"><p class="eyebrow">THE SMALL BUSINESS FIELD GUIDE</p><h1>Do B2B software companies block AI crawlers? robots.txt and llms.txt on 100 well-known sites (2026)</h1></div></section>
+<main class="legal article" id="main"><section class="page-intro design-section"><div class="wrap"><h1>Do B2B software companies block AI crawlers? robots.txt and llms.txt on 100 well-known sites (2026)</h1></div></section>
 <div class="wrap reading-layout"><div class="reading-content">
-<div class="answer"><p>On 2 Nov 2026 we read the robots.txt and llms.txt files of 100 well-known B2B software sites in the US, UK, Australia and New Zealand. Of the 94 sites whose robots.txt we could read, 2 blocked any of 12 major AI crawlers at the site root, and neither blocked a search or user-fetch crawler. A re-fetch on 4 Nov 2026 confirmed this. 35 of 100 publish an llms.txt. The sample is small and list-based, and robots.txt is a request, not enforcement.</p></div><p class="byline">By Trendi · Published <time datetime="2026-11-02">2 November 2026</time> · Data fetched 2 November 2026, re-fetched 4 November 2026 (New Zealand time) · <strong>living page:</strong> refreshed monthly, next refresh December 2026</p>
+<div class="answer"><p>On 2 Nov 2026 we read the robots.txt and llms.txt files of 100 well-known B2B software sites in the US, UK, Australia and New Zealand. Of the 94 sites whose robots.txt we could read, 2 blocked any of 12 major AI crawlers at the site root, and neither blocked a search or user-fetch crawler. A re-fetch on 4 Nov 2026 confirmed this. 35 of 100 publish an llms.txt. The sample is small and list-based, and robots.txt is a request, not enforcement.</p></div><p class="byline">By Trendi, Published <time datetime="2026-11-02">2 November 2026</time>, Data fetched 2 November 2026, re-fetched 4 November 2026 (New Zealand time), <strong>living page:</strong> refreshed monthly, next refresh December 2026</p>
 <section class="reading-chapter"><h2 id="key-findings">Key findings</h2>
 <p>All figures are from a snapshot on 2 Nov 2026, re-fetched on 4 Nov 2026 (New Zealand time, UTC+13); figures shown are from the 4 Nov re-fetch. Intervals are Wilson 95%. "Readable" means robots.txt answered: a real file, or a 404, empty or HTML response, which crawlers treat as "no rules". Readable n = 94 (US 23, UK 25, AU 23, NZ 23). The other 6 sites refused or challenged our request and are reported separately, never as allowed.</p>
 <ol>
 <li>
-<p><strong>Only 2 of 94 readable sites (2.1%, CI 0.6–7.4%) block any of the 12 major AI crawlers at the site root, on 2 Nov 2026.</strong></p>
+<p><strong>Only 2 of 94 readable sites (2.1%, CI 0.6 to 7.4%) block any of the 12 major AI crawlers at the site root, on 2 Nov 2026.</strong></p>
 <ul>
 <li>notion.com blocks Meta-ExternalAgent and Amazonbot.</li>
 <li>swipedon.com blocks CCBot and Bytespider.</li>
@@ -192,7 +192,7 @@
 </ul>
 </li>
 <li>
-<p><strong>0 of 94 readable sites (0%, CI 0–3.9%) block GPTBot, ClaudeBot, Google-Extended, OAI-SearchBot, PerplexityBot, ChatGPT-User or Perplexity-User at the root, on 2 Nov 2026.</strong></p>
+<p><strong>0 of 94 readable sites (0%, CI 0 to 3.9%) block GPTBot, ClaudeBot, Google-Extended, OAI-SearchBot, PerplexityBot, ChatGPT-User or Perplexity-User at the root, on 2 Nov 2026.</strong></p>
 <ul>
 <li>The two blocks in finding 1 target training or data crawlers only: Meta-ExternalAgent, Amazonbot, CCBot and Bytespider.</li>
 <li>0 of 94 block any search or user-fetch crawler (OAI-SearchBot, PerplexityBot, ChatGPT-User, Perplexity-User, Claude-SearchBot, Claude-User).</li>
@@ -202,7 +202,7 @@
 <p><strong>Most sites never name an AI crawler: 83 of 94 (88.3%) give AI crawlers the same rules as every other bot, on 2 Nov 2026.</strong></p>
 <ul>
 <li>GPTBot's verdict came from the <code>*</code> group on 68 sites and from no group on 9. The other 6 have no robots.txt.</li>
-<li>11 of 94 (11.7%, CI 6.7–19.8%) name at least one of the 12 crawlers. Of those 11:<ul>
+<li>11 of 94 (11.7%, CI 6.7 to 19.8%) name at least one of the 12 crawlers. Of those 11:<ul>
 <li>8 name GPTBot with an explicit <code>Allow: /</code> (deel, getsona, lawvu, modoenergy, navan, nextdc, swipedon, tanium).</li>
 <li>2 list AI crawlers in a Squarespace group that only carries the standard path rules (adarga.ai, netlinkz.com).</li>
 <li>1 names crawlers in order to block them (notion.com).</li>
@@ -211,7 +211,7 @@
 </ul>
 </li>
 <li>
-<p><strong>35 of 100 sites (35%, CI 26.4–44.7%) publish a real llms.txt, on 4 Nov 2026.</strong></p>
+<p><strong>35 of 100 sites (35%, CI 26.4 to 44.7%) publish a real llms.txt, on 4 Nov 2026.</strong></p>
 <ul>
 <li>By market: US 13/25, UK 11/25, NZ 7/25, AU 4/25.</li>
 <li>"Real" means HTTP 200, not HTML, at least 50 characters, and containing a markdown heading or URL. We read all of them by hand.</li>
@@ -219,7 +219,7 @@
 </ul>
 </li>
 <li>
-<p><strong>0 of 94 readable sites (CI 0–3.9%) block Googlebot at the root, on 2 Nov 2026.</strong></p>
+<p><strong>0 of 94 readable sites (CI 0 to 3.9%) block Googlebot at the root, on 2 Nov 2026.</strong></p>
 <ul>
 <li>2 of 94 give Googlebot its own named group (perplexity.ai, rpmglobal.com).</li>
 <li>Among these sites, blocking AI crawlers while admitting Google is not a pattern. Mostly they treat every bot the same.</li>
@@ -236,7 +236,7 @@
 </ul>
 </li>
 <li>
-<p><strong>4 of 94 readable robots.txt files (4.3%, CI 1.7–10.4%) carry a Cloudflare-style Content-Signal line, on 2 Nov 2026</strong> (deel.com, rippling.com, tanium.com, ascendx.cloud).</p>
+<p><strong>4 of 94 readable robots.txt files (4.3%, CI 1.7 to 10.4%) carry a Cloudflare-style Content-Signal line, on 2 Nov 2026</strong> (deel.com, rippling.com, tanium.com, ascendx.cloud).</p>
 <ul>
 <li>Content-Signal states usage preferences such as search, ai-input and ai-train, separately from access.</li>
 <li>It is a newer convention and not part of the robots.txt standard (RFC 9309).</li>
@@ -269,7 +269,7 @@
 </ul>
 <p><strong>Caveats</strong></p>
 <ul>
-<li>n is small (94 readable sites; 23–25 per market) and the intervals are wide.</li>
+<li>n is small (94 readable sites; 23 to 25 per market) and the intervals are wide.</li>
 <li>Selection is list-based, not random. The sites are well known and mostly larger firms, so they do not represent all businesses.</li>
 <li>The data comes from two fetches of the same 100 sites, on 2 and 4 Nov 2026, and sites change their robots.txt often.</li>
 <li>robots.txt is a request, not enforcement. WAF or CDN blocking is invisible to this method, apart from the 6 sites that refused our own labelled request.</li>
@@ -284,7 +284,7 @@
 <p>This page keeps one fixed address. When the numbers are refreshed, the date changes here and the CSV is replaced in place, so a link to this page never goes stale and a number quoted from it can be checked against the version it came from.</p>
 <div class="table-scroll"><table class="compare"><caption>Refreshes of this dataset</caption><thead><tr><th scope="col">Refreshed</th><th scope="col">What changed</th><th scope="col">CSV</th></tr></thead><tbody><tr><td>2 November 2026</td><td>First collection: 100 sites across 4 markets, 15 crawler rules each (the 12 headline AI crawlers, Claude-SearchBot, Claude-User and Googlebot)</td><td>v1</td></tr><tr><td>4 November 2026</td><td>48-hour re-fetch of all 100 sites (two passes); 2 verdicts changed</td><td>v2</td></tr><tr><td>15 November 2026</td><td>Added this refresh log and the living-page schedule; no figures changed</td><td>v2 (unchanged)</td></tr><tr><td>Next scheduled</td><td>December 2026 re-fetch of the full set, plus 20 New Zealand businesses</td><td>v3</td></tr></tbody></table></div>
 <p>If you cite a figure, cite it with the refresh date. We will not silently rewrite a number you have already quoted; a correction is recorded as a new row above.</p>
-<p class="fine" data-updated="2026-11-20">Maintained by the Trendi team · Last updated 20 November 2026</p></section>
+<p class="fine" data-updated="2026-11-20">Maintained by the Trendi team, Last updated 20 November 2026</p></section>
 <section class="reading-chapter"><h2 id="how-to-cite">How to cite</h2>
 <blockquote class="cite">
 <p>Trendi (2026). <em>Do B2B software companies block AI crawlers? robots.txt and llms.txt on 100 well-known sites (2026).</em> Trendibizz, 2 November 2026. https://trendibizz.com/research/ai-crawler-blocking-2026</p>
@@ -297,9 +297,9 @@ No. It shows what each site's robots.txt states at the root. Many sites also use
 6 sites answered our request with a 403, a 429 or a bot challenge, so we could not read their robots.txt. We report them separately and never count them as allowing or blocking.</p>
 <p><strong>Does publishing an llms.txt affect AI mentions, traffic or rankings?</strong>
 This study does not test that, and we make no claim about it. 35 of 100 sites publish an llms.txt, and having one is a signal of intent, not evidence of any effect.</p>
-</section></div><aside aria-label="On this page" class="reading-rail"><p class="eyebrow">ON THIS PAGE</p><a href="#key-findings">Key findings</a><a href="#what-this-means">What this means</a><a href="#context">Context</a><a href="#method-in-brief">Method in brief</a><a href="#download-data">Download data</a><a href="#how-to-cite">How to cite</a><a href="#faq">FAQ</a><a class="btn" data-concierge-open="" href="/contact">Let’s talk ↗</a></aside></div>
+</section></div><aside aria-label="On this page" class="reading-rail"><a href="#key-findings">Key findings</a><a href="#what-this-means">What this means</a><a href="#context">Context</a><a href="#method-in-brief">Method in brief</a><a href="#download-data">Download data</a><a href="#how-to-cite">How to cite</a><a href="#faq">FAQ</a><a class="btn" data-concierge-open="" href="/contact">Let’s talk</a></aside></div>
 </main>
-<footer class="site"><div class="wrap"><div><img alt="Trendi" class="footer-logo" height="32" src="/brand/logo-refresh.svg?v=20261124" width="125"/><p>SEO and AI visibility, done for you.</p><p class="fine">Trendi (trendibizz.com) is operated by TRENDI LIMITED, NZBN 9429051967215, New Zealand.</p><p class="fine">© <span data-year=""></span> Trendi</p><a href="mailto:admin@trendibizz.com">admin@trendibizz.com</a><p class="fine footer-social"><a href="https://www.linkedin.com/company/trendi-nz/" rel="me">LinkedIn</a> · <a href="https://www.facebook.com/people/Trendi/61558235720533/" rel="me">Facebook</a> · <a href="https://www.instagram.com/trendi456/" rel="me">Instagram</a> · <a href="https://www.youtube.com/@trendibizz" rel="me">YouTube</a> · <a href="https://www.tiktok.com/@trendibizz" rel="me">TikTok</a></p></div><nav aria-label="Explore" class="footer-nav"><a href="https://concierge.trendibizz.com/studio/">Customer sign-in</a><a href="/concierge">Concierge</a><a href="/seo">SEO services</a><a href="/pricing">SEO pricing</a><a href="/tools/site-check">Tools</a><a href="/tools/robots-ai-check">Robots checker</a><a href="/security-check">Security check</a><a href="/ai-visibility">Guides</a><a href="/about">Company</a><a href="/contact">Contact</a></nav><nav aria-label="Guides" class="footer-nav"><a href="/get-mentioned-chatgpt-perplexity">Get mentioned in ChatGPT</a><a href="/indexing-time">How long indexing takes</a><a href="/llms-txt">llms.txt explained</a><a href="/robots-txt-ai-search">Robots.txt for AI crawlers</a><a href="/generative-engine-optimization">GEO and AEO explained</a><a href="/ai-seo-services">AI SEO in New Zealand</a><a href="/trendi-vs-firstindex">Trendi vs FirstIndex</a></nav><nav aria-label="Legal" class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/penetration-testing">Penetration testing</a></nav></div></footer>
+<footer class="site"><div class="wrap"><div><img alt="Trendi" class="footer-logo" height="32" src="/brand/logo-refresh.svg?v=20261124" width="125"/><p>SEO and AI visibility, done for you.</p><p class="fine">Trendi (trendibizz.com) is operated by TRENDI LIMITED, NZBN 9429051967215, New Zealand.</p><p class="fine">© <span data-year=""></span> Trendi</p><a href="mailto:admin@trendibizz.com">admin@trendibizz.com</a><p class="fine footer-social"><a href="https://www.linkedin.com/company/trendi-nz/" rel="me">LinkedIn</a>, <a href="https://www.facebook.com/people/Trendi/61558235720533/" rel="me">Facebook</a>, <a href="https://www.instagram.com/trendi456/" rel="me">Instagram</a>, <a href="https://www.youtube.com/@trendibizz" rel="me">YouTube</a>, <a href="https://www.tiktok.com/@trendibizz" rel="me">TikTok</a></p></div><nav aria-label="Explore" class="footer-nav"><a href="https://concierge.trendibizz.com/studio/">Customer sign-in</a><a href="/concierge">Concierge</a><a href="/seo">SEO services</a><a href="/pricing">SEO pricing</a><a href="/tools/site-check">Tools</a><a href="/tools/robots-ai-check">Robots checker</a><a href="/security-check">Security check</a><a href="/ai-visibility">Guides</a><a href="/about">Company</a><a href="/contact">Contact</a></nav><nav aria-label="Guides" class="footer-nav"><a href="/get-mentioned-chatgpt-perplexity">Get mentioned in ChatGPT</a><a href="/indexing-time">How long indexing takes</a><a href="/llms-txt">llms.txt explained</a><a href="/robots-txt-ai-search">Robots.txt for AI crawlers</a><a href="/generative-engine-optimization">GEO and AEO explained</a><a href="/ai-seo-services">AI SEO in New Zealand</a><a href="/trendi-vs-firstindex">Trendi vs FirstIndex</a></nav><nav aria-label="Legal" class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/penetration-testing">Penetration testing</a></nav></div></footer>
 <script defer="" src="/products.js"></script>
 <script defer="" src="/main.js?v=671cf9c866"></script>
 <script data-key="pk_8y_wsHO4StqCzd0yc2QNEKp0" defer="" src="https://chat.trendibizz.com/widget.js"></script><script defer="" src="/concierge.js"></script>
