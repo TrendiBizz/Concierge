@@ -91,8 +91,8 @@ def test_the_changed_stylesheets_are_cache_busted():
     """A new rule behind an unchanged ?v= is a rule nobody sees for a week."""
     for page in footer_pages()[:5]:
         html = page.read_text(encoding="utf-8")
-        assert "refresh.css?v=20261127a" in html, f"{page.name} still asks for the old CSS"
-        assert "site-i18n.css?v=20261127a" in html, f"{page.name} still asks for the old CSS"
+        assert "refresh.css?v=20261127b" in html, f"{page.name} still asks for the old CSS"
+        assert "site-i18n.css?v=20261127b" in html, f"{page.name} still asks for the old CSS"
 
 
 def test_the_closing_call_to_action_is_not_white_on_white():

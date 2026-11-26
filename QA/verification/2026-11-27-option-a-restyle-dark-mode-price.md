@@ -19,3 +19,11 @@
 ## Open
 - Deploy not authorised. After deploy, recapture the chat screenshot from the live widget and restore the figure; bump `?v=` on CSS refs and purge Cloudflare.
 - Not yet screenshot-checked in dark: the other ~50 pages.
+
+## All-pages visual check (same day)
+Screenshotted all 54 pages, light + dark + narrow, via headless Chrome. Defects found and fixed:
+- Footer links and text near-invisible in light mode (footer inherited the on-navy muted token on a light wash). Fix: `footer.site{--muted:var(--ink-2)}` in refresh.css.
+- Footer Instagram icon black on dark tile in dark mode. Fix: light tile background via `--ink` token in dark media query.
+- concierge-start, concierge-welcome, seo: hero headline, lead and card text white on light wash in light mode (`.hero--navy` forced `--ink` to white). Fix: removed `.hero--navy` from the navy-token rule in styles.css.
+Proof: re-screenshots of 404, concierge-start, seo in both modes; hallmark-lint 0 FAIL; site_seo check OK; seo-gate PASS; pytest 1928 passed. CSS ?v= bumped to 20261127b.
+Not defects: occasional missing logo in a screenshot was a headless load race (3/3 reloads fine).

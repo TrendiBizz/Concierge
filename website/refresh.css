@@ -34,3 +34,6 @@ body{background:var(--bg);color:var(--ink)}a{color:var(--accent)}h1,h2,h3{letter
 /* Dark mode: the header and footer logo has a dark-ink wordmark; swap to the supplied white variant (brand/BRAND.md). */
 @media(prefers-color-scheme:dark){header.site .brand img,.footer-logo{content:url(/brand/logo-horizontal-dark.svg)}}
 .pricing.featured .ticks .ui-icon,.cta-band .ticks .ui-icon{color:var(--on-accent)}
+
+footer.site{--muted:var(--ink-2)}
+@media(prefers-color-scheme:dark){.footer-social a{background:var(--ink);box-shadow:none}.footer-social a:hover{box-shadow:0 8px 18px color-mix(in srgb,var(--paper) 60%,transparent)}}

@@ -314,7 +314,7 @@ section {
 .answer p:last-child {
   margin-bottom:0
 }
-.hero--navy,.cta-band,.pricing.featured,.cta-card {
+.cta-band,.pricing.featured,.cta-card {
   background:var(--navy);
   color:var(--on-accent);
   --muted:var(--on-navy-muted);
