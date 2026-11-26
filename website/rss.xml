@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Trendi news and resources</title>
+    <link>https://trendibizz.com/news</link>
+    <description>News, research, guides and tools from Trendi on Concierge, SEO and AI visibility, and penetration testing. This feed lists public pages; it is not a ranking or mention mechanism.</description>
+    <language>en</language>
+    <atom:link href="https://trendibizz.com/rss.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>Fri, 27 Nov 2026 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Penetration testing checklist: scope, test areas and report</title>
+      <link>https://trendibizz.com/penetration-testing-checklist</link>
+      <guid isPermaLink="true">https://trendibizz.com/penetration-testing-checklist</guid>
+      <pubDate>Wed, 25 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Penetration testing checklist for websites and apps: scope and authorisation, test areas based on OWASP WSTG, and what a good report contains.</description>
+    </item>
+    <item>
+      <title>Concierge Onboarding &amp; Complete System Walkthrough</title>
+      <link>https://trendibizz.com/guide</link>
+      <guid isPermaLink="true">https://trendibizz.com/guide</guid>
+      <pubDate>Tue, 24 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Step-by-step Trendi Concierge walkthrough: business knowledge, owner alerts, website chat, bookings, phone, CRM, integrations and go-live.</description>
+    </item>
+    <item>
+      <title>How does an AI receptionist work? An AI office guide</title>
+      <link>https://trendibizz.com/how-does-an-ai-office-work</link>
+      <guid isPermaLink="true">https://trendibizz.com/how-does-an-ai-office-work</guid>
+      <pubDate>Tue, 17 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>An AI receptionist (AI office) answers calls and chats from your own business information, takes details, books times and passes hard questions to a person.</description>
+    </item>
+    <item>
+      <title>Missed call cost calculator</title>
+      <link>https://trendibizz.com/tools/missed-call-cost-calculator</link>
+      <guid isPermaLink="true">https://trendibizz.com/tools/missed-call-cost-calculator</guid>
+      <pubDate>Sun, 15 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Tools</category>
+      <description>Work out what missed calls cost your business a month and a year, using your own call count, average job value and close rate. No sign-up.</description>
+    </item>
+    <item>
+      <title>Why isn't my business showing up on Google?</title>
+      <link>https://trendibizz.com/why-business-not-showing-on-google</link>
+      <guid isPermaLink="true">https://trendibizz.com/why-business-not-showing-on-google</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Why isn't your business showing up on Google? Work through five checks in order: indexing, blocking, weak pages, the search you tried, and Maps vs search.</description>
+    </item>
+    <item>
+      <title>PHP2Shell and Binance hack: 6 steps for websites</title>
+      <link>https://trendibizz.com/news/php2shell-binance-security-2026</link>
+      <guid isPermaLink="true">https://trendibizz.com/news/php2shell-binance-security-2026</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>News</category>
+      <description>PHP2Shell flaws and the Binance theft show two risks: unpatched servers and possibly compromised staff devices. Six steps every business site should take now.</description>
+    </item>
+    <item>
+      <title>Googlebot robots.txt and AI crawlers: 2026 guide</title>
+      <link>https://trendibizz.com/robots-txt-ai-search</link>
+      <guid isPermaLink="true">https://trendibizz.com/robots-txt-ai-search</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Set up robots.txt for Google and AI search: which bots to allow or block, what blocking training vs search bots costs, a clean example and three parser traps.</description>
+    </item>
+    <item>
+      <title>Do B2B software sites block AI crawlers? (2026)</title>
+      <link>https://trendibizz.com/research/ai-crawler-blocking-2026</link>
+      <guid isPermaLink="true">https://trendibizz.com/research/ai-crawler-blocking-2026</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Research</category>
+      <description>We read robots.txt on 100 well-known B2B software sites (US, UK, Australia, NZ) on 2 Nov 2026: 2 of 94 readable sites blocked any of 12 major AI crawlers.</description>
+    </item>
+    <item>
+      <title>Answer engine vs generative engine optimization</title>
+      <link>https://trendibizz.com/generative-engine-optimization</link>
+      <guid isPermaLink="true">https://trendibizz.com/generative-engine-optimization</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Answer engine optimization vs generative engine optimization (AEO vs GEO) explained, and how both differ from classic SEO. See what the evidence says.</description>
+    </item>
+    <item>
+      <title>AI search glossary: GEO, AEO, llms.txt and more</title>
+      <link>https://trendibizz.com/glossary</link>
+      <guid isPermaLink="true">https://trendibizz.com/glossary</guid>
+      <pubDate>Mon, 02 Nov 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>Plain-English glossary of AI search terms: GEO, AEO, llms.txt, AI crawlers, AI Overviews, AI Mode, LLM citations, zero-click search, crawl budget and IndexNow.</description>
+    </item>
+    <item>
+      <title>How to get mentioned in ChatGPT or Perplexity</title>
+      <link>https://trendibizz.com/get-mentioned-chatgpt-perplexity</link>
+      <guid isPermaLink="true">https://trendibizz.com/get-mentioned-chatgpt-perplexity</guid>
+      <pubDate>Mon, 26 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>A practical guide to getting mentioned in ChatGPT and Perplexity: crawl access, useful answers, corroboration, and how to track mentions and links separately.</description>
+    </item>
+    <item>
+      <title>llms.txt vs robots.txt: is llms.txt worth it?</title>
+      <link>https://trendibizz.com/llms-txt</link>
+      <guid isPermaLink="true">https://trendibizz.com/llms-txt</guid>
+      <pubDate>Sun, 25 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>llms.txt vs robots.txt: robots.txt controls crawler access; llms.txt is an optional site summary. Google Search ignores llms.txt, so fix crawling first.</description>
+    </item>
+    <item>
+      <title>SEO audit tool: site snapshot for crawl readiness</title>
+      <link>https://trendibizz.com/tools/site-check</link>
+      <guid isPermaLink="true">https://trendibizz.com/tools/site-check</guid>
+      <pubDate>Sun, 25 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Tools</category>
+      <description>Run an instant SEO site snapshot to check crawl readiness and homepage signals: robots, sitemap and page basics. Rankings and mentions are not checked.</description>
+    </item>
+    <item>
+      <title>Robots.txt checker for Googlebot and AI crawlers</title>
+      <link>https://trendibizz.com/tools/robots-ai-check</link>
+      <guid isPermaLink="true">https://trendibizz.com/tools/robots-ai-check</guid>
+      <pubDate>Sun, 25 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Tools</category>
+      <description>Check robots.txt rules for AI crawlers like GPTBot, OAI-SearchBot and PerplexityBot. See access signals; results do not prove indexing or mentions.</description>
+    </item>
+    <item>
+      <title>How long does Google take to index a new website?</title>
+      <link>https://trendibizz.com/indexing-time</link>
+      <guid isPermaLink="true">https://trendibizz.com/indexing-time</guid>
+      <pubDate>Sun, 25 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>How long Google takes to index a new website varies. See how discovery, crawling and indexing differ, and check your sitemaps, links and common blockers.</description>
+    </item>
+    <item>
+      <title>AI visibility audit: Indexed, Found, Mentioned</title>
+      <link>https://trendibizz.com/ai-visibility</link>
+      <guid isPermaLink="true">https://trendibizz.com/ai-visibility</guid>
+      <pubDate>Sun, 25 Oct 2026 00:00:00 +0000</pubDate>
+      <category>Guides</category>
+      <description>An AI visibility audit checks whether your pages get indexed, found in search and named or linked by AI tools. Mentions and links reported separately.</description>
+    </item>
+  </channel>
+</rss>

@@ -10,6 +10,8 @@ Concierge is USD $199 per month, with a three-month minimum, then month to month
 
 ## Public pages
 
+- [News and resources](https://trendibizz.com/news): news, research, guides and tools, with an RSS feed.
+- [RSS feed](https://trendibizz.com/rss.xml): the same list as the news and resources page, as RSS 2.0.
 - [Missed call cost calculator](https://trendibizz.com/tools/missed-call-cost-calculator): work out what unanswered calls cost, from your own numbers.
 - [AI crawler blocking 2026: data for 100 sites](https://trendibizz.com/research/ai-crawler-blocking-2026): robots.txt and llms.txt practice across 100 well-known B2B software sites, with the CSV.
 - [AI search glossary](https://trendibizz.com/glossary): plain-English definitions of GEO, AEO, llms.txt and AI crawlers.
