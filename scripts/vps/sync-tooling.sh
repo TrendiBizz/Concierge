@@ -47,6 +47,10 @@ rsync -a --exclude '._*' --exclude '__pycache__' --exclude '*.pyc' \
 EXTRA=(services/email-auth/Containerfile concierge-stack/core-rs/Containerfile.shell
        scripts/asterisk/Containerfile scripts/asterisk/compose.yml scripts/asterisk/compose.public.yml
        scripts/asterisk/cutover_to_rust_shell.sh)
+# The voice/chat agent source (concierge-stack/agent) lives in the same release tree; its prompt carries
+# the public price, so a stale box copy means the agent quotes a stale price (2026-11-27: box copy was
+# from 2026-11-08). Tracked files only, so no caches or junk travel.
+while IFS= read -r f; do EXTRA+=("$f"); done < <(git -C "$REPO_ROOT" ls-files concierge-stack/agent)
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- "${EXTRA[@]}")" ]; then
   echo "REFUSING: uncommitted changes in container build files" >&2; exit 1
 fi
