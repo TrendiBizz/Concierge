@@ -176,3 +176,36 @@ def test_a_schema_error_list_is_never_shown_as_text():
     main_js = (SITE / "main.js").read_text(encoding="utf-8")
     assert 'typeof res.data.detail === "string"' in main_js
     assert "(res.data && res.data.detail) ||" not in main_js + start
+
+
+# --- Owner-alert emails must never show internal bookkeeping (dedupe keys, row ids) -------------
+# 2026-11-26: the explainer video once showed a "Dedupe key" line; this pins the real email.
+_INTERNAL = ("dedupe", "site-enquiry:", "enq:", "issue:", "outbox")
+_ALLOWED_PREFIXES = ("A website enquiry came in", "Name:", "Email:", "Website:", "Plan:", "Wants:",
+                     "Referral code:", "Reply to ", "best plumber", "(no message)")
+
+
+def test_the_operator_email_shows_no_internal_ids_or_stray_lines(fake):
+    result = run(site_enquiry.submit(**good()))
+    (args, kwargs), = fake.sent
+    body, subject = args[4], kwargs["subject"]
+    assert kwargs["dedupe_key"].startswith("site-enquiry:")
+    for text in (body, subject):
+        low = text.lower()
+        assert not any(w in low for w in _INTERNAL), text
+        assert kwargs["dedupe_key"] not in text
+        assert str(result["id"]) not in text.replace("203.0.113.9", ""), "no row id in the email"
+    stray = [ln for ln in body.splitlines() if ln.strip() and not ln.startswith(_ALLOWED_PREFIXES)]
+    assert stray == [], f"unexpected lines in the operator email: {stray}"
+
+
+def test_the_enquiry_alert_to_an_owner_shows_no_dedupe_key():
+    from app import enquiry_alerts
+    tenant = {"id": "t-1", "name": "Acme Plumbing", "timezone": "Pacific/Auckland"}
+    contact = {"name": "Vee", "email": "v@example.com", "phone": "+6421000000"}
+    for channel in ("email", "sms", "voice", "chat", "whatsapp"):
+        body = enquiry_alerts.render(tenant, channel, contact, "need a plumber")
+        subject = enquiry_alerts.subject_for(tenant, channel, "Vee", "need a plumber")
+        for text in (body, subject):
+            assert not any(w in text.lower() for w in _INTERNAL), (channel, text)
+            assert "t-1:" not in text, (channel, text)

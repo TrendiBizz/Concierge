@@ -102,7 +102,7 @@ async def _tell_the_operator(enquiry_id, kind, email, name, website, message, pl
         if referral:
             lines.append(f"Referral code: {_REF.sub('', referral)[:32].upper()}")
         lines += ["", _clean(message, 4000, multiline=True) or "(no message)", "",
-                  f"Reply to {email}. Enquiry {enquiry_id}; also visible in Studio CRM."]
+                  f"Reply to {email}; also visible in Studio CRM."]
         body_text = "\n".join(lines)
         lead_id = None
         if hasattr(db.pool(), "acquire"):
