@@ -4,7 +4,7 @@ Do not submit anything without Jo's approval: a listing publishes the business d
 
 - **Name:** Trendi Concierge (by TRENDI LIMITED, New Zealand)
 - **URL:** https://trendibizz.com/concierge
-- **One line (<=100):** AI receptionist for small business: answers calls, chat, email and SMS, captures every enquiry.
+- **One line (<=100):** AI receptionist for any business: answers calls, chat, email and SMS, captures every enquiry.
 - **Short (<=250):** Concierge answers your business calls, website chat, email and SMS, records each enquiry in a built-in CRM, and books where your calendar allows. Set up and tested for you. USD $199 a month, 3-month minimum.
 - **Category:** AI receptionist / AI answering service / virtual receptionist / customer enquiry management
 - **Pricing:** USD $199/month, 3-month minimum; provider call and SMS charges separate.

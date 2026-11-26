@@ -5,7 +5,7 @@ from email.message import EmailMessage
 from pathlib import Path
 BODY = """Hi,
 
-I read your AI receptionist ratings. One addition for your readers: Trendi Concierge answers a small business's calls, web chat, email and SMS, logs each enquiry in a built-in CRM, and books where the calendar allows. It is set up and tested for the customer; USD $199/month, 3-month minimum (call/SMS carrier charges separate). NZ-based, serves worldwide.
+I read your AI receptionist ratings. One addition for your readers: Trendi Concierge answers a business's calls, web chat, email and SMS, logs each enquiry in a built-in CRM, and books where the calendar allows. It is set up and tested for the customer; USD $199/month, 3-month minimum (call/SMS carrier charges separate). NZ-based, serves worldwide.
 
 Details: https://trendibizz.com/concierge
 Happy to give screenshots, a demo number or any fact you want to verify.

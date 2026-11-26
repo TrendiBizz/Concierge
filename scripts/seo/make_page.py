@@ -33,7 +33,7 @@ def build(slug, title, desc, eyebrow, h1, lead, blocks, faqs):
             {"@type": "ListItem", "position": 2, "name": title, "item": url}]},
         {"@type": "WebPage", "@id": url + "#webpage", "url": url, "name": title,
          "isPartOf": {"@id": BASE + "/#website"}, "dateModified": DATE},
-        {"@type": "Service", "name": "Concierge AI office", "serviceType": "AI office for small business",
+        {"@type": "Service", "name": "Concierge AI office", "serviceType": "AI office for any business",
          "provider": {"@id": BASE + "/#organization"}, "areaServed": [{"@type": "Country", "name": "New Zealand"}, "Worldwide"],
          "url": url, "offers": {"@type": "Offer", "price": "199", "priceCurrency": "USD"}},
         {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faqs]}]}
@@ -59,9 +59,9 @@ def build(slug, title, desc, eyebrow, h1, lead, blocks, faqs):
     print("wrote", slug)
 
 build("ai-answering-service",
-  "AI answering service for small business | Trendi",
+  "AI answering service for any business | Trendi",
   "An AI answering service that picks up calls, texts, email and website chat, captures the enquiry and books the job. USD $199 a month, set up and tested for you.",
-  "AI ANSWERING SERVICE", "AI answering service for small business",
+  "AI ANSWERING SERVICE", "AI answering service for any business",
   "Concierge is an AI answering service for the calls you cannot take: it answers in your business name, captures who called and why, books where your calendar allows, and hands the enquiry to your team.",
   [("What an AI answering service does",
     "<p>A traditional answering service is a call centre that takes a message. An AI answering service answers the call itself, asks the questions you set, answers routine questions from your own information, and records the enquiry in a CRM with a transcript.</p>"
@@ -78,9 +78,9 @@ build("ai-answering-service",
    ("Does it guarantee more customers?", "No. It reduces missed enquiries and records them properly. We do not promise leads, sales or rankings.")])
 
 build("ai-phone-answering",
-  "AI phone answering for small business | Trendi",
+  "AI phone answering for any business | Trendi",
   "AI phone answering that picks up business calls, answers common questions, takes details and books, with a transcript of every call. USD $199 a month.",
-  "AI PHONE ANSWERING", "AI phone answering for small business",
+  "AI PHONE ANSWERING", "AI phone answering for any business",
   "Concierge answers your business phone with an AI assistant: it greets callers in your business name, answers from your own information, takes details and books, and leaves you a transcript.",
   [("How the phone is answered",
     "<p>You get a dedicated business phone number. When a call arrives in the hours you set, the assistant answers, finds out what the caller needs, and either resolves it or records it for you.</p>"
@@ -96,17 +96,17 @@ build("ai-phone-answering",
    ("Does it work in New Zealand?", "Yes, Trendi is New Zealand based. Each channel is tested for your country before activation.")])
 
 build("gohighlevel-alternative",
-  "GoHighLevel alternative for small business: Concierge vs GoHighLevel | Trendi",
+  "GoHighLevel alternative for any business: Concierge vs GoHighLevel | Trendi",
   "Concierge vs GoHighLevel: an AI receptionist and CRM at USD $199 a month, against a marketing platform built for agencies. Where each fits.",
-  "COMPARISON", "A GoHighLevel alternative for small business",
+  "COMPARISON", "A GoHighLevel alternative for any business",
   "GoHighLevel is a broad marketing and CRM platform, built largely for agencies. Concierge is narrower: an AI receptionist and office assistant for one business. This page says where each fits.",
   [("The short version",
-    "<p>Choose GoHighLevel if you run an agency that wants funnels, courses, white-label and resale in one platform and has the time to configure it. Choose Concierge if you are a trade, clinic, agency-free small business that wants calls, chat, email and SMS answered, enquiries captured and bookings made, set up and tested for you.</p>"),
+    "<p>Choose GoHighLevel if you run an agency that wants funnels, courses, white-label and resale in one platform and has the time to configure it. Choose Concierge if you are a trade, clinic, agency-free business that wants calls, chat, email and SMS answered, enquiries captured and bookings made, set up and tested for you.</p>"),
    ("Price, as published",
     "<p>From GoHighLevel's own pricing page (checked 12 November 2026): Starter USD $97, Unlimited $297 and Founder $497 a month, with a 14-day trial. The subscription buys the platform; usage is metered separately through a wallet, for example premium workflow actions at $0.01 per execution, and its voice and conversation AI agents are billed on top of the plan. Check the current figures at <a href=\"https://www.gohighlevel.com/pricing\" rel=\"nofollow noopener\">gohighlevel.com/pricing</a>, as vendors change them.</p>"
     "<p>Concierge is one price, USD $199 a month with a 3-month minimum, including setup, testing, a business phone number, voice answering, SMS and email confirmations, voicemail, CRM and integrations. Provider charges for calls and SMS are separate.</p>"),
    ("What you do not get from Concierge",
-    "<p>No funnel builder, no courses or communities, no white-label or resale mode and no affiliate manager. If you need those, GoHighLevel is the better fit and we will say so. We keep Concierge small on purpose so that the part that matters to a small business, answering and following up every enquiry, is the part that is set up properly.</p>"),
+    "<p>No funnel builder, no courses or communities, no white-label or resale mode and no affiliate manager. If you need those, GoHighLevel is the better fit and we will say so. We keep Concierge small on purpose so that the part that matters to a business, answering and following up every enquiry, is the part that is set up properly.</p>"),
    ("Who sets it up",
     "<p>Concierge is configured and tested with you before activation: your services, hours, prices, questions, calendar and who is told when. You do not build workflows.</p>")],
   [("Is Concierge a GoHighLevel replacement?", "For the receptionist, enquiry capture, follow-up and booking part, yes. For funnels, courses, communities and agency resale, no."),
@@ -118,9 +118,9 @@ build("gohighlevel-alternative",
 NOTE = " Prices are in $ as the vendor states them, checked 25 November 2026; vendors change them."
 
 build("goodcall-alternative",
-  "Goodcall alternative for small business: Concierge vs Goodcall | Trendi",
+  "Goodcall alternative for any business: Concierge vs Goodcall | Trendi",
   "Concierge vs Goodcall: per-customer AI phone plans from $79 a month against one USD $199 a month office assistant. Where each fits.",
-  "COMPARISON", "A Goodcall alternative for small business",
+  "COMPARISON", "A Goodcall alternative for any business",
   "Goodcall is an AI phone agent priced by the number of unique customers who call. Concierge covers phone, chat, email and SMS for one price. This page says where each fits.",
   [("The short version",
     "<p>Choose Goodcall if you mainly want a phone agent, your call volume is low and predictable, and you want to start with a free demo agent. Choose Concierge if you want calls, website chat, email and SMS handled in one place, with the setup done and tested for you.</p>"),
@@ -137,9 +137,9 @@ build("goodcall-alternative",
    ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
 
 build("smith-ai-alternative",
-  "Smith.ai alternative for small business: Concierge vs Smith.ai | Trendi",
+  "Smith.ai alternative for any business: Concierge vs Smith.ai | Trendi",
   "Concierge vs Smith.ai: per-call AI and human receptionist plans against one USD $199 a month AI office assistant. Where each fits.",
-  "COMPARISON", "A Smith.ai alternative for small business",
+  "COMPARISON", "A Smith.ai alternative for any business",
   "Smith.ai sells AI and human receptionist plans billed per call. Concierge is an AI assistant for phone, chat, email and SMS at one monthly price. This page says where each fits.",
   [("The short version",
     "<p>Choose Smith.ai if you want real people answering your calls, or a way to move a call to a live receptionist. Choose Concierge if you want an AI assistant covering several channels for a flat monthly price, set up and tested for you.</p>"),
@@ -156,9 +156,9 @@ build("smith-ai-alternative",
    ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
 
 build("allo-alternative",
-  "Allo alternative for small business: Concierge vs Allo | Trendi",
+  "Allo alternative for any business: Concierge vs Allo | Trendi",
   "Concierge vs Allo: a per-seat business phone with an AI receptionist add-on against one USD $199 a month AI office assistant. Where each fits.",
-  "COMPARISON", "An Allo alternative for small business",
+  "COMPARISON", "An Allo alternative for any business",
   "Allo is a business phone system priced per seat, with an AI receptionist as an add-on. Concierge is an AI office assistant at one monthly price. This page says where each fits.",
   [("The short version",
     "<p>Choose Allo if you want a new business phone and SMS system for your team, with an AI receptionist on top. Choose Concierge if you want an AI assistant answering calls, chat, email and SMS for you, set up and tested, without changing your team's phones.</p>"),

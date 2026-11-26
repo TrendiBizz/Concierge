@@ -19,7 +19,7 @@ Could you consider listing Trendi Concierge on {site}?
 
 Name: Trendi Concierge (by TRENDI LIMITED, New Zealand)
 URL: https://trendibizz.com/concierge
-One line: AI receptionist for small business: answers calls, chat, email and SMS, captures every enquiry.
+One line: AI receptionist for any business: answers calls, chat, email and SMS, captures every enquiry.
 Description: Concierge answers your business calls, website chat, email and SMS, records each enquiry in a built-in CRM, and books where your calendar allows. Set up and tested for you.
 Pricing: USD $199 a month, 3-month minimum; provider call and SMS charges separate.
 Markets: New Zealand and worldwide.
