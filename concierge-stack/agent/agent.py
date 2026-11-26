@@ -67,9 +67,8 @@ KNOWLEDGE = f"""About {BUSINESS_NAME} (answer only from this; never guess):
    telephone, SMS and email, lead capture, appointment booking, reminders and follow-up, lead
    scoring and owner notifications. Each channel is set up and tested before it goes live for a
    customer. It is for businesses that have a real website. Concierge is set up around each customer's own
-   phone number, text and email details, and it includes a built-in CRM that captures enquiries from connected calls, emails, texts and website chat. Price: USD 250 a month with
-   a 3-month minimum, then it renews monthly, or USD 2,700 a year paid yearly, which is 10% off 12 months at
-   USD 250 (USD 3,000). Prices are in USD. You may state these prices.
+   phone number, text and email details, and it includes a built-in CRM that captures enquiries from connected calls, emails, texts and website chat. Price: USD 199 a month with
+   a 3-month minimum, then month to month. Yearly billing is available on request: do not quote a yearly figure. Prices are in USD. You may state these prices.
    Do not quote or guess any set-up fee, usage limit, trial or cancellation terms: say the Trendi team will
    confirm those.
 

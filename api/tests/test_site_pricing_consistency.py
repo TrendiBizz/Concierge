@@ -7,13 +7,14 @@ to the site, llms.txt, the API greeting, or the settings file.
 import pathlib, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RETIRED = re.compile(r"(USD ?\$?|\$) ?(250|400)(?![0-9,.])(\s*(/|a|per)\s*month)?")
+RETIRED = re.compile(r"(USD ?\$?|\$) ?(250|400|750)(?![0-9,.])(\s*(/|a|per)\s*month)?")
 
 def _files():
     yield from (ROOT / "website").glob("*.html")
     for name in ("llms.txt", "products.js"):
         yield ROOT / "website" / name
     yield ROOT / "api" / "app" / "a2ui.py"
+    yield ROOT / "concierge-stack" / "agent" / "agent.py"  # live chat widget prompt
 
 def test_no_retired_concierge_price_is_published():
     bad = []
