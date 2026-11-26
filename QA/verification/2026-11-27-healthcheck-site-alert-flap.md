@@ -1,0 +1,6 @@
+# 2026-11-27 site:seo / site:pages alert flap
+
+**Cause (FACT, box log):** `/opt/trendi/monitoring/health.log` shows `[Concierge FAIL] site:pages, site:seo` at 2026-11-26 13:15Z, `site:seo` at 14:20Z, each followed by a "recovered" mail within ~10 min. Failing detail was `https://trendibizz.com/<page> returned 0` (a fetch that got no HTTP answer). `plan_notifications` mails a fail seen on two consecutive 5-minute runs, so a short run of dropped fetches among ~60 URLs per run produced FAIL + recovered mails. INFERENCE (unverified): the drops are transient network/Cloudflare resets, not site damage (sitemap served 200 minutes later with no change).
+**Fix:** `http_stable()` in `scripts/vps/healthcheck.py` retries 0/502/503/504 twice (2 s apart) for every fetch in `check_site_pages` and `check_site_seo`. A page that is really down still fails; a real 404 is not retried.
+**Proof:** 3 new tests in `api/tests/test_healthcheck_reads.py`; mutation `SITE_RETRIES = 0` makes the retry test fail; restored, 92 related tests pass.
+**Not fixed:** `inbound:chain` / `inbound:onboarding` (test tenants test-1..3, tester-1..3 lack owner_account/consent) are a standing real condition, reminder mail every 48h by design.

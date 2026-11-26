@@ -126,6 +126,27 @@ def http(url: str, timeout: float = 10.0, headers: dict | None = None, method: s
         return 0, str(exc).encode()[:200], time.monotonic() - started
 
 
+# A public-URL fetch that lost one packet is not an outage. site:pages and site:seo fetch ~60 URLs
+# through Cloudflare every five minutes, and one connection that came back as "0" (reset, timeout)
+# on two consecutive runs mailed [Concierge FAIL] then "recovered" (measured 2026-11-26: 13:15,
+# 14:20, 16:05 NZ-box log, each cleared within 10 minutes with no change to the site). Retry the
+# transient answers before calling a page broken; a page that is really down fails every attempt.
+SITE_RETRIES = 2
+SITE_RETRY_PAUSE = 2.0
+TRANSIENT_CODES = (0, 502, 503, 504)
+
+
+def http_stable(url: str, **kwargs):
+    """`http`, retried (SITE_RETRIES more times) while the answer is 0/502/503/504."""
+    result = http(url, **kwargs)
+    for _ in range(SITE_RETRIES):
+        if result[0] not in TRANSIENT_CODES:
+            break
+        time.sleep(SITE_RETRY_PAUSE)
+        result = http(url, **kwargs)
+    return result
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *_args, **_kwargs):
         return None
@@ -873,7 +894,7 @@ def check_site_pages() -> list[dict]:
     results: list[dict] = []
     def probe(path: str):
         # A page check needs the whole document: reading the first 4 KB measures the <head>.
-        code, body, _ = http(SITE + path, timeout=20.0, read_limit=2_000_000)
+        code, body, _ = http_stable(SITE + path, timeout=20.0, read_limit=2_000_000)
         return path, code, body.decode("utf-8", "replace") if code == 200 else ""
     with ThreadPoolExecutor(max_workers=6) as pool:
         pages = list(pool.map(probe, MONEY_PAGES))
@@ -912,7 +933,7 @@ def check_site_seo() -> list[dict]:
     problems: list[str] = []
 
     # 1. robots.txt keeps search and AI-search crawlers in, training crawlers out.
-    code, body, _ = http(f"{SITE}/robots.txt", timeout=15.0, read_limit=200_000)
+    code, body, _ = http_stable(f"{SITE}/robots.txt", timeout=15.0, read_limit=200_000)
     if code != 200:
         problems.append(f"robots.txt returned {code}")
     else:
@@ -944,7 +965,7 @@ def check_site_seo() -> list[dict]:
             problems.append("robots.txt has no Sitemap line")
 
     # 2. Every URL in the sitemap is served, canonical to itself, and not noindex.
-    code, body, _ = http(f"{SITE}/sitemap.xml", timeout=20.0, read_limit=1_000_000)
+    code, body, _ = http_stable(f"{SITE}/sitemap.xml", timeout=20.0, read_limit=1_000_000)
     urls = re.findall(r"<loc>([^<]+)</loc>", body.decode("utf-8", "replace")) if code == 200 else []
     if code != 200:
         problems.append(f"sitemap.xml returned {code}")
@@ -954,7 +975,7 @@ def check_site_seo() -> list[dict]:
         from concurrent.futures import ThreadPoolExecutor
 
         def probe(url: str):
-            page_code, page_body, _ = http(url, timeout=20.0, read_limit=2_000_000)
+            page_code, page_body, _ = http_stable(url, timeout=20.0, read_limit=2_000_000)
             return url, page_code, page_body.decode("utf-8", "replace") if page_code == 200 else ""
 
         with ThreadPoolExecutor(max_workers=6) as pool:
@@ -974,7 +995,7 @@ def check_site_seo() -> list[dict]:
                     problems.append(f"{url} is noindex but listed in the sitemap")
 
     # 3. The public IndexNow key is the key a submission would use.
-    code, body, _ = http(f"{SITE}/indexnow-key.json", timeout=15.0, read_limit=10_000)
+    code, body, _ = http_stable(f"{SITE}/indexnow-key.json", timeout=15.0, read_limit=10_000)
     if code != 200:
         problems.append(f"indexnow-key.json returned {code}")
     else:
@@ -985,7 +1006,7 @@ def check_site_seo() -> list[dict]:
         if not re.fullmatch(r"[0-9a-f]{32}", key):
             problems.append("indexnow-key.json has no valid key")
         else:
-            key_code, key_body, _ = http(f"{SITE}/{key}.txt", timeout=15.0, read_limit=1000)
+            key_code, key_body, _ = http_stable(f"{SITE}/{key}.txt", timeout=15.0, read_limit=1000)
             if key_code != 200 or key_body.decode("utf-8", "replace").strip() != key:
                 problems.append(f"IndexNow key file /{key}.txt does not serve the key")
 

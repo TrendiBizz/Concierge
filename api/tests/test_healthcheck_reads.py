@@ -121,3 +121,33 @@ def test_inbound_readiness_failure_says_why_after_the_retry(monkeypatch):
     results = healthcheck.check_inbound({"ADMIN_TOKEN": "t"})
     assert results[0]["status"] == "fail"
     assert "timed out" in results[0]["detail"]
+
+
+def test_site_fetch_retries_a_transient_zero_before_failing(monkeypatch):
+    """2026-11-27: one reset connection ("returned 0") on two runs mailed FAIL then recovered, repeatedly."""
+    answers = iter([(0, b"reset", 1.0), (503, b"", 1.0), (200, b"ok", 1.0)])
+    calls = []
+
+    def fake_http(url, **kwargs):
+        calls.append(url)
+        return next(answers)
+
+    monkeypatch.setattr(healthcheck, "http", fake_http)
+    monkeypatch.setattr(healthcheck, "SITE_RETRY_PAUSE", 0)
+    assert healthcheck.http_stable("https://x/").__getitem__(0) == 200
+    assert len(calls) == 3
+
+
+def test_site_fetch_still_fails_when_the_page_is_really_down(monkeypatch):
+    calls = []
+    monkeypatch.setattr(healthcheck, "http", lambda url, **kw: calls.append(url) or (0, b"refused", 1.0))
+    monkeypatch.setattr(healthcheck, "SITE_RETRY_PAUSE", 0)
+    assert healthcheck.http_stable("https://x/")[0] == 0
+    assert len(calls) == 1 + healthcheck.SITE_RETRIES
+
+
+def test_site_fetch_does_not_retry_a_real_404(monkeypatch):
+    calls = []
+    monkeypatch.setattr(healthcheck, "http", lambda url, **kw: calls.append(url) or (404, b"", 1.0))
+    monkeypatch.setattr(healthcheck, "SITE_RETRY_PAUSE", 0)
+    assert healthcheck.http_stable("https://x/")[0] == 404 and len(calls) == 1
