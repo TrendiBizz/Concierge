@@ -302,7 +302,7 @@ export function Integrations({token}: {token: string}) {
       <Card>
         <VStack gap={3} style={{padding: 16}}>
           <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
-            <HStack gap={2} style={{alignItems: 'center'}}>
+            <HStack gap={2} style={{alignItems: 'center', flexWrap: 'wrap'}}>
               <Heading level={4}>WhatsApp Business (Embedded Signup)</Heading>
               <Badge
                 label={metaOverview?.wa_embedded_signup?.enabled ? 'Available' : 'Disabled'}
