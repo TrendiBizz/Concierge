@@ -29,6 +29,7 @@ quiet about things that are editorial, like whether a page is good.
 from __future__ import annotations
 
 import argparse
+import html as html_mod
 import datetime as dt
 import hashlib
 import json
@@ -49,6 +50,8 @@ SITE = "https://trendibizz.com"
 # canonical and listed in the sitemap.
 NOINDEX_ALLOWED = {"404.html", "concierge-welcome.html"}
 DESCRIPTION_LIMIT = 160
+TITLE_LIMIT = 60  # longer titles truncate in the SERP (claude-seo audit 2026-11-27)
+DEPRECATED_SCHEMA = {"HowTo"}  # Google retired HowTo rich results
 TITLE_UNIQUE = True
 
 HTML_SUFFIXES = (".html",)
@@ -203,6 +206,12 @@ def audit(root: Path = SITE_ROOT) -> list[str]:
             problems.append(f"{rel}: no title")
         else:
             clean_title = title.group(1).strip()
+            if len(html_mod.unescape(clean_title)) > TITLE_LIMIT:
+                problems.append(f"{rel}: title {len(html_mod.unescape(clean_title))} chars (limit {TITLE_LIMIT})")
+            for blk in ld_json_blocks(html):
+                for node in (blk.get("@graph", [blk]) if isinstance(blk, dict) else []):
+                    if isinstance(node, dict) and node.get("@type") in DEPRECATED_SCHEMA:
+                        problems.append(f"{rel}: deprecated schema type {node['@type']}")
             if TITLE_UNIQUE:
                 if clean_title in seen_titles:
                     problems.append(f"{rel}: title duplicates {seen_titles[clean_title]}")

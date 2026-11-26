@@ -96,7 +96,7 @@ build("ai-phone-answering",
    ("Does it work in New Zealand?", "Yes, Trendi is New Zealand based. Each channel is tested for your country before activation.")])
 
 build("gohighlevel-alternative",
-  "GoHighLevel alternative for any business: Concierge vs GoHighLevel | Trendi",
+  "GoHighLevel alternative: Concierge vs GoHighLevel | Trendi",
   "Concierge vs GoHighLevel: an AI receptionist and CRM at USD $199 a month, against a marketing platform built for agencies. Where each fits.",
   "COMPARISON", "A GoHighLevel alternative for any business",
   "GoHighLevel is a broad marketing and CRM platform, built largely for agencies. Concierge is narrower: an AI receptionist and office assistant for one business. This page says where each fits.",
@@ -118,7 +118,7 @@ build("gohighlevel-alternative",
 NOTE = " Prices are in $ as the vendor states them, checked 25 November 2026; vendors change them."
 
 build("goodcall-alternative",
-  "Goodcall alternative for any business: Concierge vs Goodcall | Trendi",
+  "Goodcall alternative: Concierge vs Goodcall | Trendi",
   "Concierge vs Goodcall: per-customer AI phone plans from $79 a month against one USD $199 a month office assistant. Where each fits.",
   "COMPARISON", "A Goodcall alternative for any business",
   "Goodcall is an AI phone agent priced by the number of unique customers who call. Concierge covers phone, chat, email and SMS for one price. This page says where each fits.",
@@ -137,7 +137,7 @@ build("goodcall-alternative",
    ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
 
 build("smith-ai-alternative",
-  "Smith.ai alternative for any business: Concierge vs Smith.ai | Trendi",
+  "Smith.ai alternative: Concierge vs Smith.ai | Trendi",
   "Concierge vs Smith.ai: per-call AI and human receptionist plans against one USD $199 a month AI office assistant. Where each fits.",
   "COMPARISON", "A Smith.ai alternative for any business",
   "Smith.ai sells AI and human receptionist plans billed per call. Concierge is an AI assistant for phone, chat, email and SMS at one monthly price. This page says where each fits.",
@@ -156,7 +156,7 @@ build("smith-ai-alternative",
    ("Do you guarantee results?", "No. We do not promise leads, sales, rankings or AI mentions.")])
 
 build("allo-alternative",
-  "Allo alternative for any business: Concierge vs Allo | Trendi",
+  "Allo alternative: Concierge vs Allo | Trendi",
   "Concierge vs Allo: a per-seat business phone with an AI receptionist add-on against one USD $199 a month AI office assistant. Where each fits.",
   "COMPARISON", "An Allo alternative for any business",
   "Allo is a business phone system priced per seat, with an AI receptionist as an add-on. Concierge is an AI office assistant at one monthly price. This page says where each fits.",
