@@ -58,9 +58,11 @@ HTML_SUFFIXES = (".html",)
 
 
 def page_url(rel: str) -> str:
-    """The URL a source file is served at. index.html is the site root."""
+    """The URL a source file is served at. index.html is the site root; a nested index.html is the directory."""
     if rel == "index.html":
         return "/"
+    if rel.endswith("/index.html"):
+        return "/" + rel[: -len("/index.html")]
     return "/" + rel[: -len(".html")]
 
 
@@ -456,6 +458,22 @@ def normalise_sitemap(xml_text: str) -> str:
     return re.sub(r">\s+<", "><", xml_text.strip())
 
 
+
+def rss_sitemap_lastmod(root: Path) -> str:
+    """YYYY-MM-DD from rss.xml lastBuildDate, if the feed exists."""
+    path = root / "rss.xml"
+    if not path.is_file():
+        return ""
+    match = re.search(r"<lastBuildDate>([^<]+)</lastBuildDate>", path.read_text(encoding="utf-8"))
+    if not match:
+        return ""
+    import email.utils
+    try:
+        return email.utils.parsedate_to_datetime(match.group(1).strip()).date().isoformat()
+    except (TypeError, ValueError, OverflowError):
+        return ""
+
+
 def build_sitemap(root: Path = SITE_ROOT, site: str = SITE) -> str:
     """The sitemap the pages describe. Deterministic: same pages in, same XML out."""
     rows = []
@@ -465,6 +483,9 @@ def build_sitemap(root: Path = SITE_ROOT, site: str = SITE) -> str:
             continue
         html = path.read_text(encoding="utf-8", errors="replace")
         rows.append((site + page_url(rel), date_modified(html) or ""))
+    # rss.xml is a discovery file, not an HTML page, but it should be listed beside the pages it covers.
+    if (root / "rss.xml").is_file():
+        rows.append((site + "/rss.xml", rss_sitemap_lastmod(root)))
     rows.sort(key=lambda row: (row[0] != site + "/", row[0]))
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
