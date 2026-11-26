@@ -255,6 +255,7 @@
 .social-connect-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px 14px;
   border-radius: 14px;
@@ -263,6 +264,7 @@
 }
 .social-connect-card.is-off { opacity: 0.62; }
 .social-connect-card img { filter: none; }
-.social-connect-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.social-connect-copy { display: grid; gap: 2px; min-width: 120px; flex: 1 1 120px; overflow-wrap: anywhere; }
+.social-connect-card > :last-child { flex: 0 0 auto; margin-left: auto; }
 .social-connect-copy strong { color: var(--c-ink); font-size: 14px; line-height: 1.25; }
 .social-connect-copy span { color: var(--c-muted); font-size: 12px; line-height: 1.35; }
