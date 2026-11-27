@@ -145,7 +145,10 @@ def _extract_token(data: dict) -> str | None:
 
 async def mint_token(tenant: dict) -> dict:
     settings = get_settings()
-    if not settings.gemini_api_key:
+    openai_web = settings.web_voice_provider == "openai_realtime"
+    if openai_web and not settings.openai_api_key.strip():
+        raise VoiceUnavailable("OPENAI_API_KEY is not set")
+    if not openai_web and not settings.gemini_api_key:
         raise VoiceUnavailable("GEMINI_API_KEY is not set")
     if not tenant["voice_enabled"]:
         raise VoiceUnavailable("Voice is disabled for this site")
@@ -158,6 +161,8 @@ async def mint_token(tenant: dict) -> dict:
         raise VoiceUnavailable("Daily voice limit reached")
 
     session = build_session(tenant, website=True)
+    if openai_web:
+        return await _mint_openai_token(tenant, session, settings)
     setup = build_gemini_setup(session)
     ttl = max(60, int(settings.voice_token_ttl_seconds))
     now = datetime.now(timezone.utc)
@@ -185,8 +190,35 @@ async def mint_token(tenant: dict) -> dict:
 
     await db.pool().execute("INSERT INTO voice_tokens (tenant_id) VALUES ($1)", tenant["id"])
     return {
+        "provider": "gemini_live",
         "token": token,
         "url": settings.gemini_constrained_ws_url,
         "model": session["model"],
         "session": session,
     }
+
+
+async def _mint_openai_token(tenant: dict, session: dict, settings) -> dict:
+    """OpenAI Realtime client secret for the website mic. Same limits, tools and tenant lock as Gemini."""
+    from . import voice_openai
+    ttl = max(60, int(settings.voice_token_ttl_seconds))
+    voice = tenant.get("voice")
+    session = {**session, "model": settings.openai_realtime_model,
+               "voice": voice if voice in voice_openai.OPENAI_VOICES else settings.openai_realtime_voice}
+    body = voice_openai.web_client_secret_body(
+        session, ttl_seconds=ttl, transcribe_model=settings.openai_realtime_transcribe_model,
+        turn=settings.openai_turn_detection)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(settings.openai_client_secrets_url, json=body,
+                                 headers={"Authorization": f"Bearer {settings.openai_api_key.strip()}"})
+    if resp.status_code >= 400:
+        log.error("OpenAI client_secrets failed: %s %s", resp.status_code, resp.text[:300])
+        raise VoiceUnavailable("Voice service rejected the request")
+    data = resp.json()
+    token = data.get("value") if isinstance(data.get("value"), str) else None
+    if not token:
+        log.error("No client secret in OpenAI response keys: %s", list(data.keys()))
+        raise VoiceUnavailable("Voice service returned an unexpected response")
+    await db.pool().execute("INSERT INTO voice_tokens (tenant_id) VALUES ($1)", tenant["id"])
+    return {"provider": "openai_realtime", "token": token, "url": settings.openai_realtime_ws_url,
+            "model": session["model"], "session": session}

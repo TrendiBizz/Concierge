@@ -109,8 +109,13 @@ def turn_detection(kind: str) -> dict:
             'create_response': True, 'interrupt_response': True}
 
 
+PCMU = {'type': 'audio/pcmu'}
+PCM24 = {'type': 'audio/pcm', 'rate': 24000}
+
+
 def session_update(*, model: str, voice: str, instructions: str, tools, transcribe_model: str,
-                   turn: str) -> dict:
+                   turn: str, audio_format: dict | None = None) -> dict:
+    fmt = dict(audio_format or PCMU)
     session = {
         'type': 'realtime',
         'model': model,
@@ -118,12 +123,12 @@ def session_update(*, model: str, voice: str, instructions: str, tools, transcri
         'instructions': instructions or '',
         'audio': {
             'input': {
-                'format': {'type': 'audio/pcmu'},
+                'format': dict(fmt),
                 'transcription': {'model': transcribe_model},
                 'turn_detection': turn_detection(turn),
             },
             'output': {
-                'format': {'type': 'audio/pcmu'},
+                'format': dict(fmt),
                 'voice': voice if voice in OPENAI_VOICES else 'marin',
             },
         },
@@ -133,6 +138,19 @@ def session_update(*, model: str, voice: str, instructions: str, tools, transcri
     if declared:
         session['tools'] = declared
     return {'type': 'session.update', 'session': session}
+
+
+def web_client_secret_body(session: dict, *, ttl_seconds: int, transcribe_model: str, turn: str) -> dict:
+    """Body for POST /v1/realtime/client_secrets: the website session locked server-side.
+
+    Same instructions and tools as Gemini web voice (`voice.build_session`), 24 kHz PCM16 audio, which is
+    what the widget already captures and plays, so the browser does no extra resampling.
+    """
+    update = session_update(model=session['model'], voice=session.get('voice') or 'marin',
+                            instructions=session.get('instructions') or '', tools=session.get('tools'),
+                            transcribe_model=transcribe_model, turn=turn, audio_format=PCM24)
+    return {'expires_after': {'anchor': 'created_at', 'seconds': max(10, min(int(ttl_seconds), 7200))},
+            'session': update['session']}
 
 
 def user_text_items(text: str) -> list[dict]:

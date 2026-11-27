@@ -141,6 +141,9 @@ class Settings(BaseSettings):
     openai_realtime_model: str = "gpt-realtime"
     openai_realtime_ws_url: str = "wss://api.openai.com/v1/realtime"
     openai_realtime_voice: str = "marin"
+    # Website chat microphone provider. Default stays Gemini; openai_realtime mints an OpenAI client secret.
+    web_voice_provider: Literal['gemini_live', 'openai_realtime'] = 'gemini_live'
+    openai_client_secrets_url: str = "https://api.openai.com/v1/realtime/client_secrets"
     openai_realtime_transcribe_model: str = "gpt-4o-mini-transcribe"
     openai_turn_detection: Literal['semantic_vad', 'server_vad'] = 'semantic_vad'
     phone_verified_tenants: str = ""  # populated only after a genuine carrier call test

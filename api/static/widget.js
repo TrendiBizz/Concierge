@@ -496,6 +496,7 @@
     var assistantText = "";
     var voiceActive = false;
     var voiceReady = false;
+    var voiceProvider = "gemini_live";
     var sampleBuffer = [];
     var sampleCount = 0;
     var textDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
@@ -565,6 +566,11 @@
       });
       sampleBuffer = [];
       sampleCount = 0;
+      if (voiceProvider === "openai_realtime") {
+        // OpenAI Realtime takes 24 kHz PCM16 (the context rate); resample only if the browser refused 24 kHz.
+        wsSend({ type: "input_audio_buffer.append", audio: f32ToB64Pcm16(resample(merged, actx.sampleRate, 24000)) });
+        return;
+      }
       var pcm = resample(merged, actx.sampleRate, 16000);
       wsSend({
         realtimeInput: {
@@ -672,6 +678,48 @@
       return { id: ev.call_id, name: ev.name, response: result };
     }
 
+    // OpenAI Realtime events -> same widget behaviour as the Gemini handler below.
+    function onOpenAIEvent(ev) {
+      var t = ev.type || "";
+      if (t === "session.created") {
+        // The client secret already carries the locked session, so created is the ready signal.
+        if (!voiceReady) {
+          voiceReady = true;
+          wsSend({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: "[The visitor just started a voice conversation. Greet them briefly as the AI guide and ask how you can help.]" }] } });
+          wsSend({ type: "response.create" });
+          setStatus("Listening…");
+        }
+      } else if (t === "error") {
+        console.warn("[concierge] voice error", ev);
+        setStatus("Voice hit a problem.");
+      } else if (t === "input_audio_buffer.speech_started") {
+        interrupt();
+        if (assistantText) { logVoice("assistant", assistantText); assistantText = ""; }
+      } else if (t === "conversation.item.input_audio_transcription.completed") {
+        if (ev.transcript && ev.transcript.trim()) logVoice("user", ev.transcript);
+      } else if (t === "response.output_audio.delta") {
+        if (ev.delta) { setStatus("Speaking…"); playChunk(ev.delta); }
+      } else if (t === "response.output_audio_transcript.delta") {
+        assistantText += ev.delta || "";
+      } else if (t === "response.output_audio_transcript.done") {
+        var said = (ev.transcript || assistantText || "").trim();
+        assistantText = "";
+        if (said) logVoice("assistant", said);
+      } else if (t === "response.output_item.done" && ev.item && ev.item.type === "function_call") {
+        var fc = ev.item;
+        if (!fc.call_id || voiceToolIds.has(fc.call_id) || voiceToolIds.size >= 40) return;
+        voiceToolIds.add(fc.call_id);
+        var args = {};
+        try { args = JSON.parse(fc.arguments || "{}"); } catch (e) {}
+        var req = runToolCall({ call_id: fc.call_id, name: fc.name, args: args });
+        voiceToolRequests.push(req);
+        req.then(function (r) {
+          wsSend({ type: "conversation.item.create", item: { type: "function_call_output", call_id: r.id, output: JSON.stringify(r.response) } });
+          wsSend({ type: "response.create" });
+        });
+      }
+    }
+
     function onServerEvent(raw) {
       var ev;
       try {
@@ -679,6 +727,7 @@
       } catch (e) {
         return;
       }
+      if (voiceProvider === "openai_realtime") { onOpenAIEvent(ev); return; }
       if (ev.setupComplete) {
         if (!voiceReady) {
           voiceReady = true;
@@ -884,10 +933,15 @@
 
         // Single-use Gemini Live ephemeral token: model, instructions and tools are locked server-side.
         var sep = data.url.indexOf("?") >= 0 ? "&" : "?";
-        var activeSocket = new WebSocket(data.url + sep + "access_token=" + encodeURIComponent(data.token));
+        voiceProvider = data.provider === "openai_realtime" ? "openai_realtime" : "gemini_live";
+        var activeSocket = voiceProvider === "openai_realtime"
+          // OpenAI browser auth: ephemeral client secret in a subprotocol, never in the URL. Session is locked server-side.
+          ? new WebSocket(data.url + sep + "model=" + encodeURIComponent(data.model), ["realtime", "openai-insecure-api-key." + data.token])
+          : new WebSocket(data.url + sep + "access_token=" + encodeURIComponent(data.token));
         activeSocket.binaryType = "arraybuffer";
         ws = activeSocket;
         ws.onopen = function () {
+          if (voiceProvider === "openai_realtime") return;
           wsSend({
             setup: {
               model: data.model || (data.session && data.session.model) || "models/gemini-3.8-live",

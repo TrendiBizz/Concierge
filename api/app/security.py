@@ -42,7 +42,7 @@ DEMO_CSP = (
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: blob:; "
     "media-src 'self' blob:; "
-    "connect-src 'self' https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com; "
+    "connect-src 'self' https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com wss://api.openai.com; "
     "base-uri 'self'; "
     "form-action 'self'; "
     "object-src 'none'; "
