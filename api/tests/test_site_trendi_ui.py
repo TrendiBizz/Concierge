@@ -155,4 +155,6 @@ def test_studio_uses_real_ui_libraries_with_brand_restyle():
     assert "Plus Jakarta Sans" in css and "#7c5cff" in css
     assert "prefers-reduced-motion: reduce" in css
     assert (portal / "public/fonts/plus-jakarta-sans-var.woff2").exists()
-    assert (portal / "dist/index.html").exists()
+    # dist/ is a gitignored build artifact (CI never builds it), so assert what the repo holds:
+    # the build entry and the script that produces dist. verify-deploy.sh proves the built copy.
+    assert (portal / "index.html").exists() and "build" in pkg.get("scripts", {})

@@ -46,3 +46,8 @@ Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen w
 - Cause: the profile route ends in Apple's Settings pages (cannot be closed by a page) and confused people; Jo will not pay Apple for signing.
 - Fix: install.html iPhone card now leads with "Easiest: add Concierge to your Home Screen from Safari" (Share -> Add to Home Screen, 3 taps). The 10-step profile route is collapsed under "Share menu not working?".
 - Proof: `test_iphone_card_leads_with_share_route_and_keeps_profile_install_collapsed`; mutation (heading word changed) failed it. Not checked on a phone.
+
+## Addendum 9 — CI red on main (Jo, 2026-11-27)
+- Cause: `test_studio_uses_real_ui_libraries_with_brand_restyle` asserted `web/portal/dist/index.html` exists. `dist/` is gitignored and CI never builds it, so the test passed only on a machine that had built. Main CI was red on it (runs for 661a198, f12ef65).
+- Fix: assert the repo-held facts instead: `web/portal/index.html` and a `build` script in package.json. The built copy is proven by `verify-deploy.sh`.
+- Proof: test passes without dist (dist moved aside); mutation: removing the `build` script fails it.
