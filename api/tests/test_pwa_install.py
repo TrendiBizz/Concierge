@@ -283,3 +283,14 @@ def test_the_share_hint_is_specific_to_the_browser_and_the_default_browser_is_ex
     assert "must be done in Safari" not in page
     assert "Other browsers cannot add to the home screen" not in page
     assert "Open in Safari" in page and "Instagram" in page, "in-app browsers lost their Safari handover"
+
+
+def test_root_apple_touch_icon_routes_exist_and_html_declares_180x180():
+    """Reported on iPhone 2026-11-27: /apple-touch-icon.png and /apple-touch-icon-precomposed.png
+    returned 404 at the root of concierge.trendibizz.com, so iOS fell back to a dark monochrome
+    'C' monogram icon on the Home Screen instead of the coloured purple Concierge bell."""
+    pub = (pathlib.Path(main.__file__).parent / "routers" / "public.py").read_text(encoding="utf-8")
+    assert '@router.get("/apple-touch-icon.png"' in pub
+    assert '@router.get("/apple-touch-icon-precomposed.png"' in pub
+    assert 'sizes="180x180"' in (PORTAL / "index.html").read_text(encoding="utf-8")
+    assert 'sizes="180x180"' in (PUBLIC / "install.html").read_text(encoding="utf-8")

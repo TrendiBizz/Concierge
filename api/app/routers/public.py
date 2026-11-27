@@ -468,6 +468,18 @@ async def owner_favicon():
                         headers={"Cache-Control": "public, max-age=86400"})
 
 
+@router.get("/apple-touch-icon.png", include_in_schema=False)
+@router.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def owner_apple_touch_icon():
+    """iOS Safari probes the domain root for the home-screen icon; a 404 causes iOS to render a
+    monochrome fallback 'C' monogram in dark mode instead of the coloured purple Concierge bell."""
+    for candidate in (_main().STUDIO_DIR / "apple-touch-icon.png", _main().STATIC_DIR / "apple-touch-icon.png"):
+        if candidate.is_file():
+            return FileResponse(candidate, media_type="image/png",
+                                headers={"Cache-Control": "public, max-age=86400"})
+    raise HTTPException(404, "Not found")
+
+
 @router.get("/owner-ui")
 async def owner_ui():
     return html_with_script_nonce(
