@@ -12,9 +12,9 @@ def phone_voice_ready(cfg) -> bool:
         return False
     provider = getattr(cfg, 'phone_voice_provider', 'gemini_live')
     if provider == 'gemini_live':
-        return bool(getattr(cfg, 'gemini_api_key', ''))
+        return bool((getattr(cfg, 'gemini_api_key', '') or '').strip())
     if provider == 'openai_realtime':
-        return bool(getattr(cfg, 'openai_api_key', ''))
+        return bool((getattr(cfg, 'openai_api_key', '') or '').strip())
     return False
 
 

@@ -23,6 +23,8 @@ SHORT_ANSWER_SECONDS = 0.8
 
 
 class Session:
+    interrupts = True  # False models a provider that never notices the caller talking over it
+
     def __init__(self, ws, kind):
         self.ws, self.kind = ws, kind
         self.stream: asyncio.Task | None = None
@@ -58,8 +60,14 @@ class Session:
             await self.send({'serverContent': {'outputTranscription': {'text': text, 'finished': True}}})
             await self.send({'serverContent': {'turnComplete': True}})
 
+    async def _guarded(self, seconds, text):
+        try:
+            await self.stream_audio(seconds, text)
+        except websockets.ConnectionClosed:
+            pass  # the call ended while the fake was still talking
+
     def speak(self, seconds, text):
-        self.stream = asyncio.create_task(self.stream_audio(seconds, text))
+        self.stream = asyncio.create_task(self._guarded(seconds, text))
 
     async def tool_call(self):
         self.counter += 1
@@ -80,12 +88,13 @@ class Session:
             if self.speech_started_at is None:
                 self.speech_started_at = loop_time
                 self.speech_seconds = 0.0
-                if self.stream and not self.stream.done():
-                    self.stream.cancel()
-                    if self.kind == 'gemini':
-                        await self.send({'serverContent': {'interrupted': True}})
-                if self.kind == 'openai':
-                    await self.send({'type': 'input_audio_buffer.speech_started'})
+                if self.interrupts:
+                    if self.stream and not self.stream.done():
+                        self.stream.cancel()
+                        if self.kind == 'gemini':
+                            await self.send({'serverContent': {'interrupted': True}})
+                    if self.kind == 'openai':
+                        await self.send({'type': 'input_audio_buffer.speech_started'})
             self.speech_seconds += len(pcm) / (32000 if self.kind == 'gemini' else 16000)
         elif self.speech_started_at is not None and loop_time - self.last_loud >= QUIET_AFTER_SPEECH:
             seconds = self.speech_seconds
