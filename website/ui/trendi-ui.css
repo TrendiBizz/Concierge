@@ -56,6 +56,7 @@
   border-radius: 8px; cursor: pointer; margin-left: auto;
 }
 .tui-search-btn:hover { color: var(--ink, #241a2e); border-color: var(--accent, #5830ae); background: var(--wash, #ece4f5); }
+.tui-search-btn:active { transform: scale(0.985); }
 .tui-search-btn:focus-visible { outline: 2px solid var(--accent, #5830ae); outline-offset: 2px; }
 .tui-search-btn kbd {
   font: 600 11px/1 var(--font, system-ui, sans-serif); padding: 2px 5px;
