@@ -72,7 +72,7 @@ async function asset(request) {
       }
       return false;
     };
-    const lower=pathname.toLowerCase();
+    const lower=pathname.toLowerCase().replace(/(.)\/$/,'$1');
     if (!(await resolvesTo(pathname)) && await resolvesTo(lower))
       return new Response(null,{status:301,headers:{Location:lower+new URL(request.url).search}});
   }

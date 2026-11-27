@@ -57,6 +57,7 @@ def server(tmp_path):
 def test_capital_path_redirects_to_lowercase(server):
     assert _get(server, "/Concierge") == (301, "/concierge")
     assert _get(server, "/CONCIERGE?x=1") == (301, "/concierge?x=1")
+    assert _get(server, "/Concierge/") == (301, "/concierge")
 
 
 def test_lowercase_and_unknown_and_real_capital_files(server):
