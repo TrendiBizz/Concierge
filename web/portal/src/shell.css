@@ -228,19 +228,50 @@
     grid-template-rows: auto auto auto minmax(0, 1fr) !important;
     grid-template-areas: "brand" "topbar" "nav" "content" !important;
   }
-  .c-topbar { flex-wrap: wrap; row-gap: 8px; }
-  .c-brand { border-right: 0; padding-bottom: 8px; }
+  .c-brand { border-right: 0; padding: 14px 14px 8px; }
+  .c-brand-sub { white-space: normal; }
+  /* Unstick topbar and nav on phones: keeping both position:sticky;top:0 caused them
+     to stack over each other and over scrolling page content on narrow viewports. */
+  .c-topbar {
+    position: static;
+    top: auto;
+    z-index: auto;
+    padding: 10px 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    backdrop-filter: none;
+    background: var(--c-page);
+  }
+  .c-topbar-spacer { flex-basis: 0; margin-left: 0; }
   .c-nav {
-    display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
+    position: static;
+    top: auto;
+    align-self: stretch;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     /* Wrapping 17 destinations made the strip taller than a phone screen, and the last row was
        unreachable (measured 2026-11-15: Reports sat at y=918 in an 844px viewport). The strip
-       now scrolls inside itself. */
-    max-height: 38vh; overflow-y: auto; overscroll-behavior: contain;
-    padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--c-line);
+       now scrolls inside itself while staying in normal document flow above the content. */
+    max-height: 38vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--c-line);
+    background: var(--c-page);
   }
-  .c-nav-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-  .c-nav-label, .c-nav-item { white-space: nowrap; }
-  .c-content { padding: 18px 14px 40px; min-width: 0; }
+  .c-nav-group { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .c-nav-label { width: auto !important; margin-bottom: 0; padding: 4px 6px; white-space: nowrap; }
+  .c-nav-item { width: auto; white-space: nowrap; padding: 6px 10px; }
+  .c-content { padding: 16px 14px 40px; min-width: 0; }
+  .c-hero { padding: 20px 18px; margin-top: 12px; }
+  .meta-select { min-width: 0; max-width: 100%; }
+  .meta-picker-grid { grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr)); }
+  .social-connect { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
 }
 
 /* Social connections: the marks carry the recognition, the name carries the meaning.
