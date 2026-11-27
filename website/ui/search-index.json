@@ -712,6 +712,25 @@
    ]
   },
   {
+   "label": "Securing the AI Stack: Connectors, Egress & Four Rings",
+   "href": "/news/securing-the-ai-stack",
+   "group": "News",
+   "keywords": [
+    "agents",
+    "architecture",
+    "building",
+    "connector",
+    "down",
+    "edge",
+    "from",
+    "here",
+    "layer",
+    "lock",
+    "network",
+    "reviewing"
+   ]
+  },
+  {
    "label": "What Actually Stops ARTEX: Code Review and Nine Incidents",
    "href": "/news/what-stops-artex",
    "group": "News",
