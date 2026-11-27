@@ -57,8 +57,10 @@ def test_fail_ok_fail_is_not_two_consecutive_fails():
 def test_a_pending_fail_that_becomes_a_warning_mails_the_warning_only():
     state = {}
     healthcheck.plan_notifications(a_problem(status="fail"), state, NOW)
-    alerts, _, recoveries = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
-    assert [a["status"] for a in alerts] == ["warn"] and recoveries == []
+    first, _, _ = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    alerts, _, recoveries = healthcheck.plan_notifications(
+        a_problem(status="warn"), state, NOW + timedelta(minutes=5))
+    assert first == [] and [a["status"] for a in alerts] == ["warn"] and recoveries == []
 
 
 def test_a_warning_that_becomes_a_failure_starts_the_debounce():
@@ -94,9 +96,24 @@ def test_a_still_broken_condition_reminds_once_the_window_passes():
     assert alerts == [] and len(reminders) == 1
 
 
+def test_a_single_run_warning_is_never_mailed():
+    """Jo 2026-11-27: one box network blip mailed 'site:prices WARN (page 0)' that cleared by the next run."""
+    state = {}
+    alerts, _, _ = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    assert alerts == []
+    assert healthcheck.plan_notifications({}, state, NOW + timedelta(minutes=5)) == ([], [], [])
+    assert state == {}
+
+
+def test_the_pricing_check_retries_a_blipped_fetch():
+    src = SCRIPT.read_text()
+    body = src[src.index("def check_site_prices"):src.index("def check_sip_firewall")]
+    assert "http_stable(" in body and "= http(" not in body
+
+
 def test_a_warning_that_clears_is_not_announced():
     state = {}
-    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    confirm(state, a_problem(status="warn"), NOW)
     alerts, reminders, recoveries = healthcheck.plan_notifications({}, state, NOW + timedelta(hours=1))
     assert (alerts, reminders, recoveries) == ([], [], [])
 
@@ -112,18 +129,20 @@ def test_a_flapping_warning_is_not_announced_again_inside_the_window():
 
 def test_a_warning_back_after_the_window_is_announced_again():
     state = {}
-    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
+    confirm(state, a_problem(status="warn"), NOW)
     healthcheck.plan_notifications({}, state, NOW + timedelta(hours=1))
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW + timedelta(hours=60))
     alerts, _, _ = healthcheck.plan_notifications(
-        a_problem(status="warn"), state, NOW + timedelta(hours=60))
+        a_problem(status="warn"), state, NOW + timedelta(hours=60, minutes=5))
     assert len(alerts) == 1
 
 
 def test_going_from_fail_to_warn_is_a_new_alert():
     state = {}
     confirm(state, a_problem(status="fail"), NOW)
-    alerts, _, _ = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW)
-    assert len(alerts) == 1, "a change of severity is worth being told about"
+    healthcheck.plan_notifications(a_problem(status="warn"), state, NOW + timedelta(minutes=10))
+    alerts, _, _ = healthcheck.plan_notifications(a_problem(status="warn"), state, NOW + timedelta(minutes=15))
+    assert len(alerts) == 1, "a change of severity is worth being told about (after two runs)"
 
 
 def test_recovery_is_announced_and_the_state_is_cleared():

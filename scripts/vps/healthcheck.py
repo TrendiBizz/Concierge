@@ -1066,13 +1066,13 @@ def check_site_prices() -> list[dict]:
     Operator decision 2026-11-15: one USD price for everyone, no GST wording anywhere (NZ GST is
     handled inside Stripe). A page that starts talking about GST is the defect this catches.
     """
-    status_page, body_page, _ = http(f"{SITE}/concierge")
-    status_js, body_js, _ = http(f"{SITE}/products.js")
+    status_page, body_page, _ = http_stable(f"{SITE}/concierge")
+    status_js, body_js, _ = http_stable(f"{SITE}/products.js")
     if status_page != 200 or status_js != 200:
         return [_warn("site:prices", f"could not read the pricing page (page {status_page}, plans {status_js})")]
     pages = {}
     for path in ("/pricing", "/terms"):
-        code, body, _ = http(f"{SITE}{path}")
+        code, body, _ = http_stable(f"{SITE}{path}")
         if code == 200:
             pages[path] = body.decode("utf-8", "replace")
     problems = site_price_drift(body_page.decode("utf-8", "replace"),
@@ -1295,7 +1295,8 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
     in `state` without `last_sent` ("pending"); the next run that still fails mails it. Blips such
     as a deploy swapping the site for a minute used to send a FAIL and then a RECOVERED mail every
     time. For the same reason a pending fail that clears is dropped silently: the operator never
-    heard of it, so telling them it recovered would be the same noise. Warnings mail at once.
+    heard of it, so telling them it recovered would be the same noise. Warnings follow the same
+    two-run rule (Jo, 2026-11-27: one box network blip mailed a site:prices WARN at once).
     """
     remind = REMIND_HOURS if remind_hours is None else remind_hours
     new_alerts, reminders, recoveries = [], [], []
@@ -1313,12 +1314,9 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
         elif previous.get("key") != key or previous.get("status") == "cleared":
             state[name] = {"status": item["status"], "detail": item["detail"], "key": key,
                            "first_seen": first_seen or now.isoformat(), "last_sent": None}
-            if item["status"] == "fail":
-                continue  # first fail: pending, mailed only if the next run fails too
-            new_alerts.append(item)
-            state[name]["last_sent"] = now.isoformat()
-        elif item["status"] == "fail" and not last_sent:
-            # Second consecutive fail: confirmed.
+            continue  # first sighting (fail or warn): pending, mailed only if the next run has it too
+        elif not last_sent:
+            # Second consecutive run with the problem: confirmed.
             new_alerts.append(item)
             state[name].update(detail=item["detail"], last_sent=now.isoformat())
         elif last_sent and now - datetime.fromisoformat(last_sent) > timedelta(hours=remind):
@@ -1336,8 +1334,12 @@ def plan_notifications(problems: dict, state: dict, now: datetime,
                 recoveries.append({"check": name, "was": "fail", "since": previous.get("first_seen")})
             state.pop(name, None)  # a never-mailed (pending) fail leaves no trace
         elif previous.get("status") == "warn":
-            # Silent: a warning that clears needs no mail. Remember it, so a flap does not re-announce.
-            previous["status"] = "cleared"
+            # Silent: a warning that clears needs no mail. Remember a mailed one, so a flap does not
+            # re-announce; a never-mailed (pending) one leaves no trace.
+            if previous.get("last_sent"):
+                previous["status"] = "cleared"
+            else:
+                state.pop(name, None)
         elif previous.get("status") == "cleared":
             last_sent = previous.get("last_sent")
             if not last_sent or now - datetime.fromisoformat(last_sent) > timedelta(hours=remind):
