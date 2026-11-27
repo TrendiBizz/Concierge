@@ -78,9 +78,13 @@
     var q = String(query || "").trim();
     if (!q) return items.slice();
     return items
-      .map(function (item, i) { return { item: item, i: i, s: commandScore(item.label, q, item.keywords || []) }; })
+      .map(function (item, i) {
+        var at = item.label.toLowerCase().indexOf(q.toLowerCase());
+        return { item: item, i: i, s: commandScore(item.label, q, item.keywords || []), at: at < 0 ? 1e9 : at };
+      })
       .filter(function (r) { return r.s > 0; })
-      .sort(function (a, b) { return b.s - a.s || a.i - b.i; })
+      // Ties (common on a site where many titles share words) go to the label where the text appears earliest.
+      .sort(function (a, b) { return b.s - a.s || a.at - b.at || a.i - b.i; })
       .map(function (r) { return r.item; });
   }
 
@@ -252,6 +256,8 @@
     dlg.addEventListener("pointerdown", function (e) {
       if (e.target === dlg || body.scrollTop > 0) return;
       y0 = e.clientY; t0 = Date.now(); dy = 0; dlg.classList.add("tui-dragging");
+      // Capture, so the release still arrives when the finger or mouse ends up off the sheet or the screen.
+      if (dlg.setPointerCapture) dlg.setPointerCapture(e.pointerId);
     });
     dlg.addEventListener("pointermove", function (e) {
       if (y0 === null) return;

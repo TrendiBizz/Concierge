@@ -88,9 +88,10 @@
 .tui-ai-card { margin: 0; padding: 16px; border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px); background: var(--surface, #fffdf9); }
 .tui-ai-card legend { font-weight: 700; padding: 0 4px; }
 .tui-ai-stepcount { margin: 0 0 8px; color: var(--muted, #625670); font-size: 13px; }
-.tui-ai-option { display: flex; gap: 10px; align-items: center; padding: 10px 12px; margin: 6px 0; border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px); cursor: pointer; }
+.tui-ai-option { display: flex; justify-content: flex-start; gap: 10px; align-items: center; padding: 10px 12px; margin: 6px 0; border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px); cursor: pointer; }
 .tui-ai-option:has(input:checked) { border-color: var(--accent, #5830ae); background: var(--wash, #ece4f5); }
-.tui-ai-option input { accent-color: var(--accent, #5830ae); }
+.tui-ai-option input { accent-color: var(--accent, #5830ae); width: 18px; height: 18px; min-height: 0; flex: 0 0 auto; margin: 0; padding: 0; }
+.tui-ai-option > span { flex: 1; text-align: left; }
 .tui-ai-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .tui-ai-skip { font: inherit; background: none; border: 0; color: var(--muted, #625670); cursor: pointer; padding: 8px 12px; }
 @keyframes tui-pulse { 50% { opacity: .35; transform: scale(.8); } }

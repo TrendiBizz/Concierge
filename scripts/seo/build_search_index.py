@@ -48,12 +48,14 @@ def build() -> dict:
     pages = []
     for loc in locs:
         path = loc[len(ORIGIN):] or "/"
+        if re.search(r"\.(xml|txt|json)$", path):
+            continue  # feeds and machine files are not pages
         src = source_for(path)
         if not src.exists():
             raise SystemExit(f"sitemap lists {path} but {src} is missing")
         text = src.read_text(encoding="utf-8")
         title = re.search(r"<title>([^<]*)</title>", text)
-        desc = re.search(r'<meta[^>]+name="description"[^>]+content="([^"]*)"', text)
+        desc = re.search(r'<meta(?=[^>]*\bname="description")[^>]*\bcontent="([^"]*)"', text)
         label = html.unescape(title.group(1) if title else path).split(" | ")[0].strip()
         words = sorted(set(re.findall(r"[a-z0-9]{4,}", html.unescape(desc.group(1)).lower()))) if desc else []
         pages.append({"label": label, "href": path, "group": group_for(path), "keywords": words[:24]})

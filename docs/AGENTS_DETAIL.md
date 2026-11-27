@@ -123,8 +123,12 @@ Emil Kowalski's `pick-ui-library` skill (`~/.claude/skills/pick-ui-library`, MIT
 (shadcn/Base UI/Radix) restyled to Trendi purple + Plus Jakarta Sans, never default looks; Sonner toasts, Vaul
 mobile drawers, cmdk Cmd-K, NumberFlow animated numbers, never hand-built; at most one standout animation per
 page; free tiers only (Magic UI / Aceternity "Pro" are paid, skip).
-- `website/` is static HTML: no React libs. Apply the rules (brand type/colour, one standout, CSS motion) and
-  vanilla ports only; nothing that adds a JS bundle to SEO pages (`scripts/seo/site_seo.py check` still gates).
+- `website/` is static HTML: no React libs. Port the idea instead (Jo: "use the ideas and modify them for
+  ourselves"): `website/ui/trendi-ui.js` + `.css` hold vanilla toast (Sonner), bottom sheet (Vaul), Cmd-K
+  (cmdk, index from `scripts/seo/build_search_index.py`; rerun it after sitemap changes), number ticker
+  (NumberFlow) and AI thinking/stream/approval states (Beautiful UI). Credits + licences in the file header;
+  tests `api/tests/test_site_trendi_ui.py`, browser smoke `QA/verification/trendi_ui_browser_smoke.cjs`.
+  One standout per page; wiring a page to it is a visible change that needs Jo's yes.
 - Studio (`web/portal`, React 19 + Vite, deployed by `scripts/vps/deploy-studio.sh`) runs the Astryx design
   system (`web/portal/AGENTS.md`). Toasts go through `src/Notify.tsx` (Astryx Toast); Cmd-K is `src/CmdK.tsx`
   (Astryx Dialog + own filtering). Swapping in Sonner / cmdk / Vaul / NumberFlow, or adding shadcn + Tailwind
