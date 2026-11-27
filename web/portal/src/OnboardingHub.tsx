@@ -402,8 +402,8 @@ export function OnboardingHub({
               <a href={`https://trendibizz.com/guide#stage-${stage}`} target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
                 Watch the stage {stage} video ↗
               </a>
-              <a href="https://trendibizz.com/guide#video-walkthrough" target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
-                Full walkthrough ↗
+              <a href="https://trendibizz.com/help" target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
+                Help and onboarding ↗
               </a>
             </HStack>
           </HStack>

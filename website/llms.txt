@@ -10,6 +10,7 @@ Concierge is USD $199 per month, with a three-month minimum, then month to month
 
 ## Public pages
 
+- [Concierge help and onboarding](https://trendibizz.com/help): seven short captioned setup videos, the full walkthrough, and how to ask for help.
 - [News and resources](https://trendibizz.com/news): news, research, guides and tools, with an RSS feed.
 - [RSS feed](https://trendibizz.com/rss.xml): the same list as the news and resources page, as RSS 2.0.
 - [Missed call cost calculator](https://trendibizz.com/tools/missed-call-cost-calculator): work out what unanswered calls cost, from your own numbers.
