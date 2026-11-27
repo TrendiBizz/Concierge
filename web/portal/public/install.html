@@ -73,6 +73,11 @@
   .seen { padding: 12px 14px; border-radius: 12px; background: #22d3ee14; border: 1px solid #22d3ee44; color: var(--ink); }
   details.profile { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
   details.profile summary { cursor: pointer; font-weight: 650; }
+  .primary { padding: 16px; margin: 6px 0 16px; border-radius: 16px; background: #7142d622; border: 2px solid var(--accent); }
+  .primary h3 { margin: 0 0 6px; font-size: 20px; }
+  .steps.big li { font-size: 18px; }
+  .steps.big em { display: block; margin-top: 8px; font-style: normal; font-size: 15px; color: var(--muted); }
+  .steps.big .button { margin-top: 10px; width: 100%; }
   .hide { display: none !important; }
   [hidden] { display: none !important; }
 </style>
@@ -105,6 +110,27 @@
     <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari (and, from iOS 16.4, Chrome, Firefox and Edge) to do it. No website can change that, and no web page can start the install by itself.</p>
     <p id="ios-own-note" hidden>You can install it right here in <strong id="ios-own-name">this browser</strong> — no need to switch to Safari.</p>
 
+    <div class="row">
+      <button class="secondary" id="copy-ios" type="button" hidden>Copy the link for Safari</button>
+      <a class="button secondary" href="/studio/">Back to Concierge</a>
+    </div>
+    <p class="fine" id="copy-ios-note" role="status"></p>
+    <p id="other-browser-help"><strong>Not in Safari?</strong> If you see “<span id="other-browser-name">another browser</span>” around the address bar, or you opened this from Instagram, Facebook, WhatsApp, LinkedIn or TikTok, tap <strong>⋯</strong> there and choose <strong>Open in Safari</strong>, or tap “Copy the link for Safari” and paste it into Safari yourself.</p>
+    <div class="primary" id="ios-profile">
+      <h3>Easiest: install with the Concierge icon file</h3>
+      <p>Five taps, about 30 seconds. Do this in <strong>Safari</strong>.</p>
+      <ol class="steps big">
+        <li><b>1</b><span><strong>Tap the button below.</strong><br><a class="button" href="/studio/concierge.mobileconfig">Download Concierge icon</a><em>You should see: “This website is trying to download a configuration profile. Do you want to allow this?”</em></span></li>
+        <li><b>2</b><span><strong>Tap Allow.</strong><em>You should see: “Profile Downloaded. Review the profile in Settings app if you want to install it.” Tap <strong>Close</strong>.</em></span></li>
+        <li><b>3</b><span><strong>Open the Settings app</strong> (the grey gear). Tap <strong>Profile Downloaded</strong> near the top, under your name.<em>Can’t see it? Go to Settings → General → <strong>VPN &amp; Device Management</strong> → tap Concierge.</em></span></li>
+        <li><b>4</b><span><strong>Tap Install</strong> (top right), type your phone passcode, then <strong>Install</strong> again and <strong>Done</strong>.<em>You should see “Not Verified” in red. That is normal: we do not pay Apple for a signing certificate. The profile only adds the icon and changes nothing else.</em></span></li>
+        <li><b>5</b><span><strong>Go to your Home Screen.</strong> The purple Concierge bell is there. Tap it.<em>The app opens full screen and asks for the six-digit code we email you.</em></span></li>
+      </ol>
+      <p class="fine">To remove it later: Settings → General → VPN &amp; Device Management → Concierge → Remove Profile.</p>
+    </div>
+
+    <details class="profile">
+      <summary>Prefer not to use a profile? Add it from the Share menu instead</summary>
     <div class="sharebar">
       <svg viewBox="0 0 64 64" width="46" height="46" role="img" aria-label="Safari Share button: a square with an arrow pointing up">
         <rect x="14" y="26" width="36" height="30" rx="6" fill="none" stroke="#f5f3ff" stroke-width="4"/>
@@ -120,25 +146,10 @@
       <li><b>3</b><span>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong> (top right).</span></li>
     </ol>
     <p class="seen"><strong>You should see:</strong> a purple bell icon named “Concierge” on your Home Screen. Tap it to open the app.</p>
-    <div class="row">
-      <button class="secondary" id="copy-ios" type="button" hidden>Copy the link for Safari</button>
-      <a class="button secondary" href="/studio/">Back to Concierge</a>
-    </div>
-    <p class="fine" id="copy-ios-note" role="status"></p>
-    <details class="profile" id="ios-profile">
-      <summary>Share menu not working? Add it with a profile instead</summary>
-      <p>This puts the same Concierge icon on your Home Screen from Settings. iPhone will say “Not Verified” because we do not pay for a signing certificate; the profile only adds the icon and changes nothing else. Open this page in <strong>Safari</strong>, then:</p>
-      <ol>
-        <li>Tap <strong>Download the icon profile</strong> and choose <strong>Allow</strong>.</li>
-        <li>Open <strong>Settings</strong> → tap <strong>Profile Downloaded</strong> (at the top) → <strong>Install</strong>.</li>
-        <li>The Concierge icon appears on your Home Screen. To remove it: Settings → General → VPN &amp; Device Management → Concierge → Remove.</li>
-      </ol>
-      <div class="row"><a class="button secondary" href="/studio/concierge.mobileconfig">Download the icon profile</a></div>
-    </details>
-    <p id="other-browser-help"><strong>Not in Safari?</strong> If you see “<span id="other-browser-name">another browser</span>” around the address bar, or you opened this from Instagram, Facebook, WhatsApp, LinkedIn or TikTok, tap <strong>⋯</strong> there and choose <strong>Open in Safari</strong>, or tap “Copy the link for Safari” and paste it into Safari yourself.</p>
     <p><strong>No Share button anywhere on screen?</strong> If the address bar has no toolbar at all, you are in a link preview inside another app. Tap <strong>⋯</strong> and choose <strong>Open in Safari</strong>, or open Safari and paste this address: <span class="url">concierge.trendibizz.com/studio/install</span></p>
     <p class="fine" id="ios-default-note">If the heading above names the wrong browser, your phone’s default browser is still that one. Changing the default in Settings only applies once it has really taken effect — or just open this page in the browser you want to install from.</p>
     <p><strong>Share sheet without “Add to Home Screen”?</strong> Scroll to the bottom of that sheet, tap <strong>Edit Actions…</strong> and switch <strong>Add to Home Screen</strong> on.</p>
+    </details>
   </section>
 
   <section class="card" id="menu" hidden>

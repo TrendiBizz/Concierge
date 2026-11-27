@@ -7,3 +7,6 @@ Proof: plutil -lint OK; tests in api/tests/test_pwa_install.py; mutation (FullSc
 UNKNOWN: how iOS renders the unsigned profile on a real phone ("Not Verified" expected). Needs Jo to open
 https://concierge.trendibizz.com/studio/concierge.mobileconfig in Safari and report.
 Signing needs a paid/trusted certificate: not bought (no payments).
+
+## Addendum: profile is now the lead iPhone route (Jo: "it does work", wants every step shown)
+Install page iPhone card: 5 big numbered steps (Download > Allow > Settings Profile Downloaded > Install/passcode > tap icon), each with a "you should see" line; Share-menu route kept in a collapsed section. Copy-link / not-in-Safari help stay visible. Test: test_iphone_card_leads_with_five_step_profile_install_and_keeps_share_route; mutation (rename "Profile Downloaded") fails it.
