@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 log = logging.getLogger("concierge.onboarding")
 
 from . import channel_authorization, db, inbound_readiness, reply_address, tenants
-from .config import get_settings
+from .config import get_settings, phone_voice_ready
 
 
 class OwnerBusinessProfile(BaseModel):
@@ -165,11 +165,7 @@ async def overview(tenant_id) -> dict:
                          (datetime.now(timezone.utc)-phone_device["last_seen"]).total_seconds()<300)
     device_sms = tenant.get("sms_transport") == "device"
     from . import phone_relay
-    gemini_phone_ready = bool(
-        settings.phone_receptionist_enabled
-        and settings.phone_voice_provider == "gemini_live"
-        and settings.gemini_api_key
-    )
+    gemini_phone_ready = phone_voice_ready(settings)
     telephone_ready = bool(
         tenant.get("phone_enabled")
         and any(r["enabled"] for r in numbers)

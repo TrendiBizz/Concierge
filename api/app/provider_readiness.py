@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 
-from .config import get_settings
+from .config import get_settings, phone_voice_ready
 
 SOCIAL_PLATFORMS = (
     "facebook", "instagram", "linkedin", "tiktok", "x", "google_business",
@@ -78,11 +78,7 @@ def _social() -> dict:
 
 def _telephony() -> dict:
     s = get_settings()
-    has_gemini_voice = bool(
-        getattr(s, "phone_receptionist_enabled", False)
-        and getattr(s, "phone_voice_provider", "gemini_live") == "gemini_live"
-        and (getattr(s, "gemini_api_key", "") or "").strip()
-    )
+    has_gemini_voice = phone_voice_ready(s)
     steps = [
         _step(
             "Choose a carrier path",

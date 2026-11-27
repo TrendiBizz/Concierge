@@ -6,6 +6,18 @@ from pydantic import field_validator
 from urllib.parse import urlsplit
 
 
+def phone_voice_ready(cfg) -> bool:
+    """True when the telephone receptionist is on and the chosen realtime provider has its key."""
+    if not getattr(cfg, 'phone_receptionist_enabled', False):
+        return False
+    provider = getattr(cfg, 'phone_voice_provider', 'gemini_live')
+    if provider == 'gemini_live':
+        return bool(getattr(cfg, 'gemini_api_key', ''))
+    if provider == 'openai_realtime':
+        return bool(getattr(cfg, 'openai_api_key', ''))
+    return False
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -112,7 +124,7 @@ class Settings(BaseSettings):
     phone_receptionist_enabled: bool = False
     voice_recording_enabled: bool = False  # web audio: business opt-in plus caller choice
     phone_recording_enabled: bool = False  # separate paid-provider + legal approval
-    phone_voice_provider: Literal['gemini_live', 'legacy_twilio_tts'] = 'gemini_live'
+    phone_voice_provider: Literal['gemini_live', 'openai_realtime', 'legacy_twilio_tts'] = 'gemini_live'
     # Google Gemini 3.8 Live API (website voice + telephone voice bridge)
     gemini_api_key: str = ""
     gemini_live_model: str = "models/gemini-3.8-live"
@@ -123,6 +135,14 @@ class Settings(BaseSettings):
     # Blank by default: models/gemini-3.8-live rejects thinkingConfig.thinkingLevel with WS 1007.
     # Set explicitly (e.g. "low") only for thinking-capable models like models/gemini-3.8-live-extended-thinking.
     gemini_thinking_level: str = ""
+    # OpenAI Realtime (telephone bridge only; opt-in via PHONE_VOICE_PROVIDER=openai_realtime).
+    # 8 kHz G.711 mu-law both ways, so the bridge does no resampling for this provider.
+    openai_api_key: str = ""
+    openai_realtime_model: str = "gpt-realtime"
+    openai_realtime_ws_url: str = "wss://api.openai.com/v1/realtime"
+    openai_realtime_voice: str = "marin"
+    openai_realtime_transcribe_model: str = "gpt-4o-mini-transcribe"
+    openai_turn_detection: Literal['semantic_vad', 'server_vad'] = 'semantic_vad'
     phone_verified_tenants: str = ""  # populated only after a genuine carrier call test
     # Asterisk Manager Interface — the control plane for take-over/listen-in/whisper.
     # Blank host or secret keeps every media-server action disabled.
@@ -257,6 +277,10 @@ class Settings(BaseSettings):
     @property
     def effective_llm_key(self) -> str:
         return self.llm_api_key or self.gemini_api_key
+
+    @property
+    def phone_voice_ready(self) -> bool:
+        return phone_voice_ready(self)
 
     @property
     def gemini_ws_url(self) -> str:

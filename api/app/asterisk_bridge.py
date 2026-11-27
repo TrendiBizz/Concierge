@@ -1,4 +1,6 @@
-"""Private Asterisk AudioSocket → Google Gemini 3.8 Live voice bridge.
+"""Private Asterisk AudioSocket → realtime voice bridge (Google Gemini 3.8 Live or OpenAI Realtime).
+
+The provider is chosen by PHONE_VOICE_PROVIDER (gemini_live, the default, or openai_realtime).
 
 One listener per provisioned business: the caller/model never chooses a tenant.
 Run separately from HTTP workers: python -m app.asterisk_bridge.
@@ -21,8 +23,8 @@ import uuid
 import websockets
 
 from . import (asterisk_ami, call_control, channel_authorization, convo, db, enquiries, enquiry_alerts, events, tenants, voice,
-               voice_records)
-from .config import get_settings
+               voice_openai, voice_records)
+from .config import get_settings, phone_voice_ready
 from .rag import build_system_prompt
 from .tools import run_tool
 from .telephone_recording import TelephoneRecording
@@ -248,7 +250,17 @@ async def send_packet(writer, kind, body=b''):
 class MediaBridge:
     """Bidirectional audio bridge between Asterisk AudioSocket (8kHz) and Gemini Live (16kHz in / 24kHz out)."""
     def __init__(self, reader, writer, ws, session, on_transcript, on_tool, recording=None,
-                 reply_nudge=REPLY_NUDGE_SECONDS):
+                 reply_nudge=REPLY_NUDGE_SECONDS, provider='gemini_live'):
+        self.provider = provider
+        # OpenAI Realtime state: the assistant item being spoken, how many 8 kHz PCM16 bytes of it
+        # we queued (to tell the model how much the caller actually heard), partial transcripts,
+        # and whether tool results are waiting for a follow-up response.
+        self._oa_item = None
+        self._oa_bytes = 0
+        self._oa_text = {}
+        self._oa_user_waiting = False
+        self._oa_deferred = []
+        self._oa_tools_pending = False
         self.recording = recording
         self.reader, self.writer, self.ws = reader, writer, ws
         self.session = session or {}
@@ -355,6 +367,12 @@ class MediaBridge:
                     body = b'\0' * FRAME_BYTES
                 if self.recording:
                     self.recording.append(body)
+                if self.provider == 'openai_realtime':
+                    await self.ws.send(json.dumps({
+                        'type': 'input_audio_buffer.append',
+                        'audio': base64.b64encode(voice_openai.pcm16_to_ulaw(body)).decode(),
+                    }))
+                    continue
                 pcm16 = upsample_8k_to_16k(body)
                 await self.ws.send(json.dumps({
                     'realtimeInput': {
@@ -519,6 +537,167 @@ class MediaBridge:
                         'toolResponse': {'functionResponses': responses},
                     }, default=str))
 
+    def _oa_setup_payload(self) -> dict:
+        cfg = get_settings()
+        voice_name = self.session.get('openai_voice') or cfg.openai_realtime_voice
+        return voice_openai.session_update(
+            model=self.session.get('openai_model') or cfg.openai_realtime_model,
+            voice=voice_name, instructions=self.session.get('instructions') or '',
+            tools=self.session.get('tools'), transcribe_model=cfg.openai_realtime_transcribe_model,
+            turn=cfg.openai_turn_detection)
+
+    async def _oa_send(self, event: dict) -> None:
+        await self.ws.send(json.dumps(event, default=str))
+
+    async def _oa_flush_assistant(self, item_id=None) -> None:
+        """Emit assistant transcripts, but only after the caller line they answer is saved.
+
+        OpenAI transcribes caller speech asynchronously, so the caller line can arrive after the
+        assistant has started replying. Emitting in arrival order would store the turns back to front.
+        """
+        if self._oa_user_waiting:
+            if item_id and item_id not in self._oa_deferred:
+                self._oa_deferred.append(item_id)
+            return
+        pending = [item_id] if item_id else []
+        pending = list(dict.fromkeys(self._oa_deferred + pending))
+        self._oa_deferred = []
+        for ident in pending:
+            await self._emit_transcript('assistant', f'assistant-{ident}', self._oa_text.get(ident, ''))
+
+    async def _oa_interrupt(self) -> None:
+        """The caller started talking: drop queued audio and tell the model what was really heard."""
+        item, played_ms = self._oa_item, 0
+        if item and self._oa_bytes:
+            played_ms = max(0, (self._oa_bytes - len(self.playback)) // voice_openai.PCM16_8K_BYTES_PER_MS)
+        had_audio = bool(self.playback) or self.speaking
+        self.playback.clear()
+        self.speaking = False
+        if had_audio:
+            self.ending = False
+        if item and had_audio:
+            await self._oa_send({'type': 'conversation.item.truncate', 'item_id': item,
+                                 'content_index': 0, 'audio_end_ms': int(played_ms)})
+            await self._oa_flush_assistant(item)
+        self._oa_item, self._oa_bytes = None, 0
+
+    async def openai(self):
+        """Run one OpenAI Realtime session: protocol events in, playback and tool results out."""
+        await self._oa_send(self._oa_setup_payload())
+        loop = asyncio.get_running_loop()
+        async for message in self.ws:
+            event = json.loads(message)
+            kind = event.get('type') or ''
+
+            if kind == 'session.updated':
+                if not self.ready.is_set():
+                    self.ready.set()
+                    for item in voice_openai.user_text_items('A caller has just connected. Greet them now.'):
+                        await self._oa_send(item)
+                continue
+
+            if kind == 'error':
+                if voice_openai.is_benign_error(event):
+                    log.debug('OpenAI Realtime housekeeping error ignored: %s', str(event)[:300])
+                    continue
+                error = event.get('error') if isinstance(event.get('error'), dict) else {}
+                detail = str(error.get('message') or '')[:500]
+                code = str(error.get('code') or error.get('type') or 'unknown')
+                self.errors += 1
+                log.warning('OpenAI Realtime telephone session error %s/%s: %s', code, self.errors, detail)
+                if self.errors >= MAX_ERRORS:
+                    raise RuntimeError(f'OpenAI Realtime telephone session failed {self.errors} times: {code} {detail}')
+                if self.reply_pending:
+                    self.reply_since = loop.time()
+                continue
+
+            if kind == 'input_audio_buffer.speech_started':
+                self.caller_speaking = True
+                self._oa_user_waiting = True
+                await self._oa_interrupt()
+                continue
+
+            if kind == 'input_audio_buffer.speech_stopped':
+                self.caller_speaking = False
+                continue
+
+            if kind == 'conversation.item.input_audio_transcription.completed':
+                text = event.get('transcript')
+                self._oa_user_waiting = False
+                if isinstance(text, str) and text.strip():
+                    self.reply_pending = True
+                    self.reply_since = loop.time()
+                    await self._emit_transcript('user', f"user-{event.get('item_id') or self._user_turn}", text.strip())
+                await self._oa_flush_assistant()
+                continue
+
+            if kind in ('response.output_audio.delta', 'response.audio.delta'):
+                delta = event.get('delta')
+                if not isinstance(delta, str) or not delta:
+                    continue
+                audio8 = voice_openai.ulaw_to_pcm16(base64.b64decode(delta, validate=True))
+                if len(self.playback) + len(audio8) > 16000 * 30:
+                    raise ValueError('Invalid or excessive OpenAI audio')
+                if event.get('item_id') != self._oa_item:
+                    self._oa_item, self._oa_bytes = event.get('item_id'), 0
+                self.playback.extend(audio8)
+                self._oa_bytes += len(audio8)
+                self.speaking = True
+                self.reply_pending = False
+                continue
+
+            if kind in ('response.output_audio_transcript.delta', 'response.audio_transcript.delta'):
+                ident = event.get('item_id') or f'a{self._assistant_turn}'
+                chunk = event.get('delta')
+                if isinstance(chunk, str) and chunk:
+                    self._oa_text[ident] = self._oa_text.get(ident, '') + chunk
+                continue
+
+            if kind in ('response.output_audio_transcript.done', 'response.audio_transcript.done'):
+                ident = event.get('item_id') or f'a{self._assistant_turn}'
+                if isinstance(event.get('transcript'), str) and event['transcript']:
+                    self._oa_text[ident] = event['transcript']
+                await self._oa_flush_assistant(ident)
+                continue
+
+            if kind == 'response.function_call_arguments.done':
+                ident = event.get('call_id')
+                if not isinstance(ident, str) or not ident or len(ident) > 200 or ident in self.seen_tools:
+                    continue
+                if len(self.seen_tools) >= 40:
+                    raise ValueError('Tool limit')
+                self.seen_tools.add(ident)
+                name = event.get('name', '')
+                args = event.get('arguments')
+                if args in (None, ''):
+                    args = {}
+                elif isinstance(args, str):
+                    args = json.loads(args)
+                if not isinstance(args, dict):
+                    raise ValueError('Invalid tool arguments')
+                if name == 'end_call':
+                    self.ending = True
+                    continue
+                result = await self.on_tool(name, args)
+                await self._oa_send({'type': 'conversation.item.create', 'item': {
+                    'type': 'function_call_output', 'call_id': ident,
+                    'output': json.dumps(result, default=str)}})
+                self._oa_tools_pending = True
+                continue
+
+            if kind == 'response.done':
+                self.speaking = False
+                # Never hold transcripts back past the end of a response: a caller line that was
+                # never transcribed (noise, a cough) must not swallow the assistant's words.
+                self._oa_user_waiting = False
+                await self._oa_flush_assistant()
+                if self._oa_tools_pending and not self.ending:
+                    self._oa_tools_pending = False
+                    await self._oa_send({'type': 'response.create'})
+                if self.reply_pending:
+                    self.reply_since = loop.time()
+                continue
+
     async def watchdog(self):
         """Give a caller whose turn went unanswered one nudge, not dead air.
 
@@ -536,6 +715,10 @@ class MediaBridge:
             log.warning('Caller turn went unanswered for %.0fs; prompting the model',
                         self.reply_nudge)
             try:
+                if self.provider == 'openai_realtime':
+                    for item in voice_openai.user_text_items('Please reply to the caller.'):
+                        await self.ws.send(json.dumps(item))
+                    continue
                 await self.ws.send(json.dumps({
                     'clientContent': {
                         'turns': [{
@@ -550,7 +733,8 @@ class MediaBridge:
                 return
 
     async def run(self):
-        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, self.gemini, self.watchdog)]
+        loop_fn = self.openai if self.provider == 'openai_realtime' else self.gemini
+        tasks = [asyncio.create_task(f()) for f in (self.input, self.output, loop_fn, self.watchdog)]
         try:
             async with asyncio.timeout(MAX_SECONDS):
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -596,7 +780,7 @@ async def caller_number(call_id: str) -> str:
 
 async def register(route, call_id):
     cfg = get_settings()
-    if not cfg.phone_receptionist_enabled or cfg.phone_voice_provider != 'gemini_live' or not cfg.gemini_api_key:
+    if not phone_voice_ready(cfg):
         raise ValueError('Phone receptionist is disabled')
     tenant = await tenants.get_by_slug(route.tenant)
     if not tenant or not tenant['phone_enabled']:
@@ -639,6 +823,8 @@ async def prepare(route, call_id):
     session['model'] = cfg.gemini_live_model
     session['gemini_voice'] = cfg.gemini_live_voice
     session['thinking_level'] = cfg.gemini_thinking_level
+    session['openai_model'] = cfg.openai_realtime_model
+    session['openai_voice'] = cfg.openai_realtime_voice
     sms_ok = await sms_copy_available(tenant['id'])
     recording_ok = bool(cfg.voice_recording_enabled
                         and await channel_authorization.is_authorized(tenant['id'], 'call_recording'))
@@ -738,6 +924,15 @@ async def finish(tenant, call_id, conversation, status, record_session=None, rea
         pass
 
 
+def provider_connection(settings, provider=None):
+    """The WebSocket connection (an async context manager) to the chosen realtime provider."""
+    provider = provider or settings.phone_voice_provider
+    if provider == 'openai_realtime':
+        url, headers = voice_openai.ws_request(settings)
+        return websockets.connect(url, additional_headers=headers, open_timeout=15, max_size=4 * 1024 * 1024)
+    return websockets.connect(settings.gemini_ws_url, open_timeout=15, max_size=4 * 1024 * 1024)
+
+
 async def handle(reader, writer, route, networks):
     tenant = conversation = call_id = record_session = None
     recording = TelephoneRecording()
@@ -777,9 +972,11 @@ async def handle(reader, writer, route, networks):
                     record_session['recording_consent'] = False
                 if not await channel_authorization.is_authorized(tenant['id'], 'telephone'):
                     raise ValueError('Business telephone authorization revoked')
-        async with websockets.connect(get_settings().gemini_ws_url, open_timeout=15,
-                max_size=4 * 1024 * 1024) as ws:
-            media = asyncio.create_task(MediaBridge(reader, writer, ws, session, transcript, tool, recording).run())
+        settings = get_settings()
+        provider = settings.phone_voice_provider
+        async with provider_connection(settings, provider) as ws:
+            media = asyncio.create_task(MediaBridge(reader, writer, ws, session, transcript, tool, recording,
+                                                    provider=provider).run())
             guard = asyncio.create_task(monitor())
             try:
                 done, _ = await asyncio.wait((media, guard), return_when=asyncio.FIRST_COMPLETED)
