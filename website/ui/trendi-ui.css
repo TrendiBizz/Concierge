@@ -1,0 +1,102 @@
+/* Trendi UI styles. Brand tokens come from /styles.css (--accent, --ink, --surface, --line, --radius,
+   --font, --ease-out). Fallbacks keep it readable on a page without them. Idea credits: see trendi-ui.js. */
+
+.tui-scroll-lock { overflow: hidden; }
+
+/* ---------- toasts (Sonner idea) ---------- */
+.tui-toast-region { position: fixed; z-index: 9000; right: 24px; bottom: 24px; width: min(356px, calc(100vw - 32px)); outline: none; }
+.tui-toasts { list-style: none; margin: 0; padding: 0; position: relative; }
+.tui-toast {
+  position: absolute; right: 0; bottom: 0; width: 100%; box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px; padding: 14px 14px 14px 16px;
+  font: 500 15px/1.4 var(--font, system-ui, sans-serif); color: var(--ink, #241a2e);
+  background: var(--surface, #fffdf9); border: 1px solid var(--line, #e4ddd0);
+  border-left: 3px solid var(--accent, #5830ae); border-radius: var(--radius, 4px);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--ink, #241a2e) 14%, transparent);
+  transform-origin: bottom center; touch-action: pan-y; user-select: none;
+  transition: transform 400ms var(--ease-out, cubic-bezier(.23,1,.32,1)), opacity 200ms, translate 200ms;
+  animation: tui-toast-in 400ms var(--ease-out, cubic-bezier(.23,1,.32,1));
+}
+.tui-toast[data-type="success"] { border-left-color: var(--ok, #135437); }
+.tui-toast[data-type="error"] { border-left-color: var(--danger, #b42318); }
+.tui-toast.tui-hidden { opacity: 0; pointer-events: none; }
+.tui-toast.tui-dragging { transition: none; }
+.tui-toast.tui-leaving { opacity: 0; }
+.tui-toast.tui-out-left { translate: -110% 0; }
+.tui-toast.tui-out-right { translate: 110% 0; }
+.tui-toast-text { margin: 0; flex: 1; }
+.tui-toast-action { font: inherit; font-weight: 600; color: var(--on-accent, #fffdf9); background: var(--btn, #5830ae); border: 0; border-radius: var(--radius-sm, 3px); padding: 6px 10px; cursor: pointer; }
+.tui-toast-close { font: inherit; font-size: 18px; line-height: 1; color: var(--muted, #625670); background: none; border: 0; padding: 4px 6px; cursor: pointer; border-radius: var(--radius-sm, 3px); }
+.tui-toast-close:focus-visible, .tui-toast-action:focus-visible { outline: 2px solid var(--accent, #5830ae); outline-offset: 2px; }
+@keyframes tui-toast-in { from { opacity: 0; translate: 0 16px; } }
+@media (max-width: 600px) { .tui-toast-region { right: 16px; left: 16px; bottom: 16px; width: auto; } }
+
+/* ---------- bottom sheet (Vaul idea) ---------- */
+.tui-sheet {
+  position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: 100%; max-height: 85vh;
+  box-sizing: border-box; padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  border: 0; border-top: 1px solid var(--line, #e4ddd0); border-radius: 12px 12px 0 0;
+  background: var(--surface, #fffdf9); color: var(--ink, #241a2e); font-family: var(--font, system-ui, sans-serif);
+  transform: translateY(100%); transition: transform 500ms cubic-bezier(.32,.72,0,1); touch-action: none;
+}
+.tui-sheet.tui-open { transform: translateY(0); }
+.tui-sheet.tui-dragging { transition: none; }
+.tui-sheet::backdrop { background: color-mix(in oklab, var(--deep, #241a2e) 45%, transparent); }
+.tui-sheet-handle { width: 40px; height: 5px; margin: 4px auto 12px; border-radius: 999px; background: var(--line-strong, #cfc5b4); }
+.tui-sheet-body { overflow-y: auto; max-height: calc(85vh - 40px); touch-action: pan-y; }
+.tui-sheet-body a { display: block; padding: 12px 4px; color: inherit; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--line, #e4ddd0); }
+
+/* ---------- command menu (cmdk idea) ---------- */
+.tui-cmdk {
+  width: min(560px, calc(100vw - 32px)); margin: 12vh auto auto; padding: 0; box-sizing: border-box;
+  border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px);
+  background: var(--surface, #fffdf9); color: var(--ink, #241a2e); font-family: var(--font, system-ui, sans-serif);
+  box-shadow: 0 24px 64px color-mix(in oklab, var(--ink, #241a2e) 22%, transparent);
+}
+.tui-cmdk[open] { animation: tui-pop 180ms var(--ease-out, cubic-bezier(.23,1,.32,1)); }
+.tui-cmdk::backdrop { background: color-mix(in oklab, var(--deep, #241a2e) 35%, transparent); }
+.tui-cmdk-input { width: 100%; box-sizing: border-box; padding: 16px 18px; font: 500 17px var(--font, system-ui, sans-serif); color: inherit; background: none; border: 0; border-bottom: 1px solid var(--line, #e4ddd0); outline: none; }
+.tui-cmdk-list { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow-y: auto; }
+.tui-cmdk-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm, 3px); cursor: pointer; }
+.tui-cmdk-item[aria-selected="true"] { background: var(--wash, #ece4f5); color: var(--accent, #5830ae); }
+.tui-cmdk-group { color: var(--muted, #625670); font-size: 13px; }
+.tui-cmdk-empty, .tui-cmdk-hint { margin: 0; padding: 12px 18px; color: var(--muted, #625670); font-size: 13px; }
+.tui-cmdk-hint { border-top: 1px solid var(--line, #e4ddd0); }
+@keyframes tui-pop { from { opacity: 0; transform: scale(.96); } }
+
+/* ---------- ticker (NumberFlow idea) ---------- */
+.tui-ticker { display: inline-flex; font-variant-numeric: tabular-nums; }
+.tui-digit { display: inline-block; height: 1.2em; line-height: 1.2em; overflow: hidden; }
+.tui-reel { display: flex; flex-direction: column; transition: transform 900ms var(--ease-out, cubic-bezier(.23,1,.32,1)); }
+.tui-reel > span { height: 1.2em; }
+.tui-sym { display: inline-block; line-height: 1.2em; }
+
+/* ---------- AI states (Beautiful UI idea) ---------- */
+.tui-ai { font-family: var(--font, system-ui, sans-serif); color: var(--ink, #241a2e); }
+.tui-ai-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-weight: 600; }
+.tui-ai-time { color: var(--muted, #625670); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tui-ai-pulse { width: 10px; height: 10px; border-radius: 999px; background: var(--accent, #5830ae); animation: tui-pulse 1.2s ease-in-out infinite; }
+.tui-ai-steps { list-style: none; margin: 0; padding: 0; }
+.tui-ai-steps li { position: relative; padding: 4px 0 4px 24px; color: var(--muted, #625670); }
+.tui-ai-steps li::before { content: ""; position: absolute; left: 4px; top: .7em; width: 8px; height: 8px; border-radius: 999px; border: 2px solid var(--line-strong, #cfc5b4); box-sizing: border-box; }
+.tui-ai-steps li[data-state="active"] { color: var(--ink, #241a2e); }
+.tui-ai-steps li[data-state="active"]::before { border-color: var(--accent, #5830ae); }
+.tui-ai-steps li[data-state="done"]::before { background: var(--ok, #135437); border-color: var(--ok, #135437); }
+.tui-ai-steps li[data-state="failed"]::before { background: var(--danger, #b42318); border-color: var(--danger, #b42318); }
+.tui-ai-text { display: inline; margin: 0; }
+.tui-ai-caret { display: inline-block; width: .5em; height: 1.1em; margin-left: 2px; vertical-align: text-bottom; background: var(--accent, #5830ae); animation: tui-blink 1s steps(1) infinite; }
+.tui-ai-card { margin: 0; padding: 16px; border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px); background: var(--surface, #fffdf9); }
+.tui-ai-card legend { font-weight: 700; padding: 0 4px; }
+.tui-ai-stepcount { margin: 0 0 8px; color: var(--muted, #625670); font-size: 13px; }
+.tui-ai-option { display: flex; gap: 10px; align-items: center; padding: 10px 12px; margin: 6px 0; border: 1px solid var(--line, #e4ddd0); border-radius: var(--radius, 4px); cursor: pointer; }
+.tui-ai-option:has(input:checked) { border-color: var(--accent, #5830ae); background: var(--wash, #ece4f5); }
+.tui-ai-option input { accent-color: var(--accent, #5830ae); }
+.tui-ai-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.tui-ai-skip { font: inherit; background: none; border: 0; color: var(--muted, #625670); cursor: pointer; padding: 8px 12px; }
+@keyframes tui-pulse { 50% { opacity: .35; transform: scale(.8); } }
+@keyframes tui-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tui-toast, .tui-sheet, .tui-reel, .tui-cmdk[open] { transition: none; animation: none; }
+  .tui-ai-pulse, .tui-ai-caret { animation: none; }
+}
