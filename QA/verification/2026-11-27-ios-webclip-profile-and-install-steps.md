@@ -18,3 +18,6 @@ Proof: test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket; suit
 
 ## Addendum 3: where the signed-in QR is
 Cause: PhoneInstall (the ticketed install QR) lived only in LegacySetup, which nothing renders: the QR was unreachable in the live Studio. Fix: render it on the Home tab (hidden once installed); copy now describes the iPhone profile steps. Check: open Studio Home on a computer, QR visible below the dashboard.
+
+## Addendum 4: drawn step pictures (Jo: still confusing, show screens)
+Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen with the tap target outlined, captioned as a drawing (not a real screenshot). Checked in WebKit iPhone 13 emulation. Real iPhone screenshots from Jo can replace them.
