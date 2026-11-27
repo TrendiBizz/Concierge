@@ -607,7 +607,7 @@ _WEBCLIP_NS = uuid.UUID("6f0c2d3e-5a41-4c7e-9b8a-2d1f0e7a4c11")
 def build_webclip_profile(icon_png: bytes, ticket: str = "") -> bytes:
     """An iPhone configuration profile holding one Web Clip: the Concierge icon on the Home Screen.
 
-    Unsigned on purpose (no paid certificate), so iOS labels it "Not Verified" until the person
+    Unsigned on purpose (no paid certificate), so iOS labels it "Not Signed" until the person
     approves it in Settings. No secrets and no sign-in ticket are in it. Fixed UUIDs, so installing
     it again replaces the same clip instead of adding a second icon.
     """

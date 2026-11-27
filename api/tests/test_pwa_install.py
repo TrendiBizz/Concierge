@@ -346,14 +346,14 @@ def test_webclip_route_serves_the_apple_config_type_and_install_page_explains_st
     assert "attachment" in res.headers["content-disposition"]
     page = (PUBLIC / "install.html").read_text()
     assert 'class="steps"' in page and "You should see:" in page
-    assert "/studio/concierge.mobileconfig" in page and "Not Verified" in page
+    assert "/studio/concierge.mobileconfig" in page and "Not Signed" in page
 
 
 def test_iphone_card_leads_with_five_step_profile_install_and_keeps_share_route():
     page = (PUBLIC / "install.html").read_text()
     primary = page[page.index('id="ios-profile"'):page.index("<details")]
-    assert primary.count("<b>") == 5 and "Profile Downloaded" in primary and "Install" in primary
-    assert "/studio/concierge.mobileconfig" in primary and "Not Verified" in primary
+    assert primary.count("<b>") == 10 and "Profile Downloaded" in primary and "Install" in primary
+    assert "/studio/concierge.mobileconfig" in primary and "Not Signed" in primary
     assert "Add to Home Screen" in page[page.index("<details"):]
 
 
