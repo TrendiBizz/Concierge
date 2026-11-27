@@ -385,3 +385,11 @@ def test_install_page_tells_user_the_settings_screens_after_the_tick_are_nothing
     """Jo 2026-11-27: iOS leaves the user in Settings after the tick; that confused people."""
     page = (PUBLIC / "install.html").read_text()
     assert "never tap Remove Profile" in page and "Swipe up" in page
+
+
+def test_install_page_marks_the_stop_point_and_calls_it_a_bookmark():
+    """Jo 2026-11-27: show where to stop after the tick; say it is a bookmark."""
+    page = (PUBLIC / "install.html").read_text()
+    assert "STOP. The bookmark is installed. You are done." in page
+    assert "not an app download" in page and "bookmark" in page.split("Later, to use Concierge")[0]
+    assert "This is not part of the install." in page

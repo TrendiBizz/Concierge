@@ -36,3 +36,8 @@ Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen w
 - Cause: iOS itself leaves the user in Settings (VPN & Device Management, Profile with Remove Profile) after the tick. A web page cannot close Settings or skip these; unsigned profile flow is Apple's.
 - Fix: step 9 now says the install is finished, those pages are only Apple's list, do nothing, never tap Remove Profile, swipe up to leave. Step 10 opens with "Open the purple Concierge bell".
 - Proof: `test_install_page_tells_user_the_settings_screens_after_the_tick_are_nothing_to_do`. Not mutation-checked on a phone.
+
+## Addendum 8: stop point and "bookmark" wording (Jo, 2026-11-27)
+- Cause: after the blue tick iOS leaves the user in Settings; users kept going and got confused. Page also said "icon file" / "install", which reads like an app.
+- Fix: install.html heading and intro call it a bookmark, "not an app download"; step 9 carries a green "STOP. The bookmark is installed. You are done." box; step 10 reworded "Later, to use Concierge ... not part of the install".
+- Proof: test_install_page_marks_the_stop_point_and_calls_it_a_bookmark; mutation (STOP wording changed) made it fail; full suite 1986 passed. Not checked on a phone.
