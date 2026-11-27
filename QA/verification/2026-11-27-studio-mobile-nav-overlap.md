@@ -27,3 +27,8 @@ Updated `@media (max-width: 900px)` in `web/portal/src/shell.css`:
 3. **Regression test + mutation check**:
    - `pytest -q api/tests/test_studio_shell.py`: 23 passed.
    - Mutation check (removing `position: static` from `.c-nav` in `@media (max-width: 900px)`): `test_phone_topbar_and_nav_do_not_stick_over_content` failed as expected, then passed once restored.
+
+## Addendum: compact phone chrome (Jo, 2026-11-27)
+- Cause: wrapped topbar (151px) + wrapped nav (321px) + brand (68px) pushed content to y=540 of an 844px phone.
+- Fix: shell.css phone block: topbar and nav are each one swipeable row (nowrap, overflow-x auto, scrollbar hidden). Test assertions updated to match; mutation (topbar back to wrap) failed the test.
+- Proof (390x844, fake token, local build): topbar 58px, nav 52px, content starts y=179, page scrollWidth 390. Full suite 1986 passed. Not checked on a real phone or with real tenant data; the "huge buttons" in tab content were not reproduced.
