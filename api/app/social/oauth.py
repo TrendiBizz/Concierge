@@ -25,16 +25,24 @@ from . import config as social_config
 from . import store
 
 # ---- Scopes ---------------------------------------------------------------------------------
-FB_SCOPES = (
-    "pages_show_list,pages_manage_posts,pages_read_engagement,"
-    "pages_messaging,pages_manage_metadata,business_management"
+# Exact 6 permissions requested in Meta App Review (User OAuth via Facebook Login).
+META_REVIEW_SCOPES_LIST = (
+    "pages_show_list",
+    "pages_manage_posts",
+    "pages_read_engagement",
+    "business_management",
+    "instagram_basic",
+    "instagram_content_publish",
 )
-IG_FACEBOOK_SCOPES = (
-    "pages_show_list,pages_read_engagement,pages_messaging,pages_manage_metadata,"
-    "instagram_basic,instagram_content_publish,instagram_manage_messages,business_management"
-)
+META_REVIEW_SCOPES = ",".join(META_REVIEW_SCOPES_LIST)
+FB_SCOPES = META_REVIEW_SCOPES
+IG_FACEBOOK_SCOPES = META_REVIEW_SCOPES
 IG_DIRECT_SCOPES = "instagram_business_basic,instagram_business_content_publish"
 META_WEBHOOK_FIELDS = "messages,messaging_postbacks"
+
+
+def meta_review_scopes() -> list[str]:
+    return list(META_REVIEW_SCOPES_LIST)
 
 LINKEDIN_SCOPES = "openid profile email w_member_social"
 LINKEDIN_ORG_SCOPES = "r_organization_social w_organization_social rw_organization_admin"
@@ -304,13 +312,43 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
         raise HTTPException(400, "Meta token validation failed")
     if dbg_data.get("app_id") and str(dbg_data.get("app_id")) != cfg.client_id:
         raise HTTPException(400, "Meta token belongs to another application")
-    granted_scopes = _normalize_scopes(" ".join(dbg_data.get("scopes") or []))
+    granted_list = [str(s) for s in (dbg_data.get("scopes") or []) if s]
+    granted_scopes = _normalize_scopes(" ".join(granted_list))
+    granted_set = set(granted_scopes.split())
 
-    # Fetch authorized Facebook Pages
+    # Best-effort profile lookup + persist encrypted long-lived User Access Token for
+    # Page picker, Business picker, and Business asset linking.
+    meta_user_id = str(dbg_data.get("user_id") or "")
+    meta_user_name = ""
+    me_status, me_data = await _http_json(
+        "GET",
+        f"{gbase}/me",
+        params={"fields": "id,name"},
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    if me_status < 300 and isinstance(me_data, dict):
+        meta_user_id = str(me_data.get("id") or meta_user_id)
+        meta_user_name = str(me_data.get("name") or "")
+    user_expires_in = int(ll.get("expires_in") or 5184000) if ll_status < 300 else 3600
+    await store.upsert_meta_session(
+        customer_slug=customer_slug,
+        meta_user_id=meta_user_id,
+        meta_user_name=meta_user_name,
+        user_access_token=user_token,
+        granted_scopes=granted_scopes or META_REVIEW_SCOPES,
+        expires_at=int(time.time()) + user_expires_in,
+    )
+
+    # Fetch authorized Facebook Pages (including avatar, followers, and linked IG Professional account)
+    pg_fields = (
+        "id,name,access_token,tasks,category,fan_count,followers_count,"
+        "picture.type(large){url},"
+        "instagram_business_account{id,username,name,profile_picture_url,followers_count}"
+    )
     pg_status, pg_data = await _http_json(
         "GET",
         f"{gbase}/me/accounts",
-        params={"fields": "id,name,access_token,tasks,instagram_business_account{id,username}", "limit": "50"},
+        params={"fields": pg_fields, "limit": "50"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
     if pg_status >= 300:
@@ -321,6 +359,8 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
 
     account_ids: list[str] = []
     channels: list[dict] = []
+    sanitized_pages: list[dict] = []
+    can_subscribe_webhooks = "pages_manage_metadata" in granted_set
 
     for page in pages:
         page_id = str(page.get("id") or "").strip()
@@ -328,6 +368,41 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
         page_token = str(page.get("access_token") or "").strip()
         if not page_id or not page_token:
             continue
+
+        pic_url = str(((page.get("picture") or {}).get("data") or {}).get("url") or "").strip()
+        ig = page.get("instagram_business_account") or {}
+        ig_id = str(ig.get("id") or "").strip()
+        ig_username = str(ig.get("username") or "").strip()
+        ig_avatar = str(ig.get("profile_picture_url") or "").strip()
+        ig_followers = ig.get("followers_count")
+
+        linked_ig = (
+            {
+                "id": ig_id,
+                "username": ig_username or page_name,
+                "avatar_url": ig_avatar,
+                "followers_count": ig_followers,
+            }
+            if ig_id
+            else None
+        )
+        page_meta = {
+            "avatar_url": pic_url,
+            "category": str(page.get("category") or ""),
+            "fan_count": page.get("fan_count"),
+            "followers_count": page.get("followers_count"),
+            "tasks": list(page.get("tasks") or []),
+            "linked_instagram": linked_ig,
+        }
+        sanitized_pages.append({
+            "page_id": page_id,
+            "name": page_name,
+            "avatar_url": pic_url,
+            "category": page_meta["category"],
+            "fan_count": page_meta["fan_count"],
+            "followers_count": page_meta["followers_count"],
+            "instagram": linked_ig,
+        })
 
         if cfg.network == "facebook":
             acct_id = await store.upsert_verified_account(
@@ -338,15 +413,18 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
                 access_token=page_token,
                 expires_at=None,
                 granted_scopes=granted_scopes or FB_SCOPES,
+                metadata=page_meta,
             )
             account_ids.append(acct_id)
-            # Best-effort subscribe Page to messaging webhooks
-            sub_status, _ = await _http_json(
-                "POST",
-                f"{gbase}/{page_id}/subscribed_apps",
-                params={"subscribed_fields": META_WEBHOOK_FIELDS},
-                headers={"Authorization": f"Bearer {page_token}"},
-            )
+            sub_ok = False
+            if can_subscribe_webhooks:
+                sub_status, _ = await _http_json(
+                    "POST",
+                    f"{gbase}/{page_id}/subscribed_apps",
+                    params={"subscribed_fields": META_WEBHOOK_FIELDS},
+                    headers={"Authorization": f"Bearer {page_token}"},
+                )
+                sub_ok = sub_status < 300
             channels.append({
                 "account_id": acct_id,
                 "channel": "messenger",
@@ -354,14 +432,31 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
                 "page_id": page_id,
                 "display_name": page_name,
                 "access_token": page_token,
-                "webhook_subscribed": sub_status < 300,
+                "webhook_subscribed": sub_ok,
             })
+            # Also connect linked Instagram Professional account when instagram_basic is granted
+            if ig_id and (not granted_set or "instagram_basic" in granted_set):
+                ig_name = ig_username or page_name or ig_id
+                ig_acct_id = await store.upsert_verified_account(
+                    customer_slug=customer_slug,
+                    network="instagram",
+                    external_id=ig_id,
+                    display_name=ig_name,
+                    access_token=page_token,
+                    expires_at=None,
+                    granted_scopes=granted_scopes or IG_FACEBOOK_SCOPES,
+                    metadata={
+                        "avatar_url": ig_avatar,
+                        "page_id": page_id,
+                        "page_name": page_name,
+                        "followers_count": ig_followers,
+                    },
+                )
+                account_ids.append(ig_acct_id)
         else:
-            ig = page.get("instagram_business_account") or {}
-            ig_id = str(ig.get("id") or "").strip()
             if not ig_id:
                 continue
-            ig_name = str(ig.get("username") or page_name or ig_id).strip()
+            ig_name = ig_username or page_name or ig_id
             acct_id = await store.upsert_verified_account(
                 customer_slug=customer_slug,
                 network="instagram",
@@ -370,14 +465,23 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
                 access_token=page_token,
                 expires_at=None,
                 granted_scopes=granted_scopes or IG_FACEBOOK_SCOPES,
+                metadata={
+                    "avatar_url": ig_avatar,
+                    "page_id": page_id,
+                    "page_name": page_name,
+                    "followers_count": ig_followers,
+                },
             )
             account_ids.append(acct_id)
-            sub_status, _ = await _http_json(
-                "POST",
-                f"{gbase}/{page_id}/subscribed_apps",
-                params={"subscribed_fields": META_WEBHOOK_FIELDS},
-                headers={"Authorization": f"Bearer {page_token}"},
-            )
+            sub_ok = False
+            if can_subscribe_webhooks:
+                sub_status, _ = await _http_json(
+                    "POST",
+                    f"{gbase}/{page_id}/subscribed_apps",
+                    params={"subscribed_fields": META_WEBHOOK_FIELDS},
+                    headers={"Authorization": f"Bearer {page_token}"},
+                )
+                sub_ok = sub_status < 300
             channels.append({
                 "account_id": acct_id,
                 "channel": "instagram",
@@ -385,7 +489,7 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
                 "page_id": page_id,
                 "display_name": ig_name,
                 "access_token": page_token,
-                "webhook_subscribed": sub_status < 300,
+                "webhook_subscribed": sub_ok,
             })
 
     if not account_ids:
@@ -393,7 +497,13 @@ async def _finish_meta(customer_slug: str, cfg: social_config.OAuthProviderConfi
             raise HTTPException(400, "No linked professional Instagram account found")
         raise HTTPException(400, "No authorized Facebook Pages found")
 
-    return {"account_ids": account_ids, "channels": channels}
+    return {
+        "account_ids": account_ids,
+        "channels": channels,
+        "granted_scopes": sorted(granted_set) if granted_set else list(META_REVIEW_SCOPES_LIST),
+        "meta_user_name": meta_user_name,
+        "pages": sanitized_pages,
+    }
 
 
 async def _finish_linkedin(customer_slug: str, cfg: social_config.OAuthProviderConfig, code: str) -> dict:

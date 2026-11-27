@@ -108,7 +108,8 @@ async def owner_social_status(user: dict = Depends(owner_auth.current_user)):
             "providers": providers,
             "publish_enabled": publish_enabled,
             "callback_path": "/owner/social/oauth/callback",
-            "live_publishing": live_pub}
+            "live_publishing": live_pub,
+            "meta_scopes": social_mod.oauth.meta_review_scopes()}
 
 
 @router.post("/owner/social/oauth/renew/{account_id}")
@@ -219,6 +220,49 @@ async def owner_social_meta_disconnect(network: str, account_id: str,
     return await social_bridge.unlink_meta(user, network, account_id)
 
 
+class OwnerMetaPageSelect(BaseModel):
+    page_id: str = Field(min_length=3, max_length=40)
+    include_instagram: bool = True
+
+
+class OwnerMetaBusinessLink(BaseModel):
+    business_id: str = Field(min_length=3, max_length=40)
+    page_id: str = Field(min_length=3, max_length=40)
+    relation: str = Field(default="owned", pattern="^(owned|client)$")
+
+
+@router.get("/owner/social/meta/pages")
+async def owner_social_meta_pages(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.list_meta_pages(user)
+
+
+@router.post("/owner/social/meta/pages/select")
+async def owner_social_meta_page_select(body: OwnerMetaPageSelect,
+                                        user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.select_meta_page(user, body.page_id, include_instagram=body.include_instagram)
+
+
+@router.get("/owner/social/meta/businesses")
+async def owner_social_meta_businesses(user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.list_meta_businesses(user)
+
+
+@router.post("/owner/social/meta/businesses/link-page")
+async def owner_social_meta_business_link(body: OwnerMetaBusinessLink,
+                                          user: dict = Depends(owner_auth.current_user)):
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.link_meta_page_to_business(
+        user, body.business_id, body.page_id, relation=body.relation
+    )
+
+
+@router.get("/owner/social/meta/pages/{account_id}/activity")
+async def owner_social_meta_page_activity(account_id: str, limit: int = 10,
+                                          user: dict = Depends(owner_auth.current_user)):
+    return await social_bridge.get_meta_page_activity(user, account_id, limit=limit)
+
+
 @router.delete("/owner/social/oauth/linkedin/accounts/{account_id}")
 async def owner_social_linkedin_unlink(
     account_id: str, user: dict = Depends(owner_auth.current_user)
@@ -293,6 +337,13 @@ async def owner_social_approve(token: str, user: dict = Depends(owner_auth.curre
 async def owner_social_reject(token: str, user: dict = Depends(owner_auth.current_user)):
     owner_auth.require_role(user, "owner")
     return await social_bridge.decide(user, token, False)
+
+
+@router.post("/owner/social/posts/{post_id}/publish-now")
+async def owner_social_publish_now(post_id: str, user: dict = Depends(owner_auth.current_user)):
+    """Approve and immediately publish a post to its selected accounts, returning live post URLs."""
+    owner_auth.require_role(user, "owner")
+    return await social_bridge.publish_now(user, post_id)
 
 
 @router.post("/owner/social/posts/{post_id}/dry-run")

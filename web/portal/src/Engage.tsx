@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState, type ReactNode} from 'react';
 import {describeFailure} from './api';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
@@ -25,10 +25,141 @@ import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/Segment
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Asset = {id: string; kind: string; template: string; prompt: string; format: string; created_at: string; original_name?: string};
-type Account = {id: string; network: string; display_name: string; needs_reauth?: boolean; expires_at?: number | null};
+type Account = {
+  id: string;
+  network: string;
+  external_id?: string;
+  display_name: string;
+  avatar_url?: string;
+  metadata?: Record<string, unknown>;
+  needs_reauth?: boolean;
+  expires_at?: number | null;
+};
 type PostResult = {account_id: string; network: string; account_name: string; external_post_id?: string | null; external_url?: string | null; error?: string | null; ok: boolean; at?: string | null};
 type Post = {id: string; status: string; content: string; link?: string; hashtags?: string; last_error?: string; scheduled_at?: number | string; created_at?: string; results?: PostResult[]};
 type Variant = {account_id: string; account_name: string; network: string; content: string; link?: string; hashtags?: string; media?: string[]; video?: string | null; limit?: number; warnings?: string[]; errors?: string[]};
+
+type MetaInstagramInfo = {
+  id: string;
+  username: string;
+  avatar_url?: string;
+  followers_count?: number | null;
+  connected_account_id?: string | null;
+};
+
+type MetaPageOption = {
+  page_id: string;
+  name: string;
+  avatar_url?: string;
+  category?: string;
+  followers_count?: number | null;
+  fan_count?: number | null;
+  tasks?: string[];
+  connected_account_id?: string | null;
+  linked_business_id?: string;
+  linked_business_name?: string;
+  business_link_status?: string;
+  instagram?: MetaInstagramInfo | null;
+};
+
+type MetaPagesResponse = {
+  connected: boolean;
+  meta_user_name: string;
+  granted_scopes: string[];
+  selected_business_id: string;
+  selected_business_name: string;
+  pages: MetaPageOption[];
+};
+
+type MetaBusinessOption = {
+  id: string;
+  name: string;
+  avatar_url?: string;
+  verification_status?: string;
+  owned_page_ids: string[];
+  client_page_ids: string[];
+};
+
+type MetaBusinessesResponse = {
+  connected: boolean;
+  granted_business_management: boolean;
+  selected_business_id: string;
+  selected_business_name: string;
+  businesses: MetaBusinessOption[];
+};
+
+type BusinessLinkResult = {
+  ok: boolean;
+  business_id: string;
+  business_name: string;
+  page_id: string;
+  page_name: string;
+  relation: string;
+  access_status: string;
+  linked_at: string;
+  message: string;
+};
+
+type PageActivityPost = {
+  id: string;
+  message: string;
+  created_time: string;
+  permalink_url: string;
+  image_url: string;
+  likes: number;
+  comments: number;
+  shares: number;
+};
+
+type PageActivityPhoto = {
+  id: string;
+  caption: string;
+  image_url: string;
+  link: string;
+  created_time: string;
+};
+
+type PageActivityResponse = {
+  account_id: string;
+  page: {
+    id: string;
+    name: string;
+    avatar_url: string;
+    category: string;
+    link: string;
+    followers_count: number | null;
+    fan_count: number | null;
+    instagram?: MetaInstagramInfo | null;
+  };
+  totals: {posts: number; likes: number; comments: number; shares: number};
+  posts: PageActivityPost[];
+  photos: PageActivityPhoto[];
+  fetched_at: string;
+};
+
+const META_SCOPE_DESCRIPTIONS: Record<string, string> = {
+  pages_show_list: 'List your Facebook Pages',
+  pages_manage_posts: 'Publish posts to your Facebook Page',
+  pages_read_engagement: 'Read Page posts, photos, and engagement',
+  business_management: 'Select a Business Portfolio and link Pages',
+  instagram_basic: 'Show linked Instagram Professional accounts',
+  instagram_content_publish: 'Publish photos and captions to Instagram',
+};
+
+function TipWrap({tip, children}: {tip: string; children: ReactNode}) {
+  return (
+    <span className="c-tip-wrap" title={tip} data-tip={tip}>
+      {children}
+    </span>
+  );
+}
+
+function Avatar({src, name, small = false}: {src?: string; name: string; small?: boolean}) {
+  const cls = small ? 'meta-avatar-sm' : 'meta-avatar';
+  if (src) return <img className={cls} src={src} alt={name} />;
+  const letter = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  return <div className={cls + ' meta-avatar-fallback'} aria-hidden="true">{letter}</div>;
+}
 
 function useApi(token: string) {
   return async function api(path: string, method = 'GET', body?: unknown) {
@@ -325,7 +456,7 @@ export function Media({token}: {token: string}) {
 
 export function Social({token, brand}: {token: string; brand: Brand}) {
   const api = useApi(token);
-  const [view, setView] = useState<'compose' | 'calendar' | 'posts'>('compose');
+  const [view, setView] = useState<'compose' | 'activity' | 'calendar' | 'posts'>('compose');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [content, setContent] = useState('');
@@ -341,9 +472,66 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   const [when, setWhen] = useState('');
   const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [providers, setProviders] = useState<Record<string, boolean>>({});
+  const [metaScopes, setMetaScopes] = useState<string[]>([
+    'pages_show_list',
+    'pages_manage_posts',
+    'pages_read_engagement',
+    'business_management',
+    'instagram_basic',
+    'instagram_content_publish',
+  ]);
   const [livePublishing, setLivePublishing] = useState(false);
   const [autoPublish, setAutoPublish] = useState(false);
   const [role, setRole] = useState('');
+
+  // Meta App Review flows: Page picker, Business picker + asset link, Page activity, Live publish receipt
+  const [metaPages, setMetaPages] = useState<MetaPagesResponse | null>(null);
+  const [pageSelectSuccess, setPageSelectSuccess] = useState('');
+  const [metaBusinesses, setMetaBusinesses] = useState<MetaBusinessesResponse | null>(null);
+  const [selectedBusinessId, setSelectedBusinessId] = useState('');
+  const [linkPageId, setLinkPageId] = useState('');
+  const [linkRelation, setLinkRelation] = useState<'owned' | 'client'>('owned');
+  const [businessLinkResult, setBusinessLinkResult] = useState<BusinessLinkResult | null>(null);
+  const [activityAccountId, setActivityAccountId] = useState('');
+  const [pageActivity, setPageActivity] = useState<PageActivityResponse | null>(null);
+  const [publishReceipt, setPublishReceipt] = useState<Post | null>(null);
+
+  const filePreviewUrl = useMemo(() => {
+    if (!file || !file.type.startsWith('image/')) return '';
+    return URL.createObjectURL(file);
+  }, [file]);
+
+  useEffect(() => {
+    if (!filePreviewUrl) return;
+    return () => { URL.revokeObjectURL(filePreviewUrl); };
+  }, [filePreviewUrl]);
+
+  async function loadMetaContext() {
+    try {
+      const [pagesRes, bizRes] = await Promise.all([
+        api('/owner/social/meta/pages').catch(() => null),
+        api('/owner/social/meta/businesses').catch(() => null),
+      ]);
+      if (pagesRes) {
+        const pr = pagesRes as MetaPagesResponse;
+        setMetaPages(pr);
+        if (pr.pages.length && !linkPageId) {
+          setLinkPageId(pr.pages[0].page_id);
+        }
+      }
+      if (bizRes) {
+        const br = bizRes as MetaBusinessesResponse;
+        setMetaBusinesses(br);
+        if (br.selected_business_id) {
+          setSelectedBusinessId(br.selected_business_id);
+        } else if (br.businesses.length && !selectedBusinessId) {
+          setSelectedBusinessId(br.businesses[0].id);
+        }
+      }
+    } catch {
+      // Meta context is optional until Facebook Login is completed.
+    }
+  }
 
   async function load() {
     try {
@@ -351,16 +539,26 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         api('/owner/social/accounts'), api('/owner/social/posts'), api('/owner/social/status'),
         api('/owner/me'), api('/owner/media/assets').catch(() => []),
       ]);
-      setAccounts(a as Account[]); setPosts(p as Post[]);
-      // Anything generated on the Media page is offered here, so "it goes to your composer" is true.
+      const acctList = a as Account[];
+      setAccounts(acctList);
+      setPosts(p as Post[]);
+      // Anything uploaded on the Media page is offered here in the composer.
       setLibrary((media as Asset[]) || []);
-      const s = statusRes as {providers?: Record<string, boolean>; live_publishing?: boolean};
+      const s = statusRes as {providers?: Record<string, boolean>; live_publishing?: boolean; meta_scopes?: string[]};
       setProviders(s.providers || {});
       setLivePublishing(Boolean(s.live_publishing));
+      if (Array.isArray(s.meta_scopes) && s.meta_scopes.length) {
+        setMetaScopes(s.meta_scopes);
+      }
       setRole((me as {role: string}).role);
+      const fbPages = acctList.filter((item) => item.network === 'facebook' && !item.needs_reauth);
+      if (fbPages.length && !activityAccountId) {
+        setActivityAccountId(fbPages[0].id);
+      }
+      await loadMetaContext();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not load social accounts'); }
   }
-  useEffect(() => { load(); }, [token]);
+  useEffect(() => { void load(); }, [token]);
 
   function oauthPath(provider: string) {
     if (provider === 'google_business') return '/owner/social/oauth/google';
@@ -415,7 +613,9 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         if (data.error || !data.code) { setStatus('Authorization was cancelled or denied.'); return; }
         try {
           await api(oauthPath(provider) + '/finish', 'POST', {state: data.state, code: data.code});
-          setStatus(provider.replaceAll('_', ' ') + ' connected.');
+          setStatus(provider === 'facebook' || provider === 'instagram'
+            ? 'Facebook Login complete. Select your Page, Business Portfolio, or Page activity below.'
+            : provider.replaceAll('_', ' ') + ' connected.');
           await load();
         } catch (e) { setStatus(e instanceof Error ? e.message : 'Connection failed'); }
       };
@@ -424,11 +624,105 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
         if (event.origin === location.origin && event.data?.type === 'concierge-social-oauth') void finish(event.data);
       });
       popup.location.href = url.href;
-      setStatus('Continue in the provider window. Authorize the account for this business.');
+      setStatus('Continue in the provider window. Authorize the permissions for this business.');
     } catch (e) {
       try { popup.close(); } catch { /* ignore */ }
       setStatus(e instanceof Error ? e.message : 'Connection unavailable');
     }
+  }
+
+  async function refreshMetaPages() {
+    setBusy(true); setStatus('');
+    try {
+      const res = await api('/owner/social/meta/pages') as MetaPagesResponse;
+      setMetaPages(res);
+      if (res.pages.length && !linkPageId) setLinkPageId(res.pages[0].page_id);
+      setStatus('Loaded ' + res.pages.length + ' authorized Facebook Page' + (res.pages.length === 1 ? '' : 's') + '.');
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not load Facebook Pages');
+    }
+    setBusy(false);
+  }
+
+  async function selectMetaPage(page: MetaPageOption) {
+    if (role !== 'owner') { setStatus('Only the business owner can select a Facebook Page.'); return; }
+    setBusy(true); setStatus(''); setPageSelectSuccess('');
+    try {
+      const res = await api('/owner/social/meta/pages/select', 'POST', {
+        page_id: page.page_id,
+        include_instagram: true,
+      }) as {
+        ok: boolean;
+        message: string;
+        facebook_account_id: string;
+        instagram_account_id?: string | null;
+      };
+      setPageSelectSuccess(res.message);
+      setStatus(res.message);
+      const nextSelected = [res.facebook_account_id, ...(res.instagram_account_id ? [res.instagram_account_id] : [])];
+      setSelected(nextSelected);
+      setActivityAccountId(res.facebook_account_id);
+      setLinkPageId(page.page_id);
+      await load();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not select Facebook Page');
+    }
+    setBusy(false);
+  }
+
+  async function refreshMetaBusinesses() {
+    setBusy(true); setStatus('');
+    try {
+      const res = await api('/owner/social/meta/businesses') as MetaBusinessesResponse;
+      setMetaBusinesses(res);
+      if (res.businesses.length && !selectedBusinessId) {
+        setSelectedBusinessId(res.selected_business_id || res.businesses[0].id);
+      }
+      setStatus('Loaded ' + res.businesses.length + ' Meta Business Portfolio' + (res.businesses.length === 1 ? '' : 's') + '.');
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not load Meta Business Portfolios');
+    }
+    setBusy(false);
+  }
+
+  async function linkPageToBusiness() {
+    if (role !== 'owner') { setStatus('Only the business owner can link a Page to a Business Portfolio.'); return; }
+    if (!selectedBusinessId || !linkPageId) {
+      setStatus('Choose both a Business Portfolio and a Facebook Page first.');
+      return;
+    }
+    setBusy(true); setStatus(''); setBusinessLinkResult(null);
+    try {
+      const res = await api('/owner/social/meta/businesses/link-page', 'POST', {
+        business_id: selectedBusinessId,
+        page_id: linkPageId,
+        relation: linkRelation,
+      }) as BusinessLinkResult;
+      setBusinessLinkResult(res);
+      setStatus(res.message);
+      await load();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not link Page to Business Portfolio');
+    }
+    setBusy(false);
+  }
+
+  async function loadPageActivity(targetId?: string) {
+    const id = targetId || activityAccountId;
+    if (!id) {
+      setStatus('Select a connected Facebook Page to view Page activity.');
+      return;
+    }
+    setBusy(true); setStatus('');
+    try {
+      const res = await api('/owner/social/meta/pages/' + id + '/activity') as PageActivityResponse;
+      setPageActivity(res);
+      setView('activity');
+      setStatus('Loaded Page activity for ' + res.page.name + ' (' + res.totals.posts + ' recent posts).');
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not load Page activity');
+    }
+    setBusy(false);
   }
 
   async function upload(source: File | null = file): Promise<string[] | undefined> {
@@ -440,13 +734,13 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   }
 
   async function attachAsset(id: string) {
-    setBusy(true); setStatus('Adding that to your post…');
+    setBusy(true); setStatus('Adding media to your post…');
     try {
       const response = await fetch('/owner/media/assets/' + id + '/file', {headers: {Authorization: 'Bearer ' + token}});
       if (!response.ok) throw new Error('Media not available.');
       const refs = (await upload(new File([await response.blob()], 'asset', {type: response.headers.get('content-type') || 'image/jpeg'}))) || [];
       setAttachedRefs((current) => [...current, ...refs]);
-      setStatus('Added to this post.');
+      setStatus('Added media to this post.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not add that media'); }
     setBusy(false);
   }
@@ -456,13 +750,40 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     try {
       if (!selected.length) throw new Error('Choose at least one connected account');
       const uploaded = await upload();
-      // What we promised on the Media page: something you made there can go straight into a post.
       const media = [...(uploaded || []), ...attachedRefs];
       const draft = {content, account_ids: selected, link, hashtags, media, options: {}};
       const result = await api('/owner/social/compose', 'POST', draft) as Variant[];
       setVariants(result);
-      setStatus('Previews ready. Review each network version before scheduling.');
+      setStatus('Previews ready. Review each network version before publishing or scheduling.');
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Compose failed'); }
+    setBusy(false);
+  }
+
+  async function publishSelectedNow() {
+    if (role !== 'owner') { setStatus('Only the business owner can publish posts immediately.'); return; }
+    setBusy(true); setStatus(''); setPublishReceipt(null);
+    try {
+      if (!selected.length) throw new Error('Select at least one connected Facebook Page or Instagram account');
+      if (!content.trim()) throw new Error('Enter a post caption before publishing');
+      const uploaded = await upload();
+      const media = [...(uploaded || []), ...attachedRefs];
+      const saved = await api('/owner/social/posts', 'POST', {
+        content: content.trim(),
+        account_ids: selected,
+        link: link.trim(),
+        hashtags: hashtags.trim(),
+        media,
+        options: {},
+      }) as {id: string};
+      const published = await api('/owner/social/posts/' + saved.id + '/publish-now', 'POST') as Post;
+      setPublishReceipt(published);
+      setStatus(published.status === 'published'
+        ? 'Published to selected accounts. Use the live links below to verify on Facebook and Instagram.'
+        : (published.last_error || 'Publish completed with status: ' + published.status));
+      await load();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not publish post');
+    }
     setBusy(false);
   }
 
@@ -477,6 +798,12 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
       } else if (mode === 'submit') {
         await api('/owner/social/posts/' + saved.id + '/submit', 'POST');
         setStatus('Submitted for owner approval. Approve it in Your posts below to publish.');
+      } else if (mode === 'publish_now' && livePublishing) {
+        const published = await api('/owner/social/posts/' + saved.id + '/publish-now', 'POST') as Post;
+        setPublishReceipt(published);
+        setStatus(published.status === 'published'
+          ? 'Published live. Open the live post link below to verify.'
+          : (published.last_error || 'Publish completed with status: ' + published.status));
       } else {
         await api('/owner/social/posts/' + saved.id + '/submit', 'POST');
         const at = mode === 'publish_now'
@@ -507,6 +834,16 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
     if (role !== 'owner') { setStatus('Only the business owner can approve or reject posts.'); return; }
     setBusy(true); setStatus('');
     try {
+      if (action === 'publish_now' && livePublishing) {
+        const published = await api('/owner/social/posts/' + postId + '/publish-now', 'POST') as Post;
+        setPublishReceipt(published);
+        setStatus(published.status === 'published'
+          ? 'Approved and published live. Open the live post link below to verify.'
+          : (published.last_error || 'Publish completed with status: ' + published.status));
+        await load();
+        setBusy(false);
+        return;
+      }
       const at = action === 'publish_now'
         ? Math.floor(Date.now() / 1000)
         : (when ? Math.floor(new Date(when).getTime() / 1000) : Math.floor(Date.now() / 1000) + 3600);
@@ -526,16 +863,258 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   }
 
   const connectable = accounts.filter((a) => !a.needs_reauth && a.network !== 'bluesky');
+  const connectedFacebookPages = connectable.filter((a) => a.network === 'facebook');
+  const connectedMetaPublishIds = connectable
+    .filter((a) => a.network === 'facebook' || a.network === 'instagram')
+    .map((a) => a.id);
+  const selectedBusiness = (metaBusinesses?.businesses || []).find((b) => b.id === selectedBusinessId) || null;
 
   return (
     <div>
       <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap', marginBottom: 8}}>
-        <p style={{margin: 0}}>Prepare one post for each network, review the exact text, then approve or schedule it for {brand.name || 'your business'}.</p>
+        <p style={{margin: 0}}>Connect Facebook Pages and Instagram accounts, manage Business Portfolio links, review Page activity, and publish approved posts for {brand.name || 'your business'}.</p>
         <Badge label={livePublishing ? 'Live publishing enabled' : 'Drafts & approvals only'} variant={livePublishing ? 'success' : 'neutral'} />
       </HStack>
+
+      <Card>
+        <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+          <div>
+            <Heading level={2}>Meta Facebook Login (Pages, Instagram &amp; Business)</Heading>
+            <p style={{margin: '4px 0 0', fontSize: 13, opacity: 0.85}}>
+              Uses standard Facebook Login (user OAuth 2.0) to authorize your Facebook Pages, linked Instagram Professional accounts, Page engagement insights, and Meta Business Portfolios.
+            </p>
+          </div>
+          <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+            {metaPages?.connected ? (
+              <Badge
+                label={'Signed in' + (metaPages.meta_user_name ? ': ' + metaPages.meta_user_name : ' with Facebook')}
+                variant="success"
+              />
+            ) : null}
+            <TipWrap tip="Sign in with Facebook Login and grant the 6 required permissions for Pages, Instagram publishing, Page activity, and Business management.">
+              <Button
+                label={metaPages?.connected ? 'Reconnect with Facebook' : 'Continue with Facebook'}
+                variant="primary"
+                isDisabled={busy || !providers.facebook || role !== 'owner'}
+                onClick={() => void connect('facebook')}
+              />
+            </TipWrap>
+          </HStack>
+        </HStack>
+        <div className="meta-scope-list" aria-label="Requested Meta permissions">
+          {metaScopes.map((scope) => {
+            const granted = Boolean(metaPages?.granted_scopes?.includes(scope));
+            return (
+              <span
+                key={scope}
+                className="meta-scope-chip"
+                title={META_SCOPE_DESCRIPTIONS[scope] || scope}>
+                {granted ? '✓ ' : ''}<code>{scope}</code>
+                {META_SCOPE_DESCRIPTIONS[scope] ? ' — ' + META_SCOPE_DESCRIPTIONS[scope] : ''}
+              </span>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card>
+        <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+          <div>
+            <Heading level={2}>Facebook Page &amp; Instagram picker</Heading>
+            <p style={{margin: '4px 0 0', fontSize: 13, opacity: 0.85}}>
+              Choose which authorized Facebook Page and linked Instagram Professional account to activate for publishing and engagement activity.
+            </p>
+          </div>
+          <TipWrap tip="Reload authorized Facebook Pages and linked Instagram Professional accounts from Meta.">
+            <Button label="Refresh Pages" variant="secondary" isDisabled={busy} onClick={() => void refreshMetaPages()} />
+          </TipWrap>
+        </HStack>
+
+        {pageSelectSuccess ? (
+          <div className="meta-success-box" role="status">
+            <HStack gap={2} vAlign="center">
+              <Badge label="Page selected" variant="success" />
+              <strong>{pageSelectSuccess}</strong>
+            </HStack>
+          </div>
+        ) : null}
+
+        {metaPages?.pages?.length ? (
+          <div className="meta-picker-grid">
+            {metaPages.pages.map((page) => {
+              const isConnected = Boolean(page.connected_account_id);
+              return (
+                <div key={page.page_id} className={'meta-page-item' + (isConnected ? ' is-selected' : '')}>
+                  <HStack gap={2} vAlign="center">
+                    <Avatar src={page.avatar_url} name={page.name} />
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <strong style={{display: 'block', overflowWrap: 'anywhere'}}>{page.name}</strong>
+                      <span style={{fontSize: 12, opacity: 0.78}}>
+                        {page.category ? page.category + ' · ' : ''}Page ID: {page.page_id}
+                        {typeof page.followers_count === 'number' ? ' · ' + page.followers_count.toLocaleString() + ' followers' : ''}
+                      </span>
+                    </div>
+                    {isConnected ? <Badge label="Connected" variant="success" /> : null}
+                  </HStack>
+
+                  {page.instagram ? (
+                    <HStack gap={2} vAlign="center" style={{padding: '8px 10px', borderRadius: 10, background: 'var(--c-page)'}}>
+                      <Avatar src={page.instagram.avatar_url} name={page.instagram.username} small />
+                      <span style={{fontSize: 12.5}}>
+                        <strong>Instagram:</strong> @{page.instagram.username}
+                        {typeof page.instagram.followers_count === 'number'
+                          ? ' (' + page.instagram.followers_count.toLocaleString() + ' followers)'
+                          : ''}
+                      </span>
+                      {page.instagram.connected_account_id ? <Badge label="IG ready" variant="info" /> : null}
+                    </HStack>
+                  ) : (
+                    <span style={{fontSize: 12, opacity: 0.7}}>No linked Instagram Professional account on this Page.</span>
+                  )}
+
+                  {page.linked_business_name ? (
+                    <span style={{fontSize: 12}}>
+                      <strong>Business:</strong> {page.linked_business_name} ({page.business_link_status || 'Linked'})
+                    </span>
+                  ) : null}
+
+                  <HStack gap={2} style={{flexWrap: 'wrap'}}>
+                    <TipWrap tip="Select this Facebook Page and its linked Instagram account for posting and Page activity.">
+                      <Button
+                        label={isConnected ? 'Selected — use Page' : 'Select Page'}
+                        variant={isConnected ? 'secondary' : 'primary'}
+                        isDisabled={busy || role !== 'owner'}
+                        onClick={() => void selectMetaPage(page)}
+                      />
+                    </TipWrap>
+                    {page.connected_account_id ? (
+                      <TipWrap tip="Load recent posts, photos, followers, and engagement counts for this Facebook Page.">
+                        <Button
+                          label="View Page activity"
+                          variant="ghost"
+                          isDisabled={busy}
+                          onClick={() => {
+                            setActivityAccountId(page.connected_account_id || '');
+                            void loadPageActivity(page.connected_account_id || '');
+                          }}
+                        />
+                      </TipWrap>
+                    ) : null}
+                  </HStack>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{marginTop: 10, fontSize: 13, opacity: 0.8}}>
+            Click <strong>Continue with Facebook</strong> above to load your authorized Facebook Pages and linked Instagram accounts.
+          </p>
+        )}
+      </Card>
+
+      <Card>
+        <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+          <div>
+            <Heading level={2}>Meta Business Portfolio (Link Page to business)</Heading>
+            <p style={{margin: '4px 0 0', fontSize: 13, opacity: 0.85}}>
+              Select a Meta Business Portfolio and link or claim a Facebook Page under that business using <code>business_management</code>.
+            </p>
+          </div>
+          <TipWrap tip="Fetch Meta Business Portfolios accessible to your Facebook login.">
+            <Button label="Load Businesses" variant="secondary" isDisabled={busy} onClick={() => void refreshMetaBusinesses()} />
+          </TipWrap>
+        </HStack>
+
+        {metaBusinesses?.businesses?.length ? (
+          <div style={{display: 'grid', gap: 12, marginTop: 12}}>
+            <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+              <label style={{display: 'grid', gap: 4, fontSize: 13}}>
+                <span>Business Portfolio</span>
+                <select
+                  aria-label="Select Meta Business Portfolio"
+                  className="meta-select"
+                  value={selectedBusinessId}
+                  onChange={(e) => setSelectedBusinessId(e.target.value)}>
+                  {metaBusinesses.businesses.map((biz) => (
+                    <option key={biz.id} value={biz.id}>
+                      {biz.name} ({biz.id}){biz.verification_status ? ' — ' + biz.verification_status : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{display: 'grid', gap: 4, fontSize: 13}}>
+                <span>Facebook Page to link</span>
+                <select
+                  aria-label="Select Facebook Page to link"
+                  className="meta-select"
+                  value={linkPageId}
+                  onChange={(e) => setLinkPageId(e.target.value)}>
+                  {(metaPages?.pages || []).map((page) => (
+                    <option key={page.page_id} value={page.page_id}>
+                      {page.name} ({page.page_id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{display: 'grid', gap: 4, fontSize: 13}}>
+                <span>Asset relationship</span>
+                <select
+                  aria-label="Select Business asset relationship"
+                  className="meta-select"
+                  value={linkRelation}
+                  onChange={(e) => setLinkRelation(e.target.value as 'owned' | 'client')}>
+                  <option value="owned">Owned Page (claim to Business)</option>
+                  <option value="client">Client Page (request agency access)</option>
+                </select>
+              </label>
+
+              <div style={{alignSelf: 'flex-end'}}>
+                <TipWrap tip="Link or claim the chosen Facebook Page under the selected Meta Business Portfolio.">
+                  <Button
+                    label="Link Page to business"
+                    variant="primary"
+                    isDisabled={busy || role !== 'owner' || !selectedBusinessId || !linkPageId}
+                    onClick={() => void linkPageToBusiness()}
+                  />
+                </TipWrap>
+              </div>
+            </HStack>
+
+            {selectedBusiness ? (
+              <HStack gap={2} vAlign="center" style={{fontSize: 13}}>
+                <Avatar src={selectedBusiness.avatar_url} name={selectedBusiness.name} small />
+                <span>
+                  Selected business: <strong>{selectedBusiness.name}</strong> (ID: {selectedBusiness.id}) · Owned Pages: {selectedBusiness.owned_page_ids.length} · Client Pages: {selectedBusiness.client_page_ids.length}
+                </span>
+              </HStack>
+            ) : null}
+          </div>
+        ) : (
+          <p style={{marginTop: 10, fontSize: 13, opacity: 0.8}}>
+            {metaBusinesses?.connected
+              ? 'No Meta Business Portfolios were returned for this login. Click Load Businesses after granting business_management.'
+              : 'Sign in with Facebook above, then click Load Businesses to select a Meta Business Portfolio and link a Page.'}
+          </p>
+        )}
+
+        {businessLinkResult ? (
+          <div className="meta-success-box" role="status">
+            <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+              <Badge label={'Linked: ' + businessLinkResult.access_status} variant="success" />
+              <strong>{businessLinkResult.message}</strong>
+            </HStack>
+            <span style={{fontSize: 12.5}}>
+              Business: <strong>{businessLinkResult.business_name}</strong> ({businessLinkResult.business_id}) · Page: <strong>{businessLinkResult.page_name}</strong> ({businessLinkResult.page_id})
+            </span>
+          </div>
+        ) : null}
+      </Card>
+
       <Card>
         <Heading level={2}>Social accounts</Heading>
-        <p>Authorize one account at a time on the provider's own site. A full-colour mark means the network is available for this business; a faded one means setup has not been enabled yet.</p>
+        <p>Authorize one account at a time on the provider&apos;s own site. A full-colour mark means the network is available for this business; a faded one means setup has not been enabled yet.</p>
         <div className="social-connect">
           {SOCIAL_NETWORKS.map((network) => {
             const linked = accounts.filter((account) => account.network === network.id);
@@ -550,17 +1129,23 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                     : enabled ? network.note : 'Not enabled for this business yet'}</span>
                 </div>
                 <HStack gap={1} vAlign="center">
-                  {enabled
-                    ? <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
+                  {enabled ? (
+                    <TipWrap tip={'Authorize ' + network.label + ' via OAuth in a secure popup window.'}>
+                      <Button label={linked.length ? 'Add another' : 'Connect'} variant={linked.length ? 'secondary' : 'primary'}
                               isDisabled={busy} onClick={() => void connect(network.id)} />
-                    : <Badge label="setup" variant="neutral" />}
+                    </TipWrap>
+                  ) : <Badge label="setup" variant="neutral" />}
                   {role === 'owner' && linked.length && linked[0].needs_reauth ? (
-                    <Button label="Renew" variant="secondary" isDisabled={busy}
-                            onClick={() => void renewAccount(linked[0])} />
+                    <TipWrap tip={'Refresh the expired OAuth token for ' + network.label + '.'}>
+                      <Button label="Renew" variant="secondary" isDisabled={busy}
+                              onClick={() => void renewAccount(linked[0])} />
+                    </TipWrap>
                   ) : null}
                   {role === 'owner' && linked.length ? (
-                    <Button label="Disconnect" variant="ghost" isDisabled={busy}
-                            onClick={() => void disconnectAccount(linked[0])} />
+                    <TipWrap tip={'Disconnect ' + (linked[0].display_name || network.label) + ' and remove its stored token.'}>
+                      <Button label="Disconnect" variant="ghost" isDisabled={busy}
+                              onClick={() => void disconnectAccount(linked[0])} />
+                    </TipWrap>
                   ) : null}
                 </HStack>
               </div>
@@ -579,36 +1164,56 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           </div>
         ) : null}
       </Card>
-      {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Choose a network above; it appears here once connected.</p></Card> : null}
+
+      {!accounts.length ? <Card><p>No social accounts are connected yet.</p><p>Sign in with Facebook or choose a network above; it appears here once connected.</p></Card> : null}
+
       {accounts.length ? (
         <Card>
-          <Heading level={2}>New post</Heading>
-          <TextArea label="Post" value={content} onChange={setContent} rows={5} />
+          <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+            <Heading level={2}>New post composer (Facebook &amp; Instagram)</Heading>
+            {connectedMetaPublishIds.length ? (
+              <TipWrap tip="Check both your connected Facebook Page and linked Instagram Professional account at once.">
+                <Button
+                  label="Select Facebook & Instagram"
+                  variant="secondary"
+                  isDisabled={busy}
+                  onClick={() => setSelected(connectedMetaPublishIds)}
+                />
+              </TipWrap>
+            ) : null}
+          </HStack>
+          <TextArea label="Post caption" value={content} onChange={setContent} rows={5} />
           <TextInput label="Link (optional)" type="url" value={link} onChange={setLink} />
           <TextInput label="Hashtags (optional)" value={hashtags} onChange={setHashtags} />
-          <FileInput label="Image or video (optional)" value={file} onChange={(v) => setFile((v as File) || null)} accept="image/*,video/*" />
+          <FileInput label="Image or video (required for Instagram)" value={file} onChange={(v) => setFile((v as File) || null)} accept="image/*,video/*" />
+          {filePreviewUrl ? (
+            <div style={{marginTop: 8}}>
+              <img src={filePreviewUrl} alt="Selected media preview" style={{maxWidth: 180, maxHeight: 180, borderRadius: 10, objectFit: 'cover'}} />
+            </div>
+          ) : null}
           {library.length ? (
             <div style={{margin: '8px 0'}}>
-              <span style={{fontSize: 13, opacity: 0.75}}>Or use something you made in Marketing media</span>
+              <span style={{fontSize: 13, opacity: 0.75}}>Or attach media from your Marketing media library</span>
               <div style={{display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', marginTop: 6}}>
                 {library.slice(0, 8).map((asset) => (
                   <button key={asset.id} type="button" onClick={() => void attachAsset(asset.id)}
                           style={{padding: 0, border: 0, background: 'none', cursor: 'pointer'}}
                           aria-label={'Use ' + (asset.original_name || 'this media') + ' in the post'}
-                          title={asset.original_name || 'Marketing media'}>
+                          title={'Attach ' + (asset.original_name || 'library media') + ' to this post'}>
                     <AssetPreview token={token} id={asset.id} video={asset.kind === 'video'} />
                   </button>
                 ))}
               </div>
-              {attachedRefs.length ? <p style={{fontSize: 13}}>Attached: {attachedRefs.length}</p> : null}
+              {attachedRefs.length ? <p style={{fontSize: 13}}>Attached media items: {attachedRefs.length}</p> : null}
             </div>
           ) : null}
           <div style={{margin: '12px 0'}}>
-            <strong>Accounts</strong>
+            <strong>Target accounts</strong>
             {connectable.map((account) => (
-              <div key={account.id} style={{display: 'flex', alignItems: 'center', gap: 10, padding: '2px 0'}}>
+              <div key={account.id} style={{display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0'}}>
                 <SocialIcon network={account.network} size={20} />
-                <CheckboxInput label={account.display_name || networkLabel(account.network)}
+                {account.avatar_url ? <Avatar src={account.avatar_url} name={account.display_name} small /> : null}
+                <CheckboxInput label={(account.display_name || networkLabel(account.network)) + ' (' + networkLabel(account.network) + ')'}
                                value={selected.includes(account.id)}
                                onChange={(checked) => setSelected(checked
                                  ? [...selected, account.id]
@@ -616,7 +1221,54 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
               </div>
             ))}
           </div>
-          <Button label={busy ? 'Preparing…' : 'Prepare previews'} variant="primary" onClick={prepare} />
+          <HStack gap={2} style={{flexWrap: 'wrap'}}>
+            <TipWrap tip="Generate per-network previews and validate character limits and media rules before posting.">
+              <Button label={busy ? 'Preparing…' : 'Prepare previews'} variant="secondary" isDisabled={busy} onClick={prepare} />
+            </TipWrap>
+            {role === 'owner' ? (
+              <TipWrap tip="Approve and immediately publish this caption and image to every selected Facebook Page and Instagram account, returning direct links to the live posts.">
+                <Button
+                  label={busy ? 'Publishing…' : 'Publish to selected accounts now'}
+                  variant="primary"
+                  isDisabled={busy || !selected.length || !content.trim()}
+                  onClick={() => void publishSelectedNow()}
+                />
+              </TipWrap>
+            ) : null}
+          </HStack>
+
+          {publishReceipt ? (
+            <div className="meta-success-box" role="status">
+              <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+                <Badge
+                  label={publishReceipt.status === 'published' ? 'Published successfully' : publishReceipt.status}
+                  variant={publishReceipt.status === 'published' ? 'success' : 'error'}
+                />
+                <strong>Live publish summary</strong>
+              </HStack>
+              <p style={{margin: 0, whiteSpace: 'pre-wrap', fontSize: 13}}>{publishReceipt.content}</p>
+              {publishReceipt.results?.map((r) => (
+                <HStack key={r.account_id + ':' + String(r.ok)} gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+                  <SocialIcon network={r.network} size={18} />
+                  <strong>{r.account_name || networkLabel(r.network)}</strong>
+                  {r.ok ? (
+                    <>
+                      <Badge label="Live" variant="success" />
+                      {r.external_url ? (
+                        <a href={r.external_url} target="_blank" rel="noopener noreferrer">
+                          View live {networkLabel(r.network)} post ↗
+                        </a>
+                      ) : (
+                        <span>Published (ID: {r.external_post_id})</span>
+                      )}
+                    </>
+                  ) : (
+                    <span role="alert">{r.error || 'Delivery failed'}</span>
+                  )}
+                </HStack>
+              ))}
+            </div>
+          ) : null}
         </Card>
       ) : null}
 
@@ -627,35 +1279,171 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <p>{variant.limit ? variant.content.length + ' / ' + variant.limit + ' characters' : ''}</p>
           {variant.errors?.map((error) => <p key={error} role="alert">{error}</p>)}
           <HStack gap={2} style={{flexWrap: 'wrap'}}>
-            <Button label="Save draft" variant="secondary" isDisabled={busy} onClick={() => void saveVariant(variant, 'draft')} />
+            <TipWrap tip="Save this network post as a draft without publishing.">
+              <Button label="Save draft" variant="secondary" isDisabled={busy} onClick={() => void saveVariant(variant, 'draft')} />
+            </TipWrap>
             {autoPublish && role === 'owner' ? (
               <>
-                <Button label="Schedule" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'schedule')} />
-                <Button label="Publish now" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'publish_now')} />
+                <TipWrap tip="Approve and schedule this post for the chosen date and time.">
+                  <Button label="Schedule" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'schedule')} />
+                </TipWrap>
+                <TipWrap tip="Approve and immediately publish this post to the selected account.">
+                  <Button label="Publish now" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'publish_now')} />
+                </TipWrap>
               </>
             ) : (
-              <Button label="Submit for owner approval" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'submit')} />
+              <TipWrap tip="Submit this preview for business owner approval before it can publish.">
+                <Button label="Submit for owner approval" variant="primary" isDisabled={busy} onClick={() => void saveVariant(variant, 'submit')} />
+              </TipWrap>
             )}
           </HStack>
         </Card>
       ))}
 
       <SegmentedControl label="What to work on" value={view}
-                        onChange={(value) => setView(value as 'compose' | 'calendar' | 'posts')}>
+                        onChange={(value) => setView(value as 'compose' | 'activity' | 'calendar' | 'posts')}>
         <SegmentedControlItem value="compose" label="Write a post" />
+        <SegmentedControlItem value="activity" label="Page activity" />
         <SegmentedControlItem value="calendar" label="Calendar" />
         <SegmentedControlItem value="posts" label="Your posts" />
       </SegmentedControl>
 
       {view === 'compose' ? (<DateTimeInput label="Schedule time (optional, defaults to one hour from now)" value={(when || undefined) as never} onChange={(value) => setWhen(value || '')} description="Local time; leave blank for one hour from now." />) : null}
 
+      {view === 'activity' ? (
+        <Card>
+          <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap'}}>
+            <div>
+              <Heading level={2}>Page activity &amp; engagement</Heading>
+              <p style={{margin: '4px 0 0', fontSize: 13, opacity: 0.85}}>
+                Retrieve followers, recent posts, photos, likes, comments, and shares for a selected Facebook Page using <code>pages_read_engagement</code>.
+              </p>
+            </div>
+            <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+              <select
+                aria-label="Select Facebook Page for activity"
+                className="meta-select"
+                value={activityAccountId}
+                onChange={(e) => setActivityAccountId(e.target.value)}>
+                {connectedFacebookPages.length ? connectedFacebookPages.map((pg) => (
+                  <option key={pg.id} value={pg.id}>{pg.display_name}</option>
+                )) : <option value="">No connected Facebook Page</option>}
+              </select>
+              <TipWrap tip="Fetch latest followers, posts, photos, likes, comments, and shares for the selected Facebook Page.">
+                <Button
+                  label={busy ? 'Loading…' : 'Load Page activity'}
+                  variant="primary"
+                  isDisabled={busy || !activityAccountId}
+                  onClick={() => void loadPageActivity()}
+                />
+              </TipWrap>
+            </HStack>
+          </HStack>
+
+          {pageActivity ? (
+            <div style={{marginTop: 14, display: 'grid', gap: 14}}>
+              <HStack gap={2} vAlign="center" justify="between" style={{flexWrap: 'wrap', padding: 14, borderRadius: 14, background: 'var(--c-surface)'}}>
+                <HStack gap={2} vAlign="center">
+                  <Avatar src={pageActivity.page.avatar_url} name={pageActivity.page.name} />
+                  <div>
+                    <strong style={{fontSize: 16, display: 'block'}}>{pageActivity.page.name}</strong>
+                    <span style={{fontSize: 12.5, opacity: 0.8}}>
+                      {pageActivity.page.category ? pageActivity.page.category + ' · ' : ''}Facebook Page ID: {pageActivity.page.id}
+                      {pageActivity.page.instagram ? ' · Instagram: @' + pageActivity.page.instagram.username : ''}
+                    </span>
+                  </div>
+                </HStack>
+                {pageActivity.page.link ? (
+                  <a href={pageActivity.page.link} target="_blank" rel="noopener noreferrer">Open Facebook Page ↗</a>
+                ) : null}
+              </HStack>
+
+              <div className="c-kpis">
+                <div className="c-kpi">
+                  <strong>{typeof pageActivity.page.followers_count === 'number' ? pageActivity.page.followers_count.toLocaleString() : '—'}</strong>
+                  <span>Page followers</span>
+                </div>
+                <div className="c-kpi">
+                  <strong>{typeof pageActivity.page.fan_count === 'number' ? pageActivity.page.fan_count.toLocaleString() : '—'}</strong>
+                  <span>Page likes</span>
+                </div>
+                <div className="c-kpi">
+                  <strong>{pageActivity.totals.posts}</strong>
+                  <span>Recent posts</span>
+                </div>
+                <div className="c-kpi">
+                  <strong>{pageActivity.totals.likes}</strong>
+                  <span>Post likes</span>
+                </div>
+                <div className="c-kpi">
+                  <strong>{pageActivity.totals.comments}</strong>
+                  <span>Comments</span>
+                </div>
+                <div className="c-kpi">
+                  <strong>{pageActivity.totals.shares}</strong>
+                  <span>Shares</span>
+                </div>
+              </div>
+
+              <div>
+                <Heading level={3}>Recent posts on {pageActivity.page.name}</Heading>
+                {pageActivity.posts.length ? (
+                  <div style={{display: 'grid', gap: 10, marginTop: 8}}>
+                    {pageActivity.posts.map((item) => (
+                      <div key={item.id} className="meta-activity-post">
+                        {item.image_url ? <img src={item.image_url} alt="Post attachment" /> : null}
+                        <div style={{flex: 1, minWidth: 0}}>
+                          <p style={{margin: '0 0 6px', whiteSpace: 'pre-wrap'}}>{item.message || '(Photo or status update)'}</p>
+                          <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap', fontSize: 12.5}}>
+                            <Badge label={'Likes: ' + item.likes} variant="neutral" />
+                            <Badge label={'Comments: ' + item.comments} variant="neutral" />
+                            <Badge label={'Shares: ' + item.shares} variant="neutral" />
+                            {item.created_time ? <Timestamp value={item.created_time} format="date_time" type="supporting" /> : null}
+                            {item.permalink_url ? (
+                              <a href={item.permalink_url} target="_blank" rel="noopener noreferrer">View on Facebook ↗</a>
+                            ) : null}
+                          </HStack>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{fontSize: 13, opacity: 0.8}}>No recent posts were returned for {pageActivity.page.name}.</p>
+                )}
+              </div>
+
+              {pageActivity.photos.length ? (
+                <div>
+                  <Heading level={3}>Recent Page photos</Heading>
+                  <div style={{display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', marginTop: 8}}>
+                    {pageActivity.photos.map((photo) => (
+                      <a key={photo.id} href={photo.link || photo.image_url} target="_blank" rel="noopener noreferrer" style={{display: 'block'}}>
+                        <img src={photo.image_url} alt={photo.caption || 'Page photo'} style={{width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 10}} />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p style={{marginTop: 12, fontSize: 13, opacity: 0.8}}>
+              Choose a connected Facebook Page and click <strong>Load Page activity</strong> to view Page followers, recent posts, and engagement counts.
+            </p>
+          )}
+        </Card>
+      ) : null}
+
       {view === 'calendar' ? (
         <>
           <Heading level={2}>Calendar</Heading>
           <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0'}}>
-            <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
+            <TipWrap tip="Show the previous month.">
+              <Button label="←" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
+            </TipWrap>
             <strong>{month.toLocaleString('en-NZ', {month: 'long', year: 'numeric'})}</strong>
-            <Button label="→" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
+            <TipWrap tip="Show the next month.">
+              <Button label="→" variant="ghost" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
+            </TipWrap>
           </div>
           {(() => {
             const start = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -709,7 +1497,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                         <strong>{r.account_name || networkLabel(r.network)}</strong>:{' '}
                         {r.ok ? (
                           r.external_url
-                            ? <a href={r.external_url} target="_blank" rel="noopener noreferrer">Published</a>
+                            ? <a href={r.external_url} target="_blank" rel="noopener noreferrer">View live post ↗</a>
                             : 'Published'
                         ) : (
                           <span role="alert">{r.error || 'Delivery failed'}</span>
@@ -720,19 +1508,27 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                 ) : null}
                 <HStack gap={2} style={{flexWrap: 'wrap', marginTop: 8}}>
                   {post.status === 'draft' ? (
-                    <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />
+                    <TipWrap tip="Submit this draft for business owner approval.">
+                      <Button label="Submit for approval" variant="secondary" isDisabled={busy} onClick={() => void submitPostForApproval(post.id)} />
+                    </TipWrap>
                   ) : null}
                   {post.status === 'pending_approval' && role === 'owner' ? (
                     <>
-                      <Button label="Approve & schedule" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'schedule')} />
-                      <Button label="Approve & publish now" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'publish_now')} />
-                      <Button label="Reject" variant="ghost" isDisabled={busy} onClick={() => void decidePost(post.id, 'reject')} />
+                      <TipWrap tip="Approve this post and schedule it for the selected time.">
+                        <Button label="Approve & schedule" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'schedule')} />
+                      </TipWrap>
+                      <TipWrap tip="Approve and immediately publish this post live.">
+                        <Button label="Approve & publish now" variant="primary" isDisabled={busy} onClick={() => void decidePost(post.id, 'publish_now')} />
+                      </TipWrap>
+                      <TipWrap tip="Return this post to draft status without publishing.">
+                        <Button label="Reject" variant="ghost" isDisabled={busy} onClick={() => void decidePost(post.id, 'reject')} />
+                      </TipWrap>
                     </>
                   ) : null}
                 </HStack>
               </Card>
             ))}
-            {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Ask for a post and a draft appears here first.</p></div> : null}
+            {!posts.length ? <div className="c-empty"><strong>No drafts yet</strong><p>Nothing is published until you approve it. Write a post above and save or publish it here.</p></div> : null}
           </div>
         </>
       ) : null}

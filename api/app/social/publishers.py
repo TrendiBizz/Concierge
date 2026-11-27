@@ -162,7 +162,18 @@ async def _publish_facebook(
     )
     if status < 300 and (body.get("id") or body.get("post_id")):
         pid = str(body.get("post_id") or body.get("id"))
-        return PublishOutcome(ok=True, external_post_id=pid, external_url=f"https://www.facebook.com/{pid}")
+        permalink = f"https://www.facebook.com/{pid}"
+        p_code, p_body, _ = await _request_with_retry(
+            "GET",
+            f"https://graph.facebook.com/{ver}/{pid}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "permalink_url"},
+            max_retries=0,
+            timeout=8.0,
+        )
+        if p_code < 300 and p_body.get("permalink_url"):
+            permalink = str(p_body["permalink_url"])
+        return PublishOutcome(ok=True, external_post_id=pid, external_url=permalink)
     msg = (body.get("error") or {}).get("message") if isinstance(body.get("error"), dict) else "Facebook rejected post"
     return PublishOutcome(
         ok=False,
@@ -199,22 +210,37 @@ async def _publish_instagram(
             retry_after_seconds=ra or 60,
             error=f"Instagram error ({status}): {str(msg)[:200]}",
         )
-    if is_vid:
-        status_url = f"https://graph.facebook.com/{ver}/{creation_id}?fields=status_code"
-        for _ in range(10):
-            s_code, s_body, _ = await _request_with_retry("GET", status_url, headers={"Authorization": f"Bearer {token}"})
-            code = str(s_body.get("status_code") or "").upper()
-            if s_code < 300 and code == "FINISHED":
-                break
-            if code in ("ERROR", "EXPIRED"):
-                return PublishOutcome(ok=False, error=f"Instagram media container failed ({code})")
-            await asyncio.sleep(2)
+    status_url = f"https://graph.facebook.com/{ver}/{creation_id}?fields=status_code"
+    polls = 10 if is_vid else 5
+    for _ in range(polls):
+        s_code, s_body, _ = await _request_with_retry("GET", status_url, headers={"Authorization": f"Bearer {token}"})
+        code = str(s_body.get("status_code") or "").upper()
+        if s_code >= 300 or not code or code in ("FINISHED", "PUBLISHED"):
+            break
+        if code in ("ERROR", "EXPIRED"):
+            return PublishOutcome(ok=False, error=f"Instagram media container failed ({code})")
+        await asyncio.sleep(2 if is_vid else 1)
     pub_url = f"https://graph.facebook.com/{ver}/{ig_id}/media_publish"
     p_status, p_body, p_ra = await _request_with_retry(
         "POST", pub_url, headers={"Authorization": f"Bearer {token}"}, data={"creation_id": creation_id}
     )
     if p_status < 300 and p_body.get("id"):
-        return PublishOutcome(ok=True, external_post_id=str(p_body["id"]))
+        media_id = str(p_body["id"])
+        permalink = None
+        m_code, m_body, _ = await _request_with_retry(
+            "GET",
+            f"https://graph.facebook.com/{ver}/{media_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,permalink,shortcode"},
+            max_retries=0,
+            timeout=8.0,
+        )
+        if m_code < 300:
+            if m_body.get("permalink"):
+                permalink = str(m_body["permalink"])
+            elif m_body.get("shortcode"):
+                permalink = f"https://www.instagram.com/p/{m_body['shortcode']}/"
+        return PublishOutcome(ok=True, external_post_id=media_id, external_url=permalink)
     msg = (p_body.get("error") or {}).get("message") if isinstance(p_body.get("error"), dict) else "Instagram publish rejected"
     return PublishOutcome(
         ok=False,

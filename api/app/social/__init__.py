@@ -5,12 +5,13 @@ token renewal, guardrails, composer previews, approval workflow, media handling,
 scheduled publishing across Facebook, Instagram, LinkedIn (personal + company pages),
 X, TikTok, and Google Business Profile.
 """
-from . import config, guardrails, media, oauth, publishers, scheduler, store
+from . import config, guardrails, media, meta_review, oauth, publishers, scheduler, store
 
 __all__ = [
     "config",
     "guardrails",
     "media",
+    "meta_review",
     "oauth",
     "publishers",
     "scheduler",

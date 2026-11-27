@@ -97,7 +97,7 @@ async def update_rules(customer_slug: str, rules: dict) -> None:
 async def list_accounts(customer_slug: str) -> list[dict]:
     rows = await db.pool().fetch(
         """SELECT id, customer_slug, network, external_id, display_name,
-                  granted_scopes, expires_at, needs_reauth, authorized_at
+                  granted_scopes, metadata, expires_at, needs_reauth, authorized_at
            FROM social_accounts
            WHERE customer_slug=$1 AND disconnected_at IS NULL
            ORDER BY created_at ASC""",
@@ -105,6 +105,7 @@ async def list_accounts(customer_slug: str) -> list[dict]:
     )
     out = []
     for r in rows:
+        meta = _decode_json(r["metadata"], {})
         out.append({
             "id": r["id"],
             "customer_id": r["customer_slug"],
@@ -112,6 +113,8 @@ async def list_accounts(customer_slug: str) -> list[dict]:
             "external_id": r["external_id"],
             "display_name": r["display_name"],
             "granted_scopes": r["granted_scopes"],
+            "avatar_url": str(meta.get("avatar_url") or ""),
+            "metadata": meta,
             "needs_reauth": bool(r["needs_reauth"]),
             "expires_at": _to_unix(r["expires_at"]),
             "authorized_at": _to_unix(r["authorized_at"]),
@@ -129,6 +132,7 @@ async def upsert_verified_account(
     refresh_token: str | None = None,
     expires_at: int | None = None,
     granted_scopes: str = "",
+    metadata: dict | None = None,
 ) -> str:
     if not network or not external_id or not access_token:
         raise HTTPException(400, "Invalid social account credentials")
@@ -136,6 +140,7 @@ async def upsert_verified_account(
     tok_enc = crypto_vault.encrypt_text(access_token, aad=aad)
     ref_enc = crypto_vault.encrypt_text(refresh_token, aad=aad) if refresh_token else None
     exp_dt = _from_ts(expires_at)
+    meta_json = json.dumps(metadata or {})
 
     existing = await db.pool().fetchval(
         """SELECT id FROM social_accounts
@@ -148,14 +153,15 @@ async def upsert_verified_account(
     await db.pool().execute(
         """INSERT INTO social_accounts(
                id, customer_slug, network, external_id, display_name,
-               token_enc, refresh_enc, granted_scopes, authorized_at,
+               token_enc, refresh_enc, granted_scopes, metadata, authorized_at,
                disconnected_at, expires_at, needs_reauth)
-           VALUES($1, $2, $3, $4, $5, $6, $7, $8, now(), NULL, $9, false)
+           VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, now(), NULL, $10, false)
            ON CONFLICT (id) DO UPDATE SET
                display_name = EXCLUDED.display_name,
                token_enc = EXCLUDED.token_enc,
                refresh_enc = COALESCE(EXCLUDED.refresh_enc, social_accounts.refresh_enc),
                granted_scopes = EXCLUDED.granted_scopes,
+               metadata = social_accounts.metadata || EXCLUDED.metadata,
                authorized_at = now(),
                disconnected_at = NULL,
                expires_at = EXCLUDED.expires_at,
@@ -168,10 +174,99 @@ async def upsert_verified_account(
         tok_enc,
         ref_enc,
         granted_scopes or "",
+        meta_json,
         exp_dt,
     )
     await record_event(customer_slug, None, "account.connected", f"{network}:{external_id}")
     return account_id
+
+
+async def update_account_metadata(customer_slug: str, account_id: str, patch: dict) -> None:
+    await db.pool().execute(
+        """UPDATE social_accounts
+           SET metadata = metadata || $3::jsonb
+           WHERE id=$1 AND customer_slug=$2 AND disconnected_at IS NULL""",
+        account_id,
+        customer_slug,
+        json.dumps(patch or {}),
+    )
+
+
+async def upsert_meta_session(
+    *,
+    customer_slug: str,
+    meta_user_id: str,
+    meta_user_name: str,
+    user_access_token: str,
+    granted_scopes: str,
+    expires_at: int | None = None,
+) -> None:
+    if not user_access_token:
+        return
+    aad = f"social-meta-user:{customer_slug}"
+    tok_enc = crypto_vault.encrypt_text(user_access_token, aad=aad)
+    exp_dt = _from_ts(expires_at)
+    await db.pool().execute(
+        """INSERT INTO social_meta_sessions(
+               customer_slug, meta_user_id, meta_user_name, user_token_enc,
+               granted_scopes, expires_at, updated_at)
+           VALUES($1, $2, $3, $4, $5, $6, now())
+           ON CONFLICT (customer_slug) DO UPDATE SET
+               meta_user_id = EXCLUDED.meta_user_id,
+               meta_user_name = EXCLUDED.meta_user_name,
+               user_token_enc = EXCLUDED.user_token_enc,
+               granted_scopes = EXCLUDED.granted_scopes,
+               expires_at = EXCLUDED.expires_at,
+               updated_at = now()""",
+        customer_slug,
+        (meta_user_id or "")[:120],
+        (meta_user_name or "")[:200],
+        tok_enc,
+        granted_scopes or "",
+        exp_dt,
+    )
+
+
+async def get_meta_session(customer_slug: str) -> dict | None:
+    row = await db.pool().fetchrow(
+        """SELECT customer_slug, meta_user_id, meta_user_name, user_token_enc,
+                  granted_scopes, expires_at, selected_business_id, selected_business_name, updated_at
+           FROM social_meta_sessions
+           WHERE customer_slug=$1""",
+        customer_slug,
+    )
+    if not row:
+        return None
+    if row["expires_at"] and row["expires_at"] <= _now():
+        return None
+    aad = f"social-meta-user:{customer_slug}"
+    try:
+        user_token = crypto_vault.decrypt_text(row["user_token_enc"], aad=aad, allow_plaintext=False)
+    except ValueError:
+        return None
+    scopes = [s for s in (row["granted_scopes"] or "").replace(",", " ").split() if s]
+    return {
+        "customer_slug": row["customer_slug"],
+        "meta_user_id": row["meta_user_id"] or "",
+        "meta_user_name": row["meta_user_name"] or "",
+        "user_access_token": user_token,
+        "granted_scopes": scopes,
+        "expires_at": _to_unix(row["expires_at"]),
+        "selected_business_id": row["selected_business_id"] or "",
+        "selected_business_name": row["selected_business_name"] or "",
+        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+    }
+
+
+async def update_meta_session_business(customer_slug: str, business_id: str, business_name: str) -> None:
+    await db.pool().execute(
+        """UPDATE social_meta_sessions
+           SET selected_business_id=$2, selected_business_name=$3, updated_at=now()
+           WHERE customer_slug=$1""",
+        customer_slug,
+        (business_id or "")[:80],
+        (business_name or "")[:200],
+    )
 
 
 async def get_account_credentials(
@@ -372,6 +467,64 @@ def _format_post(row: Any, results: list[dict] | None = None) -> dict:
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
         "results": results if results is not None else [],
     }
+
+
+async def get_post(customer_slug: str, post_id: str) -> dict | None:
+    row = await db.pool().fetchrow(
+        """SELECT id, customer_slug, content, link, hashtags, account_ids, media, options,
+                  status, scheduled_at, revision, approved_revision, attempts, last_error,
+                  created_at, updated_at
+           FROM social_posts
+           WHERE id=$1 AND customer_slug=$2""",
+        post_id,
+        customer_slug,
+    )
+    if not row:
+        return None
+    res_rows = await db.pool().fetch(
+        """SELECT r.post_id, r.account_id, r.external_post_id, r.external_url, r.error, r.ok, r.at,
+                  a.network, a.display_name
+           FROM social_post_results r
+           LEFT JOIN social_accounts a ON a.id = r.account_id
+           WHERE r.post_id=$1
+           ORDER BY r.at DESC""",
+        post_id,
+    )
+    results = [
+        {
+            "account_id": rr["account_id"],
+            "network": rr["network"] or "",
+            "account_name": rr["display_name"] or "",
+            "external_post_id": rr["external_post_id"],
+            "external_url": rr["external_url"],
+            "error": rr["error"],
+            "ok": bool(rr["ok"]),
+            "at": rr["at"].isoformat() if rr["at"] else None,
+        }
+        for rr in res_rows
+    ]
+    return _format_post(row, results)
+
+
+async def approve_and_claim_now(customer_slug: str, post_id: str) -> dict:
+    row = await db.pool().fetchrow(
+        """UPDATE social_posts
+           SET status='publishing',
+               approved_revision=revision,
+               scheduled_at=now(),
+               attempts=attempts + 1,
+               last_error=NULL,
+               updated_at=now()
+           WHERE id=$1 AND customer_slug=$2
+             AND status IN ('draft', 'pending_approval', 'approved', 'scheduled', 'failed')
+           RETURNING *""",
+        post_id,
+        customer_slug,
+    )
+    if not row:
+        raise HTTPException(409, "Post cannot be published in its current state")
+    await record_event(customer_slug, post_id, "post.approved_publish_now", f"revision={row['revision']}")
+    return _format_post(row)
 
 
 async def list_posts(customer_slug: str, limit: int = 100) -> list[dict]:

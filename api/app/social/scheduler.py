@@ -131,6 +131,69 @@ async def run_due(*, dry_run: bool = False) -> int:
     return processed
 
 
+async def publish_post_now(customer_slug: str, post_id: str) -> dict:
+    """Owner-approved immediate synchronous publish returning live per-account results and URLs."""
+    if not social_config.is_live_publishing_enabled():
+        raise HTTPException(409, "Live publishing is currently paused on this server")
+
+    post = await store.approve_and_claim_now(customer_slug, post_id)
+    account_ids = post["account_ids"]
+    accounts_loaded: list[dict] = []
+    for aid in account_ids:
+        try:
+            creds = await _ensure_fresh_token(customer_slug, aid)
+            accounts_loaded.append(creds)
+        except HTTPException as exc:
+            await store.finish_post(customer_slug, post_id, "failed", last_error=str(exc.detail))
+            raise
+
+    rules = await store.get_rules(customer_slug)
+    chk = guardrails.check_post(
+        content=post["content"],
+        link=post["link"],
+        hashtags=post["hashtags"],
+        networks=[a["network"] for a in accounts_loaded],
+        media_count=len(post["media"]),
+        rules=rules,
+    )
+    if not chk["ok"]:
+        msg = "; ".join(e["message"] for e in chk["errors"][:3])
+        await store.finish_post(customer_slug, post_id, "failed", last_error=msg)
+        raise HTTPException(400, msg or "Post failed guardrails")
+
+    errors: list[str] = []
+    any_pending = False
+    for acct in accounts_loaded:
+        if await store.result_exists(post_id, acct["id"]):
+            continue
+        outcome = await publishers.publish_to_account(
+            customer_slug=customer_slug, post=post, account=acct, dry_run=False
+        )
+        if outcome.ok:
+            await store.record_post_result(
+                post_id,
+                acct["id"],
+                ok=True,
+                external_post_id=outcome.external_post_id,
+                external_url=outcome.external_url,
+            )
+            if outcome.pending:
+                any_pending = True
+        else:
+            await store.record_post_result(post_id, acct["id"], ok=False, error=outcome.error)
+            errors.append(outcome.error or f"{acct['network']} failed")
+
+    if errors:
+        await store.finish_post(customer_slug, post_id, "failed", last_error="; ".join(errors)[:400])
+    elif any_pending:
+        await store.finish_post(customer_slug, post_id, "processing")
+    else:
+        await store.finish_post(customer_slug, post_id, "published")
+
+    updated = await store.get_post(customer_slug, post_id)
+    return updated or post
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     try:
         quarantined = await store.quarantine_interrupted()
