@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from fastapi import HTTPException
 
-from ..config import get_settings
 from . import config as social_config
 from . import media as social_media
 
@@ -44,6 +44,7 @@ async def _request_with_retry(
     params: dict[str, Any] | None = None,
     json_body: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
+    files: dict[str, Any] | None = None,
     max_retries: int = 2,
     timeout: float = 20.0,
 ) -> tuple[int, dict, int]:
@@ -53,9 +54,15 @@ async def _request_with_retry(
     while True:
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-                resp = await client.request(
-                    method, url, headers=hdrs, params=params, json=json_body, data=data
-                )
+                req_kwargs: dict[str, Any] = {
+                    "headers": hdrs,
+                    "params": params,
+                    "json": json_body,
+                    "data": data,
+                }
+                if files is not None:
+                    req_kwargs["files"] = files
+                resp = await client.request(method, url, **req_kwargs)
         except httpx.HTTPError as exc:
             if attempt < max_retries:
                 attempt += 1
@@ -91,12 +98,20 @@ def _compose_text(post: dict) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
-def _resolve_media_url(customer_slug: str, ref: str) -> str:
+async def _resolve_media(customer_slug: str, ref: str) -> tuple[str, bytes | None, str]:
     if ref.startswith("upload:"):
         asset_id = ref[len("upload:"):]
-        base = (get_settings().public_base_url or "https://concierge.trendibizz.com").rstrip("/")
-        return social_media.public_media_url(customer_slug, asset_id, base)
-    return ref
+        meta, raw_bytes = await social_media.load_media(customer_slug, asset_id)
+        is_video = (meta.get("kind") == "video") or str(meta.get("mime") or "").startswith("video/")
+        mime = str(meta.get("mime") or ("video/mp4" if is_video else "image/jpeg"))
+        if not is_video and mime != "image/jpeg":
+            raw_bytes, _, _ = social_media._normalize_image_to_jpeg(raw_bytes)
+            mime = "image/jpeg"
+        ext = ".mp4" if is_video else ".jpg"
+        base = social_config.public_media_base_url()
+        url = social_media.public_media_url(customer_slug, asset_id, base, ext=ext)
+        return url, raw_bytes, mime
+    return ref, None, ""
 
 
 async def publish_to_account(
@@ -111,7 +126,18 @@ async def publish_to_account(
     token = account["access_token"]
     text = _compose_text(post)
     media_refs: list[str] = list(post.get("media") or [])
-    first_media = _resolve_media_url(customer_slug, media_refs[0]) if media_refs else ""
+    first_media = ""
+    first_media_bytes: bytes | None = None
+    first_media_mime = ""
+    if media_refs:
+        try:
+            first_media, first_media_bytes, first_media_mime = await _resolve_media(customer_slug, media_refs[0])
+        except HTTPException:
+            return PublishOutcome(
+                ok=False,
+                retryable=False,
+                error="Uploaded image or video could not be found; re-upload the file and try again.",
+            )
 
     if not dry_run and not social_config.is_network_publish_enabled(network):
         return PublishOutcome(
@@ -121,7 +147,16 @@ async def publish_to_account(
         )
 
     if network == "facebook":
-        return await _publish_facebook(external_id, token, text, post.get("link") or "", first_media, dry_run)
+        return await _publish_facebook(
+            external_id,
+            token,
+            text,
+            post.get("link") or "",
+            first_media,
+            dry_run,
+            media_bytes=first_media_bytes,
+            media_mime=first_media_mime,
+        )
     if network == "instagram":
         return await _publish_instagram(external_id, token, text, first_media, dry_run)
     if network in ("linkedin", "linkedin_organization"):
@@ -141,15 +176,28 @@ def _is_video_url(url: str) -> bool:
 
 
 async def _publish_facebook(
-    page_id: str, token: str, text: str, link: str, media_url: str, dry_run: bool
+    page_id: str,
+    token: str,
+    text: str,
+    link: str,
+    media_url: str,
+    dry_run: bool,
+    *,
+    media_bytes: bytes | None = None,
+    media_mime: str = "",
 ) -> PublishOutcome:
     ver = social_config.meta_graph_version()
+    upload_files: dict[str, Any] | None = None
     if media_url and _is_video_url(media_url):
         url = f"https://graph.facebook.com/{ver}/{page_id}/videos"
         payload = {"file_url": media_url, "description": text, "published": "true"}
     elif media_url:
         url = f"https://graph.facebook.com/{ver}/{page_id}/photos"
-        payload = {"url": media_url, "caption": text, "published": "true"}
+        if media_bytes and not dry_run:
+            payload = {"caption": text, "published": "true"}
+            upload_files = {"source": ("photo.jpg", media_bytes, media_mime or "image/jpeg")}
+        else:
+            payload = {"url": media_url, "caption": text, "published": "true"}
     else:
         url = f"https://graph.facebook.com/{ver}/{page_id}/feed"
         payload = {"message": text}
@@ -157,9 +205,14 @@ async def _publish_facebook(
             payload["link"] = link
     if dry_run:
         return PublishOutcome(ok=True, external_post_id="dry-run:facebook", dry_run_payload={"url": url, "payload": payload})
-    status, body, ra = await _request_with_retry(
-        "POST", url, headers={"Authorization": f"Bearer {token}"}, data=payload
-    )
+    if upload_files is not None:
+        status, body, ra = await _request_with_retry(
+            "POST", url, headers={"Authorization": f"Bearer {token}"}, data=payload, files=upload_files
+        )
+    else:
+        status, body, ra = await _request_with_retry(
+            "POST", url, headers={"Authorization": f"Bearer {token}"}, data=payload
+        )
     if status < 300 and (body.get("id") or body.get("post_id")):
         pid = str(body.get("post_id") or body.get("id"))
         permalink = f"https://www.facebook.com/{pid}"

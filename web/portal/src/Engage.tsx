@@ -155,8 +155,11 @@ function TipWrap({tip, children}: {tip: string; children: ReactNode}) {
 }
 
 function Avatar({src, name, small = false}: {src?: string; name: string; small?: boolean}) {
+  const [failedSrc, setFailedSrc] = useState('');
   const cls = small ? 'meta-avatar-sm' : 'meta-avatar';
-  if (src) return <img className={cls} src={src} alt={name} />;
+  if (src && failedSrc !== src) {
+    return <img className={cls} src={src} alt={name} referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} />;
+  }
   const letter = (name || '?').trim().charAt(0).toUpperCase() || '?';
   return <div className={cls + ' meta-avatar-fallback'} aria-hidden="true">{letter}</div>;
 }
@@ -487,11 +490,13 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   // Meta App Review flows: Page picker, Business picker + asset link, Page activity, Live publish receipt
   const [metaPages, setMetaPages] = useState<MetaPagesResponse | null>(null);
   const [pageSelectSuccess, setPageSelectSuccess] = useState('');
+  const [pageSelectError, setPageSelectError] = useState('');
   const [metaBusinesses, setMetaBusinesses] = useState<MetaBusinessesResponse | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState('');
   const [linkPageId, setLinkPageId] = useState('');
   const [linkRelation, setLinkRelation] = useState<'owned' | 'client'>('owned');
   const [businessLinkResult, setBusinessLinkResult] = useState<BusinessLinkResult | null>(null);
+  const [businessLinkError, setBusinessLinkError] = useState('');
   const [activityAccountId, setActivityAccountId] = useState('');
   const [pageActivity, setPageActivity] = useState<PageActivityResponse | null>(null);
   const [publishReceipt, setPublishReceipt] = useState<Post | null>(null);
@@ -645,8 +650,13 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   }
 
   async function selectMetaPage(page: MetaPageOption) {
-    if (role !== 'owner') { setStatus('Only the business owner can select a Facebook Page.'); return; }
-    setBusy(true); setStatus(''); setPageSelectSuccess('');
+    if (role !== 'owner') {
+      const msg = 'Only the business owner can select a Facebook Page.';
+      setPageSelectError(msg);
+      setStatus(msg);
+      return;
+    }
+    setBusy(true); setStatus(''); setPageSelectSuccess(''); setPageSelectError('');
     try {
       const res = await api('/owner/social/meta/pages/select', 'POST', {
         page_id: page.page_id,
@@ -665,7 +675,9 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
       setLinkPageId(page.page_id);
       await load();
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Could not select Facebook Page');
+      const msg = e instanceof Error ? e.message : 'Could not select Facebook Page';
+      setPageSelectError(msg);
+      setStatus(msg);
     }
     setBusy(false);
   }
@@ -686,12 +698,19 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   }
 
   async function linkPageToBusiness() {
-    if (role !== 'owner') { setStatus('Only the business owner can link a Page to a Business Portfolio.'); return; }
-    if (!selectedBusinessId || !linkPageId) {
-      setStatus('Choose both a Business Portfolio and a Facebook Page first.');
+    if (role !== 'owner') {
+      const msg = 'Only the business owner can link a Page to a Business Portfolio.';
+      setBusinessLinkError(msg);
+      setStatus(msg);
       return;
     }
-    setBusy(true); setStatus(''); setBusinessLinkResult(null);
+    if (!selectedBusinessId || !linkPageId) {
+      const msg = 'Choose both a Business Portfolio and a Facebook Page first.';
+      setBusinessLinkError(msg);
+      setStatus(msg);
+      return;
+    }
+    setBusy(true); setStatus(''); setBusinessLinkResult(null); setBusinessLinkError('');
     try {
       const res = await api('/owner/social/meta/businesses/link-page', 'POST', {
         business_id: selectedBusinessId,
@@ -702,7 +721,9 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
       setStatus(res.message);
       await load();
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Could not link Page to Business Portfolio');
+      const msg = e instanceof Error ? e.message : 'Could not link Page to Business Portfolio';
+      setBusinessLinkError(msg);
+      setStatus(msg);
     }
     setBusy(false);
   }
@@ -728,8 +749,8 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
   async function upload(source: File | null = file): Promise<string[] | undefined> {
     if (!source) return undefined;
     const response = await fetch('/owner/social/media', {method: 'POST', headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream'}, body: source});
-    if (!response.ok) throw new Error('Media upload failed');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(describeFailure(response.status, data));
     return ['upload:' + data.id];
   }
 
@@ -938,6 +959,14 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
             </HStack>
           </div>
         ) : null}
+        {pageSelectError ? (
+          <div className="meta-error-box" role="alert">
+            <HStack gap={2} vAlign="center">
+              <Badge label="Selection failed" variant="error" />
+              <strong>{pageSelectError}</strong>
+            </HStack>
+          </div>
+        ) : null}
 
         {metaPages?.pages?.length ? (
           <div className="meta-picker-grid">
@@ -1110,6 +1139,14 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
             </span>
           </div>
         ) : null}
+        {businessLinkError ? (
+          <div className="meta-error-box" role="alert">
+            <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap'}}>
+              <Badge label="Link failed" variant="error" />
+              <strong>{businessLinkError}</strong>
+            </HStack>
+          </div>
+        ) : null}
       </Card>
 
       <Card>
@@ -1185,7 +1222,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
           <TextArea label="Post caption" value={content} onChange={setContent} rows={5} />
           <TextInput label="Link (optional)" type="url" value={link} onChange={setLink} />
           <TextInput label="Hashtags (optional)" value={hashtags} onChange={setHashtags} />
-          <FileInput label="Image or video (required for Instagram)" value={file} onChange={(v) => setFile((v as File) || null)} accept="image/*,video/*" />
+          <FileInput label="Image or video (required for Instagram)" value={file} onChange={(v) => setFile(Array.isArray(v) ? (v[0] || null) : ((v as File) || null))} accept="image/*,video/*" />
           {filePreviewUrl ? (
             <div style={{marginTop: 8}}>
               <img src={filePreviewUrl} alt="Selected media preview" style={{maxWidth: 180, maxHeight: 180, borderRadius: 10, objectFit: 'cover'}} />
@@ -1391,7 +1428,7 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                   <div style={{display: 'grid', gap: 10, marginTop: 8}}>
                     {pageActivity.posts.map((item) => (
                       <div key={item.id} className="meta-activity-post">
-                        {item.image_url ? <img src={item.image_url} alt="Post attachment" /> : null}
+                        {item.image_url ? <img src={item.image_url} alt="Post attachment" referrerPolicy="no-referrer" /> : null}
                         <div style={{flex: 1, minWidth: 0}}>
                           <p style={{margin: '0 0 6px', whiteSpace: 'pre-wrap'}}>{item.message || '(Photo or status update)'}</p>
                           <HStack gap={2} vAlign="center" style={{flexWrap: 'wrap', fontSize: 12.5}}>
@@ -1412,18 +1449,20 @@ export function Social({token, brand}: {token: string; brand: Brand}) {
                 )}
               </div>
 
-              {pageActivity.photos.length ? (
-                <div>
-                  <Heading level={3}>Recent Page photos</Heading>
+              <div>
+                <Heading level={3}>Recent Page photos</Heading>
+                {pageActivity.photos.length ? (
                   <div style={{display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', marginTop: 8}}>
                     {pageActivity.photos.map((photo) => (
                       <a key={photo.id} href={photo.link || photo.image_url} target="_blank" rel="noopener noreferrer" style={{display: 'block'}}>
-                        <img src={photo.image_url} alt={photo.caption || 'Page photo'} style={{width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 10}} />
+                        <img src={photo.image_url} alt={photo.caption || 'Page photo'} referrerPolicy="no-referrer" style={{width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 10}} />
                       </a>
                     ))}
                   </div>
-                </div>
-              ) : null}
+                ) : (
+                  <p style={{fontSize: 13, opacity: 0.8, marginTop: 6}}>No photos yet</p>
+                )}
+              </div>
             </div>
           ) : (
             <p style={{marginTop: 12, fontSize: 13, opacity: 0.8}}>

@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     social_meta_graph_version: str = "v22.0"
     social_linkedin_api_version: str = "202605"
     social_media_dir: str = ""
+    social_public_media_base: str = ""
     social_poll_seconds: int = 15
 
     # "claude" asks the Max-plan CLI for one plan per new case. Empty skips the call.

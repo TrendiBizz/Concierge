@@ -64,16 +64,20 @@ async def owner_social_media_upload(request: Request, user: dict = Depends(owner
     return await social_mod.media.save_media(slug, bytes(content))
 
 
-@router.get("/api/v1/social-media/{token}")
-async def social_media_download(token: str):
+@router.api_route("/api/v1/social-media/{token}", methods=["GET", "HEAD"])
+async def social_media_download(token: str, request: Request):
     from .. import social as social_mod
 
     mime, data = await social_mod.media.resolve_download_token(token)
-    return Response(
-        content=data,
-        media_type=mime,
-        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow"},
-    )
+    headers = {
+        "Cache-Control": "public, max-age=300",
+        "Content-Length": str(len(data)),
+        "X-Content-Type-Options": "nosniff",
+        "X-Robots-Tag": "noindex, nofollow",
+    }
+    if request.method == "HEAD":
+        return Response(content=b"", media_type=mime, headers=headers)
+    return Response(content=data, media_type=mime, headers=headers)
 
 
 @router.post("/owner/social/compose")
