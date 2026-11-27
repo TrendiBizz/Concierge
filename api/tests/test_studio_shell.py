@@ -256,3 +256,21 @@ def test_the_shell_has_no_horizontal_scroll_on_a_phone():
         "on a phone the navigation must wrap into visible rows; a horizontal scroller left items\n"
         "unclickable in the live crawl")
     assert "display: none" not in narrow
+
+
+def test_phone_topbar_and_nav_do_not_stick_over_content():
+    """Reported on iPhone 2026-11-27: both .c-topbar and .c-nav kept desktop `position: sticky;
+    top: 0` on phones (with .c-nav transparent), so scrolling stacked topbar + nav + Pause card +
+    hero text on top of each other. On narrow viewports both must return to normal flow, .c-nav
+    must keep an opaque background, and .c-nav-group must wrap within 100% width."""
+    css = read("shell.css")
+    narrow = re.search(r"@media \(max-width: 900px\) \{(.*?)\n\}", css, re.S).group(1)
+    topbar = re.search(r"\.c-topbar \{(.*?)\}", narrow, re.S)
+    nav = re.search(r"\.c-nav \{(.*?)\}", narrow, re.S)
+    group = re.search(r"\.c-nav-group \{(.*?)\}", narrow, re.S)
+    assert topbar and "position: static" in topbar.group(1), ".c-topbar must unstick on phones"
+    assert nav and "position: static" in nav.group(1), ".c-nav must unstick on phones"
+    assert "background: var(--c-page)" in nav.group(1), ".c-nav must not be transparent on phones"
+    assert group and "flex-direction: row" in group.group(1) and "max-width: 100%" in group.group(1), (
+        ".c-nav-group must lay out horizontally and wrap within the viewport width"
+    )

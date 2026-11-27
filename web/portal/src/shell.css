@@ -264,7 +264,7 @@
     border-bottom: 1px solid var(--c-line);
     background: var(--c-page);
   }
-  .c-nav-group { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .c-nav-group { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 1 auto; max-width: 100%; }
   .c-nav-label { width: auto !important; margin-bottom: 0; padding: 4px 6px; white-space: nowrap; }
   .c-nav-item { width: auto; white-space: nowrap; padding: 6px 10px; }
   .c-content { padding: 16px 14px 40px; min-width: 0; }
