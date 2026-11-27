@@ -1658,6 +1658,7 @@ CREATE TABLE IF NOT EXISTS social_accounts (
     token_enc       text NOT NULL,
     refresh_enc     text,
     granted_scopes  text NOT NULL DEFAULT '',
+    metadata        jsonb NOT NULL DEFAULT '{}'::jsonb,
     authorized_at   timestamptz NOT NULL DEFAULT now(),
     disconnected_at timestamptz,
     expires_at      timestamptz,
@@ -1665,7 +1666,20 @@ CREATE TABLE IF NOT EXISTS social_accounts (
     created_at      timestamptz NOT NULL DEFAULT now(),
     UNIQUE (customer_slug, network, external_id)
 );
+ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_social_accounts_customer ON social_accounts(customer_slug);
+
+CREATE TABLE IF NOT EXISTS social_meta_sessions (
+    customer_slug          text PRIMARY KEY REFERENCES social_customers(slug) ON DELETE CASCADE,
+    meta_user_id           text NOT NULL DEFAULT '',
+    meta_user_name         text NOT NULL DEFAULT '',
+    user_token_enc         text NOT NULL,
+    granted_scopes         text NOT NULL DEFAULT '',
+    expires_at             timestamptz,
+    selected_business_id   text NOT NULL DEFAULT '',
+    selected_business_name text NOT NULL DEFAULT '',
+    updated_at             timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS social_oauth_pending (
     state_hash    text PRIMARY KEY,

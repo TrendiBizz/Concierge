@@ -184,6 +184,42 @@ async def unlink_meta(tenant: dict, network: str, account_id: str):
     return await social.oauth.disconnect_account(slug, account_id, expected_network=network)
 
 
+async def list_meta_pages(tenant: dict):
+    slug = await ensure_tenant(tenant)
+    return await social.meta_review.list_meta_pages(slug)
+
+
+async def select_meta_page(tenant: dict, page_id: str, include_instagram: bool = True):
+    slug = await ensure_tenant(tenant)
+    return await social.meta_review.select_meta_page(slug, page_id, include_instagram=include_instagram)
+
+
+async def list_meta_businesses(tenant: dict):
+    slug = await ensure_tenant(tenant)
+    return await social.meta_review.list_meta_businesses(slug)
+
+
+async def link_meta_page_to_business(tenant: dict, business_id: str, page_id: str, relation: str = "owned"):
+    slug = await ensure_tenant(tenant)
+    return await social.meta_review.link_page_to_business(
+        slug, business_id=business_id, page_id=page_id, relation=relation
+    )
+
+
+async def get_meta_page_activity(tenant: dict, account_id: str, limit: int = 10):
+    if not POST_ID.fullmatch(account_id):
+        raise HTTPException(400, "Invalid account identifier")
+    slug = await ensure_tenant(tenant)
+    return await social.meta_review.get_page_activity(slug, account_id, limit=limit)
+
+
+async def publish_now(tenant: dict, post_id: str):
+    if not POST_ID.fullmatch(post_id):
+        raise HTTPException(400, "Invalid post identifier")
+    slug = await ensure_tenant(tenant)
+    return await social.scheduler.publish_post_now(slug, post_id)
+
+
 async def start_linkedin_oauth(tenant: dict):
     slug = await ensure_tenant(tenant)
     return await social.oauth.start_oauth(slug, "linkedin")
