@@ -67,6 +67,12 @@
   .sharebar { display: flex; gap: 14px; align-items: center; margin: 4px 0 18px; padding: 14px; border-radius: 14px; background: #ffffff08; border: 1px dashed var(--line); }
   .sharebar span { font-size: 14px; color: var(--muted); }
   .sharebar strong { color: var(--ink); }
+  .steps { list-style: none; padding: 0; margin: 10px 0 14px; color: var(--ink); }
+  .steps li { display: flex; gap: 14px; align-items: flex-start; font-size: 17px; line-height: 1.5; padding: 14px; margin-bottom: 10px; border-radius: 14px; background: #ffffff0d; border: 1px solid var(--line); }
+  .steps b { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 17px; }
+  .seen { padding: 12px 14px; border-radius: 12px; background: #22d3ee14; border: 1px solid #22d3ee44; color: var(--ink); }
+  details.profile { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+  details.profile summary { cursor: pointer; font-weight: 650; }
   .hide { display: none !important; }
   [hidden] { display: none !important; }
 </style>
@@ -108,16 +114,27 @@
       <span id="ios-sharebar-text">This is the <strong>Share</strong> button — in Safari it is in the bottom bar (top right on iPad). On newer iOS it can be under the <strong>⋯</strong> button instead.</span>
     </div>
 
-    <ol>
-      <li id="ios-step1">Tap the <strong>Share</strong> button — the square with the arrow, in the bottom bar on iPhone (top right on iPad). If you cannot see the bar, swipe up on the page once.</li>
-      <li>Scroll the list and tap <strong>Add to Home Screen</strong>.</li>
-      <li>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
+    <ol class="steps">
+      <li id="ios-step1"><b>1</b><span>Tap the <strong>Share</strong> button — the square with the arrow, in the bottom bar on iPhone (top right on iPad). If you cannot see the bar, swipe up on the page once.</span></li>
+      <li><b>2</b><span>Scroll the list and tap <strong>Add to Home Screen</strong>.</span></li>
+      <li><b>3</b><span>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong> (top right).</span></li>
     </ol>
+    <p class="seen"><strong>You should see:</strong> a purple bell icon named “Concierge” on your Home Screen. Tap it to open the app.</p>
     <div class="row">
       <button class="secondary" id="copy-ios" type="button" hidden>Copy the link for Safari</button>
       <a class="button secondary" href="/studio/">Back to Concierge</a>
     </div>
     <p class="fine" id="copy-ios-note" role="status"></p>
+    <details class="profile" id="ios-profile">
+      <summary>Share menu not working? Add it with a profile instead</summary>
+      <p>This puts the same Concierge icon on your Home Screen from Settings. iPhone will say “Not Verified” because we do not pay for a signing certificate; the profile only adds the icon and changes nothing else. Open this page in <strong>Safari</strong>, then:</p>
+      <ol>
+        <li>Tap <strong>Download the icon profile</strong> and choose <strong>Allow</strong>.</li>
+        <li>Open <strong>Settings</strong> → tap <strong>Profile Downloaded</strong> (at the top) → <strong>Install</strong>.</li>
+        <li>The Concierge icon appears on your Home Screen. To remove it: Settings → General → VPN &amp; Device Management → Concierge → Remove.</li>
+      </ol>
+      <div class="row"><a class="button secondary" href="/studio/concierge.mobileconfig">Download the icon profile</a></div>
+    </details>
     <p id="other-browser-help"><strong>Not in Safari?</strong> If you see “<span id="other-browser-name">another browser</span>” around the address bar, or you opened this from Instagram, Facebook, WhatsApp, LinkedIn or TikTok, tap <strong>⋯</strong> there and choose <strong>Open in Safari</strong>, or tap “Copy the link for Safari” and paste it into Safari yourself.</p>
     <p><strong>No Share button anywhere on screen?</strong> If the address bar has no toolbar at all, you are in a link preview inside another app. Tap <strong>⋯</strong> and choose <strong>Open in Safari</strong>, or open Safari and paste this address: <span class="url">concierge.trendibizz.com/studio/install</span></p>
     <p class="fine" id="ios-default-note">If the heading above names the wrong browser, your phone’s default browser is still that one. Changing the default in Settings only applies once it has really taken effect — or just open this page in the browser you want to install from.</p>

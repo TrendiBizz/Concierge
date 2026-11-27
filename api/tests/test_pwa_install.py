@@ -316,3 +316,34 @@ def test_install_page_shows_iphone_steps_even_without_script_and_manifest_icons_
     for name in ("icon-192.png", "icon-512.png", "apple-touch-icon.png"):
         im = Image.open(PUBLIC / name).convert("RGB")
         assert im.getpixel((0, 0)) == (0x71, 0x42, 0xD6), f"{name} corner is not full-bleed brand purple"
+
+
+def test_webclip_profile_is_valid_and_carries_the_icon_and_start_url():
+    import plistlib
+
+    from app.routers.public import build_webclip_profile
+
+    icon = (PUBLIC / "apple-touch-icon.png").read_bytes()
+    profile = plistlib.loads(build_webclip_profile(icon))
+    assert profile["PayloadType"] == "Configuration"
+    clip = profile["PayloadContent"][0]
+    assert clip["PayloadType"] == "com.apple.webClip.managed"
+    assert clip["URL"] == "https://concierge.trendibizz.com/studio/"
+    assert clip["Icon"] == icon and clip["FullScreen"] is True and clip["IsRemovable"] is True
+    assert clip["PayloadUUID"] != profile["PayloadUUID"]
+    assert build_webclip_profile(icon) == build_webclip_profile(icon), "fixed UUIDs: reinstall replaces, not duplicates"
+    assert b"invite=" not in build_webclip_profile(icon), "no sign-in ticket in a profile"
+
+
+def test_webclip_route_serves_the_apple_config_type_and_install_page_explains_steps(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    (tmp_path / "apple-touch-icon.png").write_bytes((PUBLIC / "apple-touch-icon.png").read_bytes())
+    monkeypatch.setattr(main, "STUDIO_DIR", tmp_path)
+    res = TestClient(main.app).get("/studio/concierge.mobileconfig")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/x-apple-aspen-config")
+    assert "attachment" in res.headers["content-disposition"]
+    page = (PUBLIC / "install.html").read_text()
+    assert 'class="steps"' in page and "You should see:" in page
+    assert "/studio/concierge.mobileconfig" in page and "Not Verified" in page

@@ -8,9 +8,11 @@ import base64
 import html
 import json
 import logging
+import plistlib
 import re
 import sys
 import time
+import uuid
 from typing import Literal
 from urllib.parse import quote_plus
 
@@ -596,6 +598,55 @@ async def studio_manifest(k: str = ""):
         manifest["start_url"] = f"/studio/#invite={k}"
     return Response(json.dumps(manifest), media_type="application/manifest+json",
                     headers={"Cache-Control": "no-store"})
+
+
+_WEBCLIP_URL = "https://concierge.trendibizz.com/studio/"
+_WEBCLIP_NS = uuid.UUID("6f0c2d3e-5a41-4c7e-9b8a-2d1f0e7a4c11")
+
+
+def build_webclip_profile(icon_png: bytes) -> bytes:
+    """An iPhone configuration profile holding one Web Clip: the Concierge icon on the Home Screen.
+
+    Unsigned on purpose (no paid certificate), so iOS labels it "Not Verified" until the person
+    approves it in Settings. No secrets and no sign-in ticket are in it. Fixed UUIDs, so installing
+    it again replaces the same clip instead of adding a second icon.
+    """
+    clip = {
+        "PayloadType": "com.apple.webClip.managed",
+        "PayloadVersion": 1,
+        "PayloadIdentifier": "com.trendibizz.concierge.profile.webclip",
+        "PayloadUUID": str(uuid.uuid5(_WEBCLIP_NS, "webclip")).upper(),
+        "PayloadDisplayName": "Concierge",
+        "Label": "Concierge",
+        "URL": _WEBCLIP_URL,
+        "Icon": icon_png,
+        "IsRemovable": True,
+        "FullScreen": True,
+        "Precomposed": True,
+    }
+    profile = {
+        "PayloadType": "Configuration",
+        "PayloadVersion": 1,
+        "PayloadIdentifier": "com.trendibizz.concierge.profile",
+        "PayloadUUID": str(uuid.uuid5(_WEBCLIP_NS, "profile")).upper(),
+        "PayloadDisplayName": "Concierge app icon",
+        "PayloadDescription": "Adds the Concierge icon to your Home Screen. It changes nothing else on this phone.",
+        "PayloadOrganization": "Trendi Concierge",
+        "PayloadRemovalDisallowed": False,
+        "PayloadContent": [clip],
+    }
+    return plistlib.dumps(profile, fmt=plistlib.FMT_XML)
+
+
+@router.get("/studio/concierge.mobileconfig", include_in_schema=False)
+async def studio_webclip_profile():
+    icon = (_main().STUDIO_DIR / "apple-touch-icon.png").resolve()
+    if not _readable(icon):
+        raise HTTPException(404, "Not found")
+    return Response(build_webclip_profile(icon.read_bytes()),
+                    media_type="application/x-apple-aspen-config",
+                    headers={"Content-Disposition": 'attachment; filename="Concierge.mobileconfig"',
+                             "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/studio/{path:path}", include_in_schema=False)
