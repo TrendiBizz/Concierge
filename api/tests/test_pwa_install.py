@@ -379,3 +379,9 @@ def test_first_run_tour_is_mounted_with_next_button_and_remembers_done():
     assert "label=\"Skip\"" in tour and "label=\"Back\"" in tour
     assert "localStorage.setItem(KEY" in tour and "'done'" in tour
     assert "requestPermission" in app and "Pause everything" in tour
+
+
+def test_install_page_tells_user_the_settings_screens_after_the_tick_are_nothing_to_do():
+    """Jo 2026-11-27: iOS leaves the user in Settings after the tick; that confused people."""
+    page = (PUBLIC / "install.html").read_text()
+    assert "never tap Remove Profile" in page and "Swipe up" in page

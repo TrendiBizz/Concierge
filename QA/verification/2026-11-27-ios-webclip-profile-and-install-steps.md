@@ -31,3 +31,8 @@ Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen w
 - Cause: installed icon opened Studio Home with no instructions and no Next.
 - Fix: `web/portal/src/FirstRunTour.tsx`, a bottom-sheet tour (Vaul) with Back/Next/Skip/Done and progress dots. Five steps: welcome, turn on alerts (real push subscribe, user tap), where Inbox/Enquiries/Quotes live, Pause everything, open Setup (the 7-stage hub). Shown once per device; progress and done flag in localStorage `concierge.tour`. `enableAlerts` in App.tsx is now shared with the top-bar button.
 - Proof: `test_first_run_tour_is_mounted_with_next_button_and_remembers_done`; mutation (Next->Go) fails it. Suite 1984 passed. Not checked on a real phone.
+
+## Addendum 7 — screens after the blue tick (Jo, 2026-11-27)
+- Cause: iOS itself leaves the user in Settings (VPN & Device Management, Profile with Remove Profile) after the tick. A web page cannot close Settings or skip these; unsigned profile flow is Apple's.
+- Fix: step 9 now says the install is finished, those pages are only Apple's list, do nothing, never tap Remove Profile, swipe up to leave. Step 10 opens with "Open the purple Concierge bell".
+- Proof: `test_install_page_tells_user_the_settings_screens_after_the_tick_are_nothing_to_do`. Not mutation-checked on a phone.
