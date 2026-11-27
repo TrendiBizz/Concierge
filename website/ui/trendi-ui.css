@@ -45,6 +45,38 @@
 .tui-sheet-handle { width: 40px; height: 5px; margin: 4px auto 12px; border-radius: 999px; background: var(--line-strong, #cfc5b4); }
 .tui-sheet-body { overflow-y: auto; max-height: calc(85vh - 40px); touch-action: pan-y; }
 .tui-sheet-body a { display: block; padding: 12px 4px; color: inherit; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--line, #e4ddd0); }
+.tui-sheet-body nav.tui-sheet-nav { display: flex; flex-direction: column; position: static; padding: 0; background: transparent; gap: 0; }
+.tui-sheet-body nav.tui-sheet-nav a.nav-start { margin-top: 12px; border-bottom: 0; text-align: center; justify-content: center; }
+
+/* ---------- header search trigger ---------- */
+.tui-search-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 10px;
+  font: 600 14px/1 var(--font, system-ui, sans-serif); color: var(--muted, #625670);
+  background: var(--surface, #fffdf9); border: 1px solid var(--line-strong, #cfc5b4);
+  border-radius: 8px; cursor: pointer; margin-left: auto;
+}
+.tui-search-btn:hover { color: var(--ink, #241a2e); border-color: var(--accent, #5830ae); background: var(--wash, #ece4f5); }
+.tui-search-btn:focus-visible { outline: 2px solid var(--accent, #5830ae); outline-offset: 2px; }
+.tui-search-btn kbd {
+  font: 600 11px/1 var(--font, system-ui, sans-serif); padding: 2px 5px;
+  border: 1px solid var(--line-strong, #cfc5b4); border-radius: 4px; color: inherit; background: var(--bg, #f7f4ee);
+}
+@media (min-width: 1200px) { .tui-search-btn { margin-left: 0; } }
+@media (max-width: 760px) { .tui-search-btn kbd { display: none; } }
+
+/* ---------- billing view toggle (pricing ticker) ---------- */
+.tui-billing-toggle {
+  display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 18px;
+  background: var(--surface, #fffdf9); border: 1px solid var(--line, #e4ddd0); border-radius: 10px;
+}
+.tui-billing-toggle button {
+  font: 600 14px/1.2 var(--font, system-ui, sans-serif); padding: 8px 14px; min-height: 38px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--muted, #625670); cursor: pointer;
+}
+.tui-billing-toggle button[aria-selected="true"] {
+  background: var(--accent, #5830ae); color: var(--on-accent, #fffdf9);
+}
+.tui-billing-toggle button:focus-visible { outline: 2px solid var(--accent, #5830ae); outline-offset: 2px; }
 
 /* ---------- command menu (cmdk idea) ---------- */
 .tui-cmdk {

@@ -12,11 +12,15 @@
   "dependencies": {
     "@astryxdesign/core": "^0.7.13",
     "@astryxdesign/theme-neutral": "^0.7.13",
+    "@number-flow/react": "^0.6.2",
     "@stylexjs/stylex": "^0.19.1",
+    "cmdk": "^1.1.1",
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.8",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

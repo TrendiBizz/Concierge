@@ -1,4 +1,5 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import {Drawer} from 'vaul';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -195,36 +196,41 @@ export function TabGuideDrawer({
   onOpenOnboarding: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const guide = TAB_GUIDES[tab] || DEFAULT_GUIDE;
 
   return (
-    <>
-      <Button label="? Guide" variant="secondary" onClick={() => setOpen((v) => !v)} />
-      {open ? (
-        <div
-          role="dialog"
+    <Drawer.Root open={open} onOpenChange={setOpen} direction={isMobile ? 'bottom' : 'right'}>
+      <Drawer.Trigger asChild>
+        <Button label="? Guide" variant="secondary" onClick={() => setOpen(true)} />
+      </Drawer.Trigger>
+      <Drawer.Portal>
+        <Drawer.Overlay className="c-drawer-overlay" />
+        <Drawer.Content
           aria-label="Screen guide"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: 'min(420px, 92vw)',
-            zIndex: 1000,
-            background: 'var(--color-surface, #16141f)',
-            borderLeft: '1px solid var(--color-border)',
-            boxShadow: '-12px 0 40px rgba(0,0,0,0.35)',
-            padding: 24,
-            overflowY: 'auto',
-          }}
+          className={isMobile ? 'c-drawer-content c-drawer-bottom' : 'c-drawer-content c-drawer-right'}
         >
+          {isMobile ? <div className="c-drawer-handle" aria-hidden="true" /> : null}
           <VStack gap={4}>
             <HStack gap={2} style={{justifyContent: 'space-between', alignItems: 'center'}}>
               <Badge label="HOW THIS WORKS" variant="info" />
               <Button label="Close" variant="ghost" onClick={() => setOpen(false)} />
             </HStack>
-            <Heading level={2}>{guide.title}</Heading>
-            <p style={{margin: 0, lineHeight: 1.55}}>{guide.summary}</p>
+            <Drawer.Title asChild>
+              <Heading level={2}>{guide.title}</Heading>
+            </Drawer.Title>
+            <Drawer.Description style={{margin: 0, lineHeight: 1.55}}>
+              {guide.summary}
+            </Drawer.Description>
             <Card>
               <VStack gap={2} style={{padding: 12}}>
                 <strong>Step-by-step</strong>
@@ -257,8 +263,8 @@ export function TabGuideDrawer({
               </a>
             </HStack>
           </VStack>
-        </div>
-      ) : null}
-    </>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }

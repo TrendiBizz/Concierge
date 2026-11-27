@@ -76,7 +76,11 @@
   document.getElementById("setup-copy").addEventListener("click", function () {
     if (!navigator.clipboard) { status.textContent = "Select and copy the request shown below."; return; }
     navigator.clipboard.writeText(draft.textContent).then(function () {
-      status.textContent = "Request copied. Paste it into an email to admin@trendibizz.com.";
+      var msg = "Request copied. Paste it into an email to admin@trendibizz.com.";
+      if (window.TrendiUI && typeof window.TrendiUI.toast === "function") {
+        window.TrendiUI.toast(msg, { type: "success" });
+      }
+      status.textContent = msg;
     }).catch(function () { status.textContent = "Select and copy the request shown below."; });
   });
 })();

@@ -36,17 +36,54 @@
   });
   document.querySelectorAll("[data-year]").forEach(function (n) { n.textContent = new Date().getFullYear(); });
 
-  // Mobile menu
+  // Mobile menu (bottom sheet on phones <=760px via TrendiUI.sheet; dropdown fallback above)
   var menuBtn = document.getElementById("menu-btn");
   var nav = document.getElementById("main-nav");
+  var activeSheet = null;
   if (menuBtn && nav) {
     menuBtn.addEventListener("click", function () {
+      if (window.TrendiUI && window.matchMedia && window.matchMedia("(max-width: 760px)").matches) {
+        if (activeSheet) { activeSheet.close(); return; }
+        var clone = nav.cloneNode(true);
+        clone.removeAttribute("id");
+        clone.classList.add("tui-sheet-nav");
+        menuBtn.setAttribute("aria-expanded", "true");
+        activeSheet = window.TrendiUI.sheet(clone, {
+          label: "Navigation",
+          onClose: function () {
+            activeSheet = null;
+            menuBtn.setAttribute("aria-expanded", "false");
+          }
+        });
+        return;
+      }
       var open = nav.classList.toggle("open");
       menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
     });
     nav.addEventListener("click", function (e) {
       if (e.target.tagName === "A") { nav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false"); }
     });
+  }
+
+  // Site-wide Cmd-K search + small header trigger
+  if (window.TrendiUI && typeof window.TrendiUI.commandMenu === "function") {
+    var cmdk = window.TrendiUI.commandMenu({ indexUrl: "/ui/search-index.json" });
+    var headerWrap = document.querySelector("header.site .wrap");
+    if (headerWrap && !headerWrap.querySelector(".tui-search-btn")) {
+      var searchBtn = el("button", {
+        type: "button",
+        "class": "tui-search-btn",
+        "aria-label": "Search site"
+      }, "Search ");
+      var kbd = el("kbd", { "aria-hidden": "true" }, /Mac|iPhone|iPad/i.test(navigator.platform || "") ? "⌘K" : "Ctrl K");
+      searchBtn.appendChild(kbd);
+      searchBtn.addEventListener("click", function () { cmdk.open(); });
+      if (menuBtn && menuBtn.parentNode === headerWrap) {
+        headerWrap.insertBefore(searchBtn, menuBtn);
+      } else {
+        headerWrap.appendChild(searchBtn);
+      }
+    }
   }
 
   // Pricing (skip if server-rendered static HTML is present)
@@ -66,7 +103,16 @@
       var p = T.plans[selected];
       panel.innerHTML = "";
 
-      var price = el("div", { "class": "price" }, money(p.price));
+      var price = el("div", { "class": "price" });
+      var amount = el("span", { "class": "price-amount" });
+      if (window.TrendiUI && typeof window.TrendiUI.ticker === "function") {
+        window.TrendiUI.ticker(amount, p.price, {
+          format: { style: "currency", currency: biz.currency, maximumFractionDigits: 0 }
+        });
+      } else {
+        amount.textContent = money(p.price);
+      }
+      price.appendChild(amount);
       price.appendChild(el("small", null, p.per));
       panel.appendChild(price);
       panel.appendChild(el("p", { "class": "terms" }, p.terms + " " + biz.taxNote));
@@ -232,7 +278,12 @@
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
         var text = lastBody || buildDraft().body;
-        var done = function () { copyBtn.textContent = "copied it"; };
+        var done = function () {
+          copyBtn.textContent = "copied it";
+          if (window.TrendiUI && typeof window.TrendiUI.toast === "function") {
+            window.TrendiUI.toast("Draft copied to clipboard", { type: "success" });
+          }
+        };
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(done).catch(function () {
             // Fallback for older browsers / denied clipboard
@@ -365,7 +416,8 @@
       setTimeout(settle, 0);
     });
     function settle() {
-      var pending = /^(Checking|Fetching|Running light security check)/.test(output.textContent.trim());
+      var pending = Boolean(output.querySelector('[aria-busy="true"]')) ||
+        /^(Checking|Fetching|Running light security check|Working)/.test(output.textContent.trim());
       if (pending) return;
       button.textContent = 'Run the check'; button.disabled = false; runner.removeAttribute('aria-busy');
       output.querySelectorAll('.sec-badge').forEach(function (badge) {
@@ -433,6 +485,66 @@
     });
     addEventListener('hashchange', function () { var i = fromHash(); if (i >= 0) select(i); });
     select(Math.max(fromHash(), 0));
+  })();
+
+  // Pricing view toggle on /pricing and /ai-office-cost: rolls price digits with TrendiUI.ticker
+  // between monthly rate and 3-month minimum total. Static HTML stays untouched for crawlers.
+  (function initPricingTicker() {
+    if (!window.TrendiUI || typeof window.TrendiUI.ticker !== "function") return;
+    var path = (location.pathname || "").replace(/\/$/, "");
+    if (!document.body.classList.contains("page-pricing") && path !== "/pricing" && path !== "/ai-office-cost" && path !== "/pricing.html" && path !== "/ai-office-cost.html") return;
+    var grids = document.querySelectorAll(".pricing-grid");
+    if (!grids.length) return;
+    var targets = [];
+    document.querySelectorAll(".pricing .price").forEach(function (priceEl) {
+      var small = priceEl.querySelector("small");
+      if (!small || !/month/i.test(small.textContent || "")) return;
+      var text = priceEl.textContent || "";
+      var m = text.match(/\$([0-9,]+)/);
+      if (!m) return;
+      var monthly = parseInt(m[1].replace(/,/g, ""), 10);
+      if (!Number.isFinite(monthly) || monthly <= 0) return;
+      var currency = priceEl.querySelector(".currency");
+      var amount = el("span", { "class": "tui-price-val" });
+      priceEl.textContent = "";
+      if (currency) { priceEl.appendChild(currency); priceEl.appendChild(document.createTextNode(" ")); }
+      priceEl.appendChild(amount);
+      priceEl.appendChild(small);
+      window.TrendiUI.ticker(amount, monthly, {
+        format: { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 },
+        animateFirst: false
+      });
+      targets.push({ amount: amount, small: small, monthly: monthly });
+    });
+    if (!targets.length) return;
+    var bar = el("div", { "class": "tui-billing-toggle", role: "tablist", "aria-label": "Price view" });
+    var btnMonth = el("button", { type: "button", role: "tab", "aria-selected": "true" }, "Per month");
+    var btnMin = el("button", { type: "button", role: "tab", "aria-selected": "false", tabindex: "-1" }, "3-month minimum");
+    bar.appendChild(btnMonth);
+    bar.appendChild(btnMin);
+    function setMode(threeMonth) {
+      btnMonth.setAttribute("aria-selected", threeMonth ? "false" : "true");
+      btnMonth.tabIndex = threeMonth ? -1 : 0;
+      btnMin.setAttribute("aria-selected", threeMonth ? "true" : "false");
+      btnMin.tabIndex = threeMonth ? 0 : -1;
+      targets.forEach(function (t) {
+        window.TrendiUI.ticker(t.amount, threeMonth ? t.monthly * 3 : t.monthly, {
+          format: { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }
+        });
+        t.small.textContent = threeMonth ? "/ 3 months" : "/ month";
+      });
+    }
+    btnMonth.addEventListener("click", function () { setMode(false); });
+    btnMin.addEventListener("click", function () { setMode(true); });
+    bar.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        var next = btnMonth.getAttribute("aria-selected") === "true";
+        setMode(next);
+        (next ? btnMin : btnMonth).focus();
+      }
+    });
+    grids[0].parentNode.insertBefore(bar, grids[0]);
   })();
 
   // Concierge payment: ONLY an explicit pay button (a[data-concierge-pay]) is pointed at the Stripe Payment

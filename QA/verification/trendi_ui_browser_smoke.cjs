@@ -12,8 +12,10 @@ const srv = http.createServer((q, r) => {
   if (q.url === '/demo') { r.writeHead(200, {'content-type':'text/html','content-security-policy':"default-src 'self'; style-src 'self'; script-src 'self'"}); return r.end(page_html); }
   const f = path.join(SITE, q.url.split('?')[0]);
   if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); }
-  const t = f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? 'text/javascript' : f.endsWith('.json') ? 'application/json' : 'application/octet-stream';
-  r.writeHead(200, {'content-type': t}); fs.createReadStream(f).pipe(r);
+  const t = f.endsWith('.html') ? 'text/html' : f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? 'text/javascript' : f.endsWith('.json') ? 'application/json' : f.endsWith('.svg') ? 'image/svg+xml' : f.endsWith('.woff2') ? 'font/woff2' : 'application/octet-stream';
+  const hdrs = {'content-type': t};
+  if (t === 'text/html') hdrs['content-security-policy'] = "default-src 'self'; style-src 'self'; script-src 'self' https://www.googletagmanager.com https://chat.trendibizz.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://chat.trendibizz.com";
+  r.writeHead(200, hdrs); fs.createReadStream(f).pipe(r);
 }).listen(0, async () => {
   const base = 'http://127.0.0.1:' + srv.address().port;
   const b = await chromium.launch(); const p = await b.newPage({viewport:{width:390,height:800}});
@@ -43,5 +45,49 @@ const srv = http.createServer((q, r) => {
   const box = await p.locator('.tui-sheet-handle').boundingBox();
   await p.mouse.move(box.x + 20, box.y + 2); await p.mouse.down(); await p.mouse.move(box.x + 20, box.y + 60, {steps: 6}); await p.mouse.up();
   await p.waitForTimeout(700); out.sheetClosedByDrag = await p.evaluate(() => !document.querySelector('.tui-sheet'));
+
+  // Real site pages under strict CSP
+  await p.route('https://**', r => r.fulfill({status: 200, contentType: 'text/javascript', body: ''}));
+  await p.goto(base + '/index.html', {waitUntil: 'domcontentloaded'});
+  await p.waitForTimeout(300);
+  await p.click('.tui-search-btn');
+  await p.waitForTimeout(200);
+  out.homeSearchBtnOpensCmdk = await p.evaluate(() => Boolean(document.querySelector('.tui-cmdk[open]')));
+  await p.keyboard.press('Escape');
+  await p.click('#menu-btn');
+  await p.waitForTimeout(400);
+  out.homeMobileSheetOpens = await p.evaluate(() => Boolean(document.querySelector('.tui-sheet .tui-sheet-nav')));
+  await p.screenshot({path: path.join(OUT, 'site-mobile-sheet.png')});
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(600);
+
+  await p.setViewportSize({width: 1280, height: 800});
+  await p.goto(base + '/pricing.html', {waitUntil: 'domcontentloaded'});
+  await p.waitForTimeout(300);
+  await p.click('.tui-billing-toggle button:nth-child(2)');
+  await p.waitForTimeout(1000);
+  out.pricingToggleVal = await p.getAttribute('.tui-price-val', 'aria-label');
+  await p.screenshot({path: path.join(OUT, 'site-pricing-ticker.png')});
+
+  await p.goto(base + '/tools/missed-call-cost-calculator.html', {waitUntil: 'domcontentloaded'});
+  await p.waitForTimeout(300);
+  await p.fill('#mc-missed', '12');
+  await p.waitForTimeout(1000);
+  out.calcYearTicker = await p.getAttribute('#mc-year', 'aria-label');
+  await p.click('#mc-copy');
+  await p.waitForTimeout(200);
+  out.calcCopyToast = await p.evaluate(() => document.querySelector('.tui-toast-text')?.textContent || null);
+  await p.screenshot({path: path.join(OUT, 'site-calc-ticker-toast.png')});
+
+  await p.goto(base + '/tools/site-check.html', {waitUntil: 'domcontentloaded'});
+  await p.waitForTimeout(200);
+  await p.route('**/api/site-check**', async r => { await new Promise(res => setTimeout(res, 1200)); r.fulfill({status: 503, contentType: 'application/json', body: '{}'}); });
+  await p.fill('#site-check-form input[name="url"]', 'trendibizz.com');
+  await p.check('#site-check-form input[name="authorised"]');
+  await p.click('#site-check-form button[type="submit"]');
+  await p.waitForTimeout(200);
+  out.siteCheckAiThinking = await p.evaluate(() => Boolean(document.querySelector('#site-check-out .tui-ai-thinking')));
+  await p.screenshot({path: path.join(OUT, 'site-check-ai.png')});
+
   out.errors = errs; console.log(JSON.stringify(out, null, 1)); await b.close(); srv.close();
 });

@@ -11,8 +11,15 @@ wasted." So the ideas are ported to one small vanilla module, styled on the site
   (cmdk), `.ticker` (NumberFlow), `.aiStatus` thinking/stream/approve/done (Beautiful UI).
 - `website/ui/trendi-ui.css` — brand tokens only (`--font` Plus Jakarta Sans, `--accent` purple, `--radius`).
 - `website/ui/search-index.json` + `scripts/seo/build_search_index.py` — Cmd-K index from sitemap pages only.
-- **Not wired into any page yet.** No page loads these files, so the live site does not change until Jo approves
-  where each goes (one standout per page).
+- **Wired into all 56 site pages (2026-11-27):**
+  - Every page loads `/ui/trendi-ui.css` + `/ui/trendi-ui.js` before `main.js`.
+  - Every page gets Cmd/Ctrl-K site search (`TrendiUI.commandMenu`) + header `Search` trigger button (`.tui-search-btn`).
+  - Phones (`<=760px`) get the Vaul-style drag-to-close bottom sheet (`TrendiUI.sheet`) on `#menu-btn`.
+  - Copy buttons (`#start-copy`, `#setup-copy`, `#mc-copy`) fire Sonner-style toasts (`TrendiUI.toast`).
+  - One standout per page:
+    - `/tools/missed-call-cost-calculator`: NumberFlow-style rolling digit ticker (`TrendiUI.ticker`) on weekly/monthly/yearly lost amounts.
+    - `/pricing`: `Per month` / `3-month minimum` toggle rolling `$199→$597` and `$499→$1,497` (`TrendiUI.ticker`).
+    - `/tools/site-check` & `/tools/robots-ai-check`: Beautiful UI thinking steps (`TrendiUI.aiStatus`) while checks run.
 
 ## Licences (sources cloned to `~/work-staging/ui-tools/`, read 2026-11-27)
 Sonner MIT (c) 2023 Emil Kowalski; Vaul MIT (c) 2023 Emil Kowalski (README: "This repo is unmaintained");

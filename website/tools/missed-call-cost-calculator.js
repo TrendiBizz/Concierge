@@ -132,12 +132,23 @@
       };
     }
 
+    function setAmount(el, value) {
+      if (window.TrendiUI && typeof window.TrendiUI.ticker === 'function') {
+        window.TrendiUI.ticker(el, Math.round(value), {
+          format: { maximumFractionDigits: 0 },
+          animateFirst: false
+        });
+      } else {
+        el.textContent = money(value);
+      }
+    }
+
     function render() {
       var input = read();
       var result = calculate(input);
-      out.week.textContent = money(result.lostPerWeek);
-      out.month.textContent = money(result.lostPerMonth);
-      out.year.textContent = money(result.lostPerYear);
+      setAmount(out.week, result.lostPerWeek);
+      setAmount(out.month, result.lostPerMonth);
+      setAmount(out.year, result.lostPerYear);
       out.calls.textContent = result.callsPerMonth.toFixed(0);
       out.assumption.textContent = result.note;
       var query = toQuery(input);
@@ -162,6 +173,9 @@
         out.share.select();
         var done = function () {
           copy.textContent = 'Copied';
+          if (window.TrendiUI && typeof window.TrendiUI.toast === 'function') {
+            window.TrendiUI.toast('Shareable link copied', { type: 'success' });
+          }
           window.setTimeout(function () { copy.textContent = 'Copy link'; }, 2000);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {

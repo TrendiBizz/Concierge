@@ -708,7 +708,21 @@
         "</p>";
       return;
     }
-    out.innerHTML = '<p class="fine">Checking…</p>';
+    var aiBox = null;
+    var aiTimer = null;
+    if (window.TrendiUI && typeof window.TrendiUI.aiStatus === "function") {
+      out.textContent = "";
+      var statusHost = document.createElement("div");
+      out.appendChild(statusHost);
+      aiBox = window.TrendiUI.aiStatus(statusHost).thinking([
+        "Fetching robots.txt and sitemap",
+        "Reading homepage signals",
+        "Checking schema and crawl readiness"
+      ]);
+      aiTimer = setTimeout(function () { if (aiBox) aiBox.step(0, "done"); }, 450);
+    } else {
+      out.innerHTML = '<p class="fine">Checking…</p>';
+    }
     if (modeEl) modeEl.hidden = true;
 
     var hasPaste =
@@ -719,6 +733,8 @@
       ? applyPaste(target)
       : tryServer(target).catch(function (err) {
           if (err.status === 429) {
+            if (aiTimer) clearTimeout(aiTimer);
+            if (aiBox) { aiBox.done(); aiBox = null; }
             out.innerHTML =
               '<p class="fine">' +
               esc((err.data && err.data.message) || "Rate limited — try again later.") +
@@ -731,10 +747,14 @@
 
     run
       .then(function (data) {
+        if (aiTimer) clearTimeout(aiTimer);
         if (!data) return;
+        if (aiBox) { aiBox.step(0, "done"); aiBox.step(1, "done"); aiBox.step(2, "done"); aiBox.done(); }
         render(data);
       })
       .catch(function (err) {
+        if (aiTimer) clearTimeout(aiTimer);
+        if (aiBox) aiBox.done();
         out.innerHTML =
           '<p class="fine">Could not complete check. ' +
           esc(err.message || "") +

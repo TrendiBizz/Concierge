@@ -405,3 +405,152 @@
   color: var(--c-ink);
   min-width: 220px;
 }
+
+/* Brand font (self-hosted Plus Jakarta Sans) */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/studio/fonts/plus-jakarta-sans-var.woff2') format('woff2');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+.c-shell, .c-cmdk, .c-drawer-content, .c-sonner-toast {
+  font-family: 'Plus Jakarta Sans', var(--sans, system-ui, sans-serif);
+}
+
+/* Sonner toasts — brand restyle */
+.c-sonner-toast {
+  border-radius: 12px !important;
+  border: 1px solid var(--color-border, rgba(124, 92, 255, 0.25)) !important;
+  border-left: 3px solid #7c5cff !important;
+  background: var(--color-background-card, #181622) !important;
+  color: var(--color-text-primary, #f5f3ff) !important;
+  box-shadow: 0 14px 36px rgba(10, 8, 24, 0.28) !important;
+}
+
+/* cmdk command palette — brand restyle */
+.c-cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(16, 14, 26, 0.52);
+  backdrop-filter: blur(4px);
+}
+.c-cmdk-content {
+  position: fixed;
+  top: 14vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  z-index: 1201;
+  outline: none;
+}
+.c-cmdk {
+  border-radius: 16px;
+  border: 1px solid var(--color-border, rgba(124, 92, 255, 0.28));
+  background: var(--color-background-body, #fff);
+  color: var(--color-text-primary, #101014);
+  box-shadow: 0 24px 64px rgba(16, 14, 26, 0.34);
+  overflow: hidden;
+}
+.c-cmdk-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  background: transparent;
+  color: inherit;
+  font: 500 16px/1.4 'Plus Jakarta Sans', system-ui, sans-serif;
+  outline: none;
+}
+.c-cmdk-list {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 8px;
+}
+.c-cmdk-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-text-secondary, #6b6375);
+}
+.c-cmdk-group [cmdk-group-heading] {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary, #6b6375);
+}
+.c-cmdk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 550;
+  cursor: pointer;
+  user-select: none;
+}
+.c-cmdk-item[data-selected="true"] {
+  background: color-mix(in oklab, #7c5cff 16%, transparent);
+  color: #7c5cff;
+}
+.c-cmdk-hint {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  font-size: 12.5px;
+  color: var(--color-text-secondary, #6b6375);
+}
+
+/* Vaul drawer (bottom sheet on phones, right drawer on desktop) */
+.c-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(16, 14, 26, 0.45);
+  backdrop-filter: blur(2px);
+}
+.c-drawer-content {
+  position: fixed;
+  z-index: 1101;
+  background: var(--color-background-body, #fff);
+  color: var(--color-text-primary, #101014);
+  box-shadow: 0 -12px 40px rgba(16, 14, 26, 0.3);
+  padding: 20px 24px 28px;
+  overflow-y: auto;
+  outline: none;
+}
+.c-drawer-right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 92vw);
+  border-left: 1px solid var(--color-border, rgba(124, 92, 255, 0.2));
+}
+.c-drawer-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 86vh;
+  border-top: 1px solid var(--color-border, rgba(124, 92, 255, 0.25));
+  border-radius: 18px 18px 0 0;
+  padding-top: 10px;
+}
+.c-drawer-handle {
+  width: 42px;
+  height: 5px;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #7c5cff 35%, var(--color-border, #888));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-cmdk-overlay, .c-cmdk-content, .c-drawer-overlay, .c-drawer-content {
+    transition: none !important;
+    animation: none !important;
+  }
+}

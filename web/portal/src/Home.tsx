@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import NumberFlow from '@number-flow/react';
 import {describeFailure} from './api';
 import {Card} from '@astryxdesign/core/Card';
 import {Heading} from '@astryxdesign/core/Heading';
@@ -19,10 +20,6 @@ function useApi(token: string) {
     if (!response.ok) throw new Error(describeFailure(response.status, data));
     return data;
   };
-}
-
-function money(cents: number, currency: string) {
-  return new Intl.NumberFormat('en-NZ', {style: 'currency', currency}).format((cents || 0) / 100);
 }
 
 export default function Home({token, brand}: {token: string; brand: Brand}) {
@@ -52,9 +49,22 @@ export default function Home({token, brand}: {token: string; brand: Brand}) {
     <div>
       <OwnerDesk token={token} />
       <div className="c-kpis">
-        {[['Enquiries', leads.length], ['Quoted value', money(quoted, 'NZD')], ['Posts', posts.length], ['Media', assets.length]].map(([label, value]) => (
-          <div className="c-kpi" key={String(label)}><strong>{value}</strong><span>{label}</span></div>
-        ))}
+        <div className="c-kpi">
+          <strong><NumberFlow value={leads.length} /></strong>
+          <span>Enquiries</span>
+        </div>
+        <div className="c-kpi">
+          <strong><NumberFlow value={quoted / 100} format={{style: 'currency', currency: 'NZD'}} /></strong>
+          <span>Quoted value</span>
+        </div>
+        <div className="c-kpi">
+          <strong><NumberFlow value={posts.length} /></strong>
+          <span>Posts</span>
+        </div>
+        <div className="c-kpi">
+          <strong><NumberFlow value={assets.length} /></strong>
+          <span>Media</span>
+        </div>
       </div>
       <div style={{display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: 20}}>
         <Card>

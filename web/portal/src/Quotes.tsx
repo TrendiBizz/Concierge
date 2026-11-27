@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
+import NumberFlow from '@number-flow/react';
 import {describeFailure} from './api';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Button} from '@astryxdesign/core/Button';
@@ -635,7 +636,7 @@ export function Quotes({token}: {token: string; brand: Brand}) {
                 {live.discount ? <HStack justify="between"><Text type="supporting">Discount</Text><Text>−{money(live.discount, currency)}</Text></HStack> : null}
                 <HStack justify="between"><Text type="supporting">{currency === 'NZD' ? 'GST' : 'Tax'} {Number(taxPct) || 0}%</Text><Text>{money(live.tax, currency)}</Text></HStack>
                 <Divider />
-                <HStack justify="between" align="center"><Text weight="semibold">Total</Text><Heading level={3}>{money(live.total, currency)}</Heading></HStack>
+                <HStack justify="between" align="center"><Text weight="semibold">Total</Text><Heading level={3}><NumberFlow value={live.total / 100} format={{style: 'currency', currency}} /></Heading></HStack>
                 <Text type="supporting" size="sm">The customer sees these figures, the reference and your terms on one page.</Text>
               </VStack>
             </Card>

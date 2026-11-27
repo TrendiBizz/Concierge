@@ -114,3 +114,25 @@ def test_search_index_is_fresh_and_only_lists_sitemap_pages():
         assert p["label"] and "| Trendi" not in p["label"]
         url = "https://trendibizz.com" + ("" if p["href"] == "/" else p["href"])
         assert f"<loc>{url}{'/' if p['href'] == '/' else ''}</loc>" in sitemap
+
+
+def test_site_pages_and_scripts_wire_trendi_ui():
+    web = ROOT / "website"
+    html_files = sorted(web.rglob("*.html"))
+    assert len(html_files) >= 50
+    for p in html_files:
+        text = p.read_text(encoding="utf-8")
+        assert "/ui/trendi-ui.css" in text, f"missing trendi-ui.css in {p}"
+        assert "/ui/trendi-ui.js" in text, f"missing trendi-ui.js in {p}"
+        assert text.index("/ui/trendi-ui.js") < text.index("main.js"), f"trendi-ui.js must precede main.js in {p}"
+
+    main_js = (web / "main.js").read_text(encoding="utf-8")
+    for token in ("TrendiUI.sheet", "TrendiUI.commandMenu", "TrendiUI.toast", "TrendiUI.ticker", 'aria-busy="true"'):
+        assert token in main_js, f"missing {token} in main.js"
+
+    calc_js = (web / "tools/missed-call-cost-calculator.js").read_text(encoding="utf-8")
+    assert "TrendiUI.ticker" in calc_js and "TrendiUI.toast" in calc_js
+
+    for tool in ("tools/site-check.js", "tools/robots-ai-check.js"):
+        src = (web / tool).read_text(encoding="utf-8")
+        assert "TrendiUI.aiStatus" in src, f"missing TrendiUI.aiStatus in {tool}"

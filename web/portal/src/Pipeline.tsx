@@ -7,7 +7,8 @@
  * summary read are refreshed, so nothing can disagree about what is open or what it is worth.
  */
 
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useState, type ReactNode} from 'react';
+import NumberFlow from '@number-flow/react';
 import {createApi} from './api';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Button} from '@astryxdesign/core/Button';
@@ -74,7 +75,7 @@ function cardTitle(lead: Lead) {
   return lead.name || lead.company || lead.email || lead.phone || 'Unnamed deal';
 }
 
-function Stat({label, value, hint}: {label: string; value: string; hint?: string}) {
+function Stat({label, value, hint}: {label: string; value: ReactNode; hint?: string}) {
   return (
     <div style={{
       flex: '1 1 180px',
@@ -203,11 +204,11 @@ export function Pipeline({token}: {token: string}) {
       ) : null}
 
       <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', margin: '12px 0'}}>
-        <Stat label="Open pipeline" value={money(board.open_value_cents)}
+        <Stat label="Open pipeline" value={<NumberFlow value={(board.open_value_cents || 0) / 100} format={{style: 'currency', currency: 'NZD', maximumFractionDigits: 0}} />}
               hint={Object.keys(board.odds).length ? 'all open deals' : undefined} />
-        <Stat label="Weighted forecast" value={money(board.weighted_value_cents)}
+        <Stat label="Weighted forecast" value={<NumberFlow value={(board.weighted_value_cents || 0) / 100} format={{style: 'currency', currency: 'NZD', maximumFractionDigits: 0}} />}
               hint="each stage weighted by how often it closes" />
-        <Stat label="Won (last 30 days)" value={money(board.won_value_cents)} />
+        <Stat label="Won (last 30 days)" value={<NumberFlow value={(board.won_value_cents || 0) / 100} format={{style: 'currency', currency: 'NZD', maximumFractionDigits: 0}} />} />
       </div>
 
       <div style={{display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, alignItems: 'flex-start'}}>

@@ -152,15 +152,31 @@ form.addEventListener('submit', function(e){
  var n = normaliseSiteUrl(raw);
  if(!n.ok){ say('Enter a site or URL (e.g. trendibizz.com). https:// is added if you leave it off.'); return; }
  var host = n.url.hostname;
- say('Fetching https://' + host + '/robots.txt…');
+ var aiBox = null, aiTimer = null;
+ if(window.TrendiUI && typeof window.TrendiUI.aiStatus === 'function'){
+   out.textContent = '';
+   var statusHost = document.createElement('div');
+   out.appendChild(statusHost);
+   aiBox = window.TrendiUI.aiStatus(statusHost).thinking([
+     'Connecting to ' + host,
+     'Fetching /robots.txt',
+     'Evaluating RFC 9309 bot rules'
+   ]);
+   aiTimer = setTimeout(function(){ if(aiBox) aiBox.step(0, 'done'); }, 350);
+ } else {
+   say('Fetching https://' + host + '/robots.txt…');
+ }
  // Same-origin endpoint: Trendi's server fetches only https://<host>/robots.txt (CSP connect-src stays 'self').
  fetch('/api/robots?url=' + encodeURIComponent(host), {method:'GET', credentials:'same-origin', headers:{accept:'text/plain'}})
  .then(function(res){
+ if(aiBox) aiBox.step(1, 'done');
  var ct = res.headers.get('content-type') || '';
  if(res.ok && /^text\/plain/i.test(ct)) return res.text().then(function(t){ return {ok:true, text:t, source:res.headers.get('x-trendi-source') || ('https://' + host + '/robots.txt'), truncated:res.headers.get('x-trendi-truncated') === '1'}; });
  return res.json().catch(function(){ return {}; }).then(function(j){ return {ok:false, error:j.error || ('http_' + res.status), message:j.message}; });
  })
  .then(function(r){
+ if(aiTimer) clearTimeout(aiTimer);
+ if(aiBox) aiBox.done();
  if(!r.ok){
  if(r.error === 'not_found'){ say(r.message || 'No robots.txt found at that site. Under RFC 9309 that means crawlers may fetch everything.'); return; }
  say((r.message || 'We could not fetch that robots.txt.') + ' You can open the file yourself and paste it below.'); return;
@@ -168,6 +184,6 @@ form.addEventListener('submit', function(e){
  render(r.text, r.source + (r.truncated ? ' (first 512 KB)' : ''));
  showFetched(r.text);
  })
- .catch(function(){ say('Could not reach the checker. Open the robots.txt yourself and paste it below.'); });
+ .catch(function(){ if(aiTimer) clearTimeout(aiTimer); if(aiBox) aiBox.done(); say('Could not reach the checker. Open the robots.txt yourself and paste it below.'); });
 });
 })();
