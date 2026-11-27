@@ -15,3 +15,6 @@ Install page iPhone card: 5 big numbered steps (Download > Allow > Settings Prof
 Cause: an installed iPhone app has empty storage, so a plain install lands on the email-code screen. The signed-in QR already carried a ticket via the manifest, but the profile did not.
 Fix: profile route takes ?k=ticket (format-checked, same 1h ticket) so the Web Clip opens at /studio/#invite=ticket; install page passes #k= to the profile link. Code screen: iOS code autofill (one-time-code, numeric), auto-submit at 6 digits, email remembered on device, Enter sends.
 Proof: test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket; suite 1983 passed. UNKNOWN: whether a managed Web Clip shares storage with Safari (ticket path assumed like the manifest path); needs Jo's phone.
+
+## Addendum 3: where the signed-in QR is
+Cause: PhoneInstall (the ticketed install QR) lived only in LegacySetup, which nothing renders: the QR was unreachable in the live Studio. Fix: render it on the Home tab (hidden once installed); copy now describes the iPhone profile steps. Check: open Studio Home on a computer, QR visible below the dashboard.
