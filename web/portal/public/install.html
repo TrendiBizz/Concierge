@@ -94,7 +94,7 @@
     <p class="fine" id="install-note" role="status"></p>
   </section>
 
-  <section class="card" id="ios" hidden>
+  <section class="card" id="ios">
     <h2 id="ios-title">On iPhone or iPad: install from Safari</h2>
     <p id="ios-browser-note" hidden><strong id="ios-browser-name">This browser</strong> on iPhone cannot add a web app to the Home Screen — Apple only allows Safari (and, from iOS 16.4, Chrome, Firefox and Edge) to do it. No website can change that, and no web page can start the install by itself.</p>
     <p id="ios-own-note" hidden>You can install it right here in <strong id="ios-own-name">this browser</strong> — no need to switch to Safari.</p>
@@ -309,7 +309,9 @@
     navigator.serviceWorker.register('/studio/sw-v2.js', {updateViaCache: 'none'}).catch(function () {});
   }
 
-  decide();
+  try { decide(); } catch (e) { /* leave the default: the iPhone steps stay visible */ }
+  // Never leave the page without an install route: if nothing is showing, show the menu steps.
+  if (!document.querySelector('section.card:not([hidden])')) show('menu');
 })();
 </script>
 </body>

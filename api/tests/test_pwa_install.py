@@ -59,7 +59,7 @@ def test_the_manifest_meets_the_install_criteria():
 def test_the_declared_icons_exist_at_the_size_they_claim():
     manifest = json.loads((PUBLIC / "manifest.webmanifest").read_text())
     for icon in manifest["icons"]:
-        name = icon["src"].rsplit("/", 1)[-1]
+        name = icon["src"].split("?", 1)[0].rsplit("/", 1)[-1]
         path = PUBLIC / name
         assert path.is_file(), f"{name} is declared but missing"
         declared = icon["sizes"].split("x")
@@ -294,3 +294,25 @@ def test_root_apple_touch_icon_routes_exist_and_html_declares_180x180():
     assert '@router.get("/apple-touch-icon-precomposed.png"' in pub
     assert 'sizes="180x180"' in (PORTAL / "index.html").read_text(encoding="utf-8")
     assert 'sizes="180x180"' in (PUBLIC / "install.html").read_text(encoding="utf-8")
+
+
+def test_install_page_shows_iphone_steps_even_without_script_and_manifest_icons_are_full_bleed():
+    """Reported 2026-11-27: on an iPhone the install page showed the intro but no install steps.
+    The iPhone card must be visible by default (script failure / no JS), a failed decide() must not
+    blank the page, and the manifest icons must be full-bleed (no baked white rounded corners that
+    iOS dark mode turns into a dark tile)."""
+    page = (PUBLIC / "install.html").read_text(encoding="utf-8")
+    assert '<section class="card" id="ios">' in page, "iPhone steps are hidden until script runs"
+    assert "try { decide(); }" in page, "a script error would blank the install page"
+    assert "if (!document.querySelector('section.card:not([hidden])')) show('menu');" in page
+    assert "Add to Home Screen" in page and "<strong>Share</strong>" in page
+
+    import struct
+    for name, size in (("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)):
+        raw = (PUBLIC / name).read_bytes()
+        assert raw[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", raw[16:24]) == (size, size), name
+    # corners must be the brand purple, not white: compare via the decoded first pixel
+    from PIL import Image
+    for name in ("icon-192.png", "icon-512.png", "apple-touch-icon.png"):
+        im = Image.open(PUBLIC / name).convert("RGB")
+        assert im.getpixel((0, 0)) == (0x71, 0x42, 0xD6), f"{name} corner is not full-bleed brand purple"

@@ -14,3 +14,10 @@
 
 ## Addendum: gateway cause (commit 50fd539)
 The API route alone did not fix the live 404: the Caddy gateway on concierge.trendibizz.com only proxied listed paths, so `/apple-touch-icon.png` never reached the API. Fix: both root paths added to the proxied-path matcher in `scripts/vps/Caddyfile`; synced with `scripts/vps/sync-tooling.sh` (config validated, gateway restarted once). Proof: `verify-deploy.sh` -> `OK: repo and box agree`; live `curl` on both root paths = 200 image/png, 5087 bytes, 180x180 RGB PNG; `/studio/install.html` declares `sizes="180x180"`; `tests/test_pwa_install.py` 23 passed. Limit: iPhone itself not re-tested by us; Jo must delete the old Home Screen icon and re-add it (iOS caches the icon at add time).
+
+## Addendum 2: install page blank on iPhone, manifest icons (same day)
+Reported with a screenshot of `/studio/install` on an iPhone: intro text only, no install steps; Home Screen icon still a dark "C" while the page showed the purple bell.
+- Cause (steps): all five cards in `web/portal/public/install.html` were `hidden` until script ran. Emulated iPhone in WebKit and Chromium DID show the iPhone card, so the blank page was not reproduced here; UNKNOWN what stopped the script on that phone. Fix is defensive: the iPhone card is visible by default, `decide()` is wrapped in try/catch, and if no card is showing the browser-menu card is shown.
+- Cause (icon), INFERENCE (unverified): `icon-192.png`/`icon-512.png` were opaque RGB PNGs with white rounded corners baked in; iOS dark mode can darken such a tile. Fix: regenerated both full-bleed brand purple (same bell as `apple-touch-icon.png`), manifest icon URLs bumped `?v=20261127`.
+- Test: `test_install_page_shows_iphone_steps_even_without_script_and_manifest_icons_are_full_bleed`; mutation-checked (hidden card -> test fails). Existing icon-size test now ignores the `?v=` query. Full suite: 1979 passed, 19 skipped.
+- Old Home Screen icon must be deleted and the app added again; iOS stores the icon at add time.
