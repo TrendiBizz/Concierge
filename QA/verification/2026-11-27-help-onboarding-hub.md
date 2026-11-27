@@ -14,3 +14,5 @@ Jo asked for one place where customers find setup help: the 7 stage videos plus 
 ## Proof
 - `scripts/seo/test_help_page.py` (3 tests). Mutation check: renaming stage-3.vtt in help.html made it fail; regenerate restored it.
 - `site_seo.py check` OK; full suite, `seo-gate.sh` and `verify-deploy.sh` results appended below after deploy.
+- Full suite: 1936 passed. `test_social_icons` page-count guard raised 49 -> 50 (new page has the footer).
+- `scripts/seo-gate.sh`: GATE RESULT: PASS (22 pass, 0 fail, 0 warn).
