@@ -349,12 +349,14 @@ def test_webclip_route_serves_the_apple_config_type_and_install_page_explains_st
     assert "/studio/concierge.mobileconfig" in page and "Not Signed" in page
 
 
-def test_iphone_card_leads_with_five_step_profile_install_and_keeps_share_route():
+def test_iphone_card_leads_with_share_route_and_keeps_profile_install_collapsed():
     page = (PUBLIC / "install.html").read_text()
-    primary = page[page.index('id="ios-profile"'):page.index("<details")]
+    primary = page[page.index('id="ios-profile"'):page.index("</details>", page.index('id="ios-profile"'))]
     assert primary.count("<b>") == 10 and "Profile Downloaded" in primary and "Install" in primary
     assert "/studio/concierge.mobileconfig" in primary and "Not Signed" in primary
-    assert "Add to Home Screen" in page[page.index("<details"):]
+    share = page[page.index('id="ios-share"'):page.index('id="ios-profile"')]
+    assert "Add to Home Screen" in share and "Easiest" in share
+    assert page.index('id="ios-share"') < page.index('id="ios-profile"') and '<details class="profile" id="ios-profile"' in page
 
 
 def test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket():

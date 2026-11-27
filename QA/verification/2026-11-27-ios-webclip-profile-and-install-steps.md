@@ -41,3 +41,8 @@ Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen w
 - Cause: after the blue tick iOS leaves the user in Settings; users kept going and got confused. Page also said "icon file" / "install", which reads like an app.
 - Fix: install.html heading and intro call it a bookmark, "not an app download"; step 9 carries a green "STOP. The bookmark is installed. You are done." box; step 10 reworded "Later, to use Concierge ... not part of the install".
 - Proof: test_install_page_marks_the_stop_point_and_calls_it_a_bookmark; mutation (STOP wording changed) made it fail; full suite 1986 passed. Not checked on a phone.
+
+## Addendum 8 — Share route leads (Jo, 2026-11-27)
+- Cause: the profile route ends in Apple's Settings pages (cannot be closed by a page) and confused people; Jo will not pay Apple for signing.
+- Fix: install.html iPhone card now leads with "Easiest: add Concierge to your Home Screen from Safari" (Share -> Add to Home Screen, 3 taps). The 10-step profile route is collapsed under "Share menu not working?".
+- Proof: `test_iphone_card_leads_with_share_route_and_keeps_profile_install_collapsed`; mutation (heading word changed) failed it. Not checked on a phone.
