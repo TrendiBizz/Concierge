@@ -11,3 +11,6 @@
 ## Proof
 - `pytest -q tests/test_pwa_install.py`: all passed.
 - Deployed via `scripts/vps/deploy-api.sh` and `scripts/vps/deploy-studio.sh`; verified with `scripts/vps/verify-deploy.sh` (`OK: repo and box agree`) and live `curl` check confirming HTTP 200 `image/png` on `/apple-touch-icon.png` and `/apple-touch-icon-precomposed.png`.
+
+## Addendum: gateway cause (commit 50fd539)
+The API route alone did not fix the live 404: the Caddy gateway on concierge.trendibizz.com only proxied listed paths, so `/apple-touch-icon.png` never reached the API. Fix: both root paths added to the proxied-path matcher in `scripts/vps/Caddyfile`; synced with `scripts/vps/sync-tooling.sh` (config validated, gateway restarted once). Proof: `verify-deploy.sh` -> `OK: repo and box agree`; live `curl` on both root paths = 200 image/png, 5087 bytes, 180x180 RGB PNG; `/studio/install.html` declares `sizes="180x180"`; `tests/test_pwa_install.py` 23 passed. Limit: iPhone itself not re-tested by us; Jo must delete the old Home Screen icon and re-add it (iOS caches the icon at add time).
