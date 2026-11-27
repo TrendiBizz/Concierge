@@ -588,3 +588,24 @@ def test_a_missing_absolute_og_image_is_reported(tmp_path):
         '<meta content="https://trendibizz.com/brand/og-image.png" property="og:image"/>',
         '<meta content="/brand/og-image.png" property="og:image"/>'))
     assert any("about.html: og:image must be an absolute https URL" in p for p in site_seo.audit(root))
+
+
+def _with_feed(feed_body: bytes) -> dict:
+    routes = live_site()
+    routes["https://trendibizz.com/sitemap.xml"] = (200, (
+        b'<?xml version="1.0"?><urlset><url><loc>https://trendibizz.com/about</loc></url>'
+        b'<url><loc>https://trendibizz.com/rss.xml</loc></url></urlset>'))
+    routes["https://trendibizz.com/rss.xml"] = (200, feed_body)
+    return routes
+
+
+def test_an_rss_feed_in_the_sitemap_does_not_need_a_canonical(monkeypatch):
+    monkeypatch.setattr(healthcheck, "http", fake_http(_with_feed(b'<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>')))
+    results = healthcheck.check_site_seo()
+    assert [r["status"] for r in results] == ["ok"], results
+
+
+def test_an_xml_sitemap_entry_that_is_not_a_feed_still_fails(monkeypatch):
+    monkeypatch.setattr(healthcheck, "http", fake_http(_with_feed(b"<html>error page</html>")))
+    results = healthcheck.check_site_seo()
+    assert results[0]["status"] == "fail" and "not an RSS/Atom feed" in results[0]["detail"]

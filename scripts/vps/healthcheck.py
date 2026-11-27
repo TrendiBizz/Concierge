@@ -983,6 +983,12 @@ def check_site_seo() -> list[dict]:
                 if page_code != 200:
                     problems.append(f"{url} returned {page_code}")
                     continue
+                if url.endswith(".xml"):
+                    # An RSS/Atom feed in the sitemap is XML: it has no <head>, so no canonical or robots meta.
+                    # It only has to be served and be a feed (2026-11-27: rss.xml raised a false "no canonical").
+                    if "<rss" not in html and "<feed" not in html:
+                        problems.append(f"{url} is listed in the sitemap but is not an RSS/Atom feed")
+                    continue
                 tags = _parse_head_tags(html)
                 canonical = tags["canonical"]
                 expected = url if url.endswith("/") else url
