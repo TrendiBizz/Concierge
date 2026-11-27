@@ -596,3 +596,9 @@
     animation: none !important;
   }
 }
+
+/* First-run tour progress dots */
+.c-tour-dots { display: flex; gap: 6px; }
+.c-tour-dots span { flex: 1; height: 4px; border-radius: 2px; background: rgba(124, 92, 255, 0.2); transition: background 0.2s; }
+.c-tour-dots span[data-on="true"] { background: #7c5cff; }
+@media (prefers-reduced-motion: reduce) { .c-tour-dots span { transition: none; } }

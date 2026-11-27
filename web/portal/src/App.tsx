@@ -31,6 +31,7 @@ const Billing = lazy(() => import('./Billing').then((m) => ({default: m.Billing}
 const Invoices = lazy(() => import('./Invoices').then((m) => ({default: m.Invoices})));
 const Integrations = lazy(() => import('./Integrations').then((m) => ({default: m.Integrations})));
 const OnboardingHub = lazy(() => import('./OnboardingHub').then((m) => ({default: m.OnboardingHub})));
+const FirstRunTour = lazy(() => import('./FirstRunTour').then((m) => ({default: m.FirstRunTour})));
 const TabGuideDrawer = lazy(() => import('./TabGuideDrawer').then((m) => ({default: m.TabGuideDrawer})));
 import {celebrateOnce} from './celebrate';
 import {Icon} from './icons';
@@ -1864,6 +1865,27 @@ function Shell() {
     sessionStorage.removeItem('concierge.startAtSetup');
     setTab('setup');
   }, [token]);
+  async function enableAlerts(): Promise<boolean> {
+    try {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) return false;
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return false;
+      const api = createApi(token);
+      const keyRes = await api('/owner/push/key') as {public_key?: string};
+      if (!keyRes.public_key) return false;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: keyRes.public_key});
+      const json = sub.toJSON();
+      if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
+        await api('/owner/push/subscribe', 'POST', {
+          endpoint: json.endpoint,
+          keys: {p256dh: json.keys.p256dh, auth: json.keys.auth},
+          user_agent: navigator.userAgent.slice(0, 200),
+        });
+      }
+      return true;
+    } catch { return false; }
+  }
   const [brand, setBrand] = useState<Brand>({name: '', accent: '#c8f560', contact: ''});
   const [canInstall, setCanInstall] = useState(installAvailable());
   const [locale, setLocaleState] = useState(initialLocale);
@@ -2119,27 +2141,9 @@ function Shell() {
         <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
         <div className="c-topbar-spacer" />
         <Button label={tr('Jump')} variant="secondary" onClick={() => window.dispatchEvent(new CustomEvent('concierge:cmdk'))} />
+        {token ? <Suspense fallback={null}><FirstRunTour token={token} enableAlerts={enableAlerts} goto={setTab} /></Suspense> : null}
         <Suspense fallback={null}><TabGuideDrawer tab={tab} onOpenOnboarding={() => setTab('setup')} /></Suspense>
-        <Button label={tr('Enable alerts')} variant="secondary" onClick={() => {
-          void (async () => {
-            if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-            const perm = await Notification.requestPermission();
-            if (perm !== 'granted') return;
-            const api = createApi(token);
-            const keyRes = await api('/owner/push/key') as {public_key?: string};
-            if (!keyRes.public_key) return;
-            const reg = await navigator.serviceWorker.ready;
-            const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: keyRes.public_key});
-            const json = sub.toJSON();
-            if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
-              await api('/owner/push/subscribe', 'POST', {
-                endpoint: json.endpoint,
-                keys: {p256dh: json.keys.p256dh, auth: json.keys.auth},
-                user_agent: navigator.userAgent.slice(0, 200),
-              });
-            }
-          })().catch(() => {});
-        }} />
+        <Button label={tr('Enable alerts')} variant="secondary" onClick={() => { void enableAlerts(); }} />
         {!isInstalled() ? <Button label={tr('Install app')} variant="secondary" onClick={() => {
           if (canInstall) void promptInstall();
           else location.href = '/studio/install';

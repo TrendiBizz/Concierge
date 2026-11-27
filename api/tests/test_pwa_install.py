@@ -368,3 +368,14 @@ def test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket():
     assert url == f"https://concierge.trendibizz.com/studio/#invite={ticket}"
     for bad in ("short", "x y" * 10, "<script>" * 5):
         assert "invite=" not in plistlib.loads(build_webclip_profile(icon, bad))["PayloadContent"][0]["URL"]
+
+
+def test_first_run_tour_is_mounted_with_next_button_and_remembers_done():
+    """Jo 2026-11-27: after the icon opened, Home had no instructions and no Next."""
+    tour = (SRC / "FirstRunTour.tsx").read_text()
+    app = (SRC / "App.tsx").read_text()
+    assert "<FirstRunTour" in app and "enableAlerts={enableAlerts}" in app
+    assert "label={last ? 'Done' : 'Next'}" in tour
+    assert "label=\"Skip\"" in tour and "label=\"Back\"" in tour
+    assert "localStorage.setItem(KEY" in tour and "'done'" in tour
+    assert "requestPermission" in app and "Pause everything" in tour

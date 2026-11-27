@@ -26,3 +26,8 @@ Each of the 5 profile steps now has an inline SVG drawing of the iPhone screen w
 - Cause: drawn pictures guessed iOS wording; Jo's real iPhone showed "Not Signed" and a 10-step flow (Warning screen, passcode, confirm dialog).
 - Fix: /studio/install now uses Jo's real screenshots in web/portal/public/install-steps/ (cropped, light-blue outline on each tap target; Settings crop drops name/Wi-Fi). Steps 2 (Allow pop-up) and 10 (Home Screen) stay drawings, not captured. "Not Verified" -> "Not Signed".
 - Proof: suite 1983 passed; mutation (Not Signed -> Not Verified in page) makes test_pwa_install fail.
+
+## Addendum 6 — first-run guided setup (Jo, 2026-11-27)
+- Cause: installed icon opened Studio Home with no instructions and no Next.
+- Fix: `web/portal/src/FirstRunTour.tsx`, a bottom-sheet tour (Vaul) with Back/Next/Skip/Done and progress dots. Five steps: welcome, turn on alerts (real push subscribe, user tap), where Inbox/Enquiries/Quotes live, Pause everything, open Setup (the 7-stage hub). Shown once per device; progress and done flag in localStorage `concierge.tour`. `enableAlerts` in App.tsx is now shared with the top-bar button.
+- Proof: `test_first_run_tour_is_mounted_with_next_button_and_remembers_done`; mutation (Next->Go) fails it. Suite 1984 passed. Not checked on a real phone.
