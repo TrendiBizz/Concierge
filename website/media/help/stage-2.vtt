@@ -1,0 +1,19 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:03.786
+Stage 2 is owner alerts, takeover and pause.
+
+00:00:03.786 --> 00:00:10.378
+Set your alert email, an optional fallback phone, and an optional Slack or Microsoft Teams webhook.
+
+00:00:10.378 --> 00:00:19.868
+Concierge sends one summary alert per enquiry, never a flood of duplicates, and you can send yourself a test alert right from this stage.
+
+00:00:19.868 --> 00:00:22.582
+You also get two safety switches.
+
+00:00:22.582 --> 00:00:29.189
+With per-customer takeover, you reply once from the Inbox and Concierge steps back for that customer.
+
+00:00:29.189 --> 00:00:37.400
+And the global pause button at the top of Studio pauses automated replies on every channel, while still capturing enquiries.
