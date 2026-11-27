@@ -211,7 +211,7 @@ export function TabGuideDrawer({
   return (
     <Drawer.Root open={open} onOpenChange={setOpen} direction={isMobile ? 'bottom' : 'right'}>
       <Drawer.Trigger asChild>
-        <Button label="? Guide" variant="secondary" onClick={() => setOpen(true)} />
+        <Button label="Guide" variant="secondary" onClick={() => setOpen(true)} />
       </Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="c-drawer-overlay" />
