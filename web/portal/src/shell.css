@@ -247,13 +247,18 @@
     position: static;
     top: auto;
     z-index: auto;
-    padding: 10px 14px;
+    padding: 8px 14px;
     gap: 8px;
-    flex-wrap: wrap;
-    row-gap: 8px;
+    /* One scrolling row: wrapping five buttons plus a layout picker cost 150px of a 844px phone. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     backdrop-filter: none;
     background: var(--c-page);
   }
+  .c-topbar::-webkit-scrollbar, .c-nav::-webkit-scrollbar { width: 0; height: 0; }
+  .c-topbar > * { flex: none; white-space: nowrap; }
   .c-topbar-spacer { flex-basis: 0; margin-left: 0; }
   .c-nav {
     position: static;
@@ -261,21 +266,23 @@
     align-self: stretch;
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
     /* Wrapping 17 destinations made the strip taller than a phone screen, and the last row was
        unreachable (measured 2026-11-15: Reports sat at y=918 in an 844px viewport). The strip
        now scrolls inside itself while staying in normal document flow above the content. */
-    max-height: 38vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     padding: 8px 12px;
     border-right: 0;
     border-bottom: 1px solid var(--c-line);
     background: var(--c-page);
   }
-  .c-nav-group { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 1 auto; max-width: 100%; }
+  .c-nav-group { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 4px; flex: none; }
   .c-nav-label { width: auto !important; margin-bottom: 0; padding: 4px 6px; white-space: nowrap; }
   .c-nav-item { width: auto; white-space: nowrap; padding: 6px 10px; }
   .c-content { padding: 16px 14px 40px; min-width: 0; }

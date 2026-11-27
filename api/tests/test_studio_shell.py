@@ -250,11 +250,9 @@ def test_the_shell_has_no_horizontal_scroll_on_a_phone():
     assert "grid-template-columns: minmax(0, 1fr) !important" in narrow
     assert '"brand" "topbar" "nav" "content"' in narrow
     assert ".c-nav" in narrow and "display: none" not in narrow
-    assert "max-height" in narrow and "overflow-y: auto" in narrow, (
-        "the phone navigation must stay reachable when it wraps")
-    assert "flex-wrap: wrap" in narrow, (
-        "on a phone the navigation must wrap into visible rows; a horizontal scroller left items\n"
-        "unclickable in the live crawl")
+    # Jo 2026-11-27: the wrapped nav + topbar took 540px of an 844px phone. They are now one
+    # swipeable row each (tested in test_phone_topbar_and_nav_do_not_stick_over_content).
+    assert "overflow-x: auto" in narrow, "the phone navigation must stay reachable by swiping"
     assert "display: none" not in narrow
 
 
@@ -271,6 +269,13 @@ def test_phone_topbar_and_nav_do_not_stick_over_content():
     assert topbar and "position: static" in topbar.group(1), ".c-topbar must unstick on phones"
     assert nav and "position: static" in nav.group(1), ".c-nav must unstick on phones"
     assert "background: var(--c-page)" in nav.group(1), ".c-nav must not be transparent on phones"
-    assert group and "flex-direction: row" in group.group(1) and "max-width: 100%" in group.group(1), (
-        ".c-nav-group must lay out horizontally and wrap within the viewport width"
+    assert group and "flex-direction: row" in group.group(1) and "flex-wrap: nowrap" in group.group(1), (
+        ".c-nav-group must lay out in one horizontal row"
+    )
+    # Jo 2026-11-27: wrapped chrome used 540px of an 844px phone before any content showed.
+    assert "flex-wrap: nowrap" in nav.group(1) and "overflow-x: auto" in nav.group(1), (
+        ".c-nav must be one horizontally scrolling row on phones"
+    )
+    assert "flex-wrap: nowrap" in topbar.group(1) and "overflow-x: auto" in topbar.group(1), (
+        ".c-topbar must be one horizontally scrolling row on phones"
     )
