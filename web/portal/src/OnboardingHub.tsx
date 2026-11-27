@@ -399,8 +399,11 @@ export function OnboardingHub({
             <HStack gap={2} style={{alignItems: 'center'}}>
               <Badge label={`${doneCount} / ${STAGES.length} complete (${pct}%)`} variant={doneCount === STAGES.length ? 'success' : 'info'} />
               {launchedAt ? <Badge label="Launched" variant="success" /> : null}
-              <a href="https://trendibizz.com/guide" target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
-                Watch video walkthrough ↗
+              <a href={`https://trendibizz.com/guide#stage-${stage}`} target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
+                Watch the stage {stage} video ↗
+              </a>
+              <a href="https://trendibizz.com/guide#video-walkthrough" target="_blank" rel="noopener noreferrer" style={{fontSize: 13}}>
+                Full walkthrough ↗
               </a>
             </HStack>
           </HStack>
@@ -742,7 +745,7 @@ export function OnboardingHub({
                 ['Phone line', checks.phone_configured],
                 ['Email / Integrations', checks.email_configured || checks.integrations_connected > 0],
               ].map(([label, ok]) => (
-                <div key={String(label)} style={{padding: 10, borderRadius: 8, border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div key={String(label)} style={{padding: 10, borderRadius: 8, border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6}}>
                   <span style={{fontSize: 14}}>{String(label)}</span>
                   <Badge label={ok ? 'Ready' : 'Optional / Pending'} variant={ok ? 'success' : 'warning'} />
                 </div>
