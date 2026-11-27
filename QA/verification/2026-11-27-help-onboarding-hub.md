@@ -16,3 +16,4 @@ Jo asked for one place where customers find setup help: the 7 stage videos plus 
 - `site_seo.py check` OK; full suite, `seo-gate.sh` and `verify-deploy.sh` results appended below after deploy.
 - Full suite: 1936 passed. `test_social_icons` page-count guard raised 49 -> 50 (new page has the footer).
 - `scripts/seo-gate.sh`: GATE RESULT: PASS (22 pass, 0 fail, 0 warn).
+- First deploy-site.sh run was REFUSED by `link_audit.py` (LOOP? contact -> help -> contact, concierge-start likewise: banner `.btn` link + the header "Let's talk" button). Nothing shipped; verify-deploy reported drift and /help was 404. Fix: banner links are text links (`refresh-text-link`), not `.btn`. link_audit now: no problems.

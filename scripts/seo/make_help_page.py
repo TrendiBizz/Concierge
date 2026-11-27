@@ -3,7 +3,8 @@
 "Need help?" banner and footer link to the other pages.
 
 Run from repo root:  python3 scripts/seo/make_help_page.py
-Idempotent. Head, header, footer and scripts are cloned from website/guide.html so the hub
+Idempotent. Banner links are text links, not .btn: link_audit.py flags .btn loops
+(contact -> help -> contact via the header button). Head, header, footer and scripts are cloned from website/guide.html so the hub
 inherits the site template (and the single widget.js script the a2ui test requires).
 Facts come only from guide.html; no response-time or result promises.
 """
@@ -33,7 +34,7 @@ STAGES = [
 BANNER_MARK = "help-banner"
 BANNER = ('<section class="section--surface design-section help-banner"><div class="wrap"><p>'
           '<strong>Need help setting up?</strong> Watch the step-by-step setup videos or ask us. '
-          '<a class="btn lime" href="/help">Help and onboarding</a> '
+          '<a class="refresh-text-link" href="/help">Help and onboarding</a> '
           '<a class="refresh-text-link" href="/contact">Contact us</a></p></div></section>\n')
 BANNER_PAGES = ["guide", "concierge", "concierge-start", "contact", "pricing"]
 
