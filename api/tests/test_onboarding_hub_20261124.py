@@ -128,3 +128,19 @@ def test_studio_and_public_guide_page_wired():
     assert "/media/concierge-explainer.mp4" in guide
     assert "USD $199/month" in guide
     assert "Tradify" not in guide and "Fergus" not in guide
+
+
+def test_onboarding_inputs_have_example_prompts_and_stage_requirements():
+    """Every onboarding TextInput/TextArea must show an example placeholder, every stage 1-7 must
+    state what the owner needs + link to its captioned stage video, and Stage 5 must not render a
+    dead Continue button."""
+    import re
+    hub = (REPO_ROOT / "web/portal/src/OnboardingHub.tsx").read_text(encoding="utf-8")
+    app = (REPO_ROOT / "web/portal/src/App.tsx").read_text(encoding="utf-8")
+    inputs = re.findall(r"<(?:TextInput|TextArea)\b[^>]*>", hub)
+    assert len(inputs) >= 8
+    missing_placeholder = [tag for tag in inputs if "placeholder=" not in tag]
+    assert not missing_placeholder, f"onboarding inputs without example placeholders: {missing_placeholder}"
+    assert hub.count("needs: '") == 7, "every stage 1-7 must declare what the user needs"
+    assert "https://trendibizz.com/help#stage-" in hub
+    assert "onContinue={() => undefined}" not in app, "dead Continue button in Stage 5 PhoneForwarding"

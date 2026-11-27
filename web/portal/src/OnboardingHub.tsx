@@ -35,15 +35,23 @@ type AutoChecks = {
   paused: boolean;
 };
 
-const STAGES: Array<{num: number; key: string; label: string; short: string; mins: string}> = [
-  {num: 1, key: 'identity', label: '1. Business & Knowledge', short: 'Identity & Knowledge', mins: '5 min'},
-  {num: 2, key: 'alerts', label: '2. Alerts & Control', short: 'Alerts & Takeover', mins: '3 min'},
-  {num: 3, key: 'widget', label: '3. Website Chat & Voice', short: 'Chat Widget', mins: '5 min'},
-  {num: 4, key: 'bookings', label: '4. Bookings & Calendar', short: 'Bookings & Calendar', mins: '5 min'},
-  {num: 5, key: 'phone', label: '5. Phone & Voicemail', short: 'Phone & Voicemail', mins: '5 min'},
-  {num: 6, key: 'channels', label: '6. Email, SMS & Tools', short: 'Email & Integrations', mins: '5 min'},
-  {num: 7, key: 'launch', label: '7. Go-Live Scorecard', short: 'Review & Launch', mins: '3 min'},
+const STAGES: Array<{num: number; key: string; label: string; short: string; mins: string; videoSec: number; needs: string}> = [
+  {num: 1, key: 'identity', label: '1. Business & Knowledge', short: 'Identity & Knowledge', mins: '5 min', videoSec: 36, needs: 'Your website URL, business name, logo (optional), and any prices or policies not on your site.'},
+  {num: 2, key: 'alerts', label: '2. Alerts & Control', short: 'Alerts & Takeover', mins: '3 min', videoSec: 38, needs: 'The email address (and optional mobile or Slack/Teams webhook) where you want enquiry summaries sent.'},
+  {num: 3, key: 'widget', label: '3. Website Chat & Voice', short: 'Chat Widget', mins: '5 min', videoSec: 28, needs: 'Admin access to your website (WordPress, Shopify, Wix, Squarespace, Webflow) — or click "Have Trendi install it for me".'},
+  {num: 4, key: 'bookings', label: '4. Bookings & Calendar', short: 'Bookings & Calendar', mins: '5 min', videoSec: 28, needs: 'Your weekly opening hours, appointment length, and your Google Calendar or Microsoft 365 login.'},
+  {num: 5, key: 'phone', label: '5. Phone & Voicemail', short: 'Phone & Voicemail', mins: '5 min', videoSec: 39, needs: 'Your mobile phone handy plus your carrier name (to dial the call-forwarding code once your number is assigned).'},
+  {num: 6, key: 'channels', label: '6. Email, SMS & Tools', short: 'Email & Integrations', mins: '5 min', videoSec: 28, needs: 'Your business email address and logins for any optional tools you use (Xero, ServiceM8, Meta, Zapier/Make).'},
+  {num: 7, key: 'launch', label: '7. Go-Live Scorecard', short: 'Review & Launch', mins: '3 min', videoSec: 38, needs: 'A quick check of your green readiness badges — optional channels can be added anytime after launch.'},
 ];
+
+const SANDBOX_EXAMPLES = [
+  'What are your hours and service areas?',
+  'What is your standard call-out fee?',
+  'Can I book an appointment this week?',
+];
+
+const hintStyle = {margin: '4px 0 0', fontSize: 12.5, opacity: 0.78, lineHeight: 1.4} as const;
 
 const ACCENT_PRESETS = ['#7142d6', '#c8f560', '#2563eb', '#0d9488', '#e11d48', '#d97706'];
 const TIMEZONES: Array<[string, string]> = [
@@ -440,6 +448,19 @@ export function OnboardingHub({
 
       <StatusLine text={status} />
 
+      {/* Active stage quick-requirements & video strip */}
+      {(() => {
+        const meta = STAGES.find((s) => s.num === stage) || STAGES[0];
+        return (
+          <div style={{padding: '10px 14px', borderRadius: 10, border: '1px solid var(--color-border)', background: 'var(--color-surface-subtle, rgba(128,128,128,0.08))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13.5}}>
+            <span><strong>What you’ll need for Stage {meta.num} ({meta.mins}):</strong> {meta.needs}</span>
+            <a href={`https://trendibizz.com/help#stage-${meta.num}`} target="_blank" rel="noopener noreferrer" style={{whiteSpace: 'nowrap', fontWeight: 600}}>
+              Watch Stage {meta.num} video ({meta.videoSec}s) ↗
+            </a>
+          </div>
+        );
+      })()}
+
       {/* STAGE 1: Identity & Knowledge */}
       {stage === 1 ? (
         <Card>
@@ -451,36 +472,51 @@ export function OnboardingHub({
             <p style={{margin: 0}}>
               Concierge answers <strong>only</strong> from the website pages and business notes you approve. A built-in <strong>Price Guard</strong> stops it from ever inventing a price — if an answer is not here, it says so and offers to pass the question to you.
             </p>
-            <HStack gap={2} style={{alignItems: 'flex-end', flexWrap: 'wrap'}}>
-              <div style={{flex: 1, minWidth: 240}}>
-                <TextInput label="Your website URL" value={website} onChange={setWebsite} placeholder="https://yourbusiness.com" />
-              </div>
-              <Button label={busy ? 'Scanning…' : '1. Scan my website'} variant="secondary" isDisabled={busy} onClick={() => void scanWebsite()} />
-              <Button label="2. Import site pages into Knowledge" variant="secondary" isDisabled={busy} onClick={() => void crawlSiteKnowledge()} />
-            </HStack>
-
-            <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'}}>
-              <TextInput label="Business name" value={name} onChange={setName} />
-              <TextInput label="Public contact line" value={contact} onChange={setContact} placeholder="Phone or website shown on quotes" />
-              <label style={{display: 'block', fontSize: 14}}>
-                Country / Timezone
-                <select value={timezone} onChange={(e) => setTimezone(e.target.value)}
-                  style={{display: 'block', width: '100%', marginTop: 6, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'transparent'}}>
-                  {TIMEZONES.some(([v]) => v === timezone) ? null : <option value={timezone}>{timezone}</option>}
-                  {TIMEZONES.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
-                </select>
-              </label>
+            <div>
+              <HStack gap={2} style={{alignItems: 'flex-end', flexWrap: 'wrap'}}>
+                <div style={{flex: 1, minWidth: 240}}>
+                  <TextInput label="Your website URL" value={website} onChange={setWebsite} placeholder="https://yourbusiness.com" />
+                </div>
+                <Button label={busy ? 'Scanning…' : '1. Scan my website'} variant="secondary" isDisabled={busy} onClick={() => void scanWebsite()} />
+                <Button label="2. Import site pages into Knowledge" variant="secondary" isDisabled={busy} onClick={() => void crawlSiteKnowledge()} />
+              </HStack>
+              <p style={hintStyle}>Include https:// — scanning reads your public pages to pre-fill your name, logo, brand colour, timezone and contact details.</p>
             </div>
 
-            <HStack gap={2} style={{alignItems: 'center', flexWrap: 'wrap'}}>
-              <span style={{fontSize: 13}}>Brand colour:</span>
-              {ACCENT_PRESETS.map((c) => (
-                <button key={c} type="button" onClick={() => setAccent(c)} aria-label={'Colour ' + c}
-                  style={{width: 28, height: 28, borderRadius: 999, background: c, border: accent === c ? '3px solid #fff' : '1px solid var(--color-border)', cursor: 'pointer'}} />
-              ))}
-              <FileInput label="Logo (optional)" value={logoFile} onChange={(v) => { setLogoFile((v as File) || null); if (v) setLogoData(null); }} accept="image/*" />
-              <Button label="Save identity" variant="primary" isDisabled={busy} onClick={() => void saveIdentity()} />
-            </HStack>
+            <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'}}>
+              <div>
+                <TextInput label="Business name" value={name} onChange={setName} placeholder="e.g. Smith Plumbing & Gas Ltd" />
+                <p style={hintStyle}>Shown to customers in chat, quotes and booking confirmations.</p>
+              </div>
+              <div>
+                <TextInput label="Public contact line" value={contact} onChange={setContact} placeholder="e.g. 09 555 0140 · smithplumbing.co.nz" />
+                <p style={hintStyle}>Shown on quotes and messages so customers know how to reach you.</p>
+              </div>
+              <div>
+                <label style={{display: 'block', fontSize: 14}}>
+                  Country / Timezone
+                  <select value={timezone} onChange={(e) => setTimezone(e.target.value)}
+                    style={{display: 'block', width: '100%', marginTop: 6, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'transparent'}}>
+                    {TIMEZONES.some(([v]) => v === timezone) ? null : <option value={timezone}>{timezone}</option>}
+                    {TIMEZONES.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
+                  </select>
+                </label>
+                <p style={hintStyle}>Used for opening hours, booking slots and appointment reminders.</p>
+              </div>
+            </div>
+
+            <div>
+              <HStack gap={2} style={{alignItems: 'center', flexWrap: 'wrap'}}>
+                <span style={{fontSize: 13}}>Brand colour:</span>
+                {ACCENT_PRESETS.map((c) => (
+                  <button key={c} type="button" onClick={() => setAccent(c)} aria-label={'Colour ' + c}
+                    style={{width: 28, height: 28, borderRadius: 999, background: c, border: accent === c ? '3px solid #fff' : '1px solid var(--color-border)', cursor: 'pointer'}} />
+                ))}
+                <FileInput label="Logo (optional)" value={logoFile} onChange={(v) => { setLogoFile((v as File) || null); if (v) setLogoData(null); }} accept="image/*" />
+                <Button label="Save identity" variant="primary" isDisabled={busy} onClick={() => void saveIdentity()} />
+              </HStack>
+              <p style={hintStyle}>Logo format: PNG, JPG or SVG (square or horizontal works best on quotes and chat).</p>
+            </div>
 
             {suggestion?.notes?.length ? (
               <ul style={{margin: 0, paddingLeft: 18, fontSize: 13, opacity: 0.85}}>
@@ -490,6 +526,7 @@ export function OnboardingHub({
 
             <div style={{borderTop: '1px solid var(--color-border)', paddingTop: 14}}>
               <Heading level={3}>Add a quick FAQ, Policy, or Price note (optional)</Heading>
+              <p style={{...hintStyle, marginBottom: 8}}>Good examples to add: call-out fee, hourly rate, service suburbs, opening hours, warranty or cancellation policy.</p>
               <VStack gap={2}>
                 <TextInput label="Topic" value={noteTitle} onChange={setNoteTitle} placeholder="e.g. Call-out fee & service areas" />
                 <TextArea label="Approved facts Concierge can quote" value={noteBody} onChange={setNoteBody} rows={3} placeholder="e.g. Standard site inspection is $120. We cover Austin and surrounding suburbs Mon–Fri 8am–5pm." />
@@ -505,6 +542,11 @@ export function OnboardingHub({
               <p style={{margin: '0 0 8px', fontSize: 14, opacity: 0.85}}>
                 Ask a real customer question below. This tests your live knowledge base without creating CRM leads or sending alerts.
               </p>
+              <HStack gap={1} style={{flexWrap: 'wrap', marginBottom: 8}}>
+                {SANDBOX_EXAMPLES.map((ex) => (
+                  <Button key={ex} label={`Try: "${ex}"`} variant="ghost" onClick={() => setSandboxQ(ex)} />
+                ))}
+              </HStack>
               <HStack gap={2} style={{alignItems: 'flex-end', flexWrap: 'wrap'}}>
                 <div style={{flex: 1, minWidth: 240}}>
                   <TextInput label="Ask as a customer" value={sandboxQ} onChange={setSandboxQ} placeholder="e.g. What are your hours and call-out fee?" />
@@ -535,9 +577,18 @@ export function OnboardingHub({
               After every enquiry, call, or voicemail, Concierge sends you <strong>one clear summary alert</strong> — never a flood of duplicates.
             </p>
             <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))'}}>
-              <TextInput label="Primary alert email" value={notifyEmail} onChange={setNotifyEmail} placeholder="you@yourbusiness.com" />
-              <TextInput label="Fallback alert phone (optional)" value={notifyPhone} onChange={setNotifyPhone} placeholder="+1 555 014 0140" />
-              <TextInput label="Slack / Microsoft Teams webhook (optional)" value={teamWebhook} onChange={setTeamWebhook} placeholder="https://hooks.slack.com/services/..." />
+              <div>
+                <TextInput label="Primary alert email" value={notifyEmail} onChange={setNotifyEmail} placeholder="e.g. bookings@yourbusiness.com" />
+                <p style={hintStyle}>Receives one summary email per enquiry, call or voicemail.</p>
+              </div>
+              <div>
+                <TextInput label="Fallback alert phone (optional)" value={notifyPhone} onChange={setNotifyPhone} placeholder="e.g. +64 21 555 0140 or +1 555 014 0140" />
+                <p style={hintStyle}>Include country code. Used for urgent SMS alerts.</p>
+              </div>
+              <div>
+                <TextInput label="Slack / Microsoft Teams webhook (optional)" value={teamWebhook} onChange={setTeamWebhook} placeholder="e.g. https://hooks.slack.com/services/T000/B000/XXXX" />
+                <p style={hintStyle}>Optional: paste an Incoming Webhook URL to post enquiries into a team channel.</p>
+              </div>
             </div>
             <HStack gap={2} style={{flexWrap: 'wrap'}}>
               <Button label="Save alert channels" variant="primary" isDisabled={busy} onClick={() => void saveAlerts()} />
