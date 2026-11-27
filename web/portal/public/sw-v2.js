@@ -35,8 +35,8 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        // Fetch by URL string (not `fetch(event.request, {cache: 'no-store'})`): WebKit/iOS Safari
-        // throws TypeError when constructing a Request with init overrides from a navigate Request,
+        // Fetch by URL string rather than passing the navigate Request with init overrides:
+        // WebKit/iOS Safari throws TypeError on Request-with-init for navigate requests,
         // which left iPhones on a blank page.
         const response = await fetch(event.request.url, {cache: 'no-store', credentials: 'same-origin'});
         const clean = response.redirected
