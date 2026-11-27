@@ -124,7 +124,7 @@
         <li><b>2</b><span><strong>Tap Allow.</strong><em>You should see: “Profile Downloaded. Review the profile in Settings app if you want to install it.” Tap <strong>Close</strong>.</em></span></li>
         <li><b>3</b><span><strong>Open the Settings app</strong> (the grey gear). Tap <strong>Profile Downloaded</strong> near the top, under your name.<em>Can’t see it? Go to Settings → General → <strong>VPN &amp; Device Management</strong> → tap Concierge.</em></span></li>
         <li><b>4</b><span><strong>Tap Install</strong> (top right), type your phone passcode, then <strong>Install</strong> again and <strong>Done</strong>.<em>You should see “Not Verified” in red. That is normal: we do not pay Apple for a signing certificate. The profile only adds the icon and changes nothing else.</em></span></li>
-        <li><b>5</b><span><strong>Go to your Home Screen.</strong> The purple Concierge bell is there. Tap it.<em>The app opens full screen and asks for the six-digit code we email you.</em></span></li>
+        <li><b>5</b><span><strong>Go to your Home Screen.</strong> The purple Concierge bell is there. Tap it.<em>The app opens full screen. If you scanned the QR from inside your Studio you are already signed in; otherwise it asks for a six-digit code we email you.</em></span></li>
       </ol>
       <p class="fine">To remove it later: Settings → General → VPN &amp; Device Management → Concierge → Remove Profile.</p>
     </div>
@@ -189,6 +189,9 @@
   if (ticket) {
     var manifestLink = document.querySelector('link[rel="manifest"]');
     if (manifestLink) manifestLink.href = '/studio/manifest.webmanifest?k=' + ticket;
+    // The profile's icon opens the app already signed in, the same way the manifest does.
+    var profileLinks = document.querySelectorAll('a[href^="/studio/concierge.mobileconfig"]');
+    for (var i = 0; i < profileLinks.length; i++) profileLinks[i].href = '/studio/concierge.mobileconfig?k=' + ticket;
   }
   // An installed app that lands here goes straight into the workspace, carrying its ticket.
   if (standalone) { location.replace('/studio/' + (ticket ? '#invite=' + ticket : '')); return; }

@@ -10,3 +10,8 @@ Signing needs a paid/trusted certificate: not bought (no payments).
 
 ## Addendum: profile is now the lead iPhone route (Jo: "it does work", wants every step shown)
 Install page iPhone card: 5 big numbered steps (Download > Allow > Settings Profile Downloaded > Install/passcode > tap icon), each with a "you should see" line; Share-menu route kept in a collapsed section. Copy-link / not-in-Safari help stay visible. Test: test_iphone_card_leads_with_five_step_profile_install_and_keeps_share_route; mutation (rename "Profile Downloaded") fails it.
+
+## Addendum 2: easier sign-in (Jo: "email me a code or sign-in link needs to be easier")
+Cause: an installed iPhone app has empty storage, so a plain install lands on the email-code screen. The signed-in QR already carried a ticket via the manifest, but the profile did not.
+Fix: profile route takes ?k=ticket (format-checked, same 1h ticket) so the Web Clip opens at /studio/#invite=ticket; install page passes #k= to the profile link. Code screen: iOS code autofill (one-time-code, numeric), auto-submit at 6 digits, email remembered on device, Enter sends.
+Proof: test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket; suite 1983 passed. UNKNOWN: whether a managed Web Clip shares storage with Safari (ticket path assumed like the manifest path); needs Jo's phone.

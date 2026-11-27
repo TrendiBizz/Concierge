@@ -604,7 +604,7 @@ _WEBCLIP_URL = "https://concierge.trendibizz.com/studio/"
 _WEBCLIP_NS = uuid.UUID("6f0c2d3e-5a41-4c7e-9b8a-2d1f0e7a4c11")
 
 
-def build_webclip_profile(icon_png: bytes) -> bytes:
+def build_webclip_profile(icon_png: bytes, ticket: str = "") -> bytes:
     """An iPhone configuration profile holding one Web Clip: the Concierge icon on the Home Screen.
 
     Unsigned on purpose (no paid certificate), so iOS labels it "Not Verified" until the person
@@ -618,7 +618,7 @@ def build_webclip_profile(icon_png: bytes) -> bytes:
         "PayloadUUID": str(uuid.uuid5(_WEBCLIP_NS, "webclip")).upper(),
         "PayloadDisplayName": "Concierge",
         "Label": "Concierge",
-        "URL": _WEBCLIP_URL,
+        "URL": _WEBCLIP_URL + (f"#invite={ticket}" if _TICKET.fullmatch(ticket or "") else ""),
         "Icon": icon_png,
         "IsRemovable": True,
         "FullScreen": True,
@@ -639,11 +639,11 @@ def build_webclip_profile(icon_png: bytes) -> bytes:
 
 
 @router.get("/studio/concierge.mobileconfig", include_in_schema=False)
-async def studio_webclip_profile():
+async def studio_webclip_profile(k: str = ""):
     icon = (_main().STUDIO_DIR / "apple-touch-icon.png").resolve()
     if not _readable(icon):
         raise HTTPException(404, "Not found")
-    return Response(build_webclip_profile(icon.read_bytes()),
+    return Response(build_webclip_profile(icon.read_bytes(), k),
                     media_type="application/x-apple-aspen-config",
                     headers={"Content-Disposition": 'attachment; filename="Concierge.mobileconfig"',
                              "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})

@@ -190,7 +190,9 @@ function greeting(): string {
 
 function RequestLink({title, intro, note, onToken}: {title: string; intro: string; note?: string; onToken?: (token: string) => void}) {
   const api = useApi('');
-  const [email, setEmail] = useState('');
+  // Remember the address on this device so the next sign-in is one tap, not retyping.
+  const [email, setEmailState] = useState(() => { try { return localStorage.getItem('concierge:last-email') || ''; } catch { return ''; } });
+  const setEmail = (v: string) => { setEmailState(v); try { localStorage.setItem('concierge:last-email', v.trim()); } catch { /* storage blocked */ } };
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -230,11 +232,12 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
     setCodeBusy(false);
   }
 
-  async function verifyCode() {
-    if (!/^\d{6}$/.test(code.trim())) { setError('Enter the six digits from the email.'); return; }
+  async function verifyCode(typed?: string) {
+    const entered = (typed ?? code).trim();
+    if (!/^\d{6}$/.test(entered)) { setError('Enter the six digits from the email.'); return; }
     setCodeBusy(true); setError('');
     try {
-      const data = await api('/owner/auth/code/verify', 'POST', {email: email.trim(), code: code.trim()}) as {access_token: string};
+      const data = await api('/owner/auth/code/verify', 'POST', {email: email.trim(), code: entered}) as {access_token: string};
       onToken?.(data.access_token);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That code did not work.');
@@ -254,7 +257,8 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
           {codeSent ? (
             <>
               <p>We emailed a six-digit code to <strong>{email.trim()}</strong>. It works once and expires in 10 minutes.</p>
-              <TextInput label="Six-digit code" value={code} onChange={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} />
+              <TextInput label="Six-digit code" value={code} autoComplete="one-time-code" inputMode="numeric" hasAutoFocus
+                onChange={(v) => { const digits = v.replace(/\D/g, '').slice(0, 6); setCode(digits); if (digits.length === 6 && !codeBusy) void verifyCode(digits); }} />
               <div style={{marginTop: 16}}>
                 <Button label={codeBusy ? 'Signing in…' : 'Sign in'} variant="primary" isDisabled={codeBusy} onClick={() => void verifyCode()} />
                 <Button label="Send a new code" variant="ghost" onClick={() => void sendCode()} />
@@ -263,7 +267,8 @@ function RequestLink({title, intro, note, onToken}: {title: string; intro: strin
           ) : (
             <>
               <p>A code is typed here, so it works in the installed app as well as in a browser.</p>
-              <TextInput label="Email" type="email" value={email} onChange={setEmail} />
+              <TextInput label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" hasAutoFocus={!email}
+                onEnter={() => void sendCode()} />
               <div style={{marginTop: 16}}>
                 <Button label={codeBusy ? 'Sending…' : 'Email me a code'} variant="primary" isDisabled={codeBusy} onClick={() => void sendCode()} />
               </div>

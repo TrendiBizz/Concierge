@@ -332,7 +332,7 @@ def test_webclip_profile_is_valid_and_carries_the_icon_and_start_url():
     assert clip["Icon"] == icon and clip["FullScreen"] is True and clip["IsRemovable"] is True
     assert clip["PayloadUUID"] != profile["PayloadUUID"]
     assert build_webclip_profile(icon) == build_webclip_profile(icon), "fixed UUIDs: reinstall replaces, not duplicates"
-    assert b"invite=" not in build_webclip_profile(icon), "no sign-in ticket in a profile"
+    assert b"invite=" not in build_webclip_profile(icon), "no ticket unless one is passed"
 
 
 def test_webclip_route_serves_the_apple_config_type_and_install_page_explains_steps(tmp_path, monkeypatch):
@@ -355,3 +355,16 @@ def test_iphone_card_leads_with_five_step_profile_install_and_keeps_share_route(
     assert primary.count("<b>") == 5 and "Profile Downloaded" in primary and "Install" in primary
     assert "/studio/concierge.mobileconfig" in primary and "Not Verified" in primary
     assert "Add to Home Screen" in page[page.index("<details"):]
+
+
+def test_webclip_profile_opens_signed_in_only_with_a_well_formed_ticket():
+    import plistlib
+
+    from app.routers.public import build_webclip_profile
+
+    icon = (PUBLIC / "apple-touch-icon.png").read_bytes()
+    ticket = "A" * 43
+    url = plistlib.loads(build_webclip_profile(icon, ticket))["PayloadContent"][0]["URL"]
+    assert url == f"https://concierge.trendibizz.com/studio/#invite={ticket}"
+    for bad in ("short", "x y" * 10, "<script>" * 5):
+        assert "invite=" not in plistlib.loads(build_webclip_profile(icon, bad))["PayloadContent"][0]["URL"]
