@@ -14,7 +14,7 @@ const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8
   '.js':'application/javascript','.json':'application/json','.txt':'text/plain; charset=utf-8',
   '.xml':'application/xml','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg',
   '.jpeg':'image/jpeg','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff',
-  '.mp4':'video/mp4','.webp':'image/webp','.pdf':'application/pdf','.csv':'text/csv'};
+  '.mp4':'video/mp4','.vtt':'text/vtt; charset=utf-8','.webp':'image/webp','.pdf':'application/pdf','.csv':'text/csv'};
 const blocks = [];
 for (const line of (await fs.readFile(path.join(root,'_headers'),'utf8')).split('\n')) {
   if (!line.trim() || line.trim().startsWith('#')) continue;

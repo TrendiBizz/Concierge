@@ -26,6 +26,11 @@ def _get(port, path):
         return e.code, e.headers.get("Location")
 
 
+def _ctype(port, path):
+    r = urllib.request.build_opener(_NoRedirect).open(f"http://127.0.0.1:{port}{path}", timeout=5)
+    return r.headers.get("Content-Type")
+
+
 @pytest.fixture()
 def server(tmp_path):
     if not NODE:
@@ -40,6 +45,7 @@ def server(tmp_path):
     (site / "concierge.html").write_text("concierge")
     (site / "404.html").write_text("nope")
     (site / "Logo.png").write_text("png")
+    (site / "cap.vtt").write_text("WEBVTT\n")
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
     src = (ROOT / "scripts/vps/website.mjs").read_text()
     src = src.replace("'/website/", f"'{tmp_path}/website/").replace("root = '/website/site'", f"root = '{site}'").replace(".listen(8080,", f".listen({port},")
@@ -64,3 +70,7 @@ def test_lowercase_and_unknown_and_real_capital_files(server):
     assert _get(server, "/concierge")[0] == 200
     assert _get(server, "/Nopage")[0] == 404
     assert _get(server, "/Logo.png")[0] == 200
+
+
+def test_caption_files_are_served_as_text_vtt(server):
+    assert _ctype(server, "/cap.vtt").startswith("text/vtt")
