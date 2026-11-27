@@ -5,8 +5,11 @@ does not accept public mail or send email directly. Automatic replies require op
 provider adapter must validate that provider's native webhook authentication.
 """
 import hashlib
+import logging
 import re
-from . import automated_mail, db, email_drafts, email_threading, email_signature, enquiries, convo, flood_guard, inbound_policy, tenants
+from . import automated_mail, db, email_drafts, email_threading, email_signature, enquiries, convo, flood_guard, inbound_policy, owner_threads, tenants
+
+log = logging.getLogger("concierge.inbound_email")
 
 MESSAGE_ID = re.compile(r"^[A-Za-z0-9._@:/+<>=-]{1,500}$")
 
@@ -166,6 +169,11 @@ async def ingest_verified(tenant_id, provider: str, message_id: str,
                                        name=signature["name"], company=signature["company"],
                                        phone=signature["phone"])
         detail = {"risk": risk, "flags": flags, "status": draft.get("status")}
+        try:
+            if await owner_threads.note(tenant_id, lead, draft["sender"], mail):
+                detail["owner_thread"] = True
+        except Exception:  # noqa: BLE001 - a missed flag only means the usual chase; never lose the mail
+            log.exception("owner-thread check failed for draft %s", draft.get("id"))
         why_not = ack_decision(tenant, draft["sender"], subject, risk, flags, auth)
         if why_not != "off":
             detail["ack"] = why_not or await queue_ack(tenant, draft, subject, key)

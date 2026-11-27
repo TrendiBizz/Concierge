@@ -47,6 +47,8 @@ async def overdue(tenant: dict, only_unalerted: bool = False, max_age_days: int 
     Two exclusions are deliberate and must not be removed:
       - anyone on the opt-out list, because chasing them is a compliance failure;
       - any customer whose case the owner has taken over, because the owner is already handling it.
+      - an email thread the owner runs from their own mailbox (owner_threads.py): we cannot see the
+        owner's replies there, so chasing it only nags about a conversation already under way.
 
     Empty when the feature is off (sla_minutes = 0).
     """
@@ -64,6 +66,7 @@ async def overdue(tenant: dict, only_unalerted: bool = False, max_age_days: int 
           {"AND score >= $4" if min_score > 0 else ""}
           AND created_at < now() - make_interval(mins => $2)
           AND created_at > now() - make_interval(days => $3)
+          AND NOT owner_thread
           AND NOT EXISTS (SELECT 1 FROM appointments a
                           WHERE a.lead_id = leads.id AND a.status IN ('booked', 'completed'))
           AND NOT EXISTS (SELECT 1 FROM customer_cases c

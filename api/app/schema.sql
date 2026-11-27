@@ -243,6 +243,8 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS scoring jsonb NOT NULL DEFAULT '{}'
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_minutes integer NOT NULL DEFAULT 0;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sla_min_score integer NOT NULL DEFAULT 70;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS sla_alerted_at timestamptz;
+-- The customer is replying to the owner from the owner's own mailbox (owner_threads.py): not chased.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS owner_thread boolean NOT NULL DEFAULT false;
 
 -- To-dos, sales pipeline and calendar feed (see app/tasks.py, app/sales.py, app/ical.py)
 CREATE TABLE IF NOT EXISTS tasks (

@@ -20,6 +20,11 @@ SCHEMA = Path(__file__).resolve().parent.parent / "app" / "schema.sql"
 
 
 def _dsn(name="postgres"):
+    # The full suite runs with TEST_DATABASE_URL (scripts/dev/test-db.sh); without this the whole file
+    # skipped silently on the 55432 default (found 27 Nov 2026).
+    base = os.environ.get("TEST_DATABASE_URL", "")
+    if base:
+        return base.rsplit("/", 1)[0] + "/" + name
     return f"postgresql://postgres:test@127.0.0.1:{PORT}/{name}"
 
 
@@ -338,3 +343,61 @@ def test_subject_is_tenant_local_time():
     now = datetime(2026, 11, 20, 8, 57, tzinfo=timezone.utc)         # 21:57 NZDT
     s = ea.subject_for({"name": "X", "timezone": "Pacific/Auckland"}, "chat", "", "Enquirer: How much?", now)
     assert s == "Web chat for X: How much? (Fri 9:57pm)"
+
+
+# ---- threads the owner runs from their own mailbox (27 Nov 2026, Ruben) ---------------------------
+
+async def _draft(conn, tenant, sender, message_id):
+    await conn.execute(
+        "INSERT INTO email_drafts(tenant_id,sender,subject,inbound_body,reply_body,message_id_hdr) "
+        "VALUES($1,$2,'Re: link swap','body','REVIEW',$3)", tenant["id"], sender, message_id)
+
+
+def test_reply_to_the_owners_own_email_is_not_chased(dbname, monkeypatch):
+    """Ruben answered Jo's Gmail outreach twice; Concierge saw only his mail and nagged 'no reply yet'."""
+    from app import owner_threads
+
+    async def scenario(conn, t):
+        monkeypatch.setattr(owner_issues.db, "pool", lambda: conn)
+        monkeypatch.setattr(owner_threads.db, "pool", lambda: conn)
+        await conn.execute("DELETE FROM email_drafts")
+        first = await _lead(conn, t, "Re: link swap: placed your link", "email", email="ruben@ringly.io", name="Ruben")
+        await conn.execute("UPDATE leads SET created_at = now() - interval '2 days'")
+        await _draft(conn, t, "ruben@ringly.io", "<r1@ringly.io>")
+        second = await _lead(conn, t, "Re: link swap: thanks Jo, link live", "email", email="ruben@ringly.io", name="Ruben")
+        await _draft(conn, t, "ruben@ringly.io", "<r2@ringly.io>")
+        await ea.notify(t, "email", "thanks Jo", lead_id=second, contact={"email": "ruben@ringly.io"}, connection=conn)
+        lead = {"id": second}
+        # Parent is Jo's Gmail message: not one of Ruben's, and Concierge never emailed him.
+        assert await owner_threads.note(t["id"], lead, "Ruben@Ringly.io", {"in_reply_to": "<jo@mail.gmail.com>"})
+        assert await conn.fetchval("SELECT status FROM leads WHERE id=$1", first) == "contacted"
+        assert await conn.fetchval("SELECT owner_thread FROM leads WHERE id=$1", second) is True
+        await conn.execute("UPDATE leads SET created_at = now() - interval '3 hours' WHERE id=$1", second)
+        assert await owner_issues.sweep_unanswered() == 0
+        assert await _rows(conn, "owner_issue") == []
+    run(dbname, monkeypatch, scenario)
+
+
+def test_owner_thread_needs_evidence(dbname, monkeypatch):
+    from app import owner_threads
+
+    async def scenario(conn, t):
+        monkeypatch.setattr(owner_threads.db, "pool", lambda: conn)
+        await conn.execute("DELETE FROM email_drafts")
+        lead = await _lead(conn, t, "Quote please", "email", email="sam@gmail.com", name="Sam")
+        await _draft(conn, t, "sam@gmail.com", "<s1@gmail.com>")
+        assert not await owner_threads.note(t["id"], {"id": lead}, "sam@gmail.com", {})            # not a reply
+        assert not await owner_threads.note(t["id"], {"id": lead}, "sam@gmail.com",
+                                            {"in_reply_to": "<s1@gmail.com>"})                    # follow-up to own mail
+        await conn.execute(
+            "INSERT INTO outbox(tenant_id,kind,channel,to_addr,body,status,lead_id) VALUES"
+            "($1,'inbound_ack','email','sam@gmail.com','got it','sent',$2)", t["id"], lead)
+        assert not await owner_threads.note(t["id"], {"id": lead}, "sam@gmail.com",
+                                            {"in_reply_to": "<x@trendi>"})                        # may be our ack
+        assert await conn.fetchval("SELECT owner_thread FROM leads WHERE id=$1", lead) is False
+    run(dbname, monkeypatch, scenario)
+
+
+def test_unanswered_notice_uses_an_before_email():
+    import inspect
+    assert '"An" if kind[:1] in "aeiou"' in inspect.getsource(owner_issues.sweep_unanswered)

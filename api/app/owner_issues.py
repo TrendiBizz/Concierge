@@ -99,7 +99,9 @@ async def sweep_unanswered() -> int:
             if not alerted:
                 continue
             who = lead["name"] or lead["phone"] or lead["email"] or "a customer"
-            body = (f"A {enquiry_alerts.label(lead['channel']).lower()} from {who} has had no reply "
+            kind = enquiry_alerts.label(lead['channel']).lower()
+            article = "An" if kind[:1] in "aeiou" else "A"
+            body = (f"{article} {kind} from {who} has had no reply "
                     f"for {lead['minutes_waiting']} minutes (target {minutes}).\n"
                     f"Phone: {lead['phone'] or '-'}  Email: {lead['email'] or '-'}\n\n"
                     f"Reply to them, then mark the enquiry contacted in {_portal()} and this stops.")
