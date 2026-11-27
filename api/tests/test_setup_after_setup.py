@@ -41,8 +41,12 @@ def test_the_service_worker_can_never_pin_a_browser_to_an_old_build():
     worker = (PORTAL.parent / "public" / "sw-v2.js").read_text()
     # cache name is stamped per build, not a constant
     assert "concierge-studio-__BUILD__" in worker
-    # a navigation is network-first with no-store, and the cached shell is for offline only
-    assert "fetch(event.request, {cache: 'no-store'})" in worker
+    # a navigation is network-first with no-store, and the cached shell is for offline only.
+    # Must fetch by URL string — WebKit/iOS Safari throws TypeError on fetch(event.request, {cache: 'no-store'})
+    # for navigate requests, leaving iPhones on a blank page (reported 2026-11-27).
+    assert "fetch(event.request.url, {cache: 'no-store'" in worker
+    assert "fetch(event.request, {cache:" not in worker
+    assert "url.pathname === '/studio/install'" in worker
     assert "self.navigator.onLine === false" in worker
     # the old v1 worker must be gone, both the file and its registration
     assert not (PORTAL.parent / "public" / "sw.js").exists()

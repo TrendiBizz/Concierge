@@ -30,14 +30,23 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
   if (url.pathname.startsWith('/owner/') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin/')) return;
+  if (url.pathname === '/studio/install' || url.pathname === '/studio/install/') return;
 
   if (event.request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const response = await fetch(event.request, {cache: 'no-store'});
-        const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put('/studio/', copy)).catch(() => undefined);
-        return response;
+        // Fetch by URL string (not `fetch(event.request, {cache: 'no-store'})`): WebKit/iOS Safari
+        // throws TypeError when constructing a Request with init overrides from a navigate Request,
+        // which left iPhones on a blank page.
+        const response = await fetch(event.request.url, {cache: 'no-store', credentials: 'same-origin'});
+        const clean = response.redirected
+          ? new Response(response.body, {status: response.status, statusText: response.statusText, headers: response.headers})
+          : response;
+        if (clean.status === 200 && (url.pathname === '/studio/' || url.pathname === '/studio')) {
+          const copy = clean.clone();
+          caches.open(CACHE).then((cache) => cache.put('/studio/', copy)).catch(() => undefined);
+        }
+        return clean;
       } catch (error) {
         if (self.navigator && self.navigator.onLine === false) {
           const hit = await caches.match('/studio/');

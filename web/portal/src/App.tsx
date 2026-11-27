@@ -2137,10 +2137,10 @@ function Shell() {
             }
           })().catch(() => {});
         }} />
-        <Button label={tr('Install app')} variant="secondary" onClick={() => {
+        {!isInstalled() ? <Button label={tr('Install app')} variant="secondary" onClick={() => {
           if (canInstall) void promptInstall();
           else location.href = '/studio/install';
-        }} />
+        }} /> : null}
         <Button label={tr('Sign out')} variant="ghost" onClick={() => void signOut()} />
       </header>
 
