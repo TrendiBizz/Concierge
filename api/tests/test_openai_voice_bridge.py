@@ -82,6 +82,7 @@ def test_settings_defaults_and_phone_voice_ready_per_provider():
     assert Settings(**on, phone_voice_provider='openai_realtime', openai_api_key='o').phone_voice_ready
     assert not Settings(**on, phone_voice_provider='openai_realtime', gemini_api_key='g').phone_voice_ready
     assert not Settings(_env_file=None, phone_voice_provider='openai_realtime', openai_api_key='o').phone_voice_ready
+    assert not Settings(**on, phone_voice_provider='openai_realtime', openai_api_key='   ').phone_voice_ready
 
 
 def test_ulaw_known_values_and_round_trip_error_is_small():
