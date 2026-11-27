@@ -49,8 +49,6 @@ FAQ = [
      "Use the Global Pause Switch at the top of Studio. To step back for one customer, reply once in Inbox and Concierge steps back for that customer (Per-Customer Takeover)."),
     ("Will Concierge make up a price?",
      "No. Price Guard stops Concierge from inventing a quote. Test it in the Sandbox Test Chat before going live."),
-    ("Is the voice in the help videos real?",
-     "No. The narration is synthetic. The screens are real Studio screens with demo data, and every video has English captions."),
 ]
 
 
@@ -125,7 +123,7 @@ def build():
 </div></section>
 <section class="design-section" id="stage-videos"><div class="wrap">
 <h2>Setup help, one video per stage</h2>
-<p class="section-lead">Each video is under 40 seconds, uses demo data and has English captions. The narration voice is synthetic.</p>
+<p class="section-lead">Each video is under 40 seconds, uses demo data and has English captions.</p>
 {figs}</div></section>
 <section class="section--surface design-section" id="faq"><div class="wrap">
 <h2>Questions</h2>
