@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" name="robots"/>
+<meta content="index, follow" name="googlebot"/>
+<title>What Actually Stops ARTEX: Code Review and Nine Incidents</title>
+<meta content="A security team analysed ARTEX's source code and nine public incidents to find what actually stops it, plus a log check and 30-day plan." name="description"/>
+<meta content="light" name="color-scheme"/>
+<link href="https://trendibizz.com/news/what-stops-artex" rel="canonical"/>
+<link href="https://trendibizz.com/rss.xml" rel="alternate" title="Trendi news and resources" type="application/rss+xml"/>
+<meta content="article" property="og:type"/>
+<meta content="2026-11-27" property="article:published_time"/>
+<meta content="2026-11-27" property="article:modified_time"/>
+<meta content="What Actually Stops ARTEX: Code Review and Nine Incidents" property="og:title"/>
+<meta content="A security team analysed ARTEX's source code and nine public incidents to find what actually stops it, plus a log check and 30-day plan." property="og:description"/>
+<meta content="https://trendibizz.com/news/what-stops-artex" property="og:url"/>
+<meta content="https://trendibizz.com/brand/og-image.png?v=20261124" property="og:image"/>
+<meta content="Trendi" property="og:site_name"/>
+<meta content="https://trendibizz.com/brand/og-image.png?v=20261124" name="twitter:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="What Actually Stops ARTEX: Code Review and Nine Incidents" name="twitter:title"/>
+<meta content="A security team analysed ARTEX's source code and nine public incidents to find what actually stops it, plus a log check and 30-day plan." name="twitter:description"/>
+<link href="/brand/favicon.svg?v=20261123" rel="icon" type="image/svg+xml"/>
+<link href="/brand/apple-touch-icon.png?v=20261123" rel="apple-touch-icon"/>
+<meta content="#7142d6" name="theme-color"/>
+<link href="/styles.css?v=20261127b" rel="stylesheet"/>
+<link as="font" crossorigin="" href="/fonts/plus-jakarta-sans-var.woff2" rel="preload" type="font/woff2"/>
+<link href="/refresh.css?v=20261127b" rel="stylesheet"/>
+<link href="/layout.css?v=20261127b" rel="stylesheet"/>
+<link rel="stylesheet" href="/site-i18n.css?v=20261127b"/>
+<script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "@id": "https://trendibizz.com/news/what-stops-artex#article",
+      "headline": "What Actually Stops ARTEX: Code Review and Nine Incidents",
+      "description": "A security team analysed ARTEX's source code and nine public incidents to find what actually stops it, plus a log check and 30-day plan.",
+      "url": "https://trendibizz.com/news/what-stops-artex",
+      "mainEntityOfPage": "https://trendibizz.com/news/what-stops-artex",
+      "datePublished": "2026-11-27",
+      "dateModified": "2026-11-27",
+      "inLanguage": "en",
+      "author": {
+        "@type": "Organization",
+        "@id": "https://trendibizz.com/#organization",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://trendibizz.com/brand/icon-512.png?v=20261124"
+        }
+      },
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://trendibizz.com/#organization",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://trendibizz.com/brand/icon-512.png?v=20261124"
+        }
+      },
+      "image": "https://trendibizz.com/brand/og-image.png?v=20261124",
+      "isPartOf": {
+        "@type": "WebSite",
+        "@id": "https://trendibizz.com/#website",
+        "name": "Trendi",
+        "url": "https://trendibizz.com/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://trendibizz.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "News and resources",
+          "item": "https://trendibizz.com/news"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "What Actually Stops ARTEX: Code Review and Nine Incidents",
+          "item": "https://trendibizz.com/news/what-stops-artex"
+        }
+      ]
+    }
+  ]
+}</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-RF9KSYC84Y"></script>
+<script defer src="/ga.js"></script>
+<link href="/ui/trendi-ui.css?v=20261127a" rel="stylesheet"/>
+</head>
+<body class="rollout page-what-stops-artex">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+<div class="wrap wide">
+<a aria-label="Trendi home" class="brand" href="/"><img alt="Trendi" height="40" src="/brand/logo-refresh.svg?v=20261124" width="150"/></a>
+<button aria-controls="main-nav" aria-expanded="false" class="menu-btn" id="menu-btn">Menu</button>
+<nav aria-label="Main" class="main" id="main-nav"><a class="nav-primary" href="/concierge">Concierge</a><a href="/pricing">Pricing</a><a href="/seo">SEO &amp; AI Visibility</a><a href="/penetration-testing">Pen Testing</a><a href="/tools/site-check">Tools</a><a href="/about">About</a><a href="https://concierge.trendibizz.com/studio/">Sign in</a><a class="btn nav-start" data-concierge-open="" href="/contact">Let’s talk</a></nav>
+</div>
+</header>
+<main class="legal article" id="main">
+<section class="page-intro design-section">
+<div class="wrap">
+<nav aria-label="Breadcrumb" class="fine"><a href="/">Home</a> › <a href="/news">News and resources</a> › <span aria-current="page">What Actually Stops ARTEX</span></nav>
+<h1>What Actually Stops ARTEX: Code Review and Nine Incidents</h1>
+<p class="byline">By Trendi, Published <time datetime="2026-11-27">27 November 2026</time></p>
+</div>
+</section>
+<div class="wrap reading-layout">
+<div class="reading-content">
+<p>In November, the FBI warned about ARTEX, an open-source AI hacking tool where AI agents run penetration tests themselves. A security team analysed the ARTEX system and its source code without running it, and checked it against nine public incident write-ups from Bitrise, Google, Microsoft and others. This is the result. ARTEX's own screenshot shows a rule blocking data leaving the target switched on; in the shipped version, it is off.</p>
+<nav aria-label="On this page" class="toc"><strong>On this page</strong><a href="#how-artex-works">How ARTEX works</a><a href="#what-its-own-code-will-and-wont-stop">What its own code will and won't stop</a><a href="#what-the-bitrise-incident-shows">What the Bitrise incident shows</a><a href="#patterns-across-nine-incidents">Patterns across nine incidents</a><a href="#a-check-you-can-run-today">A check you can run today</a><a href="#the-30-day-plan">The 30-day plan</a><a href="#what-to-tell-your-board">What to tell your board</a><a href="#key-takeaways">Key takeaways</a></nav>
+<section class="reading-chapter">
+<h2 id="how-artex-works">How ARTEX works</h2>
+<p>ARTEX's web console resembles a project-management app, not a hacker's terminal. Operators open a chat, pick an agent and enter a plain-English goal (e.g. getting into example-corp's back office to see whether customer data can be read). ARTEX splits that goal into steps and graphs goals, intended tries, facts and confirmed weaknesses. A main agent passes operator hints; a planner picks next steps; workers (three by default) run jobs and report back. All share one record, rating findings high, medium or low.</p>
+<p>Agents use ordinary tools (command line, browser and standard network tools) with no exploit library. Capability comes from any model speaking Anthropic's or OpenAI's interface, so better models upgrade ARTEX without code changes. A dashboard tracks token cost; Check Point puts real criminal campaigns at about $150 to $1,500 each.</p>
+<p>Underneath sits norma, a general-purpose agent engine by the same developer, plus a rule guard and recording proxy. ARTEX is about 60,000 lines of Go plus a similar-sized TypeScript console, norma adds 19,000 lines of Go, and a test suite is roughly half that size. Agent instructions and some comments are in Chinese.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="what-its-own-code-will-and-wont-stop">What its own code will and won't stop</h2>
+<p>The norma engine includes an approval step, the 'are you sure?' pause before risky actions. ARTEX switches it off for every agent, leaving only its guard and a short rule list.</p>
+<p>Those rules stop obvious damage like wiping disks. A code comment notes the data-leaving check was once built into the guard, then turned into a deletable rule shipped off because it 'mis-fires' on legitimate penetration-testing transfers. Out of the box, ARTEX avoids breaking systems while nothing stops it taking data.</p>
+<p>Operators can set scope, yet limits are checked only when recording targets, never against executed commands. A detection engineer testing his home network told ARTEX not to change his TV's settings; it still sent write requests.</p>
+<p>Workers are told a block, filtered request or 'not found' never exhausts a route, prompting retries past firewalls. Every agent is told it belongs to an authorised penetration-testing system, explaining its polite labels. Contrary to Amazon's account, neither checked version has a separate verification agent; the planner checks its own goals. Whatever stops ARTEX won't be ARTEX.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="what-the-bitrise-incident-shows">What the Bitrise incident shows</h2>
+<p>Bitrise's November report is the most detailed public account, covering a platform about 8,500 teams use to build and ship mobile apps. From 25 October, ARTEX scanned three days, sending more than 36,000 requests from one address, many labelled 'authorized-pentest' with none ordered. Bitrise's verdict: traffic that 'calls itself an authorized test, when you ordered none, is an attacker introducing itself.'</p>
+<p>It returned on 12 November with more than 48,000 requests in about six hours. Next day, two minutes after failed sign-ins on three other bots, it entered via a privileged internal test account unused since 2022 with no two-factor authentication. It read unprotected build secrets and used a stolen cloud key 10.5 minutes after sign-in.</p>
+<p>Bitrise spotted it about 4 hours 46 minutes after first sign-in and took its platform offline hours later, noting 'issued tokens keep working' after disabling a key. Logs also showed <code>norma/0.4</code>, hard-coded in norma's web fetch tool. Controls still held: a metrics-only key was refused everything, requests for other customers' data got nothing, and every request failed when the attacker returned on 18 November.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="patterns-across-nine-incidents">Patterns across nine incidents</h2>
+<p>Across the other eight write-ups (Railway, WorkOS, Barracuda, Microsoft, Datadog, Google, Amazon and Check Point), entry is nearly always a credential or forgotten system, rarely a new exploit, travelling through machine credentials (keys and tokens software uses).</p>
+<p>Leak-to-use takes minutes: Microsoft saw a GitHub secret reach Azure Key Vault data in about five minutes. Google saw retries under new file names and counted nearly 500 throwaway web addresses carrying data out. Google says these tools 'currently trade stealth for velocity' and expects that to change, yet future versions still need a working credential and unwatched system.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="a-check-you-can-run-today">A check you can run today</h2>
+<p>Search web and API logs for user agents containing <code>'pentest'</code>, <code>'authorized'</code> or <code>'norma'</code>, and check whether anyone booked that test.</p>
+<p>Two limits apply: the mid-November release sends ordinary browser user agents (so this mainly catches older copies and past visits), and it needs logs: the detection engineer found most of his internal apps did not log web requests.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="the-30-day-plan">The 30-day plan</h2>
+<p>Complete four independent workstreams within 30 days, ideally a fortnight, before the holidays, ranked by how many of the nine incidents each answers:</p>
+<ol>
+<li><strong>Machine credentials (platform team):</strong> Find long-lived keys and build-pipeline tokens; replace the riskiest with short-lived workload-tied credentials (workload identity federation on Google Cloud, roles on AWS, managed identities on Azure); scope the rest and mark build secrets protected. Answers seven of the nine write-ups.</li>
+<li><strong>Detection (SOC):</strong> Deploy four alerts while other work runs: (a) credentials used outside your networks and cloud ranges (Bitrise says this rule matches every stolen-key use in its advisory); (b) a secret exposed with any credential used from a new address within the hour; (c) a burst of failures then a success; (d) traffic claiming to be an unbooked authorised test. Log internal-app web requests and watch for <code>'norma'</code> and <code>'artex-probe'</code>.</li>
+<li><strong>Accounts and exposure (identity and infrastructure):</strong> Disable dormant, test and supplier accounts and former suppliers' keys; enforce two-factor authentication on everything left; take admin consoles, build systems and cloud management endpoints off the open internet; close forgotten endpoints.</li>
+<li><strong>Data leaving and incident response (security architecture and IR):</strong> Apply egress allow-lists to build servers and back ends, rate-limit bulk send/export and log secret reads. Write a revocation runbook listing where each important key is honoured, how to kill it there and a fixed window for judging damage (learned the hard way by Bitrise and Railway).</li>
+</ol>
+<p>When commissioning AI-driven testing, ask whether scope is enforced in the network or 'only in a prompt'. One untested idea: ARTEX reads server responses without treating them as data, so a notice on your own systems might tell an agent to stop; keep any test to your own systems and check with legal.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="what-to-tell-your-board">What to tell your board</h2>
+<p>The tool is cheap, fast and noisy, and it gets in through old credentials and forgotten systems rather than anything exotic. Changes are underway to replace long-lived keys, closing old accounts and exposed consoles, and watching for keys used in the wrong place.</p>
+</section>
+<section class="reading-chapter">
+<h2 id="key-takeaways">Key takeaways</h2>
+<ul>
+<li><strong>From the code:</strong> Approvals are off, the data-leak rule ships off and scope relies on model manners, so your controls do the stopping.</li>
+<li><strong>From your logs:</strong> Traffic claiming an unbooked authorised test warrants checking today, but names will change; keep logs and alert on credentials used unexpectedly.</li>
+<li><strong>From nine incidents:</strong> ARTEX enters via credentials and forgotten systems and moves in minutes; replace long-lived credentials first and deploy that alert before any other.</li>
+</ul>
+<p class="fine"><a href="/news">← News and resources</a></p>
+</section>
+</div>
+<aside aria-label="On this page" class="reading-rail">
+<a href="#how-artex-works">How ARTEX works</a>
+<a href="#what-its-own-code-will-and-wont-stop">What its own code will and won't stop</a>
+<a href="#what-the-bitrise-incident-shows">What the Bitrise incident shows</a>
+<a href="#patterns-across-nine-incidents">Patterns across nine incidents</a>
+<a href="#a-check-you-can-run-today">A check you can run today</a>
+<a href="#the-30-day-plan">The 30-day plan</a>
+<a href="#what-to-tell-your-board">What to tell your board</a>
+<a href="#key-takeaways">Key takeaways</a>
+<a class="btn" data-concierge-open="" href="/contact">Let’s talk</a>
+</aside>
+</div>
+</main>
+<footer class="site"><div class="wrap"><div><img alt="Trendi" class="footer-logo" height="32" src="/brand/logo-refresh.svg?v=20261124" width="125"/><p>Concierge, SEO and AI visibility, and security reviews.</p><p class="fine">Trendi (trendibizz.com) is operated by TRENDI LIMITED.</p><p class="fine">© <span data-year=""></span> Trendi</p><a href="mailto:admin@trendibizz.com">admin@trendibizz.com</a><p class="fine footer-social"><a href="https://www.linkedin.com/company/trendi-nz/" rel="me" title="Trendi on LinkedIn"><img alt="" src="/brand/social-logos/linkedin.svg" width="22" height="22" loading="lazy" decoding="async"/><span class="sr-only">LinkedIn</span></a><a href="https://www.facebook.com/people/Trendi/61558235720533/" rel="me" title="Trendi on Facebook"><img alt="" src="/brand/social-logos/facebook.svg" width="22" height="22" loading="lazy" decoding="async"/><span class="sr-only">Facebook</span></a><a href="https://www.instagram.com/trendi456/" rel="me" title="Trendi on Instagram"><img alt="" src="/brand/social-logos/instagram.svg" width="22" height="22" loading="lazy" decoding="async"/><span class="sr-only">Instagram</span></a><a href="https://www.youtube.com/@trendibizz" rel="me" title="Trendi on YouTube"><img alt="" src="/brand/social-logos/youtube.svg" width="22" height="22" loading="lazy" decoding="async"/><span class="sr-only">YouTube</span></a><a href="https://www.tiktok.com/@trendibizz" rel="me" title="Trendi on TikTok"><img alt="" src="/brand/social-logos/tiktok.svg" width="22" height="22" loading="lazy" decoding="async"/><span class="sr-only">TikTok</span></a></p></div><nav aria-label="Explore" class="footer-nav"><a href="https://concierge.trendibizz.com/studio/">Customer sign-in</a><a href="/concierge">Concierge</a><a href="/help">Help and onboarding</a><a href="/guide">Setup guide</a><a href="/seo">SEO services</a><a href="/pricing">Pricing</a><a href="/news">News</a><a href="/rss.xml">RSS</a><a href="/tools/site-check">Tools</a><a href="/tools/robots-ai-check">Robots checker</a><a href="/security-check">Security check</a><a href="/penetration-testing">Penetration testing</a><a href="/ai-visibility">Guides</a><a href="/about">Company</a><a href="/contact">Contact</a></nav><nav aria-label="Guides" class="footer-nav"><a href="/get-mentioned-chatgpt-perplexity">Get mentioned in ChatGPT</a><a href="/indexing-time">How long indexing takes</a><a href="/llms-txt">llms.txt explained</a><a href="/robots-txt-ai-search">Robots.txt for AI crawlers</a><a href="/generative-engine-optimization">GEO and AEO explained</a><a href="/ai-seo-services">AI SEO services</a><a href="/trendi-vs-firstindex">Trendi vs FirstIndex</a></nav><nav aria-label="Legal" class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/penetration-testing">Penetration testing</a></nav></div></footer>
+<script defer="" src="/products.js"></script>
+<script defer="" src="/ui/trendi-ui.js?v=20261127a"></script>
+<script defer="" src="/main.js?v=20261127a"></script>
+<script data-key="pk_8y_wsHO4StqCzd0yc2QNEKp0" defer="" src="https://chat.trendibizz.com/widget.js"></script><script defer="" src="/concierge.js"></script>
+<script defer="" src="/refresh.js?v=20261124"></script><script src="/site-i18n.js?v=20261114b" defer></script>
+</body>
+</html>
