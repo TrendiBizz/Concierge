@@ -58,6 +58,24 @@ async function asset(request) {
       if (code===410) { gone=true; break; }
     }
   }
+  // CASE-301 (27 Nov 2026): page URLs are lowercase, but people type /Concierge. When the path has capitals,
+  // no file exists with that exact spelling, and the lowercase spelling does resolve, 301 to the lowercase URL
+  // (one URL per page, so search engines do not see duplicates). Real files with capitals are served as before.
+  if (!gone && pathname!==pathname.toLowerCase() && !pathname.includes('//')) {
+    const resolvesTo=async (p)=>{
+      const rel=p==='/'?'index.html':p.replace(/^\//,'');
+      for (const candidate of [rel,rel+'.html',path.join(rel,'index.html')]) {
+        const resolved=path.resolve(root,candidate);
+        if (!resolved.startsWith(root+'/')) continue;
+        // Exact-case match via the directory listing, so this also holds on a case-insensitive filesystem.
+        try { if ((await fs.readdir(path.dirname(resolved))).includes(path.basename(resolved)) && (await fs.stat(resolved)).isFile()) return true; } catch {}
+      }
+      return false;
+    };
+    const lower=pathname.toLowerCase();
+    if (!(await resolvesTo(pathname)) && await resolvesTo(lower))
+      return new Response(null,{status:301,headers:{Location:lower+new URL(request.url).search}});
+  }
   // SEO-ENGINE-301 (15 Nov 2026, ranking plan item 13): one URL per page.
   // 301 /page.html and /page/ to /page when site/page.html exists. Only lowercase [a-z0-9/-] page paths,
   // so .txt/.xml/.json/.js/.css/images, the IndexNow key, /llms.txt, /robots.txt and /sitemap.xml never match.
