@@ -1,0 +1,5 @@
+# Honest Ringly-page keywords on the Concierge site — 2026-11-27
+
+- **Cause:** First backlink (ringly.io/blog/best-call-center-outsourcing-companies, anchor "concierge"). The site barely covered call center outsourcing, outsourced call center, human BPO vs AI phone agent or outsourcing cost, which searchers on that topic use.
+- **Fix:** New page `website/call-center-outsourcing-alternative.html` (honest comparison; states Concierge is for service businesses, not Shopify/help desk support). One short section or FAQ each on `ai-answering-service`, `ai-phone-answering`, `ai-answering-service-vs-human`, `pricing`, `concierge`; related link on `virtual-receptionist` and `after-hours-answering`. Sitemap and `llms.txt` updated. Skipped on purpose: Shopify/Zendesk/order data/WISMO/returns, resolution or CSAT figures, launch-time and language-count claims, "free", competitor names as keywords, personal names.
+- **Proof:** `python3 scripts/seo/site_seo.py check` OK (56 pages); `xmllint --noout website/sitemap.xml` clean; all JSON-LD parses; no "free" or personal names in new copy. Content-only change, not deployed (site rebuild in progress).
