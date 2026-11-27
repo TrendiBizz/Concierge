@@ -116,3 +116,16 @@ longer inherited) — see `QA/verification/HARNESS_GIT_ENV_2026-11-16.md`. Becau
 process keeps the old code until it restarts, prefix git with `env -u GIT_CONFIG_COUNT` in the
 meantime. This never means "git is broken in this repo" and it is never a reason to skip
 `verify-deploy.sh`.
+
+## UI libraries (Jo, 2026-11-27)
+Standing rule for every UI task: `~/.claude/rules_ondemand/ui-libraries.md` (five rules + library list) and
+Emil Kowalski's `pick-ui-library` skill (`~/.claude/skills/pick-ui-library`, MIT). Summary: foundations
+(shadcn/Base UI/Radix) restyled to Trendi purple + Plus Jakarta Sans, never default looks; Sonner toasts, Vaul
+mobile drawers, cmdk Cmd-K, NumberFlow animated numbers, never hand-built; at most one standout animation per
+page; free tiers only (Magic UI / Aceternity "Pro" are paid, skip).
+- `website/` is static HTML: no React libs. Apply the rules (brand type/colour, one standout, CSS motion) and
+  vanilla ports only; nothing that adds a JS bundle to SEO pages (`scripts/seo/site_seo.py check` still gates).
+- Studio (`web/portal`, React 19 + Vite, deployed by `scripts/vps/deploy-studio.sh`) runs the Astryx design
+  system (`web/portal/AGENTS.md`). Toasts go through `src/Notify.tsx` (Astryx Toast); Cmd-K is `src/CmdK.tsx`
+  (Astryx Dialog + own filtering). Swapping in Sonner / cmdk / Vaul / NumberFlow, or adding shadcn + Tailwind
+  beside Astryx, is a visual change that needs Jo's yes first.
