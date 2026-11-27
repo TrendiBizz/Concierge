@@ -1,4 +1,5 @@
 import {lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
+import NumberFlow from '@number-flow/react';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
@@ -1612,21 +1613,16 @@ function Reports({token}: {token: string}) {
 
   const quoted = quotes.filter((quote) => ['reviewed', 'accepted'].includes(quote.status)).reduce((sum, quote) => sum + quote.total_cents, 0);
   const displayCurrency = String(money30?.currency || currency || 'NZD');
-  const metrics = [
-    ['Enquiries', leads.length],
-    ['Quotations', quotes.length],
-    ['Quoted value', money(quoted, displayCurrency)],
-    ['Social posts', posts.length],
-    ['Media assets', assets.length],
-  ] as Array<[string, string | number]>;
 
   return (
     <div>
       <p>A simple view of the work coming in and going out.</p>
       <div style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
-        {metrics.map(([label, value]) => (
-          <Card key={label}><strong style={{fontSize: 28}}>{value}</strong><p>{label}</p></Card>
-        ))}
+        <Card><strong style={{fontSize: 28}}><NumberFlow value={leads.length} /></strong><p>Enquiries</p></Card>
+        <Card><strong style={{fontSize: 28}}><NumberFlow value={quotes.length} /></strong><p>Quotations</p></Card>
+        <Card><strong style={{fontSize: 28}}><NumberFlow value={quoted / 100} format={{style: 'currency', currency: displayCurrency}} /></strong><p>Quoted value</p></Card>
+        <Card><strong style={{fontSize: 28}}><NumberFlow value={posts.length} /></strong><p>Social posts</p></Card>
+        <Card><strong style={{fontSize: 28}}><NumberFlow value={assets.length} /></strong><p>Media assets</p></Card>
       </div>
       {analytics ? (
         <>
@@ -2116,6 +2112,7 @@ function Shell() {
         </TabList> : null}
         <select aria-label="Navigation layout" value={layout} onChange={(e) => setLayout(e.target.value)} style={{padding: 8, borderRadius: 10, border: '1px solid var(--color-border)'}}><option value="tabs">Top tabs</option><option value="sidebar">Sidebar</option></select>
         <div className="c-topbar-spacer" />
+        <Button label={tr('Jump')} variant="secondary" onClick={() => window.dispatchEvent(new CustomEvent('concierge:cmdk'))} />
         <Suspense fallback={null}><TabGuideDrawer tab={tab} onOpenOnboarding={() => setTab('setup')} /></Suspense>
         <Button label={tr('Enable alerts')} variant="secondary" onClick={() => {
           void (async () => {

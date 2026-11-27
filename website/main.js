@@ -258,7 +258,11 @@
       }).then(function (res) {
         if (button) { button.disabled = false; }
         if (res.ok) {
-          say("Thanks — we have it. We will reply to " + field("email") + " within one business day.");
+          var okMsg = "Thanks — we have it. We will reply to " + field("email") + " within one business day.";
+          say(okMsg);
+          if (window.TrendiUI && typeof window.TrendiUI.toast === "function") {
+            window.TrendiUI.toast("Enquiry sent — we will reply within one business day.", { type: "success" });
+          }
           form.reset();
           if (fallbacks) { fallbacks.hidden = true; }
           return;

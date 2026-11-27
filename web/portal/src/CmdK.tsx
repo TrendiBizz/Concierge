@@ -20,8 +20,15 @@ export function CmdK({commands}: {commands: Command[]}) {
         setOpen((prev) => !prev);
       }
     }
+    function onOpenEvent() {
+      setOpen(true);
+    }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('concierge:cmdk', onOpenEvent);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('concierge:cmdk', onOpenEvent);
+    };
   }, []);
 
   const groups = useMemo(() => {

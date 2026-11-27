@@ -188,6 +188,17 @@ const DEFAULT_GUIDE: GuideEntry = {
   tip: 'Need hands-on help? Email admin@trendibizz.com and we will set up any channel with you.',
 };
 
+const TAB_STAGE_VIDEO: Record<string, {stage: number; secs: number}> = {
+  setup: {stage: 1, secs: 36},
+  knowledge: {stage: 1, secs: 36},
+  texts: {stage: 2, secs: 38},
+  crm: {stage: 2, secs: 38},
+  bookings: {stage: 4, secs: 28},
+  permissions: {stage: 5, secs: 39},
+  integrations: {stage: 6, secs: 28},
+  home: {stage: 7, secs: 38},
+};
+
 export function TabGuideDrawer({
   tab,
   onOpenOnboarding,
@@ -207,6 +218,7 @@ export function TabGuideDrawer({
     return () => mq.removeEventListener('change', onChange);
   }, []);
   const guide = TAB_GUIDES[tab] || DEFAULT_GUIDE;
+  const stageVideo = TAB_STAGE_VIDEO[tab];
 
   return (
     <Drawer.Root open={open} onOpenChange={setOpen} direction={isMobile ? 'bottom' : 'right'}>
@@ -253,6 +265,16 @@ export function TabGuideDrawer({
                   onOpenOnboarding();
                 }}
               />
+              {stageVideo ? (
+                <a
+                  href={`https://trendibizz.com/help#stage-${stageVideo.stage}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{display: 'inline-flex', alignItems: 'center', padding: '8px 12px', fontSize: 14, fontWeight: 600}}
+                >
+                  Watch Stage {stageVideo.stage} video ({stageVideo.secs}s) ↗
+                </a>
+              ) : null}
               <a
                 href="https://trendibizz.com/guide"
                 target="_blank"

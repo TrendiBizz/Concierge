@@ -12,6 +12,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {createApi} from './api';
 import {StatusLine} from './StatusLine';
 import {copyText} from './clipboard';
+import {useNotify} from './Notify';
 
 type Brand = {name: string; accent: string; contact: string; logo?: string | null};
 type Suggestion = {
@@ -127,6 +128,7 @@ export function OnboardingHub({
   phoneStep: ReactNode;
 }) {
   const api = createApi(token);
+  const notify = useNotify();
   const [stage, setStage] = useState(1);
   const [completed, setCompleted] = useState<string[]>([]);
   const [launchedAt, setLaunchedAt] = useState<string | null>(null);
@@ -281,6 +283,7 @@ export function OnboardingHub({
       }) as {name?: string; accent?: string; contact?: string; logo_data?: string | null};
       setBrand({name: saved.name || name.trim(), accent: saved.accent || accent, contact: saved.contact || contact, logo: saved.logo_data || finalLogo});
       setStatus('Business identity saved.');
+      notify('Business identity saved.');
       await refresh();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save identity'); }
     setBusy(false);
@@ -331,6 +334,7 @@ export function OnboardingHub({
         await api('/owner/team-chat-webhook', 'PUT', {url: teamWebhook.trim()});
       }
       setStatus('Alert settings saved.');
+      notify('Alert settings saved.');
       await refresh();
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not save alerts'); }
     setBusy(false);
@@ -340,7 +344,9 @@ export function OnboardingHub({
     setBusy(true); setStatus('Queueing test alert email…');
     try {
       const res = await api('/owner/onboarding/test-alert', 'POST', {}) as {to?: string};
-      setStatus(`Test alert email queued to ${res.to || notifyEmail}. Check your inbox in a moment.`);
+      const msg = `Test alert email queued to ${res.to || notifyEmail}. Check your inbox in a moment.`;
+      setStatus(msg);
+      notify(msg);
     } catch (e) { setStatus(e instanceof Error ? e.message : 'Could not send test alert'); }
     setBusy(false);
   }
@@ -636,7 +642,7 @@ export function OnboardingHub({
               </div>
             ) : null}
             <HStack gap={2} style={{flexWrap: 'wrap'}}>
-              {snippet ? <Button label="Copy 1-line script" variant="secondary" onClick={() => void copyText(snippet).then(() => setStatus('Widget script copied.'))} /> : null}
+              {snippet ? <Button label="Copy 1-line script" variant="secondary" onClick={() => void copyText(snippet).then(() => { setStatus('Widget script copied.'); notify('Widget script copied.'); })} /> : null}
               {slug ? <a href={`https://chat.trendibizz.com/demo/${slug}`} target="_blank" rel="noopener noreferrer" style={{display: 'inline-flex', alignItems: 'center', padding: '0 8px', fontSize: 14}}>Open hosted preview ↗</a> : null}
             </HStack>
 

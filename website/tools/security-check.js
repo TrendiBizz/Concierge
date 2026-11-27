@@ -237,7 +237,22 @@
       renderError(err.message || "Invalid website");
       return;
     }
-    out.innerHTML = "<p class='fine'>Running light security check…</p>";
+    var aiBox = null;
+    if (window.TrendiUI && typeof window.TrendiUI.aiStatus === "function") {
+      out.textContent = "";
+      var statusCard = document.createElement("section");
+      statusCard.className = "snap-card";
+      out.appendChild(statusCard);
+      aiBox = window.TrendiUI.aiStatus(statusCard).thinking([
+        "Checking HTTPS and TLS redirects",
+        "Inspecting HTTP security headers",
+        "Probing common exposed paths",
+      ]);
+      window.setTimeout(function () { if (aiBox) aiBox.step(0, "done"); }, 500);
+      window.setTimeout(function () { if (aiBox) aiBox.step(1, "done"); }, 1100);
+    } else {
+      out.innerHTML = "<p class='fine'>Running light security check…</p>";
+    }
     fetch("/api/security-check", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -251,11 +266,13 @@
             err.data = data;
             throw err;
           }
+          if (aiBox) { aiBox.done(); aiBox = null; }
           data.mode = data.mode || "server";
           render(data);
         });
       })
       .catch(function (err) {
+        if (aiBox) { aiBox.step(2, "failed"); aiBox.done(); aiBox = null; }
         if (err.status === 429) {
           renderError(
             err.message || "Rate limited",
