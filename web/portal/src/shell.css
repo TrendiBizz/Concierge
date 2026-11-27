@@ -372,6 +372,15 @@
   display: grid;
   gap: 8px;
 }
+.meta-error-box {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #dc2626;
+  background: rgba(220, 38, 38, 0.09);
+  display: grid;
+  gap: 8px;
+}
 .meta-activity-post {
   display: flex;
   gap: 12px;

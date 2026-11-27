@@ -381,8 +381,190 @@ def test_social_ui_has_meta_review_flows_tooltips_and_clean_copy():
         "business_management",
         "instagram_basic",
         "instagram_content_publish",
+        "Recent Page photos",
+        "No photos yet",
+        "meta-error-box",
+        "businessLinkError",
+        'referrerPolicy="no-referrer"',
     ):
         assert required in engage, f"Missing expected Meta App Review UI element: {required}"
     # Guard against forbidden promotional word in Social UI copy
     social_section = engage[engage.index("export function Social"):]
     assert not re.search(r"\bfree\b", social_section, re.IGNORECASE), "Copy must not use the word 'free'"
+
+
+def test_studio_csp_allows_meta_cdn_images():
+    from app.security import STUDIO_CSP
+
+    img_src = next(part.strip() for part in STUDIO_CSP.split(";") if part.strip().startswith("img-src"))
+    for origin in ("https://*.fbcdn.net", "https://*.fbsbx.com", "https://*.cdninstagram.com", "https://graph.facebook.com"):
+        assert origin in img_src, f"STUDIO_CSP img-src missing {origin}: {img_src}"
+
+
+def test_public_media_base_prefers_studio_origin_over_chat_host(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "public_base_url", "https://chat.trendibizz.com", raising=False)
+    monkeypatch.setattr(s, "social_facebook_callback", "https://concierge.trendibizz.com/owner/social/oauth/callback", raising=False)
+    monkeypatch.setattr(s, "social_public_media_base", "", raising=False)
+    monkeypatch.delenv("SOCIAL_PUBLIC_MEDIA_BASE", raising=False)
+    assert social.config.public_media_base_url() == "https://concierge.trendibizz.com"
+
+
+@needs_db
+def test_uploaded_png_publishes_to_fb_multipart_and_ig_public_jpeg_and_business_already_owned(tmp_path, monkeypatch):
+    import io
+    from PIL import Image
+
+    _configure_meta(monkeypatch, live=True)
+    s = get_settings()
+    # Reproduce live VPS mismatch where PUBLIC_BASE_URL points to chat.trendibizz.com
+    monkeypatch.setattr(s, "public_base_url", "https://chat.trendibizz.com", raising=False)
+    monkeypatch.setattr(s, "social_media_dir", str(tmp_path / "social-media"), raising=False)
+    monkeypatch.delenv("SOCIAL_PUBLIC_MEDIA_BASE", raising=False)
+
+    async def _go(pool):
+        t = await tenants.create("Trendi Live Test", "https://trendi.example", "trendi-live-test")
+        inv = await owner_auth.make_invite(t["id"], "owner@trendi.test", "owner", "invite")
+        sess = await owner_auth.accept_invite(inv)
+        headers = {"Authorization": f"Bearer {sess['access_token']}"}
+
+        await social.store.ensure_customer("trendi-live-test", "Trendi Live Test")
+        fb_account_id = await social.store.upsert_verified_account(
+            customer_slug="trendi-live-test",
+            network="facebook",
+            external_id="270235042840463",
+            display_name="Trendi",
+            access_token="fb-page-tok",
+            granted_scopes=social.oauth.META_REVIEW_SCOPES,
+        )
+        ig_account_id = await social.store.upsert_verified_account(
+            customer_slug="trendi-live-test",
+            network="instagram",
+            external_id="17841465235622550",
+            display_name="trendi456",
+            access_token="fb-page-tok",
+            granted_scopes=social.oauth.META_REVIEW_SCOPES,
+        )
+        await social.store.upsert_meta_session(
+            customer_slug="trendi-live-test",
+            meta_user_id="900099",
+            meta_user_name="Jo van der Burgh",
+            user_access_token="user-tok-123",
+            granted_scopes=social.oauth.META_REVIEW_SCOPES,
+        )
+
+        # Build a real RGBA PNG image (Meta Instagram rejects PNG; must normalize to RGB JPEG)
+        img = Image.new("RGBA", (320, 320), (40, 140, 220, 200))
+        png_buf = io.BytesIO()
+        img.save(png_buf, format="PNG")
+        png_bytes = png_buf.getvalue()
+
+        captured: dict = {}
+
+        async def fake_publish_http(
+            method, url, *, headers=None, params=None, json_body=None, data=None, files=None, max_retries=2, timeout=20.0
+        ):
+            if method == "POST" and url.endswith("/270235042840463/photos"):
+                captured["fb_files"] = files
+                captured["fb_data"] = data
+                assert files and "source" in files, "FB uploaded image should use multipart source"
+                fname, fbytes, fmime = files["source"]
+                assert fmime == "image/jpeg"
+                assert fbytes[:3] == b"\xff\xd8\xff"
+                return 200, {"id": "fb_photo_1", "post_id": "270235042840463_901"}, 0
+            if method == "GET" and url.endswith("/270235042840463_901"):
+                return 200, {"permalink_url": "https://www.facebook.com/270235042840463/posts/901"}, 0
+            if method == "POST" and url.endswith("/17841465235622550/media"):
+                captured["ig_image_url"] = (data or {}).get("image_url", "")
+                return 200, {"id": "ig_creation_1"}, 0
+            if method == "GET" and "ig_creation_1" in url:
+                return 200, {"status_code": "FINISHED"}, 0
+            if method == "POST" and url.endswith("/17841465235622550/media_publish"):
+                return 200, {"id": "ig_media_1"}, 0
+            if method == "GET" and url.endswith("/ig_media_1"):
+                return 200, {"id": "ig_media_1", "permalink": "https://www.instagram.com/p/CTrendi901/"}, 0
+            raise AssertionError(f"Unexpected publish HTTP call: {method} {url}")
+
+        monkeypatch.setattr(social.publishers, "_request_with_retry", fake_publish_http)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # 1. Upload PNG -> stored as normalized JPEG
+            up = await client.post(
+                "/owner/social/media",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                content=png_bytes,
+            )
+            assert up.status_code == 200, up.text
+            up_body = up.json()
+            assert up_body["mime"] == "image/jpeg"
+            media_ref = f"upload:{up_body['id']}"
+
+            # 2. Create draft with uploaded ref & publish-now
+            draft = await client.post(
+                "/owner/social/posts",
+                headers=headers,
+                json={
+                    "content": "Live photo upload test caption",
+                    "account_ids": [fb_account_id, ig_account_id],
+                    "media": [media_ref],
+                },
+            )
+            assert draft.status_code == 200, draft.text
+            post_id = draft.json()["id"]
+
+            pub = await client.post(f"/owner/social/posts/{post_id}/publish-now", headers=headers)
+            assert pub.status_code == 200, pub.text
+            pub_body = pub.json()
+            assert pub_body["status"] == "published"
+            by_net = {r["network"]: r for r in pub_body["results"]}
+            assert by_net["facebook"]["ok"] is True
+            assert by_net["instagram"]["ok"] is True
+
+            # 3. Verify IG received a public concierge.trendibizz.com JPEG URL that serves 200 on HEAD and GET
+            ig_url = captured["ig_image_url"]
+            assert ig_url.startswith("https://concierge.trendibizz.com/api/v1/social-media/sm1_"), ig_url
+            assert ig_url.endswith(".jpg"), ig_url
+            path = urlsplit(ig_url).path
+            head_res = await client.head(path)
+            assert head_res.status_code == 200, head_res.text
+            assert head_res.headers["content-type"].startswith("image/jpeg")
+            get_res = await client.get(path)
+            assert get_res.status_code == 200
+            assert get_res.headers["content-type"].startswith("image/jpeg")
+            assert get_res.content[:3] == b"\xff\xd8\xff"
+
+            # 4. Verify Business link already-owned (non-3944 Meta error + readback confirmation) AND real error
+            async def fake_biz_http(method, url, *, headers=None, params=None, data=None, json_body=None, auth=None, timeout=15.0):
+                if url.endswith("/me/businesses"):
+                    return 200, {"data": [{"id": "801162021859410", "name": "Trendi", "primary_page": {"id": "270235042840463", "name": "Trendi"}}]}
+                if method == "POST" and url.endswith("/801162021859410/owned_pages"):
+                    if data and data.get("page_id") == "270235042840463":
+                        return 400, {"error": {"code": 100, "message": "Invalid parameter: page cannot be claimed again"}}
+                    return 400, {"error": {"code": 200, "message": "Permissions error: user lacks admin access on target page"}}
+                if method == "GET" and url.endswith("/801162021859410/owned_pages"):
+                    return 200, {"data": [{"id": "270235042840463", "name": "Trendi"}]}
+                if method == "GET" and url.endswith("/me/accounts"):
+                    return 200, {"data": [{"id": "270235042840463", "name": "Trendi"}, {"id": "999111222333", "name": "Other Page"}]}
+                raise AssertionError(f"Unexpected Meta HTTP call: {method} {url}")
+
+            monkeypatch.setattr(social.oauth, "_http_json", fake_biz_http)
+
+            already = await client.post(
+                "/owner/social/meta/businesses/link-page",
+                headers=headers,
+                json={"business_id": "801162021859410", "page_id": "270235042840463", "relation": "owned"},
+            )
+            assert already.status_code == 200, already.text
+            assert already.json()["ok"] is True
+            assert already.json()["access_status"] == "ALREADY_LINKED"
+            assert "Page is linked to Trendi" in already.json()["message"]
+
+            failed = await client.post(
+                "/owner/social/meta/businesses/link-page",
+                headers=headers,
+                json={"business_id": "801162021859410", "page_id": "999111222333", "relation": "owned"},
+            )
+            assert failed.status_code == 400
+            assert "Meta error (200): Permissions error" in failed.json()["detail"]
+
+    run(_go)

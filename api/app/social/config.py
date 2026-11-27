@@ -260,3 +260,32 @@ def social_media_dir() -> str:
         return custom
     base = (get_settings().media_dir or "/data/media").rstrip("/")
     return f"{base}/social"
+
+
+def public_media_base_url() -> str:
+    """Public HTTPS origin that serves `/api/v1/social-media/*` to external crawlers (Meta, TikTok, GBP).
+
+    Production may set `PUBLIC_BASE_URL` to the chat host (`https://chat.trendibizz.com`),
+    while `/api/v1/social-media/*` is routed on the Studio/owner host (`https://concierge.trendibizz.com`).
+    Prefer `SOCIAL_PUBLIC_MEDIA_BASE`, then the Studio/OAuth callback origin, and only fall back to
+    `PUBLIC_BASE_URL` when no Studio origin is configured.
+    """
+    explicit = _env_or_setting("social_public_media_base", "SOCIAL_PUBLIC_MEDIA_BASE")
+    if explicit:
+        parsed = urlsplit(explicit)
+        if parsed.scheme in ("https", "http") and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    s = get_settings()
+    for candidate in (
+        _env_or_setting("social_facebook_callback", "SOCIAL_FACEBOOK_CALLBACK"),
+        getattr(s, "onboarding_url", ""),
+        getattr(s, "owner_portal_url", ""),
+        getattr(s, "public_base_url", ""),
+    ):
+        raw = (candidate or "").strip()
+        if not raw:
+            continue
+        parsed = urlsplit(raw)
+        if parsed.scheme == "https" and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return "https://concierge.trendibizz.com"

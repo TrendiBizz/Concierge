@@ -22,7 +22,7 @@ export function describeFailure(status: number, payload: unknown): string {
   // A 5xx detail is not ours to show: behind Cloudflare that is the *edge's* HTML error page or a
   // proxy message ("The origin web server returned an invalid or incomplete response to
   // Cloudflare") baked into a JSON field. Owners get a sentence, never that.
-  const trusted = detail && status < 500 && !detail.includes('<') && detail.length <= 200;
+  const trusted = detail && status < 500 && !detail.includes('<') && detail.length <= 400;
   if (trusted) return detail;
   if (EDGE_STATUSES.includes(status)) {
     return 'That took too long at our end (' + status + '). Nothing was lost — try again.';

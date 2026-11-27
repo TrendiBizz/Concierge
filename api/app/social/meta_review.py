@@ -44,10 +44,19 @@ def _graph_error_detail(body: dict, fallback: str) -> tuple[int | None, str]:
     return None, fallback
 
 
+def _page_avatar_url(page: dict, page_id: str) -> str:
+    pic_url = str(((page.get("picture") or {}).get("data") or {}).get("url") or "").strip()
+    if pic_url:
+        return pic_url
+    if page_id:
+        return f"{_graph_base()}/{page_id}/picture?type=large"
+    return ""
+
+
 def _extract_page_summary(page: dict, connected_fb: dict[str, dict], connected_ig: dict[str, dict]) -> dict:
     page_id = str(page.get("id") or "").strip()
     page_name = str(page.get("name") or page_id).strip()
-    pic_url = str(((page.get("picture") or {}).get("data") or {}).get("url") or "").strip()
+    pic_url = _page_avatar_url(page, page_id)
     ig = page.get("instagram_business_account") or {}
     ig_id = str(ig.get("id") or "").strip()
     ig_info = None
@@ -104,7 +113,7 @@ async def list_meta_pages(customer_slug: str) -> dict:
             fallback_pages.append({
                 "page_id": ext_id,
                 "name": acct["display_name"],
-                "avatar_url": str(meta.get("avatar_url") or ""),
+                "avatar_url": str(meta.get("avatar_url") or "") or (f"{_graph_base()}/{ext_id}/picture?type=large" if ext_id else ""),
                 "category": str(meta.get("category") or ""),
                 "followers_count": meta.get("followers_count"),
                 "fan_count": meta.get("fan_count"),
@@ -180,7 +189,7 @@ async def select_meta_page(customer_slug: str, page_id: str, *, include_instagra
     if not page_token:
         raise HTTPException(400, "Meta did not return a Page access token for the selected Page")
 
-    pic_url = str(((match.get("picture") or {}).get("data") or {}).get("url") or "").strip()
+    pic_url = _page_avatar_url(match, clean_page_id)
     ig = match.get("instagram_business_account") or {}
     ig_id = str(ig.get("id") or "").strip()
     ig_username = str(ig.get("username") or ig.get("name") or "").strip()
@@ -349,9 +358,9 @@ async def link_page_to_business(
     gbase = _graph_base()
     headers = {"Authorization": f"Bearer {session['user_access_token']}"}
 
-    # Verify Business belongs to user and get its display name
+    # Verify Business belongs to user and get its display name (plus primary_page for already-owned detection)
     b_status, b_body = await oauth._http_json(
-        "GET", f"{gbase}/me/businesses", params={"fields": "id,name", "limit": "50"}, headers=headers
+        "GET", f"{gbase}/me/businesses", params={"fields": "id,name,primary_page{id,name}", "limit": "50"}, headers=headers
     )
     if b_status >= 300:
         _, msg = _graph_error_detail(b_body, "Could not verify Meta Business Portfolio")
@@ -360,6 +369,7 @@ async def link_page_to_business(
     if not biz_match:
         raise HTTPException(404, "Selected Meta Business Portfolio was not found for this account")
     business_name = str(biz_match.get("name") or clean_biz_id).strip()
+    primary_page_id = str(((biz_match.get("primary_page") or {}).get("id")) or "").strip()
 
     # Resolve Page display name from connected accounts or /me/accounts
     accounts = await store.list_accounts(customer_slug)
@@ -397,16 +407,34 @@ async def link_page_to_business(
         access_status = str(l_body.get("access_status") or "CONFIRMED").upper()
     else:
         err_code, err_msg = _graph_error_detail(l_body, "Could not link Page to Meta Business")
-        # Error 3944: Business Manager already has access to this Page -> verify via readback
-        if err_code == 3944 or "already has access" in err_msg.lower():
-            edge = "owned_pages" if relation == "owned" else "client_pages"
-            v_status, v_body = await oauth._http_json(
-                "GET", f"{gbase}/{clean_biz_id}/{edge}", params={"fields": "id,name", "limit": "50"}, headers=headers
+        err_lower = err_msg.lower()
+        already_hint = err_code == 3944 or any(
+            phrase in err_lower
+            for phrase in (
+                "already has access",
+                "already owned",
+                "already linked",
+                "already claimed",
+                "already associated",
+                "already been added",
+                "primary page",
             )
-            verified_ids = {str(p.get("id") or "") for p in (v_body.get("data") or [])} if v_status < 300 else set()
-            access_status = "ALREADY_LINKED" if (clean_page_id in verified_ids or v_status < 300) else "CONFIRMED"
+        )
+        edge = "owned_pages" if relation == "owned" else "client_pages"
+        v_status, v_body = await oauth._http_json(
+            "GET", f"{gbase}/{clean_biz_id}/{edge}", params={"fields": "id,name", "limit": "100"}, headers=headers
+        )
+        verified_ids = {str(p.get("id") or "") for p in (v_body.get("data") or [])} if v_status < 300 else set()
+        already_in_business = (
+            clean_page_id in verified_ids
+            or (relation == "owned" and primary_page_id == clean_page_id)
+            or already_hint
+        )
+        if already_in_business:
+            access_status = "ALREADY_LINKED"
         else:
-            raise HTTPException(400, f"Meta Business link failed: {err_msg}")
+            prefix = f"Meta error ({err_code})" if err_code is not None else "Meta error"
+            raise HTTPException(400, f"{prefix}: {err_msg}")
 
     linked_at = datetime.now(timezone.utc).isoformat()
     await store.update_meta_session_business(customer_slug, clean_biz_id, business_name)
@@ -430,11 +458,11 @@ async def link_page_to_business(
     )
 
     if access_status == "ALREADY_LINKED":
-        message = f"Verified: Facebook Page '{page_name}' is linked to business '{business_name}'."
+        message = f"Page is linked to {business_name}."
     elif access_status == "PENDING":
         message = f"Link request submitted for Facebook Page '{page_name}' under business '{business_name}' (Pending approval)."
     else:
-        message = f"Linked Facebook Page '{page_name}' to business '{business_name}' (Confirmed)."
+        message = f"Page is linked to {business_name} (Confirmed)."
 
     return {
         "ok": True,
@@ -500,13 +528,15 @@ async def get_page_activity(customer_slug: str, account_id: str, *, limit: int =
     ph_status, ph_body = await oauth._http_json(
         "GET",
         f"{gbase}/{page_id}/photos",
-        params={"type": "uploaded", "fields": "id,name,images,link,created_time", "limit": "6"},
+        params={"type": "uploaded", "fields": "id,name,images,picture,link,created_time", "limit": "6"},
         headers=headers,
     )
     if ph_status < 300:
         for ph in ph_body.get("data") or []:
             imgs = ph.get("images") or []
             img_url = str(imgs[0].get("source") or "") if imgs and isinstance(imgs[0], dict) else ""
+            if not img_url:
+                img_url = str(ph.get("picture") or "")
             if img_url:
                 photos.append({
                     "id": str(ph.get("id") or ""),
@@ -517,7 +547,7 @@ async def get_page_activity(customer_slug: str, account_id: str, *, limit: int =
                 })
 
     page_name = str(info_body.get("name") or creds["display_name"] or page_id).strip()
-    avatar_url = str(((info_body.get("picture") or {}).get("data") or {}).get("url") or "").strip()
+    avatar_url = _page_avatar_url(info_body, page_id)
     ig = info_body.get("instagram_business_account") or {}
     ig_info = (
         {

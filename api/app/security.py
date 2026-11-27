@@ -14,7 +14,7 @@ STUDIO_CSP = (
     "default-src 'self'; "
     "script-src 'self' 'wasm-unsafe-eval'; "
     "style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: blob:; "
+    "img-src 'self' data: blob: https://*.fbcdn.net https://*.fbsbx.com https://*.cdninstagram.com https://graph.facebook.com; "
     "font-src 'self' data:; "
     "media-src 'self' blob: data:; "
     "connect-src 'self' blob:; "

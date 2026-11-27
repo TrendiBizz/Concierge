@@ -7,6 +7,7 @@ token bound to the tenant and asset ID; raw filesystem paths are never exposed.
 """
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
@@ -22,6 +23,8 @@ from .. import crypto_vault, db
 from . import config as social_config
 
 _VALID_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_MEDIA_EXT_RE = re.compile(r"\.(jpe?g|png|webp|mp4|mov)$", re.IGNORECASE)
+_TOKEN_PREFIX = "sm1_"
 _MAX_BYTES = 64 * 1024 * 1024
 _CAPABILITY_TTL = 900  # 15 minutes
 
@@ -35,6 +38,29 @@ def _detect_video(data: bytes) -> tuple[str, str] | None:
     if len(data) >= 12 and data[4:8] == b"ftyp":
         return "video", "video/mp4"
     return None
+
+
+def _normalize_image_to_jpeg(data: bytes) -> tuple[bytes, int, int]:
+    """Validate an uploaded image and normalize it to RGB JPEG for Meta (IG requires JPEG)."""
+    with Image.open(io.BytesIO(data)) as img:
+        img.verify()
+    with Image.open(io.BytesIO(data)) as img:
+        fmt = (img.format or "").upper()
+        if fmt not in ("JPEG", "PNG", "WEBP"):
+            raise HTTPException(400, "Use a JPG/PNG/WebP image or MP4/MOV video")
+        width, height = img.size
+        if width <= 0 or height <= 0 or width > 16384 or height > 16384:
+            raise HTTPException(400, "Media dimensions are unsupported")
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            rgba = img.convert("RGBA")
+            bg = Image.new("RGB", rgba.size, (255, 255, 255))
+            bg.paste(rgba, mask=rgba.split()[-1])
+            rgb = bg
+        else:
+            rgb = img.convert("RGB")
+        buf = io.BytesIO()
+        rgb.save(buf, format="JPEG", quality=92, optimize=True)
+        return buf.getvalue(), width, height
 
 
 async def save_media(customer_slug: str, data: bytes) -> dict:
@@ -56,26 +82,9 @@ async def save_media(customer_slug: str, data: bytes) -> dict:
         kind, mime = vid
     else:
         try:
-            with Image.open(io.BytesIO(data)) as img:
-                img.verify()
-            with Image.open(io.BytesIO(data)) as img:
-                fmt = (img.format or "").upper()
-                if fmt not in ("JPEG", "PNG", "WEBP"):
-                    raise HTTPException(400, "Use a JPG/PNG/WebP image or MP4/MOV video")
-                width, height = img.size
-                if width <= 0 or height <= 0 or width > 16384 or height > 16384:
-                    raise HTTPException(400, "Media dimensions are unsupported")
-                kind = "image"
-                if fmt == "PNG":
-                    mime = "image/png"
-                elif fmt == "WEBP":
-                    # Normalize WebP to JPEG for maximum social network compatibility
-                    buf = io.BytesIO()
-                    img.convert("RGB").save(buf, format="JPEG", quality=90)
-                    out_bytes = buf.getvalue()
-                    mime = "image/jpeg"
-                else:
-                    mime = "image/jpeg"
+            out_bytes, width, height = _normalize_image_to_jpeg(data)
+            kind = "image"
+            mime = "image/jpeg"
         except HTTPException:
             raise
         except Exception as exc:
@@ -145,25 +154,42 @@ def mint_download_token(customer_slug: str, asset_id: str, ttl_seconds: int = _C
         "a": asset_id,
         "exp": int(time.time()) + ttl_seconds,
     }, separators=(",", ":"))
-    return crypto_vault.encrypt_text(payload, aad="social-public-media")
+    envelope = crypto_vault.encrypt_text(payload, aad="social-public-media")
+    encoded = base64.urlsafe_b64encode(envelope.encode("ascii")).decode("ascii").rstrip("=")
+    return _TOKEN_PREFIX + encoded
 
 
-def public_media_url(customer_slug: str, asset_id: str, base_url: str) -> str:
+def public_media_url(
+    customer_slug: str, asset_id: str, base_url: str | None = None, *, ext: str = ".jpg"
+) -> str:
+    origin = (base_url or social_config.public_media_base_url()).rstrip("/")
     tok = mint_download_token(customer_slug, asset_id)
-    return f"{base_url.rstrip('/')}/api/v1/social-media/{tok}"
+    suffix = ext if ext.startswith(".") else (f".{ext}" if ext else "")
+    return f"{origin}/api/v1/social-media/{tok}{suffix}"
 
 
 async def resolve_download_token(token: str) -> tuple[str, bytes]:
     if not token or len(token) > 2048:
         raise HTTPException(404, "Media unavailable")
+    clean = _MEDIA_EXT_RE.sub("", token.strip())
     try:
-        raw = crypto_vault.decrypt_text(token, aad="social-public-media", allow_plaintext=False)
+        if clean.startswith(_TOKEN_PREFIX):
+            b64 = clean[len(_TOKEN_PREFIX):]
+            pad = "=" * (-len(b64) % 4)
+            envelope = base64.urlsafe_b64decode((b64 + pad).encode("ascii")).decode("ascii")
+        else:
+            envelope = clean
+        raw = crypto_vault.decrypt_text(envelope, aad="social-public-media", allow_plaintext=False)
         data = json.loads(raw)
-    except (ValueError, json.JSONDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise HTTPException(404, "Media unavailable") from exc
     if int(data.get("exp") or 0) < int(time.time()):
         raise HTTPException(404, "Media link expired")
     customer_slug = str(data.get("c") or "")
     asset_id = str(data.get("a") or "")
     meta, content = await load_media(customer_slug, asset_id)
-    return str(meta.get("mime") or "application/octet-stream"), content
+    mime = str(meta.get("mime") or "application/octet-stream")
+    if meta.get("kind") == "image" and mime != "image/jpeg":
+        content, _, _ = _normalize_image_to_jpeg(content)
+        mime = "image/jpeg"
+    return mime, content
