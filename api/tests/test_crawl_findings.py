@@ -12,14 +12,18 @@ ROOT = pathlib.Path(__file__).resolve().parents[2] / "web" / "portal" / "src"
 def test_the_command_palette_never_highlights_a_row_it_is_not_showing():
     """9 rows drawn, 16 commands reachable: 8 ArrowDowns landed on the last visible row, the 9th
     moved the highlight to a row that was not rendered, and Enter then navigated somewhere the
-    person never saw."""
+    person never saw. Now powered by cmdk (scrollable list, scrolls active item into view)."""
     source = (ROOT / "CmdK.tsx").read_text()
     assert "matches.slice(0, 9)" not in source, "the list is drawn with a fixed slice again"
-    assert "windowStart" in source, "nothing keeps the visible window in step with the highlight"
-    assert "matches.slice(windowStart" in source
-    assert "setWindowStart(active" in source, "the window does not follow the highlight"
-    # the highlight may reach the last match, so the window must be able to show it
-    assert "Math.min(current + 1, matches.length - 1)" in source
+    if "from 'cmdk'" in source:
+        assert "<Cmdk.List" in source and "<Cmdk.Item" in source, "cmdk must render all matched items in Cmdk.List"
+        assert ".slice(" not in source, "cmdk list must not slice away reachable items"
+    else:
+        assert "windowStart" in source, "nothing keeps the visible window in step with the highlight"
+        assert "matches.slice(windowStart" in source
+        assert "setWindowStart(active" in source, "the window does not follow the highlight"
+        # the highlight may reach the last match, so the window must be able to show it
+        assert "Math.min(current + 1, matches.length - 1)" in source
 
 
 def test_a_search_with_no_results_does_not_claim_the_business_has_no_data():

@@ -123,7 +123,7 @@ def test_the_page_cannot_run_inline_script():
     page = PAGE.read_text()
     inline = [tag for tag in re.findall(r"<script[^>]*>", page) if "src=" not in tag and "ld+json" not in tag]
     assert inline == []
-    assert 'src="/tools/missed-call-cost-calculator.js"' in page
+    assert re.search(r'src="/tools/missed-call-cost-calculator\.js(\?[^"]*)?"', page)
 
 
 def test_the_page_states_what_it_leaves_out():

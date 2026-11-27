@@ -136,3 +136,23 @@ def test_site_pages_and_scripts_wire_trendi_ui():
     for tool in ("tools/site-check.js", "tools/robots-ai-check.js"):
         src = (web / tool).read_text(encoding="utf-8")
         assert "TrendiUI.aiStatus" in src, f"missing TrendiUI.aiStatus in {tool}"
+
+
+def test_studio_uses_real_ui_libraries_with_brand_restyle():
+    portal = ROOT / "web" / "portal"
+    pkg = json.loads((portal / "package.json").read_text(encoding="utf-8"))
+    deps = pkg.get("dependencies", {})
+    for lib in ("sonner", "cmdk", "@number-flow/react", "vaul"):
+        assert lib in deps, f"missing {lib} in web/portal/package.json"
+
+    assert "from 'sonner'" in (portal / "src/Notify.tsx").read_text(encoding="utf-8")
+    assert "from 'cmdk'" in (portal / "src/CmdK.tsx").read_text(encoding="utf-8")
+    assert "from 'vaul'" in (portal / "src/TabGuideDrawer.tsx").read_text(encoding="utf-8")
+    for f in ("src/Home.tsx", "src/Pipeline.tsx", "src/Quotes.tsx"):
+        assert "from '@number-flow/react'" in (portal / f).read_text(encoding="utf-8")
+
+    css = (portal / "src/shell.css").read_text(encoding="utf-8")
+    assert "Plus Jakarta Sans" in css and "#7c5cff" in css
+    assert "prefers-reduced-motion: reduce" in css
+    assert (portal / "public/fonts/plus-jakarta-sans-var.woff2").exists()
+    assert (portal / "dist/index.html").exists()

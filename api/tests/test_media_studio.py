@@ -113,7 +113,10 @@ def test_the_shell_has_a_command_palette_and_the_studio_has_one_status_line():
     palette = (ROOT / "web" / "portal" / "src" / "CmdK.tsx").read_text()
     assert "<CmdK commands=" in shell, "the palette is not mounted"
     assert "(event.metaKey || event.ctrlKey)" in palette, "⌘K/Ctrl-K is not wired"
-    assert "event.key === 'Enter'" in palette and "ArrowDown" in palette
+    assert (
+        ("from 'cmdk'" in palette and "onSelect=" in palette)
+        or ("event.key === 'Enter'" in palette and "ArrowDown" in palette)
+    ), "command palette must handle keyboard selection"
     styles = (ROOT / "web" / "portal" / "src" / "shell.css").read_text()
     assert ":focus-visible" in styles, "keyboard focus is invisible"
     assert "prefers-reduced-motion" in styles, "motion ignores the user's preference"
