@@ -1,0 +1,6 @@
+Gambetta (display serif) and Switzer (text sans)
+Source: Fontshare, https://www.fontshare.com (Indian Type Foundry)
+Files: gambetta-500/600/700.woff2, switzer-400/500/600.woff2, downloaded 2026-11-28 from the Fontshare CDN (api.fontshare.com css endpoint).
+Licence: ITF Free Font License, which Fontshare describes as free for personal and commercial use.
+Before relying on this, read the licence text on each font's Fontshare page (Gambetta, Switzer) and keep a copy here.
+Used by: website/home-v3.css (homepage only). Plus Jakarta Sans (OFL.txt) remains in use on every other page.

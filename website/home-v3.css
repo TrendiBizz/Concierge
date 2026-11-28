@@ -1,0 +1,118 @@
+/* Home v3 · "violet turned up" · Gambetta + Switzer · light and dark
+   Loaded by index.html ONLY, and every rule is scoped to body.page-index, so no other page changes.
+   Tokens follow the shared names in styles.css; dark follows the visitor's system setting, as the site already does.
+   Fonts are self-hosted (Fontshare, ITF Free Font License, see /fonts/FONTSHARE-NOTES.txt). */
+
+@font-face{font-family:"Gambetta";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/gambetta-500.woff2) format("woff2")}
+@font-face{font-family:"Gambetta";font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/gambetta-600.woff2) format("woff2")}
+@font-face{font-family:"Gambetta";font-weight:700;font-style:normal;font-display:swap;src:url(/fonts/gambetta-700.woff2) format("woff2")}
+@font-face{font-family:"Switzer";font-weight:400;font-style:normal;font-display:swap;src:url(/fonts/switzer-400.woff2) format("woff2")}
+@font-face{font-family:"Switzer";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/switzer-500.woff2) format("woff2")}
+@font-face{font-family:"Switzer";font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/switzer-600.woff2) format("woff2")}
+
+/* ---------- tokens: light ---------- */
+body.page-index{
+  --font:"Switzer",system-ui,sans-serif;
+  --font-display:"Gambetta","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --paper:#f1ebfa; --wash-soft:#e9e0f6; --wash:#e5dbf5; --card:#fbf8ff;
+  --ink:#1a1030; --ink-2:#3e3160; --muted:#594d78;
+  --rule:#d7cbea; --rule-strong:#b4a3d6;
+  --accent:#5830ae; --accent-soft:#7a55c4; --accent-line:#b9a6e0;
+  --btn:#5830ae; --btn-hover:#46248a; --on-accent:#ffffff;
+  --deep:#1a1030; --pink:#a3198a;
+  --hi:#ff5caa; --on-hi:#1a1030;
+  --band-bg:#1a1030; --band-ink:#f4eeff; --band-muted:#cfc2ea;
+  /* derived aliases must be re-declared here, because styles.css resolves them at :root */
+  --bg:var(--paper); --surface:var(--card); --tint:var(--wash-soft); --surface-tint:var(--wash-soft);
+  --line:var(--rule); --line-strong:var(--rule-strong);
+  --navy:var(--accent); --navy-deep:var(--btn-hover); --navy-raised:var(--accent-soft); --navy-line:var(--accent-line);
+  --lime:var(--btn); --lime-press:var(--btn-hover); --pink-ink:var(--pink);
+  --on-navy:var(--on-accent);
+  font-family:var(--font);font-weight:400;
+}
+
+/* ---------- tokens: dark ---------- */
+@media(prefers-color-scheme:dark){
+  body.page-index{
+    --paper:#150b28; --wash-soft:#1b0f35; --wash:#20123f; --card:#20123f;
+    --ink:#f4eeff; --ink-2:#d8ccf0; --muted:#b2a5d0;
+    --rule:#33215c; --rule-strong:#4b3480;
+    --accent:#b79cff; --accent-soft:#a98bf5; --accent-line:#5b3f94;
+    --btn:#b79cff; --btn-hover:#a07ef5; --on-accent:#150b28;
+    --deep:#0f0820; --pink:#ff8ac8;
+    --hi:#ff5caa; --on-hi:#150b28;
+    --band-bg:#5830ae; --band-ink:#ffffff; --band-muted:#e2d8fa;
+    --bg:var(--paper); --surface:var(--card); --tint:var(--wash-soft); --surface-tint:var(--wash-soft);
+    --line:var(--rule); --line-strong:var(--rule-strong);
+    --navy:var(--accent); --navy-deep:var(--btn-hover); --navy-raised:var(--accent-soft); --navy-line:var(--accent-line);
+    --lime:var(--btn); --lime-press:var(--btn-hover); --pink-ink:var(--pink);
+    --on-navy:var(--on-accent);
+  }
+}
+
+/* ---------- type ---------- */
+body.page-index h1,
+body.page-index h2,
+body.page-index h3,
+body.page-index .svc-panel h3,
+body.page-index summary{font-family:var(--font-display)}
+body.page-index h1{font-weight:600}
+body.page-index h2,body.page-index h3{font-weight:700}
+body.page-index nav.main>a,body.page-index .btn{font-family:var(--font);font-weight:600}
+
+/* ---------- hero ---------- */
+body.page-index .refresh-home{background:none}
+body.page-index .hero h1{font-size:clamp(2.75rem,5.4vw,4.9rem);line-height:1.02;letter-spacing:-.035em;margin-bottom:28px}
+body.page-index .accent-word{
+  background:var(--hi);color:var(--on-hi);padding:0 .1em;border-radius:6px;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+}
+body.page-index .hero .lead{font-size:1.3rem;line-height:1.55;color:var(--ink-2);max-width:34rem}
+body.page-index .refresh-text-link{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--hi);text-decoration-thickness:3px;text-underline-offset:6px}
+
+/* the tick list becomes a row of luggage tags */
+body.page-index .feature-cloud{display:flex;flex-wrap:wrap;gap:10px}
+body.page-index .feature-cloud span{
+  background:var(--card);color:var(--ink);border:1.5px solid var(--ink);
+  border-radius:4px 14px 14px 4px;padding:5px 14px 5px 12px;font-size:.8rem;font-weight:500;line-height:1.4;
+}
+
+/* walkthrough: flat, no gradient */
+body.page-index .walkthrough{background:var(--card);border:1.5px solid var(--ink);border-radius:4px;box-shadow:none}
+body.page-index .walkthrough-launch{background:var(--band-bg);color:var(--band-ink)}
+body.page-index .walkthrough-launch strong,
+body.page-index .walkthrough-launch span{color:var(--band-ink)}
+body.page-index .walkthrough-launch .big-play{color:var(--hi)}
+body.page-index .walkthrough-launch .play-pill{background:var(--hi);color:var(--on-hi);border-color:var(--hi)}
+
+/* ---------- sections: rules, not boxes ---------- */
+body.page-index main>section{border-top:1px solid var(--rule)}
+body.page-index main>section:first-child{border-top:0}
+body.page-index h2{font-size:clamp(2rem,4.6vw,3.6rem);line-height:1.04;letter-spacing:-.03em;max-width:none}
+body.page-index .section--surface{background:var(--wash-soft)}
+body.page-index .svc-panel{background:none;border:0;border-top:2px solid var(--ink);border-radius:0;padding:28px 0 36px}
+body.page-index .svc-panel{padding:28px 0 36px}
+/* refresh.css tints panels 2 and 3 peach and green (by id); this page is violet, ink and pink only */
+body.page-index #svc-concierge,body.page-index #svc-seo,body.page-index #svc-pen{background:transparent}
+body.page-index .steps li{background:none;border:0;border-top:2px solid var(--ink);border-radius:0;padding:24px 0 0}
+body.page-index .steps li::before{display:inline-grid;place-items:center;width:44px;height:44px;margin-bottom:14px;background:var(--hi);color:var(--on-hi);border-radius:4px;font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1;padding:0}
+body.page-index .grid>a,
+body.page-index .tools-row>a{background:none;border:0;border-top:1px solid var(--rule-strong);border-radius:0;padding:22px 0}
+body.page-index details{background:none;border:0;border-top:1px solid var(--rule-strong);border-radius:0;padding-inline:0;margin:0}
+body.page-index details:last-of-type{border-bottom:1px solid var(--rule-strong)}
+body.page-index details summary{font-size:1.2rem}
+
+/* ---------- the loud band ---------- */
+body.page-index .cta-band{background:var(--band-bg);color:var(--band-ink);border-radius:0}
+body.page-index .cta-band h2,
+body.page-index .cta-band p,
+body.page-index .cta-band label{color:var(--band-ink)}
+body.page-index .cta-band .fine,
+body.page-index .cta-band .eyebrow{color:var(--band-muted)}
+body.page-index .cta-band .btn,
+body.page-index .cta-band .btn.lime{background:var(--hi);color:var(--on-hi);border-color:var(--hi)}
+body.page-index .cta-band .btn:hover,
+body.page-index .cta-band .btn.lime:hover{background:#ff7fbb;color:var(--on-hi)}
+
+/* ---------- reduced motion ---------- */
+@media(prefers-reduced-motion:reduce){body.page-index *{animation:none!important;transition:none!important}}
