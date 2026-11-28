@@ -10,7 +10,7 @@ window.TRENDI = {
     domain: "trendibizz.com",
     email: "admin@trendibizz.com",
     currency: "USD",
-    taxNote: "Prices in USD. NZ customers: 15% GST included (not added on top). Outside NZ: 0% GST."
+    taxNote: "Prices in USD."
   },
 
   // Real proof only. Leave enabled: false until you have genuine numbers and permission to show them.

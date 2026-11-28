@@ -59,9 +59,9 @@ def test_a_retired_stripe_link_is_reported():
 def test_a_non_answer_tax_faq_is_reported_and_a_real_answer_is_not():
     faq = "<summary>Do prices include tax?</summary><p>Prices are in USD. </p>"
     assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": faq}) == [
-        "/pricing tax FAQ is a non-answer; it must say NZ GST is included and non-NZ is 0%"]
+        "/pricing tax FAQ is a non-answer; it must say prices include tax"]
     good = faq.replace(
         "Prices are in USD. ",
-        "Yes — the price shown is the full amount you pay. Prices are in USD. For New Zealand customers, 15% GST is included in the price (not added on top); customers outside New Zealand are GST-exempt (0%).",
+        "Yes — the price shown is the full amount you pay, and prices include tax. Prices are in USD.",
     )
     assert healthcheck.site_price_drift(CARDS, PLANS, {"/pricing": good}) == []

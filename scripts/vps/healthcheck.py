@@ -654,7 +654,7 @@ def site_price_drift(page_html: str, plan_js: str, pages: dict | None = None) ->
         if name == "/pricing" and question in html:
             snippet = html.split(question, 1)[1][:600]
             if "include tax" not in snippet and "GST is included" not in snippet:
-                problems.append("/pricing tax FAQ is a non-answer; it must say NZ GST is included and non-NZ is 0%")
+                problems.append("/pricing tax FAQ is a non-answer; it must say prices include tax")
     return problems
 
 

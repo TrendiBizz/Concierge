@@ -88,7 +88,7 @@ PRODUCTS = [
             "your prices and features are right everywhere, and a short report every week. "
             "3-month minimum, then month to month. Not included: ranking or AI-mention guarantees, "
             "a penetration test or security audit, paid ads management, or website redesign. "
-            "Prices are in USD, tax included."
+            "Prices are in USD."
         ),
         "url": f"{BASE}/seo",
         "price": "499.00 USD",
