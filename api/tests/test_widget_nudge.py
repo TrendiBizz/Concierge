@@ -34,3 +34,10 @@ def test_path_matching_logic():
     res = subprocess.run(["node", "-e", js], capture_output=True, text=True, timeout=20)
     assert res.returncode == 0, res.stderr
     assert res.stdout.strip() == "[true,true,false,true,false]"
+
+
+def test_openai_interrupt_truncates_played_audio():
+    src = WIDGET.read_text()
+    assert '"conversation.item.truncate"' in src
+    assert "audio_end_ms: playedMs" in src
+    assert "ev.item_id !== curItemId" in src
