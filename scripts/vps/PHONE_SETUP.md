@@ -30,7 +30,7 @@ Set `PHONE_VOICE_PROVIDER=openai_realtime` and `OPENAI_API_KEY` in `/opt/trendi/
 bridge. Model, voice and turn detection: `OPENAI_REALTIME_MODEL`, `OPENAI_REALTIME_VOICE`, `OPENAI_TURN_DETECTION`.
 - Only the Python bridge (`bridge:9510`) speaks OpenAI. The Rust shell is Gemini-only: keep the dialplan pointing at
   the Python bridge while this provider is selected.
-- Website voice (browser tokens) stays on Gemini.
+- Website mic voice is separate: `WEB_VOICE_PROVIDER` (`gemini_live` default, or `openai_realtime`; server mints the ephemeral token).
 - Compare providers before switching: `python api/tests/voice_ab_harness.py --live openai_realtime gemini_live --yes-spend`
   (costs money; uses macOS `say` for the caller). `--selftest` runs free against fakes.
 - Roll back by setting `PHONE_VOICE_PROVIDER=gemini_live`.

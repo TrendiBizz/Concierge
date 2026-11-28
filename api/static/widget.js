@@ -490,6 +490,8 @@
     var sink = null;
     var playing = [];
     var nextTime = 0;
+    var curItemId = null;
+    var curItemStart = 0;
     var pendingCalls = [];
     var userText = "";
     var completedInputIds = new Set();
@@ -543,6 +545,11 @@
     }
 
     function interrupt() {
+      if (voiceProvider === "openai_realtime" && curItemId && actx) {
+        var playedMs = Math.max(0, Math.floor((actx.currentTime - curItemStart) * 1000));
+        wsSend({ type: "conversation.item.truncate", item_id: curItemId, content_index: 0, audio_end_ms: playedMs });
+      }
+      curItemId = null;
       playing.forEach(function (s) {
         try {
           s.stop();
@@ -698,7 +705,14 @@
       } else if (t === "conversation.item.input_audio_transcription.completed") {
         if (ev.transcript && ev.transcript.trim()) logVoice("user", ev.transcript);
       } else if (t === "response.output_audio.delta") {
-        if (ev.delta) { setStatus("Speaking…"); playChunk(ev.delta); }
+        if (ev.delta) {
+          setStatus("Speaking…");
+          if (ev.item_id && ev.item_id !== curItemId) {
+            curItemId = ev.item_id;
+            curItemStart = Math.max(actx ? actx.currentTime + 0.02 : 0, nextTime);
+          }
+          playChunk(ev.delta);
+        }
       } else if (t === "response.output_audio_transcript.delta") {
         assistantText += ev.delta || "";
       } else if (t === "response.output_audio_transcript.done") {
