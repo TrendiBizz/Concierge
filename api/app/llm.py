@@ -111,6 +111,10 @@ def _record_success() -> None:
 def _kwargs(model: str, messages, tools, temperature, max_tokens, stream=False) -> dict:
     kwargs: dict = {"model": model, "messages": messages, "temperature": temperature,
                     "max_tokens": max_tokens}
+    if model.startswith(("gpt-5", "o1", "o3", "o4")):
+        # OpenAI reasoning models: max_tokens and non-default temperature are rejected with a 400.
+        kwargs.pop("max_tokens"); kwargs.pop("temperature")
+        kwargs["max_completion_tokens"] = max_tokens
     if stream:
         kwargs["stream"] = True
     if tools:
